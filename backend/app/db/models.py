@@ -1,0 +1,120 @@
+import enum
+import uuid
+from datetime import datetime
+
+from sqlalchemy import Enum, ForeignKey, JSON, String, UniqueConstraint
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.sql import func
+
+from app.db.session import Base
+
+
+class UserRole(str, enum.Enum):
+    FAMILY_CONTACT = "family_contact"
+    BARANGAY_RESPONDER = "barangay_responder"
+
+
+class ContactType(str, enum.Enum):
+    FAMILY = "family"
+    BARANGAY_RESPONDER = "barangay_responder"
+
+
+class RiskLevel(str, enum.Enum):
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+
+
+class TriggerType(str, enum.Enum):
+    INACTIVITY = "inactivity"
+    MOVEMENT = "movement"
+    SCREEN_IDLE = "screen_idle"
+    CHARGING = "charging"
+    SOS = "sos"
+    ML_FLAG = "ml_flag"
+    FALL_PATTERN = "fall_pattern"
+
+
+class AlertStatus(str, enum.Enum):
+    PENDING = "pending"
+    ACKNOWLEDGED = "acknowledged"
+    ESCALATED = "escalated"
+    RESOLVED = "resolved"
+    FALSE_POSITIVE = "false_positive"
+
+
+class User(Base):
+    """Cloud login for a family contact or barangay responder — seniors never log in here."""
+
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    username: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    password_hash: Mapped[str] = mapped_column(String(255))
+    role: Mapped[UserRole] = mapped_column(Enum(UserRole, name="user_role"))
+    # Scopes a barangay_responder's dashboard queries; unused for family contacts.
+    barangay: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    is_active: Mapped[bool] = mapped_column(default=True)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+    contacts: Mapped[list["Contact"]] = relationship(back_populates="user")
+
+
+class Senior(Base):
+    """Privacy-stripped cloud record: identifying info only — the Routine Fingerprint stays on-device."""
+
+    __tablename__ = "seniors"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    sync_id: Mapped[uuid.UUID] = mapped_column(
+        default=uuid.uuid4, unique=True, index=True
+    )
+    first_name: Mapped[str] = mapped_column(String(64))
+    last_name: Mapped[str] = mapped_column(String(64))
+    barangay: Mapped[str] = mapped_column(String(128))
+    address: Mapped[str] = mapped_column(String(255))
+    mobile_number: Mapped[str] = mapped_column(String(20))
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+    contacts: Mapped[list["Contact"]] = relationship(back_populates="senior")
+    alerts: Mapped[list["Alert"]] = relationship(back_populates="senior")
+
+
+class Contact(Base):
+    """Links a Users account (family or barangay responder) to a senior."""
+
+    __tablename__ = "contacts"
+    __table_args__ = (UniqueConstraint("senior_id", "user_id", name="uq_contact_pair"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    senior_id: Mapped[int] = mapped_column(ForeignKey("seniors.id"))
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    contact_type: Mapped[ContactType] = mapped_column(Enum(ContactType, name="contact_type"))
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+    senior: Mapped["Senior"] = relationship(back_populates="contacts")
+    user: Mapped["User"] = relationship(back_populates="contacts")
+
+
+class Alert(Base):
+    """Alert metadata only — never raw sensor readings; `sync_id` avoids cross-device ID collisions."""
+
+    __tablename__ = "alerts"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    sync_id: Mapped[uuid.UUID] = mapped_column(
+        default=uuid.uuid4, unique=True, index=True
+    )
+    senior_id: Mapped[int] = mapped_column(ForeignKey("seniors.id"))
+    risk_level: Mapped[RiskLevel] = mapped_column(Enum(RiskLevel, name="risk_level"))
+    trigger_type: Mapped[TriggerType] = mapped_column(Enum(TriggerType, name="trigger_type"))
+    status: Mapped[AlertStatus] = mapped_column(
+        Enum(AlertStatus, name="alert_status"), default=AlertStatus.PENDING
+    )
+    # Anonymous cluster ID captured only at alert-trigger time — never raw coordinates.
+    location_cluster_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    escalation_steps: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    resolved_at: Mapped[datetime | None] = mapped_column(nullable=True)
+
+    senior: Mapped["Senior"] = relationship(back_populates="alerts")

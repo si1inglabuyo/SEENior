@@ -1,0 +1,16 @@
+backend/venv/
+backend/**/__pycache__/
+backend/.env
+backend/*.db
+
+android-app/SEENior/.gradle/
+android-app/SEENior/.idea/
+android-app/SEENior/.kotlin/
+android-app/SEENior/build/
+android-app/SEENior/app/build/
+android-app/SEENior/local.properties
+*.iml
+
+barangay-dashboard/node_modules/
+barangay-dashboard/dist/
+barangay-dashboard/dist-ssr/
