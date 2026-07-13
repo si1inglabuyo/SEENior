@@ -32,6 +32,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.pup.seenior.ui.onboarding.components.PrimaryPillButton
 import com.pup.seenior.ui.theme.SeniorColors
+import android.content.Context
+import androidx.compose.ui.platform.LocalContext
+import com.pup.seenior.sensors.SensorCollectionService
 
 @Composable
 fun AllSetScreen(
@@ -39,9 +42,11 @@ fun AllSetScreen(
     onContinue: () -> Unit
 ) {
     var isSaving by remember { mutableStateOf(true) }
+    val context = LocalContext.current
 
     LaunchedEffect(Unit) {
         viewModel.submitOnboarding()
+        SensorCollectionService.start(context)
         isSaving = false
     }
 

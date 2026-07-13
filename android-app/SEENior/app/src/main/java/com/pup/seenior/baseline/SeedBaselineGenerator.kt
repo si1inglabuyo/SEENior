@@ -2,7 +2,7 @@ package com.pup.seenior.baseline
 
 import com.pup.seenior.database.entities.Baseline
 import com.pup.seenior.database.entities.SeniorOnboarding
-
+import java.util.Calendar
 /**
  * Converts onboarding questionnaire answers into conservative, wide-margin seed
  * Baseline rows (warm-start) so detection can run before 14 days of real sensor
@@ -69,6 +69,20 @@ object SeedBaselineGenerator {
             TimeBlockWindow(TimeBlock.EVENING, (wakeMinute + 2 * blockDuration) % MINUTES_PER_DAY, awakeDuration - 2 * blockDuration),
             TimeBlockWindow(TimeBlock.NIGHT, sleepMinute, nightDuration),
         )
+    }
+
+    fun resolveTimeBlock(timestamp: Long, wakeTime: String, sleepTime: String): TimeBlock {
+        val minuteOfDay = minuteOfDayFor(timestamp)
+        val blocks = computeTimeBlocks(wakeTime, sleepTime)
+        return blocks.firstOrNull { minuteWithinWindow(minuteOfDay, it.startMinute,
+            it.durationMinutes) }
+            ?.block
+            ?: TimeBlock.NIGHT
+    }
+
+    private fun minuteOfDayFor(timestamp: Long): Int {
+        val calendar = Calendar.getInstance().apply { timeInMillis = timestamp }
+        return calendar.get(Calendar.HOUR_OF_DAY) * 60 + calendar.get(Calendar.MINUTE)
     }
 
     private fun findNapBlock(onboarding: SeniorOnboarding, blocks: List<TimeBlockWindow>): TimeBlock? {

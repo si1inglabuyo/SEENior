@@ -57,7 +57,7 @@ private val permissionRows = listOf(
 )
 
 private val runtimePermissions: List<String> = buildList {
-    add(Manifest.permission.ACTIVITY_RECOGNITION)
+    if (Build.VERSION.SDK_INT >= 29) add(Manifest.permission.ACTIVITY_RECOGNITION)
     add(Manifest.permission.ACCESS_COARSE_LOCATION)
     if (Build.VERSION.SDK_INT >= 33) add(Manifest.permission.POST_NOTIFICATIONS)
 }
