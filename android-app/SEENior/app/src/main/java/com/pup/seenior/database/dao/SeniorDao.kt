@@ -27,7 +27,7 @@ interface SeniorDao {
     @Query("SELECT * FROM Seniors WHERE senior_id = :seniorId")
     suspend fun getById(seniorId: Int): Senior?
 
-    @Query("SELECT * FROM Seniors WHERE is_onboarding_complete = 1 LIMIT 1")
+    @Query("SELECT * FROM Seniors WHERE is_onboarding_complete = 1 ORDER BY created_at DESC LIMIT 1")
     suspend fun getOnboardedSenior(): Senior?
 
     @Query("UPDATE Seniors SET is_onboarding_complete = 1 WHERE senior_id = :seniorId")

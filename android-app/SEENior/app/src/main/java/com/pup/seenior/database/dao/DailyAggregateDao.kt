@@ -30,6 +30,10 @@ interface DailyAggregateDao {
     @Query("SELECT * FROM Daily_Aggregates WHERE senior_id = :seniorId AND date = :date")
     suspend fun getByDate(seniorId: Int, date: String): List<DailyAggregate>
 
+    @Query("DELETE FROM Daily_Aggregates WHERE senior_id = :seniorId AND date = :date AND time_block = :timeBlock")
+    suspend fun deleteByDateAndTimeBlock(seniorId: Int, date: String, timeBlock: String)
+
+
     /** Returns the most recent N days of aggregates — used as input for Isolation Forest inference */
     @Query("""
         SELECT * FROM Daily_Aggregates
