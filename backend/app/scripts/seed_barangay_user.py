@@ -1,9 +1,12 @@
 """Create a barangay_responder login. Run by the OSCA officer, not exposed via API.
 
-Usage: python -m app.scripts.seed_barangay_user <username> <password> <barangay>
+Usage: python -m app.scripts.seed_barangay_user <username> <barangay>
+Prompts for the password interactively (not taken as an argument, to avoid it
+landing in shell history or being visible to other processes via the process list).
 """
 
 import asyncio
+import getpass
 import sys
 
 from app.core.security import hash_password
@@ -25,7 +28,9 @@ async def create_barangay_user(username: str, password: str, barangay: str) -> N
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 4:
+    if len(sys.argv) != 3:
         print(__doc__)
         sys.exit(1)
-    asyncio.run(create_barangay_user(sys.argv[1], sys.argv[2], sys.argv[3]))
+    username, barangay = sys.argv[1], sys.argv[2]
+    password = getpass.getpass("Password for new barangay_responder: ")
+    asyncio.run(create_barangay_user(username, password, barangay))

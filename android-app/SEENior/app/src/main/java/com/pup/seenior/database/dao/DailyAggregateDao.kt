@@ -43,6 +43,17 @@ interface DailyAggregateDao {
     """)
     suspend fun getRecentDays(seniorId: Int, days: Int): List<DailyAggregate>
 
+    /** Trailing N days of a single time block — input for the rolling Baseline recompute. */
+    @Query("""
+        SELECT * FROM Daily_Aggregates
+        WHERE senior_id = :seniorId AND time_block = :timeBlock
+        ORDER BY date DESC
+        LIMIT :days
+    """)
+    suspend fun getRecentByTimeBlock(seniorId: Int, timeBlock: String, days: Int): List<DailyAggregate>
+
+
+
     /** Returns rows where the Isolation Forest score hasn't been computed yet */
     @Query("SELECT * FROM Daily_Aggregates WHERE senior_id = :seniorId AND isolation_forest_score IS NULL ORDER BY date ASC")
     suspend fun getWithoutIsolationForestScore(seniorId: Int): List<DailyAggregate>

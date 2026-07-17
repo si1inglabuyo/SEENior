@@ -42,6 +42,27 @@ interface AlertDao {
     """)
     fun getUnacknowledgedAlerts(seniorId: Int): Flow<List<Alert>>
 
+    @Query("SELECT EXISTS(SELECT 1 FROM Alerts WHERE senior_id = :seniorId AND trigger_type = :triggerType AND status = 'pending')")
+    suspend fun hasPendingAlert(seniorId: Int, triggerType: String): Boolean
+
+    /**
+     * An "active" alert is one still being worked through the escalation chain —
+     * not yet self-cancelled/resolved/marked false-positive. Used to dedup a fresh
+     * anomaly of the same trigger_type into the existing alert instead of spawning
+     * a duplicate once the alert has already progressed past "pending".
+     */
+    @Query("""
+        SELECT * FROM Alerts
+        WHERE senior_id = :seniorId AND trigger_type = :triggerType
+          AND status IN ('pending', 'acknowledged_family', 'escalated_barangay')
+        LIMIT 1
+    """)
+    suspend fun getActiveAlert(seniorId: Int, triggerType: String): Alert?
+
+    @Query("UPDATE Alerts SET risk_level = :riskLevel, deviation_score = :deviationScore WHERE alert_id = :alertId")
+    suspend fun updateSeverity(alertId: Int, riskLevel: String, deviationScore: Double)
+
+
     /** Returns all alerts that haven't been synced to the cloud backend yet */
     @Query("SELECT * FROM Alerts WHERE is_synced = 0 ORDER BY triggered_at ASC")
     suspend fun getUnsyncedAlerts(): List<Alert>

@@ -37,8 +37,16 @@ class NightlyAggregationWorker(
         }
 
         val aggregatedIds = unaggregated.map { it.dataId }
-        sensorDataDao.markAsAggregated(aggregatedIds)
+        // Room expands `IN (:dataIds)` into one bound SQL parameter per ID; SQLite's
+        // default limit is 999. Chunk so a backlog (missed nightly runs) can't blow past it.
+        aggregatedIds.chunked(900).forEach { chunk -> sensorDataDao.markAsAggregated(chunk) }
         sensorDataDao.deleteAggregated()
+
+        com.pup.seenior.baseline.BaselineUpdater.updateForSenior(
+            senior.seniorId,
+            database.baselineDao(),
+            dailyAggregateDao
+        )
 
         return Result.success()
     }
@@ -58,9 +66,14 @@ class NightlyAggregationWorker(
         val avgScreenIdleDuration = rows.map { it.screenIdleDuration }.average().toLong()
         val totalScreenUnlocks = rows.sumOf { it.screenUnlockCount }
 
-        // step_count is the raw cumulative sensor reading, so the block's
-        // step total is the delta between its highest and lowest reading.
-        val totalSteps = (rows.maxOf { it.stepCount } - rows.minOf { it.stepCount }).coerceAtLeast(0)
+        // step_count is the raw cumulative-since-boot sensor reading. A device reboot
+        // mid-block resets the counter, so max-min would silently floor to 0 and lose
+        // real steps; sum positive deltas between timestamp-ordered readings instead,
+        // treating any decrease as a reboot boundary (counter restarted from 0).
+        val totalSteps = rows.sortedBy { it.timestamp }.zipWithNext { prev, curr ->
+            val delta = curr.stepCount - prev.stepCount
+            if (delta >= 0) delta else curr.stepCount
+        }.sum().coerceAtLeast(0)
 
         val chargingCount = rows.count { it.isCharging }
         val isChargingMajority = chargingCount > rows.size / 2

@@ -11,7 +11,18 @@ def hash_password(password: str) -> str:
 
 
 def verify_password(plain_password: str, password_hash: str) -> bool:
-    return bcrypt.checkpw(plain_password.encode("utf-8"), password_hash.encode("utf-8"))
+    try:
+        return bcrypt.checkpw(plain_password.encode("utf-8"), password_hash.encode("utf-8"))
+    except ValueError:
+        # Malformed salt/hash (truncated DB value, wrong scheme) - treat as no match
+        # instead of letting it 500 out of the login endpoint.
+        return False
+
+
+# Fixed dummy hash so callers can run verify_password on a constant-shape input when
+# there's no real user to compare against, keeping login response time independent of
+# whether the username exists.
+_DUMMY_PASSWORD_HASH = hash_password("not-a-real-password-used-only-for-timing")
 
 
 def create_access_token(subject: str, role: str) -> str:

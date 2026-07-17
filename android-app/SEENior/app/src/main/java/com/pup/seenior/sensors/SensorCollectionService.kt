@@ -20,6 +20,7 @@ import com.pup.seenior.R
 import com.pup.seenior.baseline.SeedBaselineGenerator
 import com.pup.seenior.database.SeniorAppDatabase
 import com.pup.seenior.database.entities.SensorData
+import com.pup.seenior.detection.MedianMadDetector
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -47,16 +48,31 @@ class SensorCollectionService : Service(), SensorEventListener
     private var screenOffSince: Long? = null
     private var screenIdleSecondsThisWindow = 0L
 
+    // onSensorChanged/screenReceiver fire on the main thread (no Handler passed to
+    // registerListener/registerReceiver); collectAndStore() runs on Dispatchers.Default.
+    // All reads/writes of the counters above must go through this lock.
+    private val stateLock = Any()
+
+    private data class SensorSnapshot(
+        val movementScore: Double,
+        val inactivityDurationSeconds: Long,
+        val screenIdleDurationSeconds: Long,
+        val screenUnlockCount: Int,
+        val stepCount: Int,
+    )
+
     private val screenReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
-            when (intent.action) {
-                Intent.ACTION_SCREEN_OFF -> screenOffSince = System.currentTimeMillis()
-                Intent.ACTION_SCREEN_ON -> {
-                    screenOffSince?.let { screenIdleSecondsThisWindow +=
-                        (System.currentTimeMillis() - it) / 1000 }
-                    screenOffSince = null
+            synchronized(stateLock) {
+                when (intent.action) {
+                    Intent.ACTION_SCREEN_OFF -> screenOffSince = System.currentTimeMillis()
+                    Intent.ACTION_SCREEN_ON -> {
+                        screenOffSince?.let { screenIdleSecondsThisWindow +=
+                            (System.currentTimeMillis() - it) / 1000 }
+                        screenOffSince = null
+                        }
+                    Intent.ACTION_USER_PRESENT -> screenUnlockCount++
                     }
-                Intent.ACTION_USER_PRESENT -> screenUnlockCount++
                 }
             }
         }
@@ -111,22 +127,21 @@ class SensorCollectionService : Service(), SensorEventListener
                 )
                 val deviation = (abs(magnitude - SensorManager.GRAVITY_EARTH) / SensorManager.GRAVITY_EARTH)
                     .coerceIn(0.0f, 1.0f)
-                movementSampleSum += deviation
-                movementSampleCount++
-                if (deviation > MOVEMENT_THRESHOLD) lastSignificantMovementAt = System.currentTimeMillis()
+                synchronized(stateLock) {
+                    movementSampleSum += deviation
+                    movementSampleCount++
+                    if (deviation > MOVEMENT_THRESHOLD) lastSignificantMovementAt = System.currentTimeMillis()
+                }
             }
-            Sensor.TYPE_STEP_COUNTER -> latestStepCount = event.values[0].toInt()
+            Sensor.TYPE_STEP_COUNTER -> synchronized(stateLock) {
+                latestStepCount = event.values[0].toInt()
+            }
         }
     }
 
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit
 
-    private suspend fun collectAndStore() {
-        val database = SeniorAppDatabase.getInstance(applicationContext)
-        val senior = database.seniorDao().getOnboardedSenior() ?: return
-        val onboarding = database.seniorOnboardingDao().getBySeniorId(senior.seniorId) ?: return
-
-        val now = System.currentTimeMillis()
+    private fun snapshotAndReset(now: Long): SensorSnapshot = synchronized(stateLock) {
         val movementScore = if (movementSampleCount > 0) {
             (movementSampleSum / movementSampleCount).coerceIn(0.0, 1.0)
         } else 0.0
@@ -135,27 +150,48 @@ class SensorCollectionService : Service(), SensorEventListener
             screenIdleSecondsThisWindow += (now - it) / 1000
             screenOffSince = now
         }
-
-        val timeBlock = SeedBaselineGenerator.resolveTimeBlock(now, onboarding.wakeTime, onboarding.sleepTime)
-
-        database.sensorDataDao().insert(
-            SensorData(
-                seniorId = senior.seniorId,
-                timestamp = now,
-                timeBlock = timeBlock.name.lowercase(),
-                movementScore = movementScore,
-                inactivityDuration = inactivityDurationSeconds,
-                screenIdleDuration = screenIdleSecondsThisWindow,
-                screenUnlockCount = screenUnlockCount,
-                isCharging = isCurrentlyCharging(),
-                stepCount = latestStepCount
-            )
+        val snapshot = SensorSnapshot(
+            movementScore = movementScore,
+            inactivityDurationSeconds = inactivityDurationSeconds,
+            screenIdleDurationSeconds = screenIdleSecondsThisWindow,
+            screenUnlockCount = screenUnlockCount,
+            stepCount = latestStepCount,
         )
-
         movementSampleSum = 0.0
         movementSampleCount = 0
         screenIdleSecondsThisWindow = 0
         screenUnlockCount = 0
+        snapshot
+    }
+
+    private suspend fun collectAndStore() {
+        val database = SeniorAppDatabase.getInstance(applicationContext)
+        val senior = database.seniorDao().getOnboardedSenior() ?: return
+        val onboarding = database.seniorOnboardingDao().getBySeniorId(senior.seniorId) ?: return
+
+        val now = System.currentTimeMillis()
+        val snapshot = snapshotAndReset(now)
+        val timeBlock = SeedBaselineGenerator.resolveTimeBlock(now, onboarding.wakeTime, onboarding.sleepTime)
+
+        val sensorData = SensorData(
+            seniorId = senior.seniorId,
+            timestamp = now,
+            timeBlock = timeBlock.name.lowercase(),
+            movementScore = snapshot.movementScore,
+            inactivityDuration = snapshot.inactivityDurationSeconds,
+            screenIdleDuration = snapshot.screenIdleDurationSeconds,
+            screenUnlockCount = snapshot.screenUnlockCount,
+            isCharging = isCurrentlyCharging(),
+            stepCount = snapshot.stepCount
+        )
+        database.sensorDataDao().insert(sensorData)
+
+        MedianMadDetector.evaluate(
+            senior.seniorId,
+            sensorData,
+            database.baselineDao(),
+            database.alertDao()
+        )
     }
 
     private fun isCurrentlyCharging(): Boolean {

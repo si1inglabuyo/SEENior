@@ -36,7 +36,12 @@ fun SeniorNavGraph(navController: NavHostController = rememberNavController()) {
     NavHost(navController = navController, startDestination = SeniorRoutes.SPLASH) {
         composable(SeniorRoutes.SPLASH) {
             SplashScreen(
-                onTimeout = {
+                onOnboarded = {
+                    navController.navigate(SeniorRoutes.HOME) {
+                        popUpTo(SeniorRoutes.SPLASH) { inclusive = true }
+                    }
+                },
+                onNotOnboarded = {
                     navController.navigate(SeniorRoutes.WELCOME) {
                         popUpTo(SeniorRoutes.SPLASH) { inclusive = true }
                     }

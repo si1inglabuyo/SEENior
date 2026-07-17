@@ -5,6 +5,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
+import androidx.room.withTransaction
 import com.pup.seenior.baseline.SeedBaselineGenerator
 import com.pup.seenior.database.SeniorAppDatabase
 import com.pup.seenior.database.entities.Senior
@@ -89,34 +90,38 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
         val activityLevelValue = OnboardingOptions.activityLevels
             .first { it.first == activityLevelLabel }.second
 
-        val senior = Senior(
-            firstName = firstName.trim(),
-            lastName = lastName.trim(),
-            age = age.trim().toInt(),
-            gender = gender!!,
-            mobileNumber = mobileNumber.trim(),
-            address = address.trim(),
-            barangay = barangay.trim(),
-            livingArrangement = livingArrangementValue,
-            isOnboardingComplete = true
-        )
-        val insertedId = db.seniorDao().insert(senior).toInt()
+        val insertedId = db.withTransaction {
+            val senior = Senior(
+                firstName = firstName.trim(),
+                lastName = lastName.trim(),
+                age = age.trim().toInt(),
+                gender = gender!!,
+                mobileNumber = mobileNumber.trim(),
+                address = address.trim(),
+                barangay = barangay.trim(),
+                livingArrangement = livingArrangementValue,
+                isOnboardingComplete = true
+            )
+            val id = db.seniorDao().insert(senior).toInt()
 
-        val onboarding = SeniorOnboarding(
-            seniorId = insertedId,
-            wakeTime = wakeTime!!.format(TIME_FORMAT),
-            sleepTime = sleepTime!!.format(TIME_FORMAT),
-            hasNap = hasNap == "Yes",
-            napTime = if (hasNap == "Yes") napTime?.format(TIME_FORMAT) else null,
-            napDurationMinutes = if (hasNap == "Yes") parseDurationMinutes(napDuration) else null,
-            activityLevel = activityLevelValue,
-            languagePreference = "en"
-        )
-        db.seniorOnboardingDao().insert(onboarding)
+            val onboarding = SeniorOnboarding(
+                seniorId = id,
+                wakeTime = wakeTime!!.format(TIME_FORMAT),
+                sleepTime = sleepTime!!.format(TIME_FORMAT),
+                hasNap = hasNap == "Yes",
+                napTime = if (hasNap == "Yes") napTime?.format(TIME_FORMAT) else null,
+                napDurationMinutes = if (hasNap == "Yes") parseDurationMinutes(napDuration) else null,
+                activityLevel = activityLevelValue,
+                languagePreference = "en"
+            )
+            db.seniorOnboardingDao().insert(onboarding)
 
-        val seedBaselines = SeedBaselineGenerator.generate(insertedId, onboarding)
-        db.baselineDao().insertAll(seedBaselines)
-        db.seniorOnboardingDao().markSeedBaselineGenerated(insertedId)
+            val seedBaselines = SeedBaselineGenerator.generate(id, onboarding)
+            db.baselineDao().insertAll(seedBaselines)
+            db.seniorOnboardingDao().markSeedBaselineGenerated(id)
+
+            id
+        }
 
         seniorId = insertedId
         insertedId

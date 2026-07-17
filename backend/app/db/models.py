@@ -9,6 +9,13 @@ from sqlalchemy.sql import func
 from app.db.session import Base
 
 
+def _enum_values(enum_cls: type[enum.Enum]) -> list[str]:
+    """SQLAlchemy's Enum() persists the member NAME by default; the migration's
+    Postgres enum types were created with the lowercase VALUES, so every Enum()
+    column below must be told to use .value instead."""
+    return [member.value for member in enum_cls]
+
+
 class UserRole(str, enum.Enum):
     FAMILY_CONTACT = "family_contact"
     BARANGAY_RESPONDER = "barangay_responder"
@@ -51,7 +58,9 @@ class User(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     username: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     password_hash: Mapped[str] = mapped_column(String(255))
-    role: Mapped[UserRole] = mapped_column(Enum(UserRole, name="user_role"))
+    role: Mapped[UserRole] = mapped_column(
+        Enum(UserRole, name="user_role", values_callable=_enum_values)
+    )
     # Scopes a barangay_responder's dashboard queries; unused for family contacts.
     barangay: Mapped[str | None] = mapped_column(String(128), nullable=True)
     is_active: Mapped[bool] = mapped_column(default=True)
@@ -89,7 +98,9 @@ class Contact(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     senior_id: Mapped[int] = mapped_column(ForeignKey("seniors.id"))
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
-    contact_type: Mapped[ContactType] = mapped_column(Enum(ContactType, name="contact_type"))
+    contact_type: Mapped[ContactType] = mapped_column(
+        Enum(ContactType, name="contact_type", values_callable=_enum_values)
+    )
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
     senior: Mapped["Senior"] = relationship(back_populates="contacts")
@@ -106,10 +117,15 @@ class Alert(Base):
         default=uuid.uuid4, unique=True, index=True
     )
     senior_id: Mapped[int] = mapped_column(ForeignKey("seniors.id"))
-    risk_level: Mapped[RiskLevel] = mapped_column(Enum(RiskLevel, name="risk_level"))
-    trigger_type: Mapped[TriggerType] = mapped_column(Enum(TriggerType, name="trigger_type"))
+    risk_level: Mapped[RiskLevel] = mapped_column(
+        Enum(RiskLevel, name="risk_level", values_callable=_enum_values)
+    )
+    trigger_type: Mapped[TriggerType] = mapped_column(
+        Enum(TriggerType, name="trigger_type", values_callable=_enum_values)
+    )
     status: Mapped[AlertStatus] = mapped_column(
-        Enum(AlertStatus, name="alert_status"), default=AlertStatus.PENDING
+        Enum(AlertStatus, name="alert_status", values_callable=_enum_values),
+        default=AlertStatus.PENDING,
     )
     # Anonymous cluster ID captured only at alert-trigger time — never raw coordinates.
     location_cluster_id: Mapped[str | None] = mapped_column(String(64), nullable=True)

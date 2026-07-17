@@ -5,6 +5,7 @@ import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import androidx.room.Update
 import com.pup.seenior.database.entities.Baseline
 import kotlinx.coroutines.flow.Flow
@@ -57,4 +58,13 @@ interface BaselineDao {
 
     @Query("DELETE FROM Baseline WHERE senior_id = :seniorId")
     suspend fun deleteAllForSenior(seniorId: Int)
+
+    @Query("DELETE FROM Baseline WHERE  senior_id = :seniorId AND feature_name = :featureName AND time_block = :timeBlock")
+    suspend fun deleteByFeatureAndTimeBlock(seniorId: Int, featureName: String, timeBlock: String)
+
+    @Transaction
+    suspend fun replaceFeatureBaseline(baseline: Baseline) {
+        deleteByFeatureAndTimeBlock(baseline.seniorId, baseline.featureName, baseline.timeBlock)
+        insert(baseline)
+    }
 }

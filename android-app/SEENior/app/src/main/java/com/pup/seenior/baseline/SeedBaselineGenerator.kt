@@ -13,6 +13,12 @@ object SeedBaselineGenerator {
     private const val MINUTES_PER_DAY = 24 * 60
     private const val SEED_MARGIN_RATIO = 0.4
     private const val NAP_MARGIN_RATIO = 0.6
+    private const val SECONDS_PER_MINUTE = 60.0
+
+    // Feature medians above are authored in minutes (matches onboarding questionnaire
+    // units); SensorData/MedianMadDetector work in seconds, so these two need conversion
+    // before landing in the Baseline table.
+    private val MINUTES_BASED_FEATURES = setOf("inactivity_duration", "screen_idle_duration")
 
     enum class TimeBlock { MORNING, AFTERNOON, EVENING, NIGHT }
 
@@ -38,8 +44,7 @@ object SeedBaselineGenerator {
     private val NIGHT_MOVEMENT_SCORE = 0.03
     private val NIGHT_STEP_COUNT = 20.0
     private val NIGHT_UNLOCK_COUNT = 0.5
-
-    private val MIN_MAD_FLOOR = mapOf(
+    val MIN_MAD_FLOOR = mapOf(
         "inactivity_duration" to 5.0,
         "movement_score" to 0.05,
         "screen_idle_duration" to 5.0,
@@ -121,14 +126,17 @@ object SeedBaselineGenerator {
             "step_count" to stepMedian,
         )
 
-        return features.map { (featureName, median) ->
+        return features.map { (featureName, medianRaw) ->
+            val isMinutesBased = featureName in MINUTES_BASED_FEATURES
+            val median = if (isMinutesBased) medianRaw * SECONDS_PER_MINUTE else medianRaw
             val marginRatio = if (isNapBlock && featureName == "inactivity_duration") NAP_MARGIN_RATIO else SEED_MARGIN_RATIO
+            val madFloor = MIN_MAD_FLOOR.getValue(featureName).let { if (isMinutesBased) it * SECONDS_PER_MINUTE else it }
             Baseline(
                 seniorId = seniorId,
                 featureName = featureName,
                 timeBlock = window.block.name.lowercase(),
                 medianValue = median,
-                madValue = maxOf(median * marginRatio, MIN_MAD_FLOOR.getValue(featureName)),
+                madValue = maxOf(median * marginRatio, madFloor),
                 sampleCount = 0,
                 isSeed = true,
             )

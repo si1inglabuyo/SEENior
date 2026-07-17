@@ -10,16 +10,27 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import com.pup.seenior.R
+import com.pup.seenior.database.SeniorAppDatabase
+import com.pup.seenior.sensors.SensorCollectionService
 import kotlinx.coroutines.delay
 
 @Composable
-fun SplashScreen(onTimeout: () -> Unit) {
+fun SplashScreen(onOnboarded: () -> Unit, onNotOnboarded: () -> Unit) {
+    val context = LocalContext.current
     LaunchedEffect(Unit) {
+        val db = SeniorAppDatabase.getInstance(context.applicationContext)
+        val isOnboarded = db.seniorDao().getOnboardedSenior() != null
         delay(1400)
-        onTimeout()
+        if (isOnboarded) {
+            SensorCollectionService.start(context.applicationContext)
+            onOnboarded()
+        } else {
+            onNotOnboarded()
+        }
     }
     Surface(modifier = Modifier.fillMaxSize(), color = Color.White) {
         Box(
