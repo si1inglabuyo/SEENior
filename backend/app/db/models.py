@@ -83,8 +83,9 @@ class Senior(Base):
     barangay: Mapped[str] = mapped_column(String(128))
     address: Mapped[str] = mapped_column(String(255))
     mobile_number: Mapped[str] = mapped_column(String(20))
+    invite_code: Mapped[str | None ] = mapped_column(String(6), nullable=True)
+    invite_code_expires_at: Mapped[datetime | None] = mapped_column(nullable=True)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
-
     contacts: Mapped[list["Contact"]] = relationship(back_populates="senior")
     alerts: Mapped[list["Alert"]] = relationship(back_populates="senior")
 

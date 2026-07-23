@@ -1,0 +1,60 @@
+import random
+import string
+from datetime import datetime, timedelta, timezone
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.db.models import Senior
+from app.db.session import get_db
+from app.schemas.contact import InviteCodeOut
+from app.schemas.senior import SeniorCreate, SeniorOut
+
+router = APIRouter(prefix="/seniors", tags=["seniors"])
+
+INVITE_CODE_LIFETIME = timedelta(minutes=5)
+
+
+@router.post("", response_model=SeniorOut, status_code=status.HTTP_201_CREATED)
+async def create_senior(payload: SeniorCreate, db: AsyncSession = Depends(get_db)) -> Senior:
+    # No auth: this is the senior app's one-time "register myself with the cloud"
+    # call during onboarding. Seniors never get a Users account (CLAUDE.md §2) —
+    # the returned sync_id becomes their permanent cloud identity, stored locally.
+    senior = Senior(**payload.model_dump())
+    db.add(senior)
+    await db.commit()
+    await db.refresh(senior)
+    return senior
+
+
+async def _get_senior_or_404(sync_id: UUID, db: AsyncSession) -> Senior:
+    result = await db.execute(select(Senior).where(Senior.sync_id == sync_id))
+    senior = result.scalar_one_or_none()
+    if senior is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Senior not found")
+    return senior
+
+
+@router.post("/{sync_id}/invite", response_model=InviteCodeOut)
+async def generate_invite(sync_id: UUID, db: AsyncSession = Depends(get_db)) -> InviteCodeOut:
+    senior = await _get_senior_or_404(sync_id, db)
+
+    # Naive UTC, matching the column type (TIMESTAMP WITHOUT TIME ZONE, same
+    # convention as created_at elsewhere in this schema) — asyncpg rejects a
+    # tz-aware datetime.now(timezone.utc) against that column type.
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    if senior.invite_code_expires_at is not None and senior.invite_code_expires_at > now:
+        # Still-active code — this IS the 5-minute cooldown, no separate field needed.
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="An invite code is still active. Wait for it to expire before generating a new one.",
+        )
+
+    code = "".join(random.choices(string.digits, k=6))
+    senior.invite_code = code
+    senior.invite_code_expires_at = now + INVITE_CODE_LIFETIME
+    await db.commit()
+
+    return InviteCodeOut(code=code, expires_at=senior.invite_code_expires_at)
