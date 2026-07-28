@@ -16,20 +16,28 @@ import androidx.compose.ui.unit.dp
 import com.pup.seenior.R
 import com.pup.seenior.database.SeniorAppDatabase
 import com.pup.seenior.sensors.SensorCollectionService
+import com.pup.seenior.session.FamilySession
 import kotlinx.coroutines.delay
 
 @Composable
-fun SplashScreen(onOnboarded: () -> Unit, onNotOnboarded: () -> Unit) {
+fun SplashScreen(
+    onOnboarded: () -> Unit,
+    onFamilyPaired: () -> Unit,
+    onNotOnboarded: () -> Unit
+) {
     val context = LocalContext.current
     LaunchedEffect(Unit) {
         val db = SeniorAppDatabase.getInstance(context.applicationContext)
         val isOnboarded = db.seniorDao().getOnboardedSenior() != null
+        val isFamilyPaired = FamilySession.isPaired(context.applicationContext)
         delay(1400)
-        if (isOnboarded) {
-            SensorCollectionService.start(context.applicationContext)
-            onOnboarded()
-        } else {
-            onNotOnboarded()
+        when {
+            isOnboarded -> {
+                SensorCollectionService.start(context.applicationContext)
+                onOnboarded()
+            }
+            isFamilyPaired -> onFamilyPaired()
+            else -> onNotOnboarded()
         }
     }
     Surface(modifier = Modifier.fillMaxSize(), color = Color.White) {

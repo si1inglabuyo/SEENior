@@ -32,4 +32,7 @@ interface SeniorDao {
 
     @Query("UPDATE Seniors SET is_onboarding_complete = 1 WHERE senior_id = :seniorId")
     suspend fun markOnboardingComplete(seniorId: Int)
+
+    @Query("UPDATE Seniors SET cloud_sync_id = :cloudSyncId WHERE senior_id = :seniorId")
+    suspend fun updateCloudSyncId(seniorId: Int, cloudSyncId: String)
 }

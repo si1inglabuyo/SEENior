@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import com.pup.seenior.database.dao.AlertDao
 import com.pup.seenior.database.dao.BaselineDao
 import com.pup.seenior.database.dao.ContactDao
@@ -38,7 +40,7 @@ import com.pup.seenior.database.entities.SensorData
         MlModelMetadata::class,
         SeniorOnboarding::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = true
 )
 abstract class SeniorAppDatabase : RoomDatabase() {
@@ -58,13 +60,20 @@ abstract class SeniorAppDatabase : RoomDatabase() {
         @Volatile
         private var INSTANCE: SeniorAppDatabase? = null
 
+        /** Adds the cloud_sync_id column (real migration, so existing onboarded-senior data survives). */
+        private val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE Seniors ADD COLUMN cloud_sync_id TEXT")
+            }
+        }
+
         fun getInstance(context: Context): SeniorAppDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext,
                     SeniorAppDatabase::class.java,
                     "senior_app.db"
-                ).build().also { INSTANCE = it }
+                ).addMigrations(MIGRATION_1_2).build().also { INSTANCE = it }
             }
         }
     }

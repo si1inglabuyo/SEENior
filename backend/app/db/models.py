@@ -61,6 +61,10 @@ class User(Base):
     role: Mapped[UserRole] = mapped_column(
         Enum(UserRole, name="user_role", values_callable=_enum_values)
     )
+    # Family member's display identity, shown on the senior's Contacts screen.
+    # Nullable because barangay-responder accounts are seeded without them.
+    full_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    phone: Mapped[str | None] = mapped_column(String(20), nullable=True)
     # Scopes a barangay_responder's dashboard queries; unused for family contacts.
     barangay: Mapped[str | None] = mapped_column(String(128), nullable=True)
     is_active: Mapped[bool] = mapped_column(default=True)
@@ -80,6 +84,8 @@ class Senior(Base):
     )
     first_name: Mapped[str] = mapped_column(String(64))
     last_name: Mapped[str] = mapped_column(String(64))
+    age: Mapped[int] = mapped_column(server_default="0")
+    gender: Mapped[str] = mapped_column(String(16), server_default="unknown")
     barangay: Mapped[str] = mapped_column(String(128))
     address: Mapped[str] = mapped_column(String(255))
     mobile_number: Mapped[str] = mapped_column(String(20))
@@ -102,6 +108,8 @@ class Contact(Base):
     contact_type: Mapped[ContactType] = mapped_column(
         Enum(ContactType, name="contact_type", values_callable=_enum_values)
     )
+    # Per-pairing: how this family member relates to the senior ("daughter", "son", ...).
+    relationship_label: Mapped[str | None] = mapped_column(String(32), nullable=True)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
     senior: Mapped["Senior"] = relationship(back_populates="contacts")
