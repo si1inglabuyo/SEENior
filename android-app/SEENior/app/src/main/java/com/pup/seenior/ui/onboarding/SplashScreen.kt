@@ -29,14 +29,17 @@ fun SplashScreen(
     LaunchedEffect(Unit) {
         val db = SeniorAppDatabase.getInstance(context.applicationContext)
         val isOnboarded = db.seniorDao().getOnboardedSenior() != null
-        val isFamilyPaired = FamilySession.isPaired(context.applicationContext)
+        // A family user counts as set up once they're logged in (sign up / login / Google
+        // all issue a token immediately) — linking a senior is optional, done later from
+        // the dashboard's Link tab.
+        val isFamily = FamilySession.isPaired(context.applicationContext)
         delay(1400)
         when {
             isOnboarded -> {
                 SensorCollectionService.start(context.applicationContext)
                 onOnboarded()
             }
-            isFamilyPaired -> onFamilyPaired()
+            isFamily -> onFamilyPaired()
             else -> onNotOnboarded()
         }
     }

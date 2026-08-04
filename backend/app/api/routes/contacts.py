@@ -7,8 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.api.deps import get_current_user
-from app.core.security import create_access_token, hash_password
-from app.db.models import Contact, ContactType, Senior, User, UserRole
+from app.core.security import create_access_token
+from app.db.models import Contact, ContactType, Senior, User
 from app.db.session import get_db
 from app.schemas.auth import Token
 from app.schemas.contact import (
@@ -24,6 +24,7 @@ from app.schemas.senior import SeniorOut
 router = APIRouter(tags=["contacts"])
 
 MAX_FAMILY_CONTACTS_PER_SENIOR = 5
+MAX_SENIORS_PER_FAMILY = 3
 
 
 async def _senior_by_valid_code(code: str, db: AsyncSession) -> Senior:
@@ -51,7 +52,14 @@ async def verify_code(payload: VerifyCodeRequest, db: AsyncSession = Depends(get
 
 
 @router.post("/contacts/pair", response_model=PairResponse, status_code=status.HTTP_201_CREATED)
-async def pair_contact(payload: PairRequest, db: AsyncSession = Depends(get_db)) -> PairResponse:
+async def pair_contact(
+    payload: PairRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> PairResponse:
+    # Account creation happens up front now (POST /auth/register or /auth/google),
+    # separate from pairing - so this always operates on an already-logged-in user,
+    # whether they're linking their 1st senior or their 3rd.
     senior = await _senior_by_valid_code(payload.invite_code, db)
 
     count_result = await db.execute(
@@ -65,19 +73,24 @@ async def pair_contact(payload: PairRequest, db: AsyncSession = Depends(get_db))
             detail=f"This senior already has {MAX_FAMILY_CONTACTS_PER_SENIOR} family contacts",
         )
 
-    existing = await db.execute(select(User).where(User.username == payload.username))
-    if existing.scalar_one_or_none() is not None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Username already taken")
+    user = current_user
 
-    user = User(
-        username=payload.username,
-        password_hash=hash_password(payload.password),
-        role=UserRole.FAMILY_CONTACT,
-        full_name=payload.full_name,
-        phone=payload.phone,
+    my_seniors_result = await db.execute(
+        select(func.count())
+        .select_from(Contact)
+        .where(Contact.user_id == user.id, Contact.contact_type == ContactType.FAMILY)
     )
-    db.add(user)
-    await db.flush()  # assigns user.id without committing yet
+    if my_seniors_result.scalar_one() >= MAX_SENIORS_PER_FAMILY:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"You can only monitor up to {MAX_SENIORS_PER_FAMILY} seniors",
+        )
+
+    duplicate_result = await db.execute(
+        select(Contact).where(Contact.senior_id == senior.id, Contact.user_id == user.id)
+    )
+    if duplicate_result.scalar_one_or_none() is not None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="You're already linked to this senior")
 
     contact = Contact(
         senior_id=senior.id,
@@ -99,6 +112,41 @@ async def pair_contact(payload: PairRequest, db: AsyncSession = Depends(get_db))
 
     token = create_access_token(subject=user.username, role=user.role.value)
     return PairResponse(contact=ContactOut.model_validate(contact), token=Token(access_token=token))
+
+
+@router.get("/contacts/me", response_model=list[ContactOut])
+async def list_my_seniors(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> list[Contact]:
+    """Every senior the current family member is linked to (max MAX_SENIORS_PER_FAMILY) —
+    powers the family app's Home/Contacts tabs."""
+    result = await db.execute(
+        select(Contact)
+        .where(Contact.user_id == current_user.id, Contact.contact_type == ContactType.FAMILY)
+        .options(selectinload(Contact.senior))
+        .order_by(Contact.created_at.asc())
+    )
+    return list(result.scalars().all())
+
+
+@router.delete("/contacts/{contact_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def unlink_senior(
+    contact_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> None:
+    """Family-side unlink, scoped to the caller's own contact row so one family
+    member can't remove another's link."""
+    result = await db.execute(
+        select(Contact).where(Contact.id == contact_id, Contact.user_id == current_user.id)
+    )
+    contact = result.scalar_one_or_none()
+    if contact is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Contact not found")
+
+    await db.delete(contact)
+    await db.commit()
 
 
 @router.get("/seniors/{sync_id}/family-contacts", response_model=list[FamilyContactOut])

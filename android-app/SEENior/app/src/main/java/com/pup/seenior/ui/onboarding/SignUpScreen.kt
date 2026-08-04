@@ -18,6 +18,8 @@ import com.pup.seenior.ui.onboarding.components.LabeledTextField
 import com.pup.seenior.ui.onboarding.components.OnboardingHeading
 import com.pup.seenior.ui.onboarding.components.OnboardingTopBar
 import com.pup.seenior.ui.onboarding.components.PrimaryPillButton
+import com.pup.seenior.ui.onboarding.components.SearchableDropdownField
+import com.pup.seenior.validation.PhilippinePhone
 
 @Composable
 fun SignUpScreen(
@@ -71,9 +73,17 @@ fun SignUpScreen(
             LabeledTextField(
                 label = "MOBILE NUMBER",
                 value = viewModel.mobileNumber,
-                onValueChange = { viewModel.mobileNumber = it },
-                placeholder = "+63 000-000-0000",
-                keyboardType = KeyboardType.Phone
+                onValueChange = { input ->
+                    // Digits only, plus an optional leading "+"; capped at "+639XXXXXXXXX" length.
+                    viewModel.mobileNumber = input
+                        .filterIndexed { index, c -> c.isDigit() || (c == '+' && index == 0) }
+                        .take(13)
+                },
+                placeholder = "09XX XXX XXXX",
+                keyboardType = KeyboardType.Phone,
+                isError = viewModel.mobileNumber.isNotBlank() &&
+                    !PhilippinePhone.isValid(viewModel.mobileNumber),
+                errorText = "Enter a valid PH mobile number (09XXXXXXXXX or +639XXXXXXXXX)"
             )
 
             LabeledDropdownField(
@@ -85,18 +95,42 @@ fun SignUpScreen(
                 placeholder = "Select"
             )
 
-            LabeledTextField(
-                label = "ADDRESS",
-                value = viewModel.address,
-                onValueChange = { viewModel.address = it },
-                placeholder = "1234 Sampaguita Street"
+            SearchableDropdownField(
+                label = "REGION",
+                selected = viewModel.region,
+                options = viewModel.regionOptions,
+                onSelect = viewModel::onRegionSelected
+            )
+
+            SearchableDropdownField(
+                label = "PROVINCE",
+                selected = viewModel.province,
+                options = viewModel.provinceOptions,
+                onSelect = viewModel::onProvinceSelected,
+                enabled = viewModel.region != null
+            )
+
+            SearchableDropdownField(
+                label = "CITY / MUNICIPALITY",
+                selected = viewModel.city,
+                options = viewModel.cityOptions,
+                onSelect = viewModel::onCitySelected,
+                enabled = viewModel.province != null
+            )
+
+            SearchableDropdownField(
+                label = "BARANGAY",
+                selected = viewModel.barangay,
+                options = viewModel.barangayOptions,
+                onSelect = { viewModel.barangay = it },
+                enabled = viewModel.city != null
             )
 
             LabeledTextField(
-                label = "BARANGAY",
-                value = viewModel.barangay,
-                onValueChange = { viewModel.barangay = it },
-                placeholder = "e.g. UP Campus"
+                label = "STREET ADDRESS",
+                value = viewModel.streetAddress,
+                onValueChange = { viewModel.streetAddress = it },
+                placeholder = "House No., Street, Subdivision"
             )
 
             PrimaryPillButton(

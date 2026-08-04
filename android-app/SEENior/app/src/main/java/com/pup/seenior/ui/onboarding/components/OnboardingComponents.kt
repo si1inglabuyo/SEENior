@@ -9,9 +9,12 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -143,7 +146,9 @@ private fun fieldColors() = OutlinedTextFieldDefaults.colors(
     unfocusedBorderColor = SeniorColors.FieldBorder,
     focusedBorderColor = SeniorColors.Green,
     unfocusedTextColor = SeniorColors.TextPrimary,
-    focusedTextColor = SeniorColors.TextPrimary
+    focusedTextColor = SeniorColors.TextPrimary,
+    errorContainerColor = SeniorColors.FieldBackground,
+    errorBorderColor = Color(0xFFD32F2F)
 )
 
 @Composable
@@ -154,7 +159,9 @@ fun LabeledTextField(
     placeholder: String = "",
     modifier: Modifier = Modifier,
     keyboardType: KeyboardType = KeyboardType.Text,
-    questionStyle: Boolean = false
+    questionStyle: Boolean = false,
+    isError: Boolean = false,
+    errorText: String? = null
 ) {
     Column(modifier = modifier) {
         if (questionStyle) QuestionLabel(label) else FieldLabel(label)
@@ -167,7 +174,109 @@ fun LabeledTextField(
             shape = fieldShape,
             textStyle = TextStyle(fontSize = 18.sp),
             keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
+            isError = isError,
+            supportingText = if (isError && errorText != null) {
+                { Text(errorText, color = Color(0xFFD32F2F), fontSize = 13.sp) }
+            } else null,
             colors = fieldColors()
+        )
+    }
+}
+
+/**
+ * Dropdown backed by a search dialog — for long option lists (e.g. cities, or Manila's
+ * ~900 barangays) where a plain DropdownMenu is unusable. Disabled until [enabled],
+ * so cascading levels can lock until their parent is selected.
+ */
+@Composable
+fun SearchableDropdownField(
+    label: String,
+    selected: String?,
+    options: List<String>,
+    onSelect: (String) -> Unit,
+    placeholder: String = "Select",
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true
+) {
+    var showDialog by remember { mutableStateOf(false) }
+
+    Column(modifier = modifier) {
+        FieldLabel(label)
+        OutlinedTextField(
+            value = selected ?: "",
+            onValueChange = {},
+            readOnly = true,
+            enabled = false,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(enabled = enabled) { showDialog = true },
+            placeholder = { Text(placeholder, color = SeniorColors.TextHint) },
+            trailingIcon = {
+                Icon(
+                    imageVector = Icons.Filled.ArrowDropDown,
+                    contentDescription = null,
+                    tint = if (enabled) SeniorColors.Green else SeniorColors.TextHint
+                )
+            },
+            shape = fieldShape,
+            textStyle = TextStyle(fontSize = 18.sp),
+            colors = OutlinedTextFieldDefaults.colors(
+                disabledContainerColor = SeniorColors.FieldBackground,
+                disabledBorderColor = SeniorColors.FieldBorder,
+                disabledTextColor = SeniorColors.TextPrimary,
+                disabledPlaceholderColor = SeniorColors.TextHint,
+                disabledTrailingIconColor = if (enabled) SeniorColors.Green else SeniorColors.TextHint
+            )
+        )
+    }
+
+    if (showDialog) {
+        var query by remember { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { showDialog = false },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showDialog = false }) {
+                    Text("Cancel", color = SeniorColors.TextSecondary)
+                }
+            },
+            title = { Text(label) },
+            text = {
+                Column {
+                    OutlinedTextField(
+                        value = query,
+                        onValueChange = { query = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = { Text("Search…", color = SeniorColors.TextHint) },
+                        singleLine = true,
+                        shape = fieldShape,
+                        colors = fieldColors()
+                    )
+                    val filtered = if (query.isBlank()) options
+                    else options.filter { it.contains(query.trim(), ignoreCase = true) }
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 400.dp)
+                            .padding(top = 8.dp)
+                    ) {
+                        items(filtered) { option ->
+                            Text(
+                                text = option,
+                                fontSize = 18.sp,
+                                color = SeniorColors.TextPrimary,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        onSelect(option)
+                                        showDialog = false
+                                    }
+                                    .padding(vertical = 12.dp)
+                            )
+                        }
+                    }
+                }
+            }
         )
     }
 }

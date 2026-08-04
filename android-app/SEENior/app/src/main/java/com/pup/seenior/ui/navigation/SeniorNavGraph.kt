@@ -6,10 +6,9 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.pup.seenior.ui.family.ConnectedScreen
-import com.pup.seenior.ui.family.FamilyPairingViewModel
-import com.pup.seenior.ui.family.FamilySetupScreen
-import com.pup.seenior.ui.family.LinkScreen
+import com.pup.seenior.ui.family.FamilyAuthViewModel
+import com.pup.seenior.ui.family.FamilyLoginScreen
+import com.pup.seenior.ui.family.FamilySignUpScreen
 import com.pup.seenior.ui.onboarding.AllSetScreen
 import com.pup.seenior.ui.onboarding.OnboardingQuestionnaireScreen
 import com.pup.seenior.ui.onboarding.OnboardingViewModel
@@ -31,18 +30,18 @@ object SeniorRoutes {
     const val ALL_SET = "all_set"
     const val HOME = "home"
 
-    // Family pairing flow
-    const val FAMILY_SETUP = "family_setup"
-    const val FAMILY_LINK = "family_link"
-    const val FAMILY_CONNECTED = "family_connected"
+    // Family flow (linking a senior happens later, inside the dashboard's Link tab)
+    const val FAMILY_SIGNUP = "family_signup"
+    const val FAMILY_LOGIN = "family_login"
     const val FAMILY_HOME = "family_home"
 }
 
 @Composable
 fun SeniorNavGraph(navController: NavHostController = rememberNavController()) {
     val onboardingViewModel: OnboardingViewModel = viewModel()
-    // Shared across the three family pairing steps so their collected data persists.
-    val familyPairingViewModel: FamilyPairingViewModel = viewModel()
+    // Shared across Sign Up / Log In so switching between them (via their cross-links)
+    // doesn't lose anything already typed.
+    val familyAuthViewModel: FamilyAuthViewModel = viewModel()
 
     NavHost(navController = navController, startDestination = SeniorRoutes.SPLASH) {
         composable(SeniorRoutes.SPLASH) {
@@ -64,7 +63,7 @@ fun SeniorNavGraph(navController: NavHostController = rememberNavController()) {
         composable(SeniorRoutes.ROLE_SELECT) {
             RoleSelectionScreen(
                 onSeniorSelected = { navController.navigate(SeniorRoutes.SIGN_UP) },
-                onFamilyMemberSelected = { navController.navigate(SeniorRoutes.FAMILY_SETUP) }
+                onFamilyMemberSelected = { navController.navigate(SeniorRoutes.FAMILY_SIGNUP) }
             )
         }
         composable(SeniorRoutes.SIGN_UP) {
@@ -105,31 +104,41 @@ fun SeniorNavGraph(navController: NavHostController = rememberNavController()) {
             SeniorDashboard()
         }
 
-        // ---- Family pairing flow ----
-        composable(SeniorRoutes.FAMILY_SETUP) {
-            FamilySetupScreen(
-                viewModel = familyPairingViewModel,
-                onNext = { navController.navigate(SeniorRoutes.FAMILY_LINK) }
-            )
-        }
-        composable(SeniorRoutes.FAMILY_LINK) {
-            LinkScreen(
-                viewModel = familyPairingViewModel,
-                onVerified = { navController.navigate(SeniorRoutes.FAMILY_CONNECTED) }
-            )
-        }
-        composable(SeniorRoutes.FAMILY_CONNECTED) {
-            ConnectedScreen(
-                viewModel = familyPairingViewModel,
-                onGoHome = {
+        // ---- Family flow ----
+        // Sign up / log in land directly on the family home; linking a senior is optional
+        // and done later from the dashboard's Link tab (or the home screen's empty state).
+        composable(SeniorRoutes.FAMILY_SIGNUP) {
+            FamilySignUpScreen(
+                viewModel = familyAuthViewModel,
+                onBack = { navController.popBackStack() },
+                onSignedUp = {
                     navController.navigate(SeniorRoutes.FAMILY_HOME) {
                         popUpTo(SeniorRoutes.ROLE_SELECT) { inclusive = true }
                     }
-                }
+                },
+                onGoToLogin = { navController.navigate(SeniorRoutes.FAMILY_LOGIN) }
+            )
+        }
+        composable(SeniorRoutes.FAMILY_LOGIN) {
+            FamilyLoginScreen(
+                viewModel = familyAuthViewModel,
+                onBack = { navController.popBackStack() },
+                onLoggedIn = {
+                    navController.navigate(SeniorRoutes.FAMILY_HOME) {
+                        popUpTo(SeniorRoutes.ROLE_SELECT) { inclusive = true }
+                    }
+                },
+                onGoToSignUp = { navController.navigate(SeniorRoutes.FAMILY_SIGNUP) }
             )
         }
         composable(SeniorRoutes.FAMILY_HOME) {
-            FamilyDashboard()
+            FamilyDashboard(
+                onLoggedOut = {
+                    navController.navigate(SeniorRoutes.WELCOME) {
+                        popUpTo(SeniorRoutes.SPLASH) { inclusive = true }
+                    }
+                }
+            )
         }
     }
 }

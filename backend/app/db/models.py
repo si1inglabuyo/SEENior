@@ -57,7 +57,9 @@ class User(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     username: Mapped[str] = mapped_column(String(64), unique=True, index=True)
-    password_hash: Mapped[str] = mapped_column(String(255))
+    # Nullable: a Google-only account (no password ever set) has no hash. login()
+    # gives those users a "use Google Sign-In" message instead of a generic 401.
+    password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
     role: Mapped[UserRole] = mapped_column(
         Enum(UserRole, name="user_role", values_callable=_enum_values)
     )
@@ -65,6 +67,12 @@ class User(Base):
     # Nullable because barangay-responder accounts are seeded without them.
     full_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
     phone: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    # Family login identity (barangay responders log in by username instead, per
+    # CLAUDE.md §2 - pre-assigned credentials, so this stays nullable for them).
+    email: Mapped[str | None] = mapped_column(String(255), unique=True, index=True, nullable=True)
+    # Google's stable per-account subject ID - set only for Google-linked accounts,
+    # used to recognize a returning Google sign-in independent of email changes.
+    google_sub: Mapped[str | None] = mapped_column(String(255), unique=True, index=True, nullable=True)
     # Scopes a barangay_responder's dashboard queries; unused for family contacts.
     barangay: Mapped[str | None] = mapped_column(String(128), nullable=True)
     is_active: Mapped[bool] = mapped_column(default=True)

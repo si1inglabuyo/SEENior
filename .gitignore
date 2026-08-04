@@ -2,6 +2,7 @@ backend/venv/
 backend/**/__pycache__/
 backend/.env
 backend/*.db
+/senior_app.db
 
 android-app/SEENior/.gradle/
 android-app/SEENior/.idea/

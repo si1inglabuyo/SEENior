@@ -15,32 +15,35 @@ import kotlinx.coroutines.launch
 import retrofit2.HttpException
 import java.io.IOException
 
-/** Drives the whole family pairing flow: account setup -> link (verify) -> connected (pair). */
+/**
+ * Drives the Link tab's pairing flow: code entry (verify) -> relationship (connected/pair).
+ * Assumes the caller is already logged in (account creation is its own earlier step via
+ * FamilyAuthViewModel) - used both for a family member's 1st senior and their 2nd/3rd.
+ */
 class FamilyPairingViewModel(application: Application) : AndroidViewModel(application) {
 
-    // Step 1 — account setup (stands in for the separate account-setup signup flow)
-    var fullName by mutableStateOf("")
-    var phone by mutableStateOf("")
-    var username by mutableStateOf("")
-    var password by mutableStateOf("")
-
-    val isSetupValid: Boolean
-        get() = fullName.isNotBlank() && phone.isNotBlank() && username.isNotBlank() && password.length >= 4
-
-    // Step 2 — link (code entry + verify)
+    // Link step — code entry + verify
     var code by mutableStateOf("")
     var isVerifying by mutableStateOf(false)
         private set
     var verifiedSenior by mutableStateOf<SeniorDto?>(null)
         private set
 
-    // Step 3 — connected (relationship + pair)
+    // Connected step — relationship + pair
     var selectedRelationship by mutableStateOf<String?>(null)
     var isPairing by mutableStateOf(false)
         private set
 
     var error by mutableStateOf<String?>(null)
         private set
+
+    /** Clears the per-pairing fields so the Link screen starts fresh for "Add another senior". */
+    fun resetForNewLink() {
+        code = ""
+        verifiedSenior = null
+        selectedRelationship = null
+        error = null
+    }
 
     fun verify(onVerified: () -> Unit) {
         if (code.length != 6 || isVerifying) return
@@ -63,34 +66,23 @@ class FamilyPairingViewModel(application: Application) : AndroidViewModel(applic
     }
 
     fun pair(onPaired: () -> Unit) {
-        val senior = verifiedSenior ?: return
         val relationship = selectedRelationship ?: return
+        val token = FamilySession.getToken(getApplication()) ?: return
         if (isPairing) return
         viewModelScope.launch {
             isPairing = true
             error = null
             try {
-                val response = RetrofitClient.api.pairContact(
-                    PairRequest(
-                        inviteCode = code,
-                        fullName = fullName.trim(),
-                        phone = phone.trim(),
-                        username = username.trim(),
-                        password = password,
-                        relationshipLabel = relationship
-                    )
-                )
-                FamilySession.save(
-                    context = getApplication(),
-                    token = response.token.accessToken,
-                    seniorSyncId = response.contact.senior.syncId,
-                    seniorName = "${response.contact.senior.firstName} ${response.contact.senior.lastName}",
-                    relationship = relationship
+                RetrofitClient.api.pairContact(
+                    PairRequest(inviteCode = code, relationshipLabel = relationship),
+                    auth = "Bearer $token"
                 )
                 onPaired()
             } catch (e: HttpException) {
-                error = if (e.code() == 400) "That username is taken, or the code just expired."
-                    else "Could not connect (server error ${e.code()})."
+                error = when (e.code()) {
+                    400 -> "That code just expired, or you're already at the 3-senior limit."
+                    else -> "Could not connect (server error ${e.code()})."
+                }
             } catch (e: IOException) {
                 error = "Could not reach the server."
             } finally {

@@ -24,12 +24,9 @@ class VerifyCodeResponse(BaseModel):
 
 
 class PairRequest(BaseModel):
+    """Requires an authenticated caller (POST /auth/register or /auth/google happens
+    first, separately) - this only links the already-logged-in account to a senior."""
     invite_code: str
-    # Family member's own identity (stands in for the separate account-setup signup).
-    full_name: str
-    phone: str
-    username: str
-    password: str
     # How they relate to the senior — chosen on the Connected screen.
     relationship_label: str
 

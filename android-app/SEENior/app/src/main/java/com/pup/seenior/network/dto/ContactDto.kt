@@ -16,14 +16,11 @@ data class VerifyCodeResponse(
     val senior: SeniorDto
 )
 
-/** Mirrors backend PairRequest. full_name/phone stand in for the separate account-setup
- *  signup; relationshipLabel is chosen on the Connected screen. */
+/** Mirrors backend PairRequest. Requires the caller to already be logged in (via
+ *  /auth/register, /auth/login, or /auth/google) - this only links that account to
+ *  a senior. relationshipLabel is chosen on the Connected screen. */
 data class PairRequest(
     val inviteCode: String,
-    val fullName: String,
-    val phone: String,
-    val username: String,
-    val password: String,
     val relationshipLabel: String
 )
 

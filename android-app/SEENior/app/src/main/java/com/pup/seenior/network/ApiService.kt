@@ -1,16 +1,27 @@
 package com.pup.seenior.network
 
+import com.pup.seenior.network.dto.ChangePasswordRequest
+import com.pup.seenior.network.dto.ContactDto
 import com.pup.seenior.network.dto.CreateSeniorRequest
 import com.pup.seenior.network.dto.FamilyContactDto
+import com.pup.seenior.network.dto.GoogleSignInRequest
 import com.pup.seenior.network.dto.InviteCodeDto
 import com.pup.seenior.network.dto.PairRequest
 import com.pup.seenior.network.dto.PairResponseDto
+import com.pup.seenior.network.dto.RegisterRequest
 import com.pup.seenior.network.dto.SeniorDto
+import com.pup.seenior.network.dto.TokenDto
+import com.pup.seenior.network.dto.UpdateProfileRequest
+import com.pup.seenior.network.dto.UserDto
 import com.pup.seenior.network.dto.VerifyCodeRequest
 import com.pup.seenior.network.dto.VerifyCodeResponse
 import retrofit2.http.Body
 import retrofit2.http.DELETE
+import retrofit2.http.Field
+import retrofit2.http.FormUrlEncoded
 import retrofit2.http.GET
+import retrofit2.http.Header
+import retrofit2.http.PATCH
 import retrofit2.http.POST
 import retrofit2.http.Path
 
@@ -38,6 +49,53 @@ interface ApiService {
     @POST("contacts/verify")
     suspend fun verifyCode(@Body body: VerifyCodeRequest): VerifyCodeResponse
 
+    // Requires the caller to already be logged in — account creation (register/
+    // login/Google) always happens first, as its own step.
     @POST("contacts/pair")
-    suspend fun pairContact(@Body body: PairRequest): PairResponseDto
+    suspend fun pairContact(
+        @Body body: PairRequest,
+        @Header("Authorization") auth: String
+    ): PairResponseDto
+
+    @GET("contacts/me")
+    suspend fun getMyContacts(@Header("Authorization") auth: String): List<ContactDto>
+
+    @DELETE("contacts/{contactId}")
+    suspend fun unlinkContact(
+        @Header("Authorization") auth: String,
+        @Path("contactId") contactId: Int
+    )
+
+    // ---- Account / profile (family side) ----
+
+    // OAuth2PasswordRequestForm on the backend expects standard form-encoded
+    // fields named "username"/"password" - "username" holds the email address
+    // for family accounts (or the pre-assigned username for barangay responders).
+    @FormUrlEncoded
+    @POST("auth/login")
+    suspend fun login(
+        @Field("username") emailOrUsername: String,
+        @Field("password") password: String
+    ): TokenDto
+
+    @POST("auth/register")
+    suspend fun register(@Body body: RegisterRequest): TokenDto
+
+    @POST("auth/google")
+    suspend fun googleSignIn(@Body body: GoogleSignInRequest): TokenDto
+
+    @GET("auth/me")
+    suspend fun getMe(@Header("Authorization") auth: String): UserDto
+
+    @PATCH("auth/me")
+    suspend fun updateProfile(
+        @Header("Authorization") auth: String,
+        @Body body: UpdateProfileRequest
+    ): UserDto
+
+    @POST("auth/change-password")
+    suspend fun changePassword(
+        @Header("Authorization") auth: String,
+        @Body body: ChangePasswordRequest
+    )
 }

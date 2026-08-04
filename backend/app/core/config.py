@@ -14,6 +14,10 @@ class Settings:
     access_token_expire_minutes: int = int(
         os.environ.get("ACCESS_TOKEN_EXPIRE_MINUTES", "60")
     )
+    # The "Web application" OAuth Client ID from Google Cloud Console — used both as
+    # the audience Android requests an ID token for, and to verify that token here.
+    # POST /auth/google 503s with a clear message if this isn't set.
+    google_client_id: str | None = os.environ.get("GOOGLE_CLIENT_ID")
 
 
 settings = Settings()

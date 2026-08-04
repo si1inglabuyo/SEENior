@@ -20,6 +20,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -37,7 +38,11 @@ private val RELATIONSHIPS = listOf("daughter", "son", "grandchild", "caregiver",
 
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
-fun ConnectedScreen(viewModel: FamilyPairingViewModel, onGoHome: () -> Unit) {
+fun ConnectedScreen(
+    viewModel: FamilyPairingViewModel,
+    onGoHome: () -> Unit,
+    onAddAnother: (() -> Unit)? = null
+) {
     val senior: SeniorDto = viewModel.verifiedSenior ?: return
 
     Column(
@@ -124,6 +129,30 @@ fun ConnectedScreen(viewModel: FamilyPairingViewModel, onGoHome: () -> Unit) {
             enabled = viewModel.selectedRelationship != null && !viewModel.isPairing,
             onClick = { viewModel.pair(onGoHome) }
         )
+
+        if (onAddAnother != null) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 12.dp)
+                    .height(50.dp)
+                    .border(1.dp, FamilyColors.FieldBorder, RoundedCornerShape(14.dp))
+                    .clickable(enabled = !viewModel.isPairing) {
+                        viewModel.pair(onAddAnother)
+                    },
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(Icons.Filled.Add, null, tint = FamilyColors.Blue, modifier = Modifier.size(18.dp))
+                Text(
+                    "Add another senior",
+                    color = FamilyColors.Blue,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(start = 8.dp)
+                )
+            }
+        }
     }
 }
 

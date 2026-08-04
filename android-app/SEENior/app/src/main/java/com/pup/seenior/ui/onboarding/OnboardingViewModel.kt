@@ -5,11 +5,16 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
 import androidx.room.withTransaction
+import com.pup.seenior.address.PhAddressRepository
+import com.pup.seenior.address.RegionNode
 import com.pup.seenior.baseline.SeedBaselineGenerator
 import com.pup.seenior.database.SeniorAppDatabase
 import com.pup.seenior.database.entities.Senior
 import com.pup.seenior.database.entities.SeniorOnboarding
+import com.pup.seenior.validation.PhilippinePhone
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
 import java.time.LocalTime
@@ -46,8 +51,49 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
     var gender by mutableStateOf<String?>(null)
     var mobileNumber by mutableStateOf("")
     var livingArrangementLabel by mutableStateOf<String?>(null)
-    var barangay by mutableStateOf("")
-    var address by mutableStateOf("")
+
+    // Structured address (delivery-style: region -> province -> city -> barangay + street line).
+    // Backed by the bundled PSGC dataset; selecting a level resets everything below it.
+    private var locations by mutableStateOf<Map<String, RegionNode>>(emptyMap())
+    var region by mutableStateOf<String?>(null)
+        private set
+    var province by mutableStateOf<String?>(null)
+        private set
+    var city by mutableStateOf<String?>(null)
+        private set
+    var barangay by mutableStateOf<String?>(null)
+    var streetAddress by mutableStateOf("")
+
+    init {
+        viewModelScope.launch {
+            locations = PhAddressRepository.load(getApplication())
+        }
+    }
+
+    private val regionNode: RegionNode?
+        get() = locations.values.firstOrNull { it.regionName == region }
+
+    val regionOptions: List<String>
+        get() = locations.values.map { it.regionName }.sorted()
+    val provinceOptions: List<String>
+        get() = regionNode?.provinceList?.keys?.sorted() ?: emptyList()
+    val cityOptions: List<String>
+        get() = regionNode?.provinceList?.get(province)?.municipalityList?.keys?.sorted() ?: emptyList()
+    val barangayOptions: List<String>
+        get() = regionNode?.provinceList?.get(province)
+            ?.municipalityList?.get(city)?.barangayList?.sorted() ?: emptyList()
+
+    fun onRegionSelected(name: String) {
+        region = name; province = null; city = null; barangay = null
+    }
+
+    fun onProvinceSelected(name: String) {
+        province = name; city = null; barangay = null
+    }
+
+    fun onCitySelected(name: String) {
+        city = name; barangay = null
+    }
 
     // Onboarding questionnaire
     var wakeTime by mutableStateOf<LocalTime?>(null)
@@ -68,10 +114,13 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
             lastName.isNotBlank() &&
             age.toIntOrNull() != null &&
             gender != null &&
-            mobileNumber.isNotBlank() &&
+            PhilippinePhone.isValid(mobileNumber) &&
             livingArrangementLabel != null &&
-            barangay.isNotBlank() &&
-            address.isNotBlank()
+            region != null &&
+            province != null &&
+            city != null &&
+            barangay != null &&
+            streetAddress.isNotBlank()
 
     val isQuestionnaireValid: Boolean
         get() = wakeTime != null &&
@@ -96,9 +145,10 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
                 lastName = lastName.trim(),
                 age = age.trim().toInt(),
                 gender = gender!!,
-                mobileNumber = mobileNumber.trim(),
-                address = address.trim(),
-                barangay = barangay.trim(),
+                mobileNumber = PhilippinePhone.normalize(mobileNumber)!!,
+                address = listOf(streetAddress.trim(), barangay!!, city!!, province!!, region!!)
+                    .joinToString(", "),
+                barangay = barangay!!,
                 livingArrangement = livingArrangementValue,
                 isOnboardingComplete = true
             )

@@ -1,3 +1,7 @@
-<resources>
+ <resources>
     <string name="app_name">SEENior</string>
+    <!-- "Web application" OAuth Client ID from Google Cloud Console (APIs & Services ->
+         Credentials). Required for "Sign Up With Google" to work — see the setup
+         instructions handed off alongside this change. Not a secret; safe to commit. -->
+    <string name="google_web_client_id" translatable="false">814522278451-9ueiiue6342vhiak12v3l2eaau5afr6d.apps.googleusercontent.com</string>
 </resources>

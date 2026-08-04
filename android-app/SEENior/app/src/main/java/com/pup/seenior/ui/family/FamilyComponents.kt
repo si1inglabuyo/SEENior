@@ -4,11 +4,15 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -64,6 +68,35 @@ fun BluePillButton(
     }
 }
 
+/** Shown on the Link tab (instead of the code form) and the Contacts tab (below the list)
+ *  once a family account has reached MAX_LINKED_SENIORS. */
+@Composable
+fun MonitoringLimitCard(modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(FamilyColors.WarningBg, RoundedCornerShape(14.dp))
+            .padding(16.dp),
+        verticalAlignment = Alignment.Top
+    ) {
+        Icon(Icons.Outlined.Info, null, tint = FamilyColors.WarningText, modifier = Modifier.size(22.dp))
+        Column(modifier = Modifier.padding(start = 12.dp)) {
+            Text(
+                "Monitoring limit reached ($MAX_LINKED_SENIORS/$MAX_LINKED_SENIORS)",
+                color = FamilyColors.WarningText,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                "Remove a linked senior to monitor a new one.",
+                color = FamilyColors.WarningText,
+                fontSize = 14.sp,
+                modifier = Modifier.padding(top = 2.dp)
+            )
+        }
+    }
+}
+
 @Composable
 fun FamilyTextField(
     label: String,
@@ -71,7 +104,9 @@ fun FamilyTextField(
     onValueChange: (String) -> Unit,
     keyboardType: KeyboardType = KeyboardType.Text,
     isPassword: Boolean = false,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isError: Boolean = false,
+    errorText: String? = null
 ) {
     OutlinedTextField(
         value = value,
@@ -82,10 +117,15 @@ fun FamilyTextField(
         shape = RoundedCornerShape(12.dp),
         keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
         visualTransformation = if (isPassword) PasswordVisualTransformation() else VisualTransformation.None,
+        isError = isError,
+        supportingText = if (isError && errorText != null) {
+            { Text(errorText, color = FamilyColors.ErrorRed, fontSize = 13.sp) }
+        } else null,
         colors = OutlinedTextFieldDefaults.colors(
             focusedBorderColor = FamilyColors.Blue,
             unfocusedBorderColor = FamilyColors.FieldBorder,
-            focusedLabelColor = FamilyColors.Blue
+            focusedLabelColor = FamilyColors.Blue,
+            errorBorderColor = FamilyColors.ErrorRed
         )
     )
 }
