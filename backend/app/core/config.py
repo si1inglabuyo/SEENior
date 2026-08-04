@@ -9,6 +9,10 @@ class Settings:
         "DATABASE_URL",
         "postgresql+asyncpg://seenior:seenior@localhost:5432/seenior",
     )
+    if database_url.startswith("postgres://"):
+        database_url = database_url.replace("postgres://", "postgresql+asyncpg://", 1)
+    elif database_url.startswith("postgresql://") and "+asyncpg" not in database_url:
+        database_url = database_url.replace("postgresql://", "postgresql+asyncpg://", 1)
     secret_key: str = os.environ.get("SECRET_KEY", _DEFAULT_SECRET_KEY)
     jwt_algorithm: str = os.environ.get("JWT_ALGORITHM", "HS256")
     access_token_expire_minutes: int = int(
