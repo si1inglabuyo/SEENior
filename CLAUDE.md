@@ -186,6 +186,15 @@ Alert cancelled       ▼
 ### Tables that exist in both (with different field sets)
 `Seniors`, `Contacts`, `Alerts` — local versions have full detection-relevant fields; cloud versions are privacy-stripped metadata-only subsets.
 
+### Cloud PostgreSQL field lists (as of migration 0004)
+
+- **`users`** — `id`, `username`, `password_hash` (nullable — null for Google-only accounts), `role` (`family_contact` / `barangay_responder`), `full_name`, `phone`, `email` (nullable/unique — family sign-in identity; barangay responders log in by `username` instead and leave this null), `google_sub` (nullable/unique — Google's stable per-account ID), `barangay` (scopes a barangay responder's dashboard queries; unused for family contacts), `is_active`, `created_at`.
+- **`seniors`** — `id`, `sync_id` (anonymous UUID used for all cloud-facing references, per §11), `first_name`, `last_name`, `age`, `gender`, `barangay`, `address` (joined PSGC-validated string), `mobile_number`, `invite_code` (nullable, 6-digit, time-limited), `invite_code_expires_at`, `created_at`.
+- **`contacts`** — `id`, `senior_id`, `user_id`, `contact_type` (`family` / `barangay_responder`), `relationship_label` (nullable — e.g. "daughter", "son"; named `_label` to avoid colliding with SQLAlchemy's `relationship()`), `created_at`. Unique on `(senior_id, user_id)` — one contact row per senior/family pairing.
+- **`alerts`** — `id`, `sync_id`, `senior_id`, `risk_level` (`low`/`medium`/`high`), `trigger_type` (`inactivity`/`movement`/`screen_idle`/`charging`/`sos`/`ml_flag`/`fall_pattern`), `status` (`pending`/`acknowledged`/`escalated`/`resolved`/`false_positive`), `location_cluster_id` (nullable, anonymous cluster — never raw coordinates), `escalation_steps` (JSON), `created_at`, `resolved_at`.
+
+None of the fields above are raw sensor/behavioral data — they're identity, pairing, and alert-metadata fields added as pairing/auth features were built (multi-senior linking, Google Sign-In, PH address validation). The privacy boundary from §11 (no raw sensor data leaves the senior's device) remains intact.
+
 ### Key fields worth knowing
 - `Alerts.trigger_type` — what caused the alert: `inactivity`, `movement`, `screen_idle`, `charging`, `sos`, `ml_flag`, or `fall_pattern`
 - `Alerts.risk_level` — `low` / `medium` / `high`, assigned by Fuzzy Logic

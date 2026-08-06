@@ -92,7 +92,22 @@ private fun ContactsListScreen(
             )
         }
 
-        if (viewModel.contacts.isEmpty() && !viewModel.isLoading) {
+        // Loading and failure are both checked before the empty case: either one showing
+        // "No seniors linked yet." looked like the links had been removed.
+        if (viewModel.isLoading) {
+            Box(modifier = Modifier.fillMaxWidth().padding(24.dp)) {
+                LoadingCard("Loading your seniors…")
+            }
+        } else if (viewModel.loadFailed) {
+            Box(modifier = Modifier.fillMaxWidth().padding(24.dp)) {
+                CouldNotLoadCard(
+                    title = "Could not load your seniors",
+                    message = viewModel.error ?: "Could not reach the server.",
+                    reassurance = "They are still linked to your account.",
+                    onRetry = { viewModel.refresh() }
+                )
+            }
+        } else if (viewModel.contacts.isEmpty() && !viewModel.isLoading) {
             Box(modifier = Modifier.fillMaxWidth().padding(top = 40.dp), contentAlignment = Alignment.Center) {
                 Text("No seniors linked yet.", color = FamilyColors.TextSecondary, fontSize = 15.sp)
             }

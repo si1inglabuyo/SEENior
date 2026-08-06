@@ -18,6 +18,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Contacts
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.outlined.Favorite
@@ -53,7 +54,9 @@ fun SeniorContactsScreen(
     ) {
         GreenHeader(icon = { Icon(Icons.Filled.Contacts, null, tint = Color.White) }, title = "Contacts")
 
-        viewModel.error?.let {
+        // Only surface the error inline when there's still a list under it; a failed load with
+        // nothing to show gets the full CouldNotLoadState below instead.
+        viewModel.error?.takeIf { viewModel.contacts.isNotEmpty() }?.let {
             Text(it, color = RemoveRed, fontSize = 14.sp, modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
         }
 
@@ -61,6 +64,12 @@ fun SeniorContactsScreen(
             viewModel.isLoading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = SeniorColors.Green)
             }
+            // Order matters: a failed load must never fall through to EmptyState, or a
+            // temporary network problem looks like the contacts were deleted.
+            viewModel.loadFailed -> CouldNotLoadState(
+                message = viewModel.error ?: "Could not load your contacts.",
+                onRetry = { viewModel.refresh() }
+            )
             viewModel.contacts.isEmpty() -> EmptyState(onGoToInvite)
             else -> LazyColumn(
                 modifier = Modifier.padding(horizontal = 20.dp),
@@ -130,6 +139,60 @@ private fun ContactCard(contact: FamilyContactDto, onRemove: () -> Unit) {
         ) {
             Icon(Icons.Filled.Delete, null, tint = RemoveRed, modifier = Modifier.size(20.dp))
             Text("Remove Contact", color = RemoveRed, fontSize = 17.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 8.dp))
+        }
+    }
+}
+
+/** Shown when the contact list could not be fetched. Deliberately worded so the senior knows
+ *  their family is still linked and only the *loading* failed — the previous behaviour reused
+ *  the "no family connected yet" empty state here, which looked like the pairing was lost. */
+@Composable
+private fun CouldNotLoadState(message: String, onRetry: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 16.dp)
+                .border(1.dp, SeniorColors.FieldBorder, RoundedCornerShape(20.dp))
+                .padding(vertical = 32.dp, horizontal = 20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Box(
+                modifier = Modifier.size(64.dp).background(SeniorColors.FieldBackground, CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Filled.CloudOff, null, tint = SeniorColors.TextSecondary, modifier = Modifier.size(30.dp))
+            }
+            Text(
+                "Could not load your contacts",
+                color = SeniorColors.TextPrimary,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(top = 16.dp)
+            )
+            Text(
+                "$message Your family members are still connected.",
+                color = SeniorColors.TextSecondary,
+                fontSize = 15.sp,
+                modifier = Modifier.padding(top = 8.dp)
+            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 20.dp)
+                    .height(52.dp)
+                    .border(1.dp, SeniorColors.GreenBorder, RoundedCornerShape(14.dp))
+                    .clickable(onClick = onRetry),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Try again", color = SeniorColors.Green, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+            }
         }
     }
 }

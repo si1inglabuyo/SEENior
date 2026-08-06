@@ -37,6 +37,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.pup.seenior.ui.family.BlueHeader
 import com.pup.seenior.ui.family.ConnectedScreen
+import com.pup.seenior.ui.family.FamilyAlertsScreen
+import com.pup.seenior.ui.family.FamilyAlertsViewModel
 import com.pup.seenior.ui.family.FamilyColors
 import com.pup.seenior.ui.family.FamilyContactsScreen
 import com.pup.seenior.ui.family.FamilyHomeScreen
@@ -60,6 +62,7 @@ fun FamilyDashboard(onLoggedOut: () -> Unit) {
     // Shared across all tabs so a link/unlink on one tab is reflected on the others
     // without a re-fetch.
     val seniorsViewModel: FamilySeniorsViewModel = viewModel()
+    val alertsViewModel: FamilyAlertsViewModel = viewModel()
     LaunchedEffect(Unit) { seniorsViewModel.refresh() }
 
     Scaffold(
@@ -91,7 +94,13 @@ fun FamilyDashboard(onLoggedOut: () -> Unit) {
                     onManageContacts = { tab = FamilyTab.CONTACTS },
                     onDone = { tab = FamilyTab.HOME }
                 )
-                FamilyTab.ALERTS -> Placeholder("Alerts")
+                FamilyTab.ALERTS -> FamilyAlertsScreen(
+                    viewModel = alertsViewModel,
+                    contacts = seniorsViewModel.contacts,
+                    seniorsLoading = seniorsViewModel.isLoading,
+                    seniorsLoadFailed = seniorsViewModel.loadFailed,
+                    onRetrySeniors = { seniorsViewModel.refresh() }
+                )
                 FamilyTab.CONTACTS -> FamilyContactsScreen(seniorsViewModel, onLinkSenior = { tab = FamilyTab.LINK })
                 FamilyTab.PROFILE -> FamilyProfileScreen(onLoggedOut = onLoggedOut)
             }
@@ -152,12 +161,5 @@ private fun LinkTab(
                 }
             } else null
         )
-    }
-}
-
-@Composable
-private fun Placeholder(name: String) {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text(name, color = FamilyColors.TextSecondary)
     }
 }

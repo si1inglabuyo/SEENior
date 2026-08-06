@@ -1,5 +1,7 @@
 package com.pup.seenior.network
 
+import com.pup.seenior.network.dto.AlertDispatchRequest
+import com.pup.seenior.network.dto.AlertDto
 import com.pup.seenior.network.dto.ChangePasswordRequest
 import com.pup.seenior.network.dto.ContactDto
 import com.pup.seenior.network.dto.CreateSeniorRequest
@@ -24,6 +26,7 @@ import retrofit2.http.Header
 import retrofit2.http.PATCH
 import retrofit2.http.POST
 import retrofit2.http.Path
+import retrofit2.http.Query
 
 interface ApiService {
 
@@ -98,4 +101,31 @@ interface ApiService {
         @Header("Authorization") auth: String,
         @Body body: ChangePasswordRequest
     )
+
+    // ---- Alerts (family side) ----
+
+    @GET("alerts")
+    suspend fun getAlerts(
+        @Query("senior_sync_id") seniorSyncId: String,
+        @Header("Authorization") auth: String
+    ): List<AlertDto>
+
+    @PATCH("alerts/{syncId}/acknowledge")
+    suspend fun acknowledgeAlert(
+        @Path("syncId") syncId: String,
+        @Header("Authorization") auth: String
+    ): AlertDto
+
+    @PATCH("alerts/{syncId}/dispatch")
+    suspend fun dispatchAlert(
+        @Path("syncId") syncId: String,
+        @Body body: AlertDispatchRequest,
+        @Header("Authorization") auth: String
+    ): AlertDto
+
+    @PATCH("alerts/{syncId}/resolve")
+    suspend fun resolveAlert(
+        @Path("syncId") syncId: String,
+        @Header("Authorization") auth: String
+    ): AlertDto
 }

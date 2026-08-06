@@ -29,19 +29,30 @@ class FamilySeniorsViewModel(application: Application) : AndroidViewModel(applic
     var error by mutableStateOf<String?>(null)
         private set
 
-    val canLinkMore: Boolean get() = contacts.size < MAX_LINKED_SENIORS
+    /** True when the last refresh failed. Screens must branch on this before `contacts.isEmpty()`
+     *  so a failed fetch never renders as "no seniors linked" — that looked like the pairing had
+     *  been lost when in fact nothing had been reached. */
+    var loadFailed by mutableStateOf(false)
+        private set
+
+    // Only meaningful after a successful load: if the fetch failed, `contacts` is empty for the
+    // wrong reason, so don't invite the user to link a senior they may already be at the cap for.
+    val canLinkMore: Boolean get() = !loadFailed && contacts.size < MAX_LINKED_SENIORS
 
     fun refresh() {
         val token = FamilySession.getToken(getApplication()) ?: return
         viewModelScope.launch {
             isLoading = true
             error = null
+            loadFailed = false
             try {
                 contacts = RetrofitClient.api.getMyContacts("Bearer $token")
             } catch (e: HttpException) {
                 error = "Could not load your linked seniors (server error ${e.code()})."
+                loadFailed = true
             } catch (e: IOException) {
-                error = "Could not reach the server."
+                error = "Could not reach the server. Check your internet connection."
+                loadFailed = true
             } finally {
                 isLoading = false
             }

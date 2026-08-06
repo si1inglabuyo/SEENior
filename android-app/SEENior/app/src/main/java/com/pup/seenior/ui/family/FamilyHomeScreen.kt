@@ -72,7 +72,19 @@ fun FamilyHomeScreen(viewModel: FamilySeniorsViewModel, onLinkSenior: () -> Unit
 
             Text("MY SENIORS", color = FamilyColors.TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 24.dp, bottom = 12.dp))
 
-            if (viewModel.contacts.isEmpty()) {
+            // Loading and failure are both checked before the empty case — rendering either as
+            // EmptyLinkCard told the user "no one linked yet" when their seniors were still
+            // linked, just slow to fetch or unreachable.
+            if (viewModel.isLoading) {
+                LoadingCard("Loading your seniors…")
+            } else if (viewModel.loadFailed) {
+                CouldNotLoadCard(
+                    title = "Could not load your seniors",
+                    message = viewModel.error ?: "Could not reach the server.",
+                    reassurance = "They are still linked to your account.",
+                    onRetry = { viewModel.refresh() }
+                )
+            } else if (viewModel.contacts.isEmpty()) {
                 EmptyLinkCard(onLinkSenior)
             } else {
                 viewModel.contacts.forEach { contact ->
@@ -81,8 +93,10 @@ fun FamilyHomeScreen(viewModel: FamilySeniorsViewModel, onLinkSenior: () -> Unit
                 }
             }
 
-            Text("RECENT ALERTS", color = FamilyColors.TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 28.dp, bottom = 12.dp))
-            NoAlertsCard()
+            if (!viewModel.loadFailed && !viewModel.isLoading) {
+                Text("RECENT ALERTS", color = FamilyColors.TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 28.dp, bottom = 12.dp))
+                NoAlertsCard()
+            }
 
             Spacer(Modifier.height(24.dp))
         }

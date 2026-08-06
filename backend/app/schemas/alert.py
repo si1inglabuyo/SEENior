@@ -25,3 +25,8 @@ class AlertOut(BaseModel):
     resolved_at: datetime | None
 
     model_config = {"from_attributes": True}
+
+
+class AlertDispatchRequest(BaseModel):
+    reason: str
+    notes: str | None = None

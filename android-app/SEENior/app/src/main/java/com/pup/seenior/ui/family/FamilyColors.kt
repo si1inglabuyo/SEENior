@@ -21,4 +21,12 @@ object FamilyColors {
     val WarningText = Color(0xFF9A6B1E)
     val SuccessGreen = Color(0xFF5FA25A)
     val ErrorRed = Color(0xFFCC3333)
+
+    // Alerts tab (designs/family_contact/dashboard_notification) — active-alert red and
+    // dispatch-barangay orange, distinct from the blue palette used everywhere else.
+    val AlertRed = Color(0xFFD9534F)
+    val AlertRedBg = Color(0xFFFBEAEA)
+    val Orange = Color(0xFFD99A4E)
+    val OrangeBg = Color(0xFFFBEEDC)
+    val SafeGreenBg = Color(0xFFE7F5E6)
 }

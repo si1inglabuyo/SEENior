@@ -8,7 +8,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.pup.seenior.database.SeniorAppDatabase
 import com.pup.seenior.network.RetrofitClient
-import com.pup.seenior.network.dto.CreateSeniorRequest
+import com.pup.seenior.network.SeniorCloudSync
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -17,6 +17,7 @@ import java.io.IOException
 
 class InviteViewModel(application: Application) : AndroidViewModel(application) {
     private val db = SeniorAppDatabase.getInstance(application)
+    private val cloudSync = SeniorCloudSync(db)
 
     var inviteCode by mutableStateOf<String?>(null)
         private set
@@ -37,8 +38,11 @@ class InviteViewModel(application: Application) : AndroidViewModel(application) 
             isLoading = true
             error = null
             try {
-                val cloudSyncId = ensureCloudSyncId()
-                val invite = RetrofitClient.api.generateInvite(cloudSyncId)
+                // withSyncId re-registers and retries if the cached id is unknown to the current
+                // backend, so a recreated/switched cloud DB no longer bricks code generation.
+                val invite = cloudSync.withSyncId { syncId ->
+                    RetrofitClient.api.generateInvite(syncId)
+                }
                 inviteCode = invite.code
                 startCountdown(300) // display-only; the backend enforces the real 5-min expiry
             } catch (e: HttpException) {
@@ -53,27 +57,6 @@ class InviteViewModel(application: Application) : AndroidViewModel(application) 
                 isLoading = false
             }
         }
-    }
-
-    /** Lazily registers the senior with the cloud the first time a code is needed. */
-    private suspend fun ensureCloudSyncId(): String {
-        val senior = db.seniorDao().getOnboardedSenior()
-            ?: throw IllegalStateException("No onboarded senior found on this device.")
-        senior.cloudSyncId?.let { return it }
-
-        val created = RetrofitClient.api.createSenior(
-            CreateSeniorRequest(
-                firstName = senior.firstName,
-                lastName = senior.lastName,
-                age = senior.age,
-                gender = senior.gender,
-                barangay = senior.barangay,
-                address = senior.address,
-                mobileNumber = senior.mobileNumber
-            )
-        )
-        db.seniorDao().updateCloudSyncId(senior.seniorId, created.syncId)
-        return created.syncId
     }
 
     private fun startCountdown(seconds: Int) {
