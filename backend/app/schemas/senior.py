@@ -14,6 +14,16 @@ class SeniorCreate(BaseModel):
     mobile_number: str
 
 
+class SeniorUpdate(BaseModel):
+    first_name: str
+    last_name: str
+    age: int
+    gender: str
+    barangay: str
+    address: str
+    mobile_number: str
+
+
 class SeniorOut(BaseModel):
     sync_id: UUID
     first_name: str

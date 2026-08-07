@@ -14,6 +14,7 @@ import com.pup.seenior.network.dto.RegisterRequest
 import com.pup.seenior.network.dto.SeniorDto
 import com.pup.seenior.network.dto.TokenDto
 import com.pup.seenior.network.dto.UpdateProfileRequest
+import com.pup.seenior.network.dto.UpdateSeniorRequest
 import com.pup.seenior.network.dto.UserDto
 import com.pup.seenior.network.dto.VerifyCodeRequest
 import com.pup.seenior.network.dto.VerifyCodeResponse
@@ -34,6 +35,12 @@ interface ApiService {
 
     @POST("seniors")
     suspend fun createSenior(@Body body: CreateSeniorRequest): SeniorDto
+
+    @PATCH("seniors/{syncId}")
+    suspend fun updateSenior(
+        @Path("syncId") syncId: String,
+        @Body body: UpdateSeniorRequest
+    ): SeniorDto
 
     @POST("seniors/{syncId}/invite")
     suspend fun generateInvite(@Path("syncId") syncId: String): InviteCodeDto

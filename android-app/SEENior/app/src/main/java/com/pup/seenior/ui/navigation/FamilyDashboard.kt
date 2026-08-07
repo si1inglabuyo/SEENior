@@ -11,11 +11,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Contacts
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Link
-import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.outlined.Contacts
+import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.Link
+import androidx.compose.material.icons.outlined.Notifications
+import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -34,6 +34,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.pup.seenior.ui.family.BlueHeader
 import com.pup.seenior.ui.family.ConnectedScreen
@@ -49,11 +50,11 @@ import com.pup.seenior.ui.family.LinkScreen
 import com.pup.seenior.ui.family.MonitoringLimitCard
 
 private enum class FamilyTab(val label: String, val icon: ImageVector) {
-    HOME("Home", Icons.Filled.Home),
-    LINK("Link", Icons.Filled.Link),
-    ALERTS("Alerts", Icons.Filled.Notifications),
-    CONTACTS("Contacts", Icons.Filled.Contacts),
-    PROFILE("Profile", Icons.Filled.Person)
+    HOME("Home", Icons.Outlined.Home),
+    LINK("Link", Icons.Outlined.Link),
+    ALERTS("Alerts", Icons.Outlined.Notifications),
+    CONTACTS("Contacts", Icons.Outlined.Contacts),
+    PROFILE("Profile", Icons.Outlined.Person)
 }
 
 @Composable
@@ -73,13 +74,19 @@ fun FamilyDashboard(onLoggedOut: () -> Unit) {
                         selected = tab == entry,
                         onClick = { tab = entry },
                         icon = { Icon(entry.icon, contentDescription = entry.label) },
-                        label = { Text(entry.label) },
+                        label = {
+                            Text(
+                                entry.label,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp
+                            )
+                        },
                         colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = Color.White,
-                            selectedTextColor = FamilyColors.Blue,
+                            selectedTextColor = Color.Black,
                             indicatorColor = FamilyColors.Blue,
-                            unselectedIconColor = FamilyColors.TextSecondary,
-                            unselectedTextColor = FamilyColors.TextSecondary
+                            unselectedIconColor = FamilyColors.Blue,
+                            unselectedTextColor = Color.Black
                         )
                     )
                 }
@@ -121,7 +128,7 @@ private fun LinkTab(
 ) {
     if (!seniorsViewModel.canLinkMore) {
         Column(modifier = Modifier.fillMaxSize().background(Color.White)) {
-            BlueHeader(Icons.Filled.Link, "Link")
+            BlueHeader(Icons.Outlined.Link, "Link")
             Column(modifier = Modifier.padding(24.dp)) {
                 MonitoringLimitCard()
                 Row(

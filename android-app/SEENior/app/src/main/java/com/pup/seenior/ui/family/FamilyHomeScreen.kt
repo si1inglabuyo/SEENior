@@ -6,8 +6,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -26,6 +28,7 @@ import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -35,6 +38,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.pup.seenior.network.dto.ContactDto
 
 /**
@@ -44,7 +48,17 @@ import com.pup.seenior.network.dto.ContactDto
  * alert-sync pipeline feeds them.
  */
 @Composable
-fun FamilyHomeScreen(viewModel: FamilySeniorsViewModel, onLinkSenior: () -> Unit) {
+fun FamilyHomeScreen(
+    viewModel: FamilySeniorsViewModel,
+    profileViewModel: FamilyProfileViewModel = viewModel(),
+    onLinkSenior: () -> Unit
+) {
+    LaunchedEffect(Unit) {
+        profileViewModel.refresh()
+    }
+
+    val firstName = profileViewModel.fullName.split(" ").firstOrNull() ?: ""
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -67,7 +81,13 @@ fun FamilyHomeScreen(viewModel: FamilySeniorsViewModel, onLinkSenior: () -> Unit
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 24.dp)
         ) {
-            Text("Hi there,", color = FamilyColors.Blue, fontSize = 24.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 20.dp))
+            Text(
+                if (firstName.isNotBlank()) "Hi there, $firstName" else "Hi there,",
+                color = FamilyColors.Blue,
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(top = 20.dp)
+            )
             Text("You're all set today", color = FamilyColors.TextSecondary, fontSize = 15.sp)
 
             Text("MY SENIORS", color = FamilyColors.TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 24.dp, bottom = 12.dp))
@@ -149,12 +169,13 @@ private fun SeniorCard(contact: ContactDto) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 16.dp),
+                .padding(top = 16.dp)
+                .height(IntrinsicSize.Max),
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            StatTile(Icons.Filled.MonitorHeart, "—", "Risk Level", Modifier.weight(1f))
-            StatTile(Icons.Outlined.Notifications, "0", "Alerts Today", Modifier.weight(1f))
-            StatTile(Icons.Filled.BatteryChargingFull, "—", "Battery", Modifier.weight(1f))
+            StatTile(Icons.Filled.MonitorHeart, "—", "Risk Level", Modifier.weight(1f).fillMaxHeight())
+            StatTile(Icons.Outlined.Notifications, "0", "Alerts Today", Modifier.weight(1f).fillMaxHeight())
+            StatTile(Icons.Filled.BatteryChargingFull, "—", "Battery", Modifier.weight(1f).fillMaxHeight())
         }
     }
 }

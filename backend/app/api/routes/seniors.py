@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.models import Senior
 from app.db.session import get_db
 from app.schemas.contact import InviteCodeOut
-from app.schemas.senior import SeniorCreate, SeniorOut
+from app.schemas.senior import SeniorCreate, SeniorOut, SeniorUpdate
 
 router = APIRouter(prefix="/seniors", tags=["seniors"])
 
@@ -34,6 +34,22 @@ async def _get_senior_or_404(sync_id: UUID, db: AsyncSession) -> Senior:
     senior = result.scalar_one_or_none()
     if senior is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Senior not found")
+    return senior
+
+
+@router.patch("/{sync_id}", response_model=SeniorOut)
+async def update_senior(
+    sync_id: UUID, payload: SeniorUpdate, db: AsyncSession = Depends(get_db)
+) -> Senior:
+    # No auth, same as every other senior-side endpoint here: the senior has no Users
+    # account (CLAUDE.md §2), so the sync_id itself is the credential. Exists so an
+    # Edit Profile save on the phone also reaches the cloud copy — otherwise the family
+    # app keeps rendering the name/age/gender captured at registration.
+    senior = await _get_senior_or_404(sync_id, db)
+    for field, value in payload.model_dump().items():
+        setattr(senior, field, value)
+    await db.commit()
+    await db.refresh(senior)
     return senior
 
 
