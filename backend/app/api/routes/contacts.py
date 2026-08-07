@@ -8,7 +8,7 @@ from sqlalchemy.orm import selectinload
 
 from app.api.deps import get_current_user
 from app.core.security import create_access_token
-from app.db.models import Contact, ContactType, Senior, User
+from app.db.models import Contact, ContactType, Senior, UnlinkActor, User
 from app.db.session import get_db
 from app.schemas.auth import Token
 from app.schemas.contact import (
@@ -62,10 +62,17 @@ async def pair_contact(
     # whether they're linking their 1st senior or their 3rd.
     senior = await _senior_by_valid_code(payload.invite_code, db)
 
+    # Every count/duplicate check below is scoped to ACTIVE pairings: a senior who
+    # removed a contact must be able to add a replacement, and a family member who
+    # unlinked a senior must get that slot back.
     count_result = await db.execute(
         select(func.count())
         .select_from(Contact)
-        .where(Contact.senior_id == senior.id, Contact.contact_type == ContactType.FAMILY)
+        .where(
+            Contact.senior_id == senior.id,
+            Contact.contact_type == ContactType.FAMILY,
+            Contact.is_active(),
+        )
     )
     if count_result.scalar_one() >= MAX_FAMILY_CONTACTS_PER_SENIOR:
         raise HTTPException(
@@ -78,7 +85,11 @@ async def pair_contact(
     my_seniors_result = await db.execute(
         select(func.count())
         .select_from(Contact)
-        .where(Contact.user_id == user.id, Contact.contact_type == ContactType.FAMILY)
+        .where(
+            Contact.user_id == user.id,
+            Contact.contact_type == ContactType.FAMILY,
+            Contact.is_active(),
+        )
     )
     if my_seniors_result.scalar_one() >= MAX_SENIORS_PER_FAMILY:
         raise HTTPException(
@@ -87,10 +98,19 @@ async def pair_contact(
         )
 
     duplicate_result = await db.execute(
-        select(Contact).where(Contact.senior_id == senior.id, Contact.user_id == user.id)
+        select(Contact).where(
+            Contact.senior_id == senior.id,
+            Contact.user_id == user.id,
+            Contact.is_active(),
+        )
     )
     if duplicate_result.scalar_one_or_none() is not None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="You're already linked to this senior")
+
+    # A previously-unlinked pairing is left untouched and a fresh row is inserted, so the
+    # history reads "linked, unlinked, linked again" instead of a single row whose
+    # created_at quietly lies about when the current pairing began. The partial unique
+    # index only covers active rows, so this does not collide.
 
     contact = Contact(
         senior_id=senior.id,
@@ -123,7 +143,11 @@ async def list_my_seniors(
     powers the family app's Home/Contacts tabs."""
     result = await db.execute(
         select(Contact)
-        .where(Contact.user_id == current_user.id, Contact.contact_type == ContactType.FAMILY)
+        .where(
+            Contact.user_id == current_user.id,
+            Contact.contact_type == ContactType.FAMILY,
+            Contact.is_active(),
+        )
         .options(selectinload(Contact.senior))
         .order_by(Contact.created_at.asc())
     )
@@ -137,15 +161,29 @@ async def unlink_senior(
     current_user: User = Depends(get_current_user),
 ) -> None:
     """Family-side unlink, scoped to the caller's own contact row so one family
-    member can't remove another's link."""
+    member can't remove another's link.
+
+    Soft: the row is marked, not deleted. The senior's app stops listing this family
+    member on its next refresh, because that list filters on Contact.is_active() too —
+    an unlink has always been symmetrical, both sides read the same row."""
     result = await db.execute(
-        select(Contact).where(Contact.id == contact_id, Contact.user_id == current_user.id)
+        select(Contact).where(
+            Contact.id == contact_id,
+            Contact.user_id == current_user.id,
+            Contact.is_active(),
+        )
     )
     contact = result.scalar_one_or_none()
     if contact is None:
+        # Covers "never existed", "belongs to someone else" and "already unlinked"
+        # identically — a repeated unlink is a no-op, not an error worth distinguishing.
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Contact not found")
 
-    await db.delete(contact)
+    # func.now(), NOT datetime.now(utc): created_at is filled by the database clock, so
+    # a Python-side UTC value would make every unlink look like it happened 8 hours
+    # before the pairing began (the DB runs in Asia/Manila). Same clock, same row.
+    contact.unlinked_at = func.now()
+    contact.unlinked_by = UnlinkActor.FAMILY
     await db.commit()
 
 
@@ -160,7 +198,11 @@ async def list_family_contacts(sync_id: UUID, db: AsyncSession = Depends(get_db)
 
     contacts_result = await db.execute(
         select(Contact)
-        .where(Contact.senior_id == senior.id, Contact.contact_type == ContactType.FAMILY)
+        .where(
+            Contact.senior_id == senior.id,
+            Contact.contact_type == ContactType.FAMILY,
+            Contact.is_active(),
+        )
         .options(selectinload(Contact.user))
         .order_by(Contact.created_at.asc())
     )
@@ -184,19 +226,29 @@ async def remove_family_contact(
 ) -> None:
     # No auth: senior-facing "Remove Contact" button. Scoped to this senior's own
     # sync_id so one senior can't delete another's links.
+    #
+    # Soft, and symmetrical with the family-side unlink above: the removed family member
+    # stops seeing this senior in their own app on their next refresh, because
+    # GET /contacts/me filters on Contact.is_active() as well.
     result = await db.execute(select(Senior).where(Senior.sync_id == sync_id))
     senior = result.scalar_one_or_none()
     if senior is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Senior not found")
 
     contact_result = await db.execute(
-        select(Contact).where(Contact.id == contact_id, Contact.senior_id == senior.id)
+        select(Contact).where(
+            Contact.id == contact_id,
+            Contact.senior_id == senior.id,
+            Contact.is_active(),
+        )
     )
     contact = contact_result.scalar_one_or_none()
     if contact is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Contact not found")
 
-    await db.delete(contact)
+    # Database clock, matching created_at — see the note in unlink_senior above.
+    contact.unlinked_at = func.now()
+    contact.unlinked_by = UnlinkActor.SENIOR
     await db.commit()
 
 
@@ -211,16 +263,21 @@ async def list_contacts(
     if senior is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Senior not found")
 
-    # Role-based access (CLAUDE.md §11): only a linked contact may view this list.
+    # Role-based access (CLAUDE.md §11): only a CURRENTLY linked contact may view this
+    # list — an unlinked one has no standing here any more.
     link_result = await db.execute(
-        select(Contact).where(Contact.senior_id == senior.id, Contact.user_id == current_user.id)
+        select(Contact).where(
+            Contact.senior_id == senior.id,
+            Contact.user_id == current_user.id,
+            Contact.is_active(),
+        )
     )
     if link_result.scalar_one_or_none() is None:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not linked to this senior")
 
     contacts_result = await db.execute(
         select(Contact)
-        .where(Contact.senior_id == senior.id)
+        .where(Contact.senior_id == senior.id, Contact.is_active())
         .options(selectinload(Contact.senior))
     )
     return list(contacts_result.scalars().all())

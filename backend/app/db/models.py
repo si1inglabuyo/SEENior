@@ -2,7 +2,7 @@ import enum
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Enum, ForeignKey, JSON, String, UniqueConstraint
+from sqlalchemy import Enum, ForeignKey, JSON, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
@@ -24,6 +24,13 @@ class UserRole(str, enum.Enum):
 class ContactType(str, enum.Enum):
     FAMILY = "family"
     BARANGAY_RESPONDER = "barangay_responder"
+
+
+class UnlinkActor(str, enum.Enum):
+    """Which side ended a pairing — recorded so an unlink is attributable after the fact."""
+
+    SENIOR = "senior"
+    FAMILY = "family"
 
 
 class RiskLevel(str, enum.Enum):
@@ -105,10 +112,20 @@ class Senior(Base):
 
 
 class Contact(Base):
-    """Links a Users account (family or barangay responder) to a senior."""
+    """Links a Users account (family or barangay responder) to a senior.
+
+    Unlinking is SOFT: the row survives with `unlinked_at`/`unlinked_by` set, so a
+    pairing that ended is still auditable (who dropped whom, and when) instead of
+    vanishing. Everything user-facing must therefore filter on `unlinked_at IS NULL`
+    — see `active_contacts()` in api/routes/contacts.py.
+
+    Uniqueness is enforced by a PARTIAL index (`uq_contact_pair_active`, defined in
+    migration 0005) covering only active rows, not by a plain UniqueConstraint: the
+    same senior and family member may legitimately link, unlink, and link again, and
+    each of those pairings is its own historical row.
+    """
 
     __tablename__ = "contacts"
-    __table_args__ = (UniqueConstraint("senior_id", "user_id", name="uq_contact_pair"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     senior_id: Mapped[int] = mapped_column(ForeignKey("seniors.id"))
@@ -119,9 +136,22 @@ class Contact(Base):
     # Per-pairing: how this family member relates to the senior ("daughter", "son", ...).
     relationship_label: Mapped[str | None] = mapped_column(String(32), nullable=True)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    # NULL means the pairing is live. Both set together, never one without the other.
+    unlinked_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    unlinked_by: Mapped[UnlinkActor | None] = mapped_column(
+        Enum(UnlinkActor, name="unlink_actor", values_callable=_enum_values), nullable=True
+    )
 
     senior: Mapped["Senior"] = relationship(back_populates="contacts")
     user: Mapped["User"] = relationship(back_populates="contacts")
+
+    @staticmethod
+    def is_active():
+        """WHERE clause for "this pairing is still live". Every query that decides what a
+        user may SEE or DO must include it — a soft-unlinked row is invisible and carries
+        no access rights, so omitting it silently re-grants a removed contact access to
+        the senior's alerts (CLAUDE.md §11)."""
+        return Contact.unlinked_at.is_(None)
 
 
 class Alert(Base):

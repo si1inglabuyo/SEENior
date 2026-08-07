@@ -53,11 +53,14 @@ async def list_alerts(
     if current_user.role == UserRole.BARANGAY_RESPONDER:
         allowed = current_user.barangay == senior.barangay
     else:
+        # is_active() is load-bearing, not tidiness: without it a soft-unlinked family
+        # member would keep reading their former senior's alerts forever.
         link_result = await db.execute(
             select(Contact).where(
                 Contact.senior_id == senior.id,
                 Contact.user_id == current_user.id,
                 Contact.contact_type == ContactType.FAMILY,
+                Contact.is_active(),
             )
         )
         allowed = link_result.scalar_one_or_none() is not None
@@ -75,8 +78,9 @@ async def list_alerts(
 
 
 async def _family_alert(sync_id: UUID, db: AsyncSession, current_user: User) -> Alert:
-    """Fetches an alert and confirms current_user is a linked family contact for its
-    senior — the write-side counterpart of list_alerts' read-side authorization."""
+    """Fetches an alert and confirms current_user is a CURRENTLY linked family contact for
+    its senior — the write-side counterpart of list_alerts' read-side authorization.
+    Unlinking revokes the right to acknowledge/dispatch/resolve, not just to read."""
     result = await db.execute(select(Alert).where(Alert.sync_id == sync_id))
     alert = result.scalar_one_or_none()
     if alert is None:
@@ -87,6 +91,7 @@ async def _family_alert(sync_id: UUID, db: AsyncSession, current_user: User) -> 
             Contact.senior_id == alert.senior_id,
             Contact.user_id == current_user.id,
             Contact.contact_type == ContactType.FAMILY,
+            Contact.is_active(),
         )
     )
     if link_result.scalar_one_or_none() is None:

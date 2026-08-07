@@ -22,11 +22,17 @@ import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Contacts
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.outlined.Favorite
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -86,6 +92,10 @@ fun SeniorContactsScreen(
 
 @Composable
 private fun ContactCard(contact: FamilyContactDto, onRemove: () -> Unit) {
+    // The family side has always confirmed before unlinking; this side removed on the
+    // raw tap, so one stray touch dropped a family contact with no warning and no undo.
+    var showConfirm by remember { mutableStateOf(false) }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -133,13 +143,38 @@ private fun ContactCard(contact: FamilyContactDto, onRemove: () -> Unit) {
                 .padding(top = 14.dp)
                 .height(52.dp)
                 .border(1.dp, SeniorColors.FieldBorder, RoundedCornerShape(14.dp))
-                .clickable(onClick = onRemove),
+                .clickable { showConfirm = true },
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(Icons.Filled.Delete, null, tint = RemoveRed, modifier = Modifier.size(20.dp))
             Text("Remove Contact", color = RemoveRed, fontSize = 17.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 8.dp))
         }
+    }
+
+    if (showConfirm) {
+        val name = contact.fullName ?: "this family member"
+        AlertDialog(
+            onDismissRequest = { showConfirm = false },
+            title = { Text("Remove $name?") },
+            text = {
+                Text(
+                    "They will stop receiving your alerts, and you will disappear from their " +
+                        "app too. You can connect again later with a new invite code."
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showConfirm = false
+                    onRemove()
+                }) { Text("Remove", color = RemoveRed) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showConfirm = false }) {
+                    Text("Cancel", color = SeniorColors.TextSecondary)
+                }
+            }
+        )
     }
 }
 
