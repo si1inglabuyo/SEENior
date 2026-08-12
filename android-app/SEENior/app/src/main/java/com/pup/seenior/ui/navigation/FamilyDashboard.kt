@@ -35,6 +35,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.pup.seenior.ui.family.BlueHeader
 import com.pup.seenior.ui.family.ConnectedScreen
@@ -65,7 +66,15 @@ fun FamilyDashboard(onLoggedOut: () -> Unit) {
     // without a re-fetch.
     val seniorsViewModel: FamilySeniorsViewModel = viewModel()
     val alertsViewModel: FamilyAlertsViewModel = viewModel()
-    LaunchedEffect(Unit) { seniorsViewModel.refresh() }
+    // Re-fetch on every resume and on every tab change. The senior can unlink from their own
+    // phone at any time and there is no push channel to tell us, so a once-per-login fetch
+    // leaves this list frozen at whatever it was when the session started. The senior's own
+    // Contacts screen gets this for free — its LaunchedEffect lives inside the screen, which
+    // leaves composition on each tab switch. This one is hoisted to the dashboard, which never does.
+    LifecycleResumeEffect(tab) {
+        seniorsViewModel.refresh()
+        onPauseOrDispose { }
+    }
 
     // The token expires server-side and there is no refresh flow, so any 401 raised by a tab
     // means this login is finished. Leave the dashboard instead of sitting here rendering
