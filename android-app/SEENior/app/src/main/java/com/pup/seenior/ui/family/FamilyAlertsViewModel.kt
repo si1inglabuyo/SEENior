@@ -11,6 +11,7 @@ import com.pup.seenior.network.dto.AlertDispatchRequest
 import com.pup.seenior.network.dto.AlertDto
 import com.pup.seenior.network.dto.ContactDto
 import com.pup.seenior.session.FamilySession
+import com.pup.seenior.session.SessionState
 import kotlinx.coroutines.launch
 import retrofit2.HttpException
 import java.io.IOException
@@ -86,7 +87,9 @@ class FamilyAlertsViewModel(application: Application) : AndroidViewModel(applica
                     AlertScreen.ALL_CLEAR
                 }
             } catch (e: HttpException) {
-                error = "Could not load alerts (server error ${e.code()})."
+                error = if (SessionState.handleIfUnauthorized(getApplication(), e))
+                    SessionState.SESSION_EXPIRED_MESSAGE
+                else "Could not load alerts (server error ${e.code()})."
                 screen = AlertScreen.LOAD_FAILED
             } catch (e: IOException) {
                 error = "Could not reach the server. Check your internet connection."
@@ -112,7 +115,9 @@ class FamilyAlertsViewModel(application: Application) : AndroidViewModel(applica
                 activeAlert = RetrofitClient.api.acknowledgeAlert(alert.syncId, "Bearer $token")
                 screen = AlertScreen.ACKNOWLEDGED
             } catch (e: HttpException) {
-                error = "Could not acknowledge (server error ${e.code()})."
+                error = if (SessionState.handleIfUnauthorized(getApplication(), e))
+                    SessionState.SESSION_EXPIRED_MESSAGE
+                else "Could not acknowledge (server error ${e.code()})."
             } catch (e: IOException) {
                 error = "Could not reach the server."
             } finally {
@@ -135,7 +140,9 @@ class FamilyAlertsViewModel(application: Application) : AndroidViewModel(applica
                 )
                 screen = AlertScreen.ACKNOWLEDGED
             } catch (e: HttpException) {
-                error = "Could not dispatch barangay (server error ${e.code()})."
+                error = if (SessionState.handleIfUnauthorized(getApplication(), e))
+                    SessionState.SESSION_EXPIRED_MESSAGE
+                else "Could not dispatch barangay (server error ${e.code()})."
             } catch (e: IOException) {
                 error = "Could not reach the server."
             } finally {
@@ -156,7 +163,9 @@ class FamilyAlertsViewModel(application: Application) : AndroidViewModel(applica
                 activeAlert = resolved
                 screen = AlertScreen.RESOLVED
             } catch (e: HttpException) {
-                error = "Could not resolve (server error ${e.code()})."
+                error = if (SessionState.handleIfUnauthorized(getApplication(), e))
+                    SessionState.SESSION_EXPIRED_MESSAGE
+                else "Could not resolve (server error ${e.code()})."
             } catch (e: IOException) {
                 error = "Could not reach the server."
             } finally {

@@ -48,6 +48,7 @@ import com.pup.seenior.ui.family.FamilyProfileScreen
 import com.pup.seenior.ui.family.FamilySeniorsViewModel
 import com.pup.seenior.ui.family.LinkScreen
 import com.pup.seenior.ui.family.MonitoringLimitCard
+import com.pup.seenior.session.SessionState
 
 private enum class FamilyTab(val label: String, val icon: ImageVector) {
     HOME("Home", Icons.Outlined.Home),
@@ -65,6 +66,16 @@ fun FamilyDashboard(onLoggedOut: () -> Unit) {
     val seniorsViewModel: FamilySeniorsViewModel = viewModel()
     val alertsViewModel: FamilyAlertsViewModel = viewModel()
     LaunchedEffect(Unit) { seniorsViewModel.refresh() }
+
+    // The token expires server-side and there is no refresh flow, so any 401 raised by a tab
+    // means this login is finished. Leave the dashboard instead of sitting here rendering
+    // "server error 401" on every tab — Log Out in the Profile tab used to be the only way out.
+    LaunchedEffect(SessionState.expired) {
+        if (SessionState.expired) {
+            SessionState.consume()
+            onLoggedOut()
+        }
+    }
 
     Scaffold(
         bottomBar = {

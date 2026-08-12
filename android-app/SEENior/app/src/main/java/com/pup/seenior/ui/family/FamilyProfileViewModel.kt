@@ -11,6 +11,7 @@ import com.pup.seenior.network.dto.ChangePasswordRequest
 import com.pup.seenior.network.dto.UpdateProfileRequest
 import com.pup.seenior.network.dto.UserDto
 import com.pup.seenior.session.FamilySession
+import com.pup.seenior.session.SessionState
 import com.pup.seenior.validation.PhilippinePhone
 import kotlinx.coroutines.launch
 import retrofit2.HttpException
@@ -48,7 +49,9 @@ class FamilyProfileViewModel(application: Application) : AndroidViewModel(applic
                 fullName = me.fullName ?: ""
                 phone = me.phone ?: ""
             } catch (e: HttpException) {
-                error = "Could not load your profile (server error ${e.code()})."
+                error = if (SessionState.handleIfUnauthorized(getApplication(), e))
+                    SessionState.SESSION_EXPIRED_MESSAGE
+                else "Could not load your profile (server error ${e.code()})."
             } catch (e: IOException) {
                 error = "Could not reach the server."
             } finally {
@@ -72,7 +75,9 @@ class FamilyProfileViewModel(application: Application) : AndroidViewModel(applic
                 user = updated
                 onSaved()
             } catch (e: HttpException) {
-                error = "Could not save (server error ${e.code()})."
+                error = if (SessionState.handleIfUnauthorized(getApplication(), e))
+                    SessionState.SESSION_EXPIRED_MESSAGE
+                else "Could not save (server error ${e.code()})."
             } catch (e: IOException) {
                 error = "Could not reach the server."
             } finally {
@@ -111,8 +116,11 @@ class FamilyProfileViewModel(application: Application) : AndroidViewModel(applic
                 confirmPassword = ""
                 passwordChanged = true
             } catch (e: HttpException) {
-                passwordError = if (e.code() == 400) "Current password is incorrect."
-                    else "Could not change password (server error ${e.code()})."
+                passwordError = when {
+                    e.code() == 400 -> "Current password is incorrect."
+                    SessionState.handleIfUnauthorized(getApplication(), e) -> SessionState.SESSION_EXPIRED_MESSAGE
+                    else -> "Could not change password (server error ${e.code()})."
+                }
             } catch (e: IOException) {
                 passwordError = "Could not reach the server."
             } finally {

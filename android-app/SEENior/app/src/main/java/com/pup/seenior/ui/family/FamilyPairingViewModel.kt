@@ -11,6 +11,7 @@ import com.pup.seenior.network.dto.PairRequest
 import com.pup.seenior.network.dto.SeniorDto
 import com.pup.seenior.network.dto.VerifyCodeRequest
 import com.pup.seenior.session.FamilySession
+import com.pup.seenior.session.SessionState
 import kotlinx.coroutines.launch
 import retrofit2.HttpException
 import java.io.IOException
@@ -79,8 +80,9 @@ class FamilyPairingViewModel(application: Application) : AndroidViewModel(applic
                 )
                 onPaired()
             } catch (e: HttpException) {
-                error = when (e.code()) {
-                    400 -> "That code just expired, or you're already at the 3-senior limit."
+                error = when {
+                    e.code() == 400 -> "That code just expired, or you're already at the 3-senior limit."
+                    SessionState.handleIfUnauthorized(getApplication(), e) -> SessionState.SESSION_EXPIRED_MESSAGE
                     else -> "Could not connect (server error ${e.code()})."
                 }
             } catch (e: IOException) {

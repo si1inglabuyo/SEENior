@@ -9,6 +9,7 @@ import androidx.lifecycle.viewModelScope
 import com.pup.seenior.network.RetrofitClient
 import com.pup.seenior.network.dto.ContactDto
 import com.pup.seenior.session.FamilySession
+import com.pup.seenior.session.SessionState
 import kotlinx.coroutines.launch
 import retrofit2.HttpException
 import java.io.IOException
@@ -48,7 +49,9 @@ class FamilySeniorsViewModel(application: Application) : AndroidViewModel(applic
             try {
                 contacts = RetrofitClient.api.getMyContacts("Bearer $token")
             } catch (e: HttpException) {
-                error = "Could not load your linked seniors (server error ${e.code()})."
+                error = if (SessionState.handleIfUnauthorized(getApplication(), e))
+                    SessionState.SESSION_EXPIRED_MESSAGE
+                else "Could not load your linked seniors (server error ${e.code()})."
                 loadFailed = true
             } catch (e: IOException) {
                 error = "Could not reach the server. Check your internet connection."
@@ -67,7 +70,9 @@ class FamilySeniorsViewModel(application: Application) : AndroidViewModel(applic
                 contacts = contacts.filterNot { it.id == contactId }
                 onDone()
             } catch (e: HttpException) {
-                error = "Could not unlink (server error ${e.code()})."
+                error = if (SessionState.handleIfUnauthorized(getApplication(), e))
+                    SessionState.SESSION_EXPIRED_MESSAGE
+                else "Could not unlink (server error ${e.code()})."
             } catch (e: IOException) {
                 error = "Could not reach the server."
             }
