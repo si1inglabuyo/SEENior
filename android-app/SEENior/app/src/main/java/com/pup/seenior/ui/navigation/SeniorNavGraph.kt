@@ -7,6 +7,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.pup.seenior.ui.family.FamilyAuthViewModel
+import com.pup.seenior.ui.family.FamilyCompletePhoneScreen
 import com.pup.seenior.ui.family.FamilyLoginScreen
 import com.pup.seenior.ui.family.FamilySignUpScreen
 import com.pup.seenior.ui.onboarding.AllSetScreen
@@ -33,6 +34,7 @@ object SeniorRoutes {
     // Family flow (linking a senior happens later, inside the dashboard's Link tab)
     const val FAMILY_SIGNUP = "family_signup"
     const val FAMILY_LOGIN = "family_login"
+    const val FAMILY_COMPLETE_PHONE = "family_complete_phone"
     const val FAMILY_HOME = "family_home"
 }
 
@@ -116,7 +118,25 @@ fun SeniorNavGraph(navController: NavHostController = rememberNavController()) {
                         popUpTo(SeniorRoutes.ROLE_SELECT) { inclusive = true }
                     }
                 },
+                onNeedsPhone = {
+                    navController.navigate(SeniorRoutes.FAMILY_COMPLETE_PHONE) {
+                        popUpTo(SeniorRoutes.ROLE_SELECT) { inclusive = true }
+                    }
+                },
                 onGoToLogin = { navController.navigate(SeniorRoutes.FAMILY_LOGIN) }
+            )
+        }
+        // Only reachable straight after a Google sign-in that left the account without a
+        // mobile number. Cleared off the back stack for the same reason sign-up is: the
+        // account already exists by this point, so there is nothing to go back to.
+        composable(SeniorRoutes.FAMILY_COMPLETE_PHONE) {
+            FamilyCompletePhoneScreen(
+                viewModel = familyAuthViewModel,
+                onDone = {
+                    navController.navigate(SeniorRoutes.FAMILY_HOME) {
+                        popUpTo(SeniorRoutes.FAMILY_COMPLETE_PHONE) { inclusive = true }
+                    }
+                }
             )
         }
         composable(SeniorRoutes.FAMILY_LOGIN) {

@@ -9,6 +9,7 @@ import androidx.lifecycle.viewModelScope
 import com.pup.seenior.network.RetrofitClient
 import com.pup.seenior.network.dto.GoogleSignInRequest
 import com.pup.seenior.network.dto.RegisterRequest
+import com.pup.seenior.network.dto.UpdateProfileRequest
 import com.pup.seenior.session.FamilySession
 import com.pup.seenior.validation.PhilippinePhone
 import kotlinx.coroutines.launch
@@ -105,14 +106,24 @@ class FamilyAuthViewModel(application: Application) : AndroidViewModel(applicati
     var googleError by mutableStateOf<String?>(null)
         private set
 
-    fun onGoogleIdToken(idToken: String, onSuccess: () -> Unit) {
+    /**
+     * [onSuccess] receives true when the account still has no mobile number, so the caller can
+     * route to the "complete your details" step instead of straight into the dashboard.
+     *
+     * Google's ID token carries no phone number — it only ever gives us sub/email/name — so a
+     * brand-new Google account is created with phone = NULL. That number is not cosmetic: the
+     * senior's Contacts list displays it, and the family tier of the escalation chain needs it
+     * for the SMS fallback (CLAUDE.md §7). Leaving it blank silently makes a family contact
+     * unreachable at exactly the moment the system is trying to reach them.
+     */
+    fun onGoogleIdToken(idToken: String, onSuccess: (needsPhone: Boolean) -> Unit) {
         viewModelScope.launch {
             isGoogleSigningIn = true
             googleError = null
             try {
                 val response = RetrofitClient.api.googleSignIn(GoogleSignInRequest(idToken))
                 FamilySession.saveToken(getApplication(), response.accessToken)
-                onSuccess()
+                onSuccess(hasMissingPhone(response.accessToken))
             } catch (e: HttpException) {
                 googleError = if (e.code() == 503) "Google Sign-In isn't configured on the server yet."
                     else "Could not sign in with Google (server error ${e.code()})."
@@ -126,5 +137,67 @@ class FamilyAuthViewModel(application: Application) : AndroidViewModel(applicati
 
     fun onGoogleError(message: String) {
         googleError = message
+    }
+
+    // ---- Completing a Google account's missing mobile number ----
+
+    /** Cached from the check above so the PATCH doesn't have to re-fetch just to resend
+     *  full_name, which the endpoint requires alongside the phone. */
+    private var pendingFullName: String? = null
+
+    var completePhone by mutableStateOf("")
+    var isSavingPhone by mutableStateOf(false)
+        private set
+    var completePhoneError by mutableStateOf<String?>(null)
+        private set
+
+    val isCompletePhoneValid: Boolean
+        get() = PhilippinePhone.isValid(completePhone)
+
+    /**
+     * True when the signed-in account has no mobile number on file.
+     *
+     * Deliberately fails "false" (no prompt): the sign-in itself already succeeded, so a
+     * failed lookup must not strand the user on a screen whose save call would fail too.
+     * Profile -> Edit profile remains the recovery path for a number that stays blank.
+     */
+    private suspend fun hasMissingPhone(accessToken: String): Boolean = try {
+        val me = RetrofitClient.api.getMe("Bearer $accessToken")
+        pendingFullName = me.fullName
+        me.phone.isNullOrBlank()
+    } catch (e: HttpException) {
+        false
+    } catch (e: IOException) {
+        false
+    }
+
+    fun saveMissingPhone(onSaved: () -> Unit) {
+        if (!isCompletePhoneValid || isSavingPhone) return
+        val token = FamilySession.getToken(getApplication()) ?: return
+        viewModelScope.launch {
+            isSavingPhone = true
+            completePhoneError = null
+            try {
+                // PATCH /auth/me requires full_name too, and sending a blank one would wipe the
+                // name Google gave us. Re-read it if the cached value didn't survive.
+                val fullName = pendingFullName
+                    ?: RetrofitClient.api.getMe("Bearer $token").fullName.orEmpty()
+                RetrofitClient.api.updateProfile(
+                    "Bearer $token",
+                    UpdateProfileRequest(
+                        fullName = fullName,
+                        phone = PhilippinePhone.normalize(completePhone)!!
+                    )
+                )
+                completePhone = ""
+                onSaved()
+            } catch (e: HttpException) {
+                completePhoneError = "Could not save your number (server error ${e.code()})."
+            } catch (e: IOException) {
+                completePhoneError = "Could not reach the server. Check your internet connection."
+            } finally {
+                isSavingPhone = false
+            }
+        }
     }
 }

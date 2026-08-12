@@ -40,10 +40,17 @@ fun FamilySignUpScreen(
     viewModel: FamilyAuthViewModel,
     onBack: () -> Unit,
     onSignedUp: () -> Unit,
+    onNeedsPhone: () -> Unit,
     onGoToLogin: () -> Unit
 ) {
     val launchGoogleSignIn = rememberGoogleSignInLauncher(
-        onIdToken = { token -> viewModel.onGoogleIdToken(token, onSuccess = onSignedUp) },
+        // Google gives us no phone number, so a new Google account needs one collected before
+        // it's usable as a family contact — see FamilyAuthViewModel.onGoogleIdToken.
+        onIdToken = { token ->
+            viewModel.onGoogleIdToken(token) { needsPhone ->
+                if (needsPhone) onNeedsPhone() else onSignedUp()
+            }
+        },
         onError = { viewModel.onGoogleError(it) }
     )
 
