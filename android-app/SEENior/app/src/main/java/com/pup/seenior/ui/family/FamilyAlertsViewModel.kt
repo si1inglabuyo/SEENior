@@ -17,6 +17,10 @@ import retrofit2.HttpException
 import java.io.IOException
 import java.time.Duration
 import java.time.LocalDateTime
+import java.time.OffsetDateTime
+import java.time.ZoneId
+import java.time.ZoneOffset
+import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 
 enum class AlertScreen { LOADING, ALL_CLEAR, LOAD_FAILED, DETAIL, ACKNOWLEDGED, CALL_SENIOR, LOCATION, DISPATCH, RESOLVED }
@@ -187,8 +191,8 @@ class FamilyAlertsViewModel(application: Application) : AndroidViewModel(applica
     }
 
     private fun buildSummary(alert: AlertDto): ResolvedSummary {
-        val created = runCatching { LocalDateTime.parse(alert.createdAt) }.getOrNull()
-        val resolved = runCatching { alert.resolvedAt?.let(LocalDateTime::parse) }.getOrNull()
+        val created = parseServerTime(alert.createdAt)
+        val resolved = alert.resolvedAt?.let(::parseServerTime)
         val minutes = if (created != null && resolved != null) Duration.between(created, resolved).toMinutes() else 0L
         val timeFmt = DateTimeFormatter.ofPattern("h:mm a")
         return ResolvedSummary(
@@ -217,17 +221,51 @@ fun alertReasonText(triggerType: String): String = when (triggerType) {
     else -> "An unusual pattern was detected in their routine."
 }
 
+/**
+ * Parses a timestamp as the backend writes it and converts it to the device's own zone.
+ *
+ * The cloud columns are TIMESTAMP WITHOUT TIME ZONE holding UTC, so the strings arrive with no
+ * offset. Reading them as local time made every alert look hours stale on any device outside
+ * UTC — a brand-new alert would read "8 hr ago" on a phone in the Philippines. Every display of
+ * a server timestamp must go through here.
+ */
+fun parseServerTime(iso: String): ZonedDateTime? {
+    // The offset branch is defensive: today the backend always sends naive UTC, but if a column
+    // ever becomes tz-aware, silently re-interpreting the offset would shift every timestamp.
+    runCatching { OffsetDateTime.parse(iso) }.getOrNull()?.let {
+        return it.atZoneSameInstant(ZoneId.systemDefault())
+    }
+    return runCatching {
+        LocalDateTime.parse(iso).atZone(ZoneOffset.UTC).withZoneSameInstant(ZoneId.systemDefault())
+    }.getOrNull()
+}
+
 fun relativeTimeAgo(iso: String): String {
-    val then = runCatching { LocalDateTime.parse(iso) }.getOrNull() ?: return ""
-    val minutes = Duration.between(then, LocalDateTime.now()).toMinutes()
+    val then = parseServerTime(iso) ?: return ""
+    val minutes = Duration.between(then, ZonedDateTime.now()).toMinutes()
     return when {
+        // Negative means the server clock is marginally ahead of the device's; showing
+        // "-1 min ago" would look broken, and the alert is new either way.
         minutes < 1 -> "just now"
         minutes < 60 -> "$minutes min ago"
-        else -> "${minutes / 60} hr ago"
+        minutes < 60 * 24 -> "${minutes / 60} hr ago"
+        else -> "${minutes / (60 * 24)} d ago"
     }
 }
 
 fun formatClockTime(iso: String): String {
-    val then = runCatching { LocalDateTime.parse(iso) }.getOrNull() ?: return ""
+    val then = parseServerTime(iso) ?: return ""
     return then.format(DateTimeFormatter.ofPattern("h:mm a"))
+}
+
+/** Compact form of [alertReasonText] for list rows, where the full sentence doesn't fit. */
+fun triggerShortLabel(triggerType: String): String = when (triggerType) {
+    "inactivity" -> "No movement"
+    "movement" -> "Unusual movement"
+    "screen_idle" -> "Phone idle"
+    "charging" -> "Charging unusually long"
+    "sos" -> "SOS pressed"
+    "ml_flag" -> "Unusual daily pattern"
+    "fall_pattern" -> "Possible fall"
+    else -> "Unusual pattern"
 }

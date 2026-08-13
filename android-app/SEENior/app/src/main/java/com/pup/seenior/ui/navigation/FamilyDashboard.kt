@@ -115,7 +115,12 @@ fun FamilyDashboard(onLoggedOut: () -> Unit) {
     ) { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
             when (tab) {
-                FamilyTab.HOME -> FamilyHomeScreen(seniorsViewModel, onLinkSenior = { tab = FamilyTab.LINK })
+                FamilyTab.HOME -> FamilyHomeScreen(
+                    seniorsViewModel = seniorsViewModel,
+                    onLinkSenior = { tab = FamilyTab.LINK },
+                    onSeeAllSeniors = { tab = FamilyTab.CONTACTS },
+                    onSeeAllAlerts = { tab = FamilyTab.ALERTS }
+                )
                 FamilyTab.LINK -> LinkTab(
                     seniorsViewModel = seniorsViewModel,
                     onManageContacts = { tab = FamilyTab.CONTACTS },
