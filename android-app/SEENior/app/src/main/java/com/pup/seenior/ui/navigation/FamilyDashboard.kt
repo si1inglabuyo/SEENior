@@ -119,7 +119,13 @@ fun FamilyDashboard(onLoggedOut: () -> Unit) {
                     seniorsViewModel = seniorsViewModel,
                     onLinkSenior = { tab = FamilyTab.LINK },
                     onSeeAllSeniors = { tab = FamilyTab.CONTACTS },
-                    onSeeAllAlerts = { tab = FamilyTab.ALERTS }
+                    onSeeAllAlerts = { tab = FamilyTab.ALERTS },
+                    // "View" on the Home popup must open the alert it was advertising, not
+                    // whatever the Alerts tab would otherwise settle on by itself.
+                    onViewAlert = { syncId ->
+                        alertsViewModel.focusAlert(syncId)
+                        tab = FamilyTab.ALERTS
+                    }
                 )
                 FamilyTab.LINK -> LinkTab(
                     seniorsViewModel = seniorsViewModel,

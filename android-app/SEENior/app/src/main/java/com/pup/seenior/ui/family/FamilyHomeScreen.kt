@@ -57,18 +57,20 @@ fun FamilyHomeScreen(
     profileViewModel: FamilyProfileViewModel = viewModel(),
     onLinkSenior: () -> Unit,
     onSeeAllSeniors: () -> Unit,
-    onSeeAllAlerts: () -> Unit
+    onSeeAllAlerts: () -> Unit,
+    onViewAlert: (String) -> Unit
 ) {
     LaunchedEffect(Unit) {
         profileViewModel.refresh()
     }
 
-    // Re-fetch whenever the tab is entered/resumed as well as when the linked-senior list
-    // changes. Keying on contacts alone would leave a family member looking at a stale "All
-    // clear" after a new alert arrived, since the senior list itself rarely changes.
+    // Poll for as long as this tab is on screen and the app is in the foreground, stopping the
+    // moment it isn't. A single fetch on resume left a family member staring at "All clear"
+    // while an alert was already sitting on the server — the senior list this is keyed on
+    // rarely changes, so nothing would have re-triggered it.
     LifecycleResumeEffect(seniorsViewModel.contacts) {
-        homeViewModel.refresh(seniorsViewModel.contacts)
-        onPauseOrDispose { }
+        homeViewModel.startPolling(seniorsViewModel.contacts)
+        onPauseOrDispose { homeViewModel.stopPolling() }
     }
 
     val firstName = profileViewModel.fullName.split(" ").firstOrNull() ?: ""
@@ -158,6 +160,21 @@ fun FamilyHomeScreen(
 
             Spacer(Modifier.height(24.dp))
         }
+    }
+
+    // Rendered last so it sits over the tab. "View" hands off to the Alerts tab, which opens
+    // straight onto the active alert's detail — the point of the popup is that an open alert
+    // shouldn't need to be hunted for one tab away.
+    homeViewModel.popupAlert?.let { item ->
+        FamilyAlertPopup(
+            item = item,
+            onView = {
+                val syncId = item.alert.syncId
+                homeViewModel.dismissPopup()
+                onViewAlert(syncId)
+            },
+            onDismiss = { homeViewModel.dismissPopup() }
+        )
     }
 }
 

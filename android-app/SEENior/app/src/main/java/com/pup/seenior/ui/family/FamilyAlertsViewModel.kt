@@ -59,6 +59,21 @@ class FamilyAlertsViewModel(application: Application) : AndroidViewModel(applica
 
     private var actionInFlight = false
 
+    // Set when the family member taps through from the Home popup, so the next refresh opens the
+    // alert they were actually shown instead of whatever "newest open" resolves to.
+    private var requestedSyncId: String? = null
+
+    /**
+     * Asks the next [refresh] to open one specific alert.
+     *
+     * Without this, tapping "View" on a popup about a pending alert could land on an entirely
+     * different alert that happened to be newer — e.g. an SOS someone already acknowledged —
+     * so the screen would answer a question nobody asked.
+     */
+    fun focusAlert(syncId: String) {
+        requestedSyncId = syncId
+    }
+
     fun refresh(contacts: List<ContactDto>) {
         val token = FamilySession.getToken(getApplication()) ?: return
         if (contacts.isEmpty()) {
@@ -74,8 +89,17 @@ class FamilyAlertsViewModel(application: Application) : AndroidViewModel(applica
             try {
                 var bestAlert: AlertDto? = null
                 var bestContact: ContactDto? = null
+                var requestedAlert: AlertDto? = null
+                var requestedContact: ContactDto? = null
+                val wanted = requestedSyncId
                 for (contact in contacts) {
                     val alerts = RetrofitClient.api.getAlerts(contact.senior.syncId, "Bearer $token")
+                    if (wanted != null) {
+                        alerts.firstOrNull { it.syncId == wanted }?.let {
+                            requestedAlert = it
+                            requestedContact = contact
+                        }
+                    }
                     val open = alerts.filter { it.status in OPEN_STATUSES }
                     val newest = open.maxByOrNull { it.createdAt }
                     if (newest != null && (bestAlert == null || newest.createdAt > bestAlert!!.createdAt)) {
@@ -83,6 +107,14 @@ class FamilyAlertsViewModel(application: Application) : AndroidViewModel(applica
                         bestContact = contact
                     }
                 }
+                // An explicitly requested alert outranks "newest open": the family member tapped
+                // through to that one. Falls back to the usual pick if it has since vanished.
+                if (requestedAlert != null) {
+                    bestAlert = requestedAlert
+                    bestContact = requestedContact
+                }
+                requestedSyncId = null
+
                 activeAlert = bestAlert
                 activeSenior = bestContact ?: contacts.first()
                 screen = if (bestAlert != null) {
