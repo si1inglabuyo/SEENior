@@ -4,6 +4,7 @@ import com.pup.seenior.network.dto.AlertDispatchRequest
 import com.pup.seenior.network.dto.AlertDto
 import com.pup.seenior.network.dto.ChangePasswordRequest
 import com.pup.seenior.network.dto.ContactDto
+import com.pup.seenior.network.dto.CreateAlertRequest
 import com.pup.seenior.network.dto.CreateSeniorRequest
 import com.pup.seenior.network.dto.FamilyContactDto
 import com.pup.seenior.network.dto.GoogleSignInRequest
@@ -53,6 +54,11 @@ interface ApiService {
         @Path("syncId") syncId: String,
         @Path("contactId") contactId: Int
     )
+
+    // No auth, same posture as the other senior-side routes — the senior has no account
+    // (CLAUDE.md §2) and is identified purely by sync_id.
+    @POST("alerts")
+    suspend fun postAlert(@Body body: CreateAlertRequest): AlertDto
 
     // ---- Family side ----
 

@@ -15,6 +15,7 @@ import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -24,11 +25,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.pup.seenior.ui.contacts.InviteScreen
 import com.pup.seenior.ui.contacts.SeniorContactsScreen
 import com.pup.seenior.ui.home.HomeScreen
+import com.pup.seenior.ui.home.HomeViewModel
 import com.pup.seenior.ui.profile.SeniorProfileScreen
 import com.pup.seenior.ui.theme.SeniorColors
+import com.pup.seenior.ui.wellness.WellnessPromptScreen
+import com.pup.seenior.ui.wellness.WellnessPromptViewModel
 
 private enum class SeniorTab(val label: String, val icon: ImageVector) {
     HOME("Home", Icons.Outlined.Home),
@@ -40,6 +45,30 @@ private enum class SeniorTab(val label: String, val icon: ImageVector) {
 @Composable
 fun SeniorDashboard() {
     var tab by remember { mutableStateOf(SeniorTab.HOME) }
+    val homeViewModel: HomeViewModel = viewModel()
+    val promptViewModel: WellnessPromptViewModel = viewModel()
+
+    LaunchedEffect(Unit) { homeViewModel.start() }
+
+    // An unanswered alert replaces the whole dashboard, bottom navigation included. Leaving the
+    // tabs reachable would let the senior wander off the one screen that needs an answer, and
+    // the alert would still be counting down unseen behind them.
+    val alert = homeViewModel.activeAlert
+    if (alert != null) {
+        WellnessPromptScreen(
+            alert = alert,
+            seniorFirstName = homeViewModel.firstName,
+            language = homeViewModel.language,
+            willAlertContacts = homeViewModel.willAlertContacts,
+            barangay = homeViewModel.barangay,
+            viewModel = promptViewModel,
+            onFinished = {
+                homeViewModel.onAlertAnswered()
+                homeViewModel.refreshBattery()
+            }
+        )
+        return
+    }
 
     Scaffold(
         bottomBar = {
@@ -70,7 +99,7 @@ fun SeniorDashboard() {
     ) { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
             when (tab) {
-                SeniorTab.HOME -> HomeScreen()
+                SeniorTab.HOME -> HomeScreen(homeViewModel)
                 SeniorTab.INVITE -> InviteScreen()
                 SeniorTab.CONTACTS -> SeniorContactsScreen(onGoToInvite = { tab = SeniorTab.INVITE })
                 SeniorTab.PROFILE -> SeniorProfileScreen()

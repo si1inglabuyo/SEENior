@@ -76,6 +76,15 @@ interface AlertDao {
     @Query("UPDATE Alerts SET is_synced = 1 WHERE alert_id = :alertId")
     suspend fun markSynced(alertId: Int)
 
+    /**
+     * Adopts the sync_id the backend minted for this alert. POST /alerts generates its own
+     * UUID and ignores the device's, so without this the same alert carries two different
+     * ids and the two sides can never be matched up again — needed the moment the senior's
+     * phone wants to read back what the family did with an alert.
+     */
+    @Query("UPDATE Alerts SET sync_id = :syncId WHERE alert_id = :alertId")
+    suspend fun updateSyncId(alertId: Int, syncId: String)
+
     @Query("UPDATE Alerts SET location_cluster_id = :clusterId WHERE alert_id = :alertId")
     suspend fun updateLocationCluster(alertId: Int, clusterId: String)
 
