@@ -36,6 +36,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.pup.seenior.alerts.AlertEscalator
 import com.pup.seenior.database.entities.Alert
 import com.pup.seenior.network.dto.FamilyContactDto
 import com.pup.seenior.ui.theme.SeniorColors
@@ -74,7 +75,7 @@ fun WellnessPromptScreen(
                 SosCountdownScreen(
                     copy = copy,
                     secondsRemaining = viewModel.secondsRemaining,
-                    totalSeconds = WellnessPromptViewModel.SOS_CANCEL_WINDOW_SECONDS,
+                    totalSeconds = AlertEscalator.windowSecondsFor(alert.triggerType),
                     contacts = willAlertContacts,
                     barangay = barangay,
                     onCancel = { viewModel.markSafe(onFinished) }

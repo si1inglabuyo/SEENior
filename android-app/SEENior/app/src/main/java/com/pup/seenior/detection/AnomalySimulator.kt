@@ -2,6 +2,7 @@ package com.pup.seenior.detection
 
 import com.pup.seenior.baseline.SeedBaselineGenerator
 import com.pup.seenior.database.SeniorAppDatabase
+import com.pup.seenior.database.entities.Alert
 import com.pup.seenior.database.entities.SensorData
 
 /**
@@ -31,8 +32,10 @@ object AnomalySimulator {
     private const val INACTIVITY = "inactivity_duration"
 
     sealed interface Result {
-        /** The detector produced (or upgraded into) an alert. */
-        data class Triggered(val zScore: Double) : Result
+        /** The detector produced (or upgraded into) an alert. [alert] is null when an existing
+         *  one was upgraded rather than a new row written — that alert's response chain is
+         *  already running and must not be started a second time. */
+        data class Triggered(val zScore: Double, val alert: Alert?) : Result
         /** No baseline exists for this feature in the current time block, so the detector had
          *  nothing to compare against and correctly did nothing. */
         data object NoBaseline : Result
@@ -90,10 +93,10 @@ object AnomalySimulator {
             stepCount = 0
         )
 
-        MedianMadDetector.evaluate(senior.seniorId, syntheticReading, baselineDao, alertDao)
+        val created = MedianMadDetector.evaluate(senior.seniorId, syntheticReading, baselineDao, alertDao)
 
         return if (alertDao.getActiveAlert(senior.seniorId, "inactivity") != null) {
-            Result.Triggered(TARGET_Z_SCORE)
+            Result.Triggered(TARGET_Z_SCORE, created.firstOrNull { it.triggerType == "inactivity" })
         } else {
             // Defensive: the detector declined to alert. Only reachable if the baseline changed
             // between the read above and the evaluate call.

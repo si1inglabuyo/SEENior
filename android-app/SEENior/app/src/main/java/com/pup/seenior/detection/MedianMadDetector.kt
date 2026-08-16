@@ -18,7 +18,15 @@ object MedianMadDetector {
         "screen_idle_duration" to "screen_idle"
     )
 
-    suspend fun evaluate(seniorId: Int, sensorData: SensorData, baselineDao: BaselineDao, alertDao: AlertDao) {
+    /** Returns the alerts this reading created, so the caller can start their response chain. An
+     *  alert that was merely upgraded in severity is not returned — its chain is already running. */
+    suspend fun evaluate(
+        seniorId: Int,
+        sensorData: SensorData,
+        baselineDao: BaselineDao,
+        alertDao: AlertDao
+    ): List<Alert> {
+        val created = mutableListOf<Alert>()
         val readings = mapOf(
             "inactivity_duration" to sensorData.inactivityDuration.toDouble(),
             "movement_score" to sensorData.movementScore,
@@ -49,16 +57,17 @@ object MedianMadDetector {
                 continue
             }
 
-            alertDao.insert(
-                Alert(
-                    seniorId = seniorId,
-                    syncId = UUID.randomUUID().toString(),
-                    triggerType = triggerType,
-                    riskLevel = riskLevel,
-                    timeBlock = sensorData.timeBlock,
-                    deviationScore = zScore
-                )
+            val alert = Alert(
+                seniorId = seniorId,
+                syncId = UUID.randomUUID().toString(),
+                triggerType = triggerType,
+                riskLevel = riskLevel,
+                timeBlock = sensorData.timeBlock,
+                deviationScore = zScore
             )
+            created += alert.copy(alertId = alertDao.insert(alert).toInt())
         }
+
+        return created
     }
 }

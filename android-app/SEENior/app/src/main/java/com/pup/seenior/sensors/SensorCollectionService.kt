@@ -15,11 +15,14 @@ import android.hardware.SensorManager
 import android.os.BatteryManager
 import android.os.Build
 import android.os.IBinder
+import android.os.SystemClock
 import androidx.core.app.NotificationCompat
 import com.pup.seenior.R
+import com.pup.seenior.alerts.AlertResponder
 import com.pup.seenior.baseline.SeedBaselineGenerator
 import com.pup.seenior.database.SeniorAppDatabase
 import com.pup.seenior.database.entities.SensorData
+import com.pup.seenior.detection.FallDetector
 import com.pup.seenior.detection.MedianMadDetector
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -39,6 +42,7 @@ class SensorCollectionService : Service(), SensorEventListener
    private lateinit var sensorManager: SensorManager
    private var accelerometer: Sensor? = null
    private var stepCounter: Sensor? = null
+   private var gyroscope: Sensor? = null
 
     private var movementSampleSum = 0.0
     private var movementSampleCount = 0
@@ -47,6 +51,13 @@ class SensorCollectionService : Service(), SensorEventListener
     private var screenUnlockCount = 0
     private var screenOffSince: Long? = null
     private var screenIdleSecondsThisWindow = 0L
+
+    /**
+     * Layer 0 (CLAUDE.md §5). Confined to the sensor callback thread along with
+     * [lastMovementSampleNanos], so unlike the counters above it needs no lock.
+     */
+    private lateinit var fallDetector: FallDetector
+    private var lastMovementSampleNanos = 0L
 
     // onSensorChanged/screenReceiver fire on the main thread (no Handler passed to
     // registerListener/registerReceiver); collectAndStore() runs on Dispatchers.Default.
@@ -84,7 +95,16 @@ class SensorCollectionService : Service(), SensorEventListener
         sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
         accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
         stepCounter = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER)
-        accelerometer?.let { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL) }
+        gyroscope = sensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE)
+
+        // Rotation confirms a fall (CLAUDE.md §4), but not every Android phone ships a gyroscope.
+        // On one that does not, demanding rotation would mean never detecting a fall at all.
+        fallDetector = FallDetector(FallDetector.Config(requireRotation = gyroscope != null))
+
+        accelerometer?.let { registerForFallDetection(it) }
+        gyroscope?.let { registerForFallDetection(it) }
+        // The step counter is an on-change sensor reporting a running total; it has nothing to
+        // contribute to a fall signature and stays at the low rate.
         stepCounter?.let { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL) }
 
         val filter = IntentFilter().apply {
@@ -125,17 +145,71 @@ class SensorCollectionService : Service(), SensorEventListener
                             event.values[1] * event.values[1] +
                             event.values[2] * event.values[2]
                 )
-                val deviation = (abs(magnitude - SensorManager.GRAVITY_EARTH) / SensorManager.GRAVITY_EARTH)
-                    .coerceIn(0.0f, 1.0f)
-                synchronized(stateLock) {
-                    movementSampleSum += deviation
-                    movementSampleCount++
-                    if (deviation > MOVEMENT_THRESHOLD) lastSignificantMovementAt = System.currentTimeMillis()
-                }
+                if (fallDetector.onAcceleration(event.timestamp, magnitude)) onFallDetected()
+                recordMovementSample(event.timestamp, magnitude)
+            }
+            Sensor.TYPE_GYROSCOPE -> {
+                val angularSpeed = sqrt(
+                    event.values[0] * event.values[0] +
+                            event.values[1] * event.values[1] +
+                            event.values[2] * event.values[2]
+                )
+                fallDetector.onRotation(event.timestamp, angularSpeed)
             }
             Sensor.TYPE_STEP_COUNTER -> synchronized(stateLock) {
                 latestStepCount = event.values[0].toInt()
             }
+        }
+    }
+
+    /**
+     * Feeds the Layer 1 movement signals, decimated back to the 5 Hz this service sampled at
+     * before fall detection raised the accelerometer to 50 Hz.
+     *
+     * Without the decimation the change would quietly reshape the Routine Fingerprint: ten times
+     * as many samples means ten times as many chances to catch a twitch, so `inactivity_duration`
+     * would read shorter and `movement_score` different for reasons that have nothing to do with
+     * how the senior actually behaved. Baselines built before this change would no longer be
+     * comparable with readings taken after it.
+     */
+    private fun recordMovementSample(eventNanos: Long, magnitude: Float) {
+        if (eventNanos - lastMovementSampleNanos < MOVEMENT_SAMPLE_INTERVAL_NANOS) return
+        lastMovementSampleNanos = eventNanos
+
+        val deviation = (abs(magnitude - SensorManager.GRAVITY_EARTH) / SensorManager.GRAVITY_EARTH)
+            .coerceIn(0.0f, 1.0f)
+        synchronized(stateLock) {
+            movementSampleSum += deviation
+            movementSampleCount++
+            if (deviation > MOVEMENT_THRESHOLD) lastSignificantMovementAt = wallClockOf(eventNanos)
+        }
+    }
+
+    /**
+     * Converts a sensor event's own clock to wall-clock time. Batched samples can be seconds old
+     * by the time they are delivered, and inactivity is measured from this instant — dating a
+     * movement from when the batch arrived rather than when it happened would shorten every
+     * inactivity reading by the batching latency.
+     */
+    private fun wallClockOf(eventNanos: Long): Long {
+        val ageMillis = ((SystemClock.elapsedRealtimeNanos() - eventNanos) / 1_000_000)
+            .coerceAtLeast(0)
+        return System.currentTimeMillis() - ageMillis
+    }
+
+    /**
+     * Layer 0 confirmed a fall. High risk without any fuzzy classification: CLAUDE.md §5 fixes
+     * the risk level for this trigger, and unlike a statistical deviation there is no degree to
+     * weigh — either the three-phase signature matched or it did not.
+     */
+    private fun onFallDetected() {
+        serviceScope.launch {
+            AlertResponder.raise(
+                applicationContext,
+                SeniorAppDatabase.getInstance(applicationContext),
+                "fall_pattern",
+                "high"
+            )
         }
     }
 
@@ -191,7 +265,26 @@ class SensorCollectionService : Service(), SensorEventListener
             sensorData,
             database.baselineDao(),
             database.alertDao()
-        )
+        ).forEach { alert ->
+            AlertResponder.onAlertCreated(applicationContext, database, alert)
+        }
+    }
+
+    /**
+     * Registers a sensor fast enough to see a fall — 50 Hz, against the 5 Hz this service used
+     * before Layer 0 existed. A free fall lasts a few hundred milliseconds and the impact spike
+     * is over in tens; at the old rate the signature falls between samples entirely.
+     *
+     * Ten times the sample rate running continuously is the single most likely thing to breach
+     * the ≤10% battery target (CLAUDE.md §10), so where the sensor has a hardware FIFO the
+     * samples are batched: the sensor hub buffers them and the application processor stays
+     * asleep between deliveries instead of waking fifty times a second. The cost is up to
+     * [BATCH_LATENCY_US] of detection delay, which the compressed fall response window absorbs.
+     * Devices without a FIFO fall back to unbatched delivery.
+     */
+    private fun registerForFallDetection(sensor: Sensor) {
+        val latencyUs = if (sensor.fifoMaxEventCount > 0) BATCH_LATENCY_US else 0
+        sensorManager.registerListener(this, sensor, FALL_SAMPLING_PERIOD_US, latencyUs)
     }
 
     private fun isCurrentlyCharging(): Boolean {
@@ -224,6 +317,15 @@ class SensorCollectionService : Service(), SensorEventListener
         private const val NOTIFICATION_ID = 1001
         private const val POLL_INTERVAL_MS = 5 * 60 * 1000L
         private const val MOVEMENT_THRESHOLD = 0.05
+
+        /** 50 Hz — fast enough to resolve a fall's free-fall and impact phases. */
+        private const val FALL_SAMPLING_PERIOD_US = 20_000
+
+        /** How long the sensor hub may buffer samples before waking the CPU with them. */
+        private const val BATCH_LATENCY_US = 3_000_000
+
+        /** Keeps the Layer 1 movement signals sampling at their original 5 Hz. */
+        private const val MOVEMENT_SAMPLE_INTERVAL_NANOS = 200_000_000L
 
         fun start(context: Context) {
             val intent = Intent(context, SensorCollectionService::class.java)

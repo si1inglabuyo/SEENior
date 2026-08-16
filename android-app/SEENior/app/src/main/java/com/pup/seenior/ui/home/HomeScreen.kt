@@ -110,7 +110,7 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                 EmergencyCard(barangay = viewModel.barangay, onSosConfirmed = { viewModel.sendSos() })
 
                 Spacer(Modifier.height(10.dp))
-                SimulateAnomalyRow(viewModel)
+                SimulationRow(viewModel)
                 Spacer(Modifier.height(20.dp))
             }
         }
@@ -284,17 +284,30 @@ private fun SosSwipe(onConfirmed: () -> Unit) {
  * detection by injecting known sensor values instead of waiting for a real emergency.
  */
 @Composable
-private fun SimulateAnomalyRow(viewModel: HomeViewModel) {
+private fun SimulationRow(viewModel: HomeViewModel) {
     Column(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        TextButton(onClick = { viewModel.simulateAnomaly() }) {
-            Text(
-                text = "Simulate Anomaly (Demo)",
-                color = SeniorColors.TextSecondary,
-                fontSize = 14.sp
-            )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            TextButton(onClick = { viewModel.simulateAnomaly() }) {
+                Text(
+                    text = "Simulate Anomaly",
+                    color = SeniorColors.TextSecondary,
+                    fontSize = 14.sp
+                )
+            }
+            TextButton(onClick = { viewModel.simulateFall() }) {
+                Text(
+                    text = "Simulate Fall",
+                    color = SeniorColors.TextSecondary,
+                    fontSize = 14.sp
+                )
+            }
         }
         viewModel.simulationMessage?.let { message ->
             Text(

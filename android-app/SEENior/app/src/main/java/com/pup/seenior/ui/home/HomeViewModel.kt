@@ -9,18 +9,19 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.pup.seenior.baseline.SeedBaselineGenerator
+import com.pup.seenior.alerts.AlertResponder
 import com.pup.seenior.database.SeniorAppDatabase
 import com.pup.seenior.database.entities.Alert
 import com.pup.seenior.database.entities.Senior
 import com.pup.seenior.detection.AnomalySimulator
+import com.pup.seenior.detection.FallDetector
+import com.pup.seenior.detection.FallSimulator
 import com.pup.seenior.network.RetrofitClient
 import com.pup.seenior.network.SeniorCloudSync
 import com.pup.seenior.network.dto.FamilyContactDto
 import com.pup.seenior.ui.wellness.WellnessMessages
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
-import java.util.UUID
 
 /**
  * Backs the senior's Home tab (`designs/senior/home_screen/`) and decides when the wellness
@@ -142,8 +143,10 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     fun simulateAnomaly() {
         viewModelScope.launch {
             simulationMessage = when (val result = AnomalySimulator.simulateProlongedInactivity(db)) {
-                is AnomalySimulator.Result.Triggered ->
+                is AnomalySimulator.Result.Triggered -> {
+                    result.alert?.let { AlertResponder.onAlertCreated(getApplication(), db, it) }
                     "Detector flagged an anomaly (z = %.1f).".format(result.zScore)
+                }
                 AnomalySimulator.Result.AlreadyActive ->
                     "An alert is already open — answer it first."
                 AnomalySimulator.Result.NoBaseline ->
@@ -154,38 +157,41 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /**
+     * Demo trigger for Layer 0. Replays a synthetic fall through the real [FallDetector] with
+     * production thresholds — nothing here can produce an alert the live sensor stream would not
+     * have produced from the same motion.
+     */
+    fun simulateFall() {
+        viewModelScope.launch {
+            simulationMessage = when (FallSimulator.simulate(getApplication(), db)) {
+                is FallSimulator.Result.Raised ->
+                    "Fall signature confirmed: free fall, impact, then no movement."
+                FallSimulator.Result.NotConfirmed ->
+                    "The detector did not confirm a fall from that motion."
+                FallSimulator.Result.AlreadyActive ->
+                    "A fall alert is already open — answer it first."
+                FallSimulator.Result.NoSenior ->
+                    "No senior profile found on this phone."
+            }
+        }
+    }
+
     fun clearSimulationMessage() {
         simulationMessage = null
     }
 
     /**
-     * SOS. Writes the alert directly instead of going through the detector: this is a conscious
-     * request for help, not a statistical deviation, so there is nothing to score. Always high
-     * risk, and works from day one regardless of baseline status (CLAUDE.md §6).
+     * SOS. Raised directly instead of going through a detector: this is a conscious request for
+     * help, not a statistical deviation, so there is nothing to score. Always high risk, and
+     * works from day one regardless of baseline status (CLAUDE.md §6).
+     *
+     * [AlertResponder.raise] returns null when an SOS is already open, so a repeated swipe joins
+     * the alert already in flight rather than stacking duplicates.
      */
     fun sendSos() {
-        val current = senior ?: return
         viewModelScope.launch {
-            val onboarding = db.seniorOnboardingDao().getBySeniorId(current.seniorId) ?: return@launch
-            val now = System.currentTimeMillis()
-            val timeBlock = SeedBaselineGenerator
-                .resolveTimeBlock(now, onboarding.wakeTime, onboarding.sleepTime)
-                .name.lowercase()
-
-            // Reuse an already-open SOS rather than stacking duplicates if the swipe is repeated.
-            if (db.alertDao().getActiveAlert(current.seniorId, "sos") != null) return@launch
-
-            db.alertDao().insert(
-                Alert(
-                    seniorId = current.seniorId,
-                    syncId = UUID.randomUUID().toString(),
-                    triggerType = "sos",
-                    riskLevel = "high",
-                    timeBlock = timeBlock,
-                    // No z-score exists for a button press; the column is Median-MAD's.
-                    deviationScore = null
-                )
-            )
+            AlertResponder.raise(getApplication(), db, "sos", "high")
         }
     }
 
