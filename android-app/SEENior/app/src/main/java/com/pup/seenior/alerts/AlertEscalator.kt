@@ -52,6 +52,26 @@ object AlertEscalator {
         else -> 600
     }
 
+    /**
+     * How long an open alert keeps absorbing fresh detections of the same kind instead of letting
+     * them raise a new one.
+     *
+     * This is a different question from [windowSecondsFor] and must not be folded into it. That
+     * one asks how long the senior has to answer; this one asks how long two detections should be
+     * treated as one event. They only look similar for falls by coincidence.
+     */
+    fun dedupeSecondsFor(triggerType: String): Int = when (triggerType) {
+        // Someone swiping again while help is already on the way is repeating themselves, not
+        // reporting a second emergency. The response window is only ten seconds, so without a
+        // longer horizon here a frightened senior would file an alert per swipe.
+        "sos" -> 600
+        // Matches FallDetector's own cooldown. Inside it, one fall cannot be reported twice;
+        // past it, the senior has fallen again — which is new information and the family needs
+        // to hear it, even though the first alert is still open.
+        "fall_pattern" -> 60
+        else -> 600
+    }
+
     /** Whether the family tier has already been notified for this alert. */
     fun hasEscalatedToFamily(alert: Alert): Boolean = steps(alert.escalationSteps)
         .let { steps -> (0 until steps.length()).any { steps.optJSONObject(it)?.optString("step") == STEP_FAMILY } }

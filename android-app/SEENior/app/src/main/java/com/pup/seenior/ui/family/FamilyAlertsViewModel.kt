@@ -12,6 +12,9 @@ import com.pup.seenior.network.dto.AlertDto
 import com.pup.seenior.network.dto.ContactDto
 import com.pup.seenior.session.FamilySession
 import com.pup.seenior.session.SessionState
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import retrofit2.HttpException
 import java.io.IOException
@@ -59,6 +62,8 @@ class FamilyAlertsViewModel(application: Application) : AndroidViewModel(applica
 
     private var actionInFlight = false
 
+    private var pollJob: Job? = null
+
     // Set when the family member taps through from the Home popup, so the next refresh opens the
     // alert they were actually shown instead of whatever "newest open" resolves to.
     private var requestedSyncId: String? = null
@@ -74,18 +79,51 @@ class FamilyAlertsViewModel(application: Application) : AndroidViewModel(applica
         requestedSyncId = syncId
     }
 
+    /** One-shot fetch that may claim the screen. Used on entry and by the retry button. */
     fun refresh(contacts: List<ContactDto>) {
+        viewModelScope.launch { load(contacts, background = false) }
+    }
+
+    /**
+     * Re-fetches every [POLL_INTERVAL_MS] for as long as the Alerts tab is resumed.
+     *
+     * The tab previously fetched only when the linked-senior list changed, which in practice meant
+     * once — so a family member could sit watching this screen read "All clear" while the alert
+     * was already on the server. Of every screen in the app this is the worst one to leave stale.
+     */
+    fun startPolling(contacts: List<ContactDto>) {
+        pollJob?.cancel()
+        pollJob = viewModelScope.launch {
+            var first = true
+            while (isActive) {
+                // Only the first fetch of a session may take over the screen, and only when there
+                // is nothing on it yet. Every later one runs silently: this tab is a flow the
+                // family member walks through, and a poll that reset it would throw away the step
+                // they were on mid-emergency.
+                load(contacts, background = !first || screen != AlertScreen.LOADING)
+                first = false
+                delay(POLL_INTERVAL_MS)
+            }
+        }
+    }
+
+    fun stopPolling() {
+        pollJob?.cancel()
+        pollJob = null
+    }
+
+    private suspend fun load(contacts: List<ContactDto>, background: Boolean) {
         val token = FamilySession.getToken(getApplication()) ?: return
         if (contacts.isEmpty()) {
             activeAlert = null
             activeSenior = null
-            screen = AlertScreen.ALL_CLEAR
+            if (mayClaimScreen(background)) screen = AlertScreen.ALL_CLEAR
             return
         }
-        viewModelScope.launch {
-            isLoading = true
+        run {
+            isLoading = !background
             error = null
-            screen = AlertScreen.LOADING
+            if (!background) screen = AlertScreen.LOADING
             try {
                 var bestAlert: AlertDto? = null
                 var bestContact: ContactDto? = null
@@ -113,28 +151,42 @@ class FamilyAlertsViewModel(application: Application) : AndroidViewModel(applica
                     bestAlert = requestedAlert
                     bestContact = requestedContact
                 }
-                requestedSyncId = null
 
-                activeAlert = bestAlert
-                activeSenior = bestContact ?: contacts.first()
-                screen = if (bestAlert != null) {
-                    if (bestAlert.status == "pending") AlertScreen.DETAIL else AlertScreen.ACKNOWLEDGED
-                } else {
-                    AlertScreen.ALL_CLEAR
+                if (mayClaimScreen(background)) {
+                    // Consumed only when it is actually acted on, so a silent poll cannot swallow
+                    // the family member's "View this one" before the screen has honoured it.
+                    requestedSyncId = null
+                    activeAlert = bestAlert
+                    activeSenior = bestContact ?: contacts.first()
+                    screen = if (bestAlert != null) {
+                        if (bestAlert.status == "pending") AlertScreen.DETAIL else AlertScreen.ACKNOWLEDGED
+                    } else {
+                        AlertScreen.ALL_CLEAR
+                    }
                 }
             } catch (e: HttpException) {
                 error = if (SessionState.handleIfUnauthorized(getApplication(), e))
                     SessionState.SESSION_EXPIRED_MESSAGE
                 else "Could not load alerts (server error ${e.code()})."
-                screen = AlertScreen.LOAD_FAILED
+                if (mayClaimScreen(background)) screen = AlertScreen.LOAD_FAILED
             } catch (e: IOException) {
                 error = "Could not reach the server. Check your internet connection."
-                screen = AlertScreen.LOAD_FAILED
+                if (mayClaimScreen(background)) screen = AlertScreen.LOAD_FAILED
             } finally {
                 isLoading = false
             }
         }
     }
+
+    /**
+     * Whether this fetch is allowed to change what is on screen.
+     *
+     * A foreground fetch always is. A background poll only may while the screen is still just
+     * reporting the situation — once the family member has acknowledged, opened the dispatch form
+     * or is looking at a resolved summary, they are mid-task and the screen belongs to them.
+     */
+    private fun mayClaimScreen(background: Boolean): Boolean =
+        !background || screen in PASSIVE_SCREENS
 
     /** Re-runs the fetch after a LOAD_FAILED state; the screen keeps the contacts it was given. */
     fun retry(contacts: List<ContactDto>) {
@@ -237,6 +289,20 @@ class FamilyAlertsViewModel(application: Application) : AndroidViewModel(applica
 
     companion object {
         private val OPEN_STATUSES = setOf("pending", "acknowledged", "escalated")
+
+        /** Screens that only report the current situation, so a poll may replace them. The rest
+         *  are steps the family member is part-way through and must not be pulled out from under
+         *  them. */
+        private val PASSIVE_SCREENS = setOf(
+            AlertScreen.LOADING,
+            AlertScreen.ALL_CLEAR,
+            AlertScreen.DETAIL,
+            AlertScreen.LOAD_FAILED
+        )
+
+        /** Matches the Home tab's cadence — the two tabs read the same endpoint and there is no
+         *  reason for one to learn about an alert sooner than the other. */
+        private const val POLL_INTERVAL_MS = 20_000L
     }
 }
 

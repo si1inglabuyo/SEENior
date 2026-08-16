@@ -59,6 +59,26 @@ interface AlertDao {
     """)
     suspend fun getActiveAlert(seniorId: Int, triggerType: String): Alert?
 
+    /**
+     * The same dedup check, but only against alerts raised at or after [notBefore].
+     *
+     * [getActiveAlert] is right for the signals that describe a *state* — while a senior is still
+     * inactive, every five-minute poll re-detects the same inactivity, and one alert should absorb
+     * them all however long it stays open. It is wrong for the ones that describe an *event*. A
+     * fall is over the moment it happens, and nothing on this device ever moves an escalated alert
+     * out of the open set (the only local status write is "self_cancelled"; the family resolving
+     * it in the cloud is never synced back), so an unbounded check meant the first fall a phone
+     * ever escalated silently blocked every fall after it, for the life of the install.
+     */
+    @Query("""
+        SELECT * FROM Alerts
+        WHERE senior_id = :seniorId AND trigger_type = :triggerType
+          AND status IN ('pending', 'acknowledged_family', 'escalated_barangay')
+          AND triggered_at >= :notBefore
+        LIMIT 1
+    """)
+    suspend fun getRecentActiveAlert(seniorId: Int, triggerType: String, notBefore: Long): Alert?
+
     @Query("UPDATE Alerts SET risk_level = :riskLevel, deviation_score = :deviationScore WHERE alert_id = :alertId")
     suspend fun updateSeverity(alertId: Int, riskLevel: String, deviationScore: Double)
 

@@ -42,9 +42,13 @@ object AlertResponder {
     ): Alert? = raiseLock.withLock {
         val senior = db.seniorDao().getOnboardedSenior() ?: return null
         val onboarding = db.seniorOnboardingDao().getBySeniorId(senior.seniorId) ?: return null
-        if (db.alertDao().getActiveAlert(senior.seniorId, triggerType) != null) return null
 
         val now = System.currentTimeMillis()
+        // Bounded on purpose — see AlertDao.getRecentActiveAlert. An open alert absorbs repeats of
+        // the same event, but must not silence the next real one once that event is over.
+        val notBefore = now - AlertEscalator.dedupeSecondsFor(triggerType) * 1_000L
+        if (db.alertDao().getRecentActiveAlert(senior.seniorId, triggerType, notBefore) != null) return null
+
         val alert = Alert(
             seniorId = senior.seniorId,
             syncId = UUID.randomUUID().toString(),

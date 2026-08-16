@@ -93,9 +93,12 @@ object FallSimulator {
         }
 
     suspend fun simulate(context: Context, db: SeniorAppDatabase): Result {
-        val senior = db.seniorDao().getOnboardedSenior() ?: return Result.NoSenior
-        if (db.alertDao().getActiveAlert(senior.seniorId, "fall_pattern") != null) return Result.AlreadyActive
+        db.seniorDao().getOnboardedSenior() ?: return Result.NoSenior
         if (!replay(stream())) return Result.NotConfirmed
+
+        // No dedup check of its own: AlertResponder.raise already owns that rule and reports it
+        // by returning null. Repeating the check here meant two copies of a policy that has to
+        // agree, and this copy was the unbounded one.
 
         val alert = AlertResponder.raise(context, db, "fall_pattern", "high")
             ?: return Result.AlreadyActive

@@ -38,6 +38,7 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -74,7 +75,13 @@ fun FamilyAlertsScreen(
     seniorsLoadFailed: Boolean = false,
     onRetrySeniors: () -> Unit = {}
 ) {
-    LaunchedEffect(contacts) { viewModel.refresh(contacts) }
+    // Polls while this tab is resumed, rather than fetching once when the senior list changes —
+    // that list rarely changes, so nothing re-triggered the fetch and the screen could keep
+    // asserting "All clear" long after an alert had arrived.
+    LifecycleResumeEffect(contacts) {
+        viewModel.startPolling(contacts)
+        onPauseOrDispose { viewModel.stopPolling() }
+    }
 
     val fallbackSenior = contacts.firstOrNull()?.senior
     val senior = viewModel.activeSenior?.senior ?: fallbackSenior
