@@ -306,7 +306,7 @@ class SensorCollectionService : Service(), SensorEventListener
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("SEENior is watching over you")
             .setContentText("Passive monitoring is active. All data stays on this phone.")
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setSmallIcon(R.drawable.ic_stat_seenior)
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_MIN)
             .build()

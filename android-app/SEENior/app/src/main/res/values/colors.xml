@@ -7,4 +7,8 @@
     <color name="teal_700">#FF018786</color>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+
+    <!-- Launcher adaptive-icon background: warm off-white so the SEENior emblem
+         keeps an edge against light wallpapers instead of washing out. -->
+    <color name="ic_launcher_background">#FFFDF8F0</color>
 </resources>
