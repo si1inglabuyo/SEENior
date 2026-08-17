@@ -23,6 +23,16 @@ class Settings:
     # POST /auth/google 503s with a clear message if this isn't set.
     google_client_id: str | None = os.environ.get("GOOGLE_CLIENT_ID")
 
+    # Firebase service-account credentials, used to send FCM pushes. Accepts EITHER the
+    # raw JSON of the key (what you paste into a Render env var) or a filesystem path to
+    # it (convenient locally) — see app/core/push.py, which sniffs which one it got.
+    #
+    # Deliberately NOT fatal when unset, unlike SECRET_KEY: a missing push credential
+    # degrades the system to the pre-FCM behaviour (alerts still record, the family app
+    # still polls), whereas refusing to boot would take the whole escalation chain down
+    # over a notification channel. push.py logs loudly instead.
+    firebase_credentials: str | None = os.environ.get("FIREBASE_CREDENTIALS")
+
 
 settings = Settings()
 

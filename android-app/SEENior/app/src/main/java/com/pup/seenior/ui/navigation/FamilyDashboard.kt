@@ -1,5 +1,10 @@
 package com.pup.seenior.ui.navigation
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -30,6 +35,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
+import com.pup.seenior.alerts.PendingAlertNavigation
+import com.pup.seenior.network.PushTokenRegistrar
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -83,6 +92,42 @@ fun FamilyDashboard(onLoggedOut: () -> Unit) {
         if (SessionState.expired) {
             SessionState.consume()
             onLoggedOut()
+        }
+    }
+
+    val context = LocalContext.current
+
+    // Android 13+ drops every notification silently until this is granted, and the only
+    // existing runtime request lives in the SENIOR onboarding flow (PermissionsScreen),
+    // which a family member never passes through. Asked here because this is the first
+    // screen that exists to show alerts. Guarded by SDK version — the permission does not
+    // exist below 33 and the platform reports it denied regardless of what the user does,
+    // the same trap that once blocked onboarding via ACTIVITY_RECOGNITION.
+    val notificationPermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { /* Declining is allowed; polling still works, it is just slower and app-only. */ }
+
+    LaunchedEffect(Unit) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(
+                context, Manifest.permission.POST_NOTIFICATIONS
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+        // Re-asserted on every dashboard entry rather than at each of the three login
+        // paths: one call site cannot drift out of step with the others, and this also
+        // repairs a token that rotated while the app was not running.
+        PushTokenRegistrar.syncToken(context)
+    }
+
+    // A tapped notification names the alert to open. Reuses the same focusAlert + tab
+    // switch the Home popup's "View" button already performs, so there is one way into an
+    // alert rather than two that can disagree.
+    LaunchedEffect(PendingAlertNavigation.alertSyncId) {
+        PendingAlertNavigation.consume()?.let { syncId ->
+            alertsViewModel.focusAlert(syncId)
+            tab = FamilyTab.ALERTS
         }
     }
 

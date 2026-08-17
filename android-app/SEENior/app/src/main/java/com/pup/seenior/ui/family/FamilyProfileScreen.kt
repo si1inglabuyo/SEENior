@@ -48,7 +48,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.pup.seenior.session.FamilySession
+import com.pup.seenior.network.PushTokenRegistrar
 
 /** Family "Profile" tab (designs/family_contact/profile). Account card + MY INFO (Edit profile,
  *  functional) + HELP & INFORMATION (static rows — no sub-screens built, out of scope here)
@@ -143,8 +143,12 @@ private fun FamilyProfileHome(
             text = { Text("You'll need to sign in again to see your linked seniors.") },
             confirmButton = {
                 TextButton(onClick = {
-                    FamilySession.clear(context)
                     showLogoutConfirm = false
+                    // Clears the session and releases this device's push token, in that
+                    // order and on a scope that survives the navigation below. Leaving the
+                    // token behind would keep this handset receiving the previous account's
+                    // alerts, which name the senior (CLAUDE.md §11).
+                    PushTokenRegistrar.signOutAsync(context)
                     onLoggedOut()
                 }) {
                     Text("Log Out", color = FamilyColors.ErrorRed)

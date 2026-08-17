@@ -2,6 +2,9 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
+    // Reads app/google-services.json and generates the Firebase config resources the
+    // messaging SDK reads at runtime. Fails the build outright if that file is missing.
+    alias(libs.plugins.google.services)
 }
 
 android {
@@ -61,4 +64,6 @@ dependencies {
     implementation(libs.retrofit.gson)
     implementation(libs.okhttp.logging)
     implementation(libs.play.services.auth)
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.messaging)
 }

@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "814522278451",
+    "project_id": "seenior",
+    "storage_bucket": "seenior.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:814522278451:android:132a53fb794ba7232cb946",
+        "android_client_info": {
+          "package_name": "com.pup.seenior"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "814522278451-9ueiiue6342vhiak12v3l2eaau5afr6d.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDTfZvFXi3-hnGTRVNOEPmOSvexKB1H6Ug"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "814522278451-9ueiiue6342vhiak12v3l2eaau5afr6d.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

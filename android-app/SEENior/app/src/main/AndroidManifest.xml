@@ -48,6 +48,22 @@
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
             </intent-filter>
         </receiver>
+        <!-- Receives alerts pushed to a family contact. exported=false is correct even
+             though the system starts it: FCM delivers through Google Play services, which
+             is granted access by the intent filter, not by the service being public. -->
+        <service
+            android:name=".alerts.SeeniorMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+        <!-- Icon and colour Android applies to a notification FCM renders itself. Ours are
+             all data-only, so this is belt-and-braces: it stops a future notification-payload
+             push from falling back to the grey default app icon. -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_stat_seenior" />
     </application>
 
 </manifest>

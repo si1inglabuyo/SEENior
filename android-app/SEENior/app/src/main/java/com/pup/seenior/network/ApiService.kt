@@ -6,11 +6,13 @@ import com.pup.seenior.network.dto.ChangePasswordRequest
 import com.pup.seenior.network.dto.ContactDto
 import com.pup.seenior.network.dto.CreateAlertRequest
 import com.pup.seenior.network.dto.CreateSeniorRequest
+import com.pup.seenior.network.dto.DeviceDto
 import com.pup.seenior.network.dto.FamilyContactDto
 import com.pup.seenior.network.dto.GoogleSignInRequest
 import com.pup.seenior.network.dto.InviteCodeDto
 import com.pup.seenior.network.dto.PairRequest
 import com.pup.seenior.network.dto.PairResponseDto
+import com.pup.seenior.network.dto.RegisterDeviceRequest
 import com.pup.seenior.network.dto.RegisterRequest
 import com.pup.seenior.network.dto.SeniorDto
 import com.pup.seenior.network.dto.TokenDto
@@ -114,6 +116,23 @@ interface ApiService {
         @Header("Authorization") auth: String,
         @Body body: ChangePasswordRequest
     )
+
+    // ---- Push registration (family side) ----
+
+    @POST("devices/register")
+    suspend fun registerDevice(
+        @Body body: RegisterDeviceRequest,
+        @Header("Authorization") auth: String
+    ): DeviceDto
+
+    @DELETE("devices/{token}")
+    suspend fun unregisterDevice(
+        @Path("token") token: String,
+        @Header("Authorization") auth: String
+    )
+
+    @GET("devices")
+    suspend fun getMyDevices(@Header("Authorization") auth: String): List<DeviceDto>
 
     // ---- Alerts (family side) ----
 

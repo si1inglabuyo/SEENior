@@ -1,20 +1,103 @@
+import asyncio
+import logging
 from datetime import datetime, timezone
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
-from app.db.models import Alert, AlertStatus, Contact, ContactType, Senior, User, UserRole
-from app.db.session import get_db
+from app.core import push
+from app.db.models import (
+    Alert,
+    AlertStatus,
+    Contact,
+    ContactType,
+    DeviceToken,
+    Senior,
+    User,
+    UserRole,
+)
+from app.db.session import SessionLocal, get_db
 from app.schemas.alert import AlertCreate, AlertDispatchRequest, AlertOut
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/alerts", tags=["alerts"])
 
 
+async def _family_device_tokens(db: AsyncSession, senior_id: int) -> list[str]:
+    """Every push token belonging to a currently-linked, active family contact.
+
+    `Contact.is_active()` is as load-bearing here as it is on the read paths: a family
+    member who was unlinked must stop receiving pushes about that senior immediately,
+    and a push carries the senior's name (CLAUDE.md §11).
+
+    distinct() guards the case where one account somehow holds two live links to the
+    same senior — the partial unique index makes that unlikely, but a duplicate here
+    would ring the same handset twice for one emergency.
+    """
+    result = await db.execute(
+        select(DeviceToken.token)
+        .join(Contact, Contact.user_id == DeviceToken.user_id)
+        .join(User, User.id == DeviceToken.user_id)
+        .where(
+            Contact.senior_id == senior_id,
+            Contact.contact_type == ContactType.FAMILY,
+            Contact.is_active(),
+            User.is_active,
+        )
+        .distinct()
+    )
+    return list(result.scalars().all())
+
+
+async def _deliver_alert_push(tokens: list[str], payload: push.AlertPush) -> None:
+    """Sends the push and prunes any token FCM declared permanently dead.
+
+    Runs as a background task, after the response has gone back to the senior's phone.
+    firebase-admin's send is blocking, so it goes to a worker thread rather than
+    stalling the event loop for every other request in flight.
+
+    Failures are logged, never raised: by the time this runs the alert is already
+    committed, and there is no request left to fail.
+    """
+    try:
+        result = await asyncio.to_thread(push.send_alert, tokens, payload)
+    except Exception:
+        logger.exception("Alert push task crashed for alert %s", payload.alert_sync_id)
+        return
+
+    if result.attempted:
+        logger.info(
+            "Alert %s pushed to %d/%d device(s)",
+            payload.alert_sync_id,
+            result.sent,
+            result.attempted,
+        )
+
+    if not result.stale_tokens:
+        return
+
+    # A fresh session: the request's session is closed by now.
+    try:
+        async with SessionLocal() as session:
+            await session.execute(
+                delete(DeviceToken).where(DeviceToken.token.in_(result.stale_tokens))
+            )
+            await session.commit()
+        logger.info("Pruned %d dead device token(s)", len(result.stale_tokens))
+    except Exception:
+        logger.exception("Failed to prune dead device tokens")
+
+
 @router.post("", response_model=AlertOut, status_code=status.HTTP_201_CREATED)
-async def create_alert(payload: AlertCreate, db: AsyncSession = Depends(get_db)) -> Alert:
+async def create_alert(
+    payload: AlertCreate,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db),
+) -> Alert:
     # No auth — the senior's phone has no Users account (CLAUDE.md §2) and identifies
     # itself only by its own sync_id. Known simplification: nothing here verifies the
     # caller genuinely owns that sync_id. Acceptable for the demo; a per-device secret
@@ -35,6 +118,33 @@ async def create_alert(payload: AlertCreate, db: AsyncSession = Depends(get_db))
     db.add(alert)
     await db.commit()
     await db.refresh(alert)
+
+    # Queued only after the commit succeeded, so a push can never announce an alert that
+    # does not exist. Scheduling it as a background task keeps FCM off the critical path:
+    # the senior's phone gets its 201 whether or not Google is reachable, and the family
+    # app's polling remains the fallback it always was.
+    tokens = await _family_device_tokens(db, senior.id)
+    if tokens:
+        background_tasks.add_task(
+            _deliver_alert_push,
+            tokens,
+            push.AlertPush(
+                alert_sync_id=str(alert.sync_id),
+                senior_sync_id=str(senior.sync_id),
+                senior_name=senior.first_name,
+                risk_level=alert.risk_level.value,
+                trigger_type=alert.trigger_type.value,
+            ),
+        )
+    else:
+        # Worth a log line: an alert for a senior with no reachable family device is the
+        # exact scenario the barangay tier exists for, and it is otherwise invisible.
+        logger.warning(
+            "Alert %s raised for senior %s with no registered family devices",
+            alert.sync_id,
+            senior.sync_id,
+        )
+
     return alert
 
 

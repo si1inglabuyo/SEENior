@@ -86,6 +86,43 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
     contacts: Mapped[list["Contact"]] = relationship(back_populates="user")
+    # delete-orphan: a deactivated account's tokens must not outlive it and keep
+    # receiving pushes for seniors it is no longer linked to.
+    device_tokens: Mapped[list["DeviceToken"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
+
+
+class DeviceToken(Base):
+    """One FCM registration token — i.e. one installed app on one device — for a user.
+
+    A separate table rather than a `users.fcm_token` column, for two reasons that both
+    bite in production:
+
+    * One family member may run the app on a phone AND a tablet. A single column silently
+      overwrites one with the other, so whichever device registered last is the only one
+      that ever rings.
+    * Tokens expire on their own — a reinstall, a "clear data", or a rotation by Google.
+      FCM reports those per-token as UNREGISTERED, and the correct response is to delete
+      that one row, not to blank a user's only column.
+
+    `token` is globally unique, not unique per user: if a device is handed to someone else
+    who signs in, the SAME token must move to the new account or the previous owner keeps
+    receiving a stranger's alerts. See register_device in api/routes/devices.py.
+    """
+
+    __tablename__ = "device_tokens"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    token: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    platform: Mapped[str] = mapped_column(String(16), server_default="android")
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    # Refreshed every time the app re-registers, so a token that has gone quiet for months
+    # can be pruned without waiting for FCM to declare it dead.
+    last_seen_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+    user: Mapped["User"] = relationship(back_populates="device_tokens")
 
 
 class Senior(Base):
