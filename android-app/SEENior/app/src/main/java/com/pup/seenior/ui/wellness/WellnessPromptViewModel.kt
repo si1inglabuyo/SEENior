@@ -8,7 +8,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.pup.seenior.alerts.AlertEscalator
 import com.pup.seenior.alerts.AlertNotifier
-import com.pup.seenior.alerts.EscalationWorker
+import com.pup.seenior.alerts.EscalationScheduler
 import com.pup.seenior.database.SeniorAppDatabase
 import com.pup.seenior.database.entities.Alert
 import kotlinx.coroutines.delay
@@ -26,7 +26,7 @@ enum class PromptStage { PROMPT, ACKNOWLEDGED, SENT }
  * - Letting the timer run out escalates too. Silence is the case the whole system exists for.
  *
  * The escalation itself lives in [AlertEscalator] rather than here, because this screen is not
- * the only thing that can escalate: [EscalationWorker] does the same job when the senior never
+ * the only thing that can escalate: [EscalationScheduler] does the same job when the senior never
  * opens the app at all.
  */
 class WellnessPromptViewModel(application: Application) : AndroidViewModel(application) {
@@ -103,7 +103,7 @@ class WellnessPromptViewModel(application: Application) : AndroidViewModel(appli
 
         // Nothing is owed on this alert any more, so stop the watchdog before it spends a
         // wake-up discovering that for itself.
-        EscalationWorker.cancel(getApplication(), current.alertId)
+        EscalationScheduler.cancel(getApplication(), current.alertId)
 
         viewModelScope.launch {
             val now = System.currentTimeMillis()
@@ -123,7 +123,7 @@ class WellnessPromptViewModel(application: Application) : AndroidViewModel(appli
         if (isSending) return
         isSending = true
 
-        EscalationWorker.cancel(getApplication(), current.alertId)
+        EscalationScheduler.cancel(getApplication(), current.alertId)
 
         viewModelScope.launch {
             // Confirm to the senior BEFORE the network call, not after. The alert is already

@@ -12,6 +12,17 @@
     <!-- Lets a high-risk alert open the wellness prompt over the lock screen instead of waiting
          behind a banner nobody taps. -->
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <!-- The escalation deadline must fire at a wall-clock moment even in Doze. Measured on an
+         Infinix X6885 (Android 15): with only a WorkManager job, a 60s fall window did not
+         escalate at all while the phone was idle, and 10-minute windows ran 25 minutes late.
+         USE_EXACT_ALARM is granted on install (no runtime dialog) — this app's core function is
+         a timed emergency response, which is the category it exists for. -->
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <!-- Asked once during onboarding. Exact alarms survive Doze, but OEM skins (XOS, MIUI,
+         EMUI) layer their own killers on top of stock Android, and the exemption is the only
+         defence against those. -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
 
     <application
@@ -46,6 +57,15 @@
             android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+        <!-- Wakes the device when an alert's response window expires. Not exported: only
+             AlarmManager, delivering our own PendingIntent, ever triggers it. -->
+        <receiver
+            android:name=".alerts.EscalationReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.pup.seenior.action.ESCALATE" />
             </intent-filter>
         </receiver>
         <!-- Receives alerts pushed to a family contact. exported=false is correct even

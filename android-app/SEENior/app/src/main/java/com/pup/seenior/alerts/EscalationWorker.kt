@@ -2,26 +2,27 @@ package com.pup.seenior.alerts
 
 import android.content.Context
 import androidx.work.BackoffPolicy
+import androidx.work.Constraints
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingWorkPolicy
+import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
 import com.pup.seenior.database.SeniorAppDatabase
-import com.pup.seenior.database.entities.Alert
 import java.util.concurrent.TimeUnit
 
 /**
- * The response window, running outside the app.
+ * Retries an escalation whose *delivery* failed, after [EscalationScheduler] has already met the
+ * deadline.
  *
- * Without this, silence only escalates while the senior happens to be looking at the wellness
- * prompt — the countdown lives in a ViewModel, so backgrounding the app or letting Android kill
- * the process would quietly abandon an open alert. That is precisely backwards: an unanswered
- * alert is *more* likely to matter when the phone has been left untouched.
+ * This class used to own the deadline itself, and that was the wrong tool: WorkManager offers no
+ * timing guarantee, and Doze was measured deferring a sixty-second fall window indefinitely. The
+ * deadline now belongs to an exact alarm; what is left here is the job WorkManager is genuinely
+ * good at — waiting for a network to come back and retrying with backoff, across process death.
  *
- * Scheduled for every alert this device raises, deliberately including SOS. Cancelled the moment
- * the senior says they are safe.
+ * Enqueued only by [EscalationReceiver], never on the happy path.
  */
 class EscalationWorker(
     context: Context,
@@ -54,34 +55,33 @@ class EscalationWorker(
         private fun workName(alertId: Int) = "escalation_$alertId"
 
         /**
-         * Arms the window for [alert], anchored to when it was raised rather than to now, so a
-         * device that was asleep or rebooting does not hand the senior a fresh countdown.
+         * Queues a retry for an escalation that was due now but could not be delivered.
+         *
+         * Requires connectivity, unlike the old deadline job: there is nothing to do without a
+         * network, and the local audit entry has already been written by
+         * [AlertEscalator.escalateToFamily] regardless of whether the cloud copy landed.
          */
-        fun schedule(context: Context, alert: Alert) {
-            val windowMillis = TimeUnit.SECONDS.toMillis(
-                AlertEscalator.windowSecondsFor(alert.triggerType).toLong()
-            )
-            val remaining = (alert.triggeredAt + windowMillis - System.currentTimeMillis())
-                .coerceAtLeast(0)
-
+        fun enqueueRetry(context: Context, alertId: Int) {
             val request = OneTimeWorkRequestBuilder<EscalationWorker>()
-                .setInputData(workDataOf(KEY_ALERT_ID to alert.alertId))
-                .setInitialDelay(remaining, TimeUnit.MILLISECONDS)
-                // No network constraint on purpose: the audit entry must be written on time even
-                // with no signal, and the worker retries the delivery itself.
+                .setInputData(workDataOf(KEY_ALERT_ID to alertId))
+                .setConstraints(
+                    Constraints.Builder()
+                        .setRequiredNetworkType(NetworkType.CONNECTED)
+                        .build()
+                )
                 .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
                 .build()
 
             WorkManager.getInstance(context).enqueueUniqueWork(
-                workName(alert.alertId),
-                // KEEP, not REPLACE: re-scheduling an already-armed alert must never restart
-                // its countdown.
+                workName(alertId),
+                // KEEP: an already-queued retry is still valid; replacing it would restart its
+                // backoff and delay the delivery further.
                 ExistingWorkPolicy.KEEP,
                 request
             )
         }
 
-        /** Called when the senior self-cancels, so no wake-up is spent on a closed alert. */
+        /** Called when the senior self-cancels, so no retry is spent on a closed alert. */
         fun cancel(context: Context, alertId: Int) {
             WorkManager.getInstance(context).cancelUniqueWork(workName(alertId))
         }

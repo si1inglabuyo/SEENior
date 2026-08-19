@@ -1,7 +1,12 @@
 package com.pup.seenior.ui.onboarding
 
 import android.Manifest
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import android.os.Build
+import android.os.PowerManager
+import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -17,6 +22,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.DirectionsRun
+import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.BatteryChargingFull
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.NotificationsOff
@@ -33,6 +39,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -53,7 +60,8 @@ private val permissionRows = listOf(
     PermissionRow(Icons.AutoMirrored.Filled.DirectionsRun, "Motion & Activity", "Detects movement to track routine"),
     PermissionRow(Icons.Filled.LocationOn, "Location (Alerts)", "Shared only when alert triggers"),
     PermissionRow(Icons.Filled.Notifications, "Notifications", "Check-in prompts & SOS alerts"),
-    PermissionRow(Icons.Filled.BatteryChargingFull, "Battery & screen", "Tracks charging & screen use")
+    PermissionRow(Icons.Filled.BatteryChargingFull, "Battery & screen", "Tracks charging & screen use"),
+    PermissionRow(Icons.Filled.Alarm, "Run in background", "So alerts still go out while the phone rests")
 )
 
 private val runtimePermissions: List<String> = buildList {
@@ -69,11 +77,39 @@ fun PermissionsScreen(
 ) {
     var showRationale by remember { mutableStateOf(false) }
     var showDenied by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+
+    /**
+     * Asked after the runtime permissions, and deliberately NOT gating onboarding on the answer.
+     *
+     * Exact alarms already survive stock Android's Doze, but OEM skins (XOS on Infinix, MIUI,
+     * EMUI) run their own battery killers on top, and this exemption is the only defence against
+     * those. A senior who declines still gets a working app — just one whose escalation can be
+     * delayed by their manufacturer — so refusing must not trap them on this screen.
+     */
+    val batteryLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { onAllGranted() }
+
+    fun requestBatteryExemptionThenContinue() {
+        val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
+        if (powerManager.isIgnoringBatteryOptimizations(context.packageName)) {
+            onAllGranted()
+            return
+        }
+        val intent = Intent(
+            Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+            Uri.parse("package:${context.packageName}")
+        )
+        // Some OEM builds ship without this settings activity; onboarding must not dead-end
+        // because a manufacturer removed a screen.
+        runCatching { batteryLauncher.launch(intent) }.onFailure { onAllGranted() }
+    }
 
     val launcher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { results ->
-        if (results.values.all { it }) onAllGranted() else showDenied = true
+        if (results.values.all { it }) requestBatteryExemptionThenContinue() else showDenied = true
     }
 
     Surface(modifier = Modifier.fillMaxSize(), color = Color.White) {

@@ -87,6 +87,16 @@ interface AlertDao {
     @Query("SELECT * FROM Alerts WHERE is_synced = 0 ORDER BY triggered_at ASC")
     suspend fun getUnsyncedAlerts(): List<Alert>
 
+    /**
+     * Alerts still awaiting an answer, oldest first.
+     *
+     * Exists for re-arming the escalation deadline after a reboot: AlarmManager alarms do NOT
+     * survive one, so without this every alert open at the moment the phone restarted would
+     * wait forever for a wake-up that is never coming.
+     */
+    @Query("SELECT * FROM Alerts WHERE status = 'pending' ORDER BY triggered_at ASC")
+    suspend fun getPendingAlerts(): List<Alert>
+
     @Query("UPDATE Alerts SET status = :status, resolved_at = :resolvedAt WHERE alert_id = :alertId")
     suspend fun updateStatus(alertId: Int, status: String, resolvedAt: Long? = null)
 

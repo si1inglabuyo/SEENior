@@ -68,7 +68,7 @@ object AlertResponder {
     }
 
     suspend fun onAlertCreated(context: Context, db: SeniorAppDatabase, alert: Alert) {
-        EscalationWorker.schedule(context, alert)
+        EscalationScheduler.arm(context, alert)
 
         // With the app open the wellness prompt takes over the screen by itself; a notification
         // on top of it would only be noise.
