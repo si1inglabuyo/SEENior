@@ -30,7 +30,6 @@ import androidx.compose.material.icons.filled.NotificationsNone
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.RadioButtonChecked
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
-import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
@@ -202,85 +201,35 @@ private fun AlertsLoadFailedContent(message: String, onRetry: () -> Unit) {
     }
 }
 
+/**
+ * The Alerts tab with nothing open.
+ *
+ * Deliberately almost empty. This used to render a senior profile card, a "Low" risk tile, a
+ * "—" battery tile, a green reassurance box and a map placeholder — none of it derived from
+ * anything the app knew at that moment. "Low" in particular was a hardcoded literal, not a
+ * reading, and a safety app must not assert a risk level it has never measured. The senior's
+ * details already live on the Contacts tab; when nothing is happening the honest answer is one
+ * sentence.
+ */
 @Composable
 private fun AllClearContent(senior: SeniorDto?) {
     Column(modifier = Modifier.fillMaxSize().background(Color.White)) {
         BlueHeaderBar("Alerts")
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+            modifier = Modifier.fillMaxSize().padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
-            Box(
-                modifier = Modifier
-                    .padding(top = 8.dp)
-                    .size(72.dp)
-                    .background(FamilyColors.SafeGreenBg, CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(Icons.Filled.Shield, null, tint = FamilyColors.SuccessGreen, modifier = Modifier.size(34.dp))
-            }
-            Text("All Clear", color = FamilyColors.TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 14.dp))
-
-            if (senior == null) {
-                Text(
-                    "Link a senior to start receiving alerts.",
-                    color = FamilyColors.TextSecondary,
-                    fontSize = 15.sp,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(top = 6.dp)
-                )
-                return@Column
-            }
-
+            // Kept apart from the no-alerts line on purpose: "link a senior" is not a statement
+            // about anybody's safety, it is the setup step, and a brand-new user landing on a
+            // blank tab would otherwise have no idea why it is blank.
             Text(
-                "${senior.firstName} is safe. Routine is normal.",
+                if (senior == null) "Link a senior to start receiving alerts."
+                else "No ongoing alerts.",
                 color = FamilyColors.TextSecondary,
                 fontSize = 15.sp,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(top = 6.dp)
+                textAlign = TextAlign.Center
             )
-
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 24.dp)
-                    .border(1.dp, FamilyColors.FieldBorder, RoundedCornerShape(16.dp))
-                    .padding(18.dp),
-                horizontalAlignment = Alignment.Start
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier.size(44.dp).background(FamilyColors.Blue, CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(initials(senior), color = Color.White, fontWeight = FontWeight.Bold)
-                    }
-                    Column(modifier = Modifier.padding(start = 14.dp)) {
-                        Text("${senior.firstName} ${senior.lastName}", color = FamilyColors.TextPrimary, fontSize = 17.sp, fontWeight = FontWeight.Bold)
-                        Text("${senior.age} · ${senior.gender.replaceFirstChar { it.uppercase() }} · ${senior.barangay}", color = FamilyColors.TextSecondary, fontSize = 13.sp)
-                    }
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    MiniStatTile("Low", "Risk Level", FamilyColors.SuccessGreen, Modifier.weight(1f))
-                    MiniStatTile("—", "Battery", FamilyColors.TextSecondary, Modifier.weight(1f))
-                }
-            }
-
-            SectionInfoBox(
-                text = "SEENior is quietly tracking ${senior.firstName}'s routine fingerprint. No action needed.",
-                bg = FamilyColors.SafeGreenBg,
-                textColor = FamilyColors.SuccessGreen,
-                modifier = Modifier.padding(top = 20.dp)
-            )
-
-            SectionLabel("LAST KNOWN LOCATION", Modifier.padding(top = 24.dp, bottom = 10.dp))
-            MapPlaceholder()
         }
     }
 }
@@ -611,16 +560,6 @@ private fun SectionInfoBox(text: String, bg: Color, textColor: Color, modifier: 
     }
 }
 
-@Composable
-private fun MiniStatTile(value: String, label: String, valueColor: Color, modifier: Modifier = Modifier) {
-    Column(
-        modifier = modifier.background(FamilyColors.FieldBackground, RoundedCornerShape(12.dp)).padding(vertical = 12.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(value, color = valueColor, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-        Text(label, color = FamilyColors.TextSecondary, fontSize = 12.sp)
-    }
-}
 
 @Composable
 private fun EscalationRow(icon: androidx.compose.ui.graphics.vector.ImageVector, tint: Color, text: String) {

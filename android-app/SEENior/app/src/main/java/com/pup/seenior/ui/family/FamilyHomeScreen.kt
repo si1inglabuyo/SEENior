@@ -57,8 +57,7 @@ fun FamilyHomeScreen(
     profileViewModel: FamilyProfileViewModel = viewModel(),
     onLinkSenior: () -> Unit,
     onSeeAllSeniors: () -> Unit,
-    onSeeAllAlerts: () -> Unit,
-    onViewAlert: (String) -> Unit
+    onSeeAllAlerts: () -> Unit
 ) {
     LaunchedEffect(Unit) {
         profileViewModel.refresh()
@@ -107,6 +106,19 @@ fun FamilyHomeScreen(
                 modifier = Modifier.padding(top = 20.dp)
             )
             Text(greetingSubtitle(homeViewModel), color = FamilyColors.TextSecondary, fontSize = 15.sp)
+
+            // Read from the per-senior status rather than the recent-alerts feed: that feed
+            // includes alerts that have already been resolved, so it would keep claiming
+            // someone needs attention after the family member had dealt with them.
+            val needsAttention = seniorsViewModel.contacts.filter {
+                homeViewModel.statuses[it.senior.syncId]?.hasOpenAlert == true
+            }
+            if (needsAttention.isNotEmpty()) {
+                OngoingAlertBanner(
+                    names = needsAttention.map { it.senior.firstName },
+                    onOpenAlerts = onSeeAllAlerts
+                )
+            }
 
             SectionHeader("MY SENIORS", onSeeAll = onSeeAllSeniors.takeIf { hasSeniors })
 
@@ -161,21 +173,6 @@ fun FamilyHomeScreen(
             Spacer(Modifier.height(24.dp))
         }
     }
-
-    // Rendered last so it sits over the tab. "View" hands off to the Alerts tab, which opens
-    // straight onto the active alert's detail — the point of the popup is that an open alert
-    // shouldn't need to be hunted for one tab away.
-    homeViewModel.popupAlert?.let { item ->
-        FamilyAlertPopup(
-            item = item,
-            onView = {
-                val syncId = item.alert.syncId
-                homeViewModel.dismissPopup()
-                onViewAlert(syncId)
-            },
-            onDismiss = { homeViewModel.dismissPopup() }
-        )
-    }
 }
 
 /** The line under the greeting. "You're all set today" is a claim about the seniors' safety,
@@ -184,6 +181,48 @@ private fun greetingSubtitle(homeViewModel: FamilyHomeViewModel): String = when 
     !homeViewModel.loaded || homeViewModel.loadFailed -> "Checking on your seniors…"
     homeViewModel.statuses.values.any { it.hasOpenAlert } -> "Someone needs your attention"
     else -> "You're all set today"
+}
+
+/**
+ * Home's replacement for the modal alert popup that used to sit over this tab.
+ *
+ * The popup was a second surface for an alert the Alerts tab already opens straight onto, and
+ * being modal it blocked the whole of Home until it was answered — on the one screen a family
+ * member opens for a quick read on how everyone is doing. This states the same fact in a line
+ * and hands off to the tab that can act on it.
+ *
+ * Deliberately routed through onSeeAllAlerts rather than naming an alert id the way the popup's
+ * "View" did: the popup was advertising one specific alert and had to open that one, while this
+ * banner only reports that something is open, so the Alerts tab's own pick is the right one.
+ */
+@Composable
+private fun OngoingAlertBanner(names: List<String>, onOpenAlerts: () -> Unit) {
+    val message = if (names.size == 1) "${names.first()} has an ongoing alert."
+    else "${names.size} seniors have ongoing alerts."
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 14.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(FamilyColors.AlertRedBg)
+            .clickable(onClick = onOpenAlerts)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            Icons.Outlined.Notifications,
+            contentDescription = null,
+            tint = FamilyColors.AlertRed,
+            modifier = Modifier.size(18.dp)
+        )
+        Text(
+            "$message Tap to open Alerts.",
+            color = FamilyColors.AlertRed,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(start = 10.dp)
+        )
+    }
 }
 
 @Composable

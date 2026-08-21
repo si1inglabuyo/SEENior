@@ -54,7 +54,7 @@ object FamilyAlertNotifier {
         val isHighRisk = riskLevel == "high" || triggerType == "sos"
         val firstName = seniorName.split(" ").firstOrNull()?.takeIf { it.isNotBlank() } ?: seniorName
 
-        // Mirrors FamilyAlertPopup.popupMessage so the notification and the in-app popup
+        // Same wording the Alerts tab uses, so the notification and the screen it opens
         // never tell the family two different stories about the same alert.
         val title = if (triggerType == "sos") "$firstName pressed the SOS button."
         else "$firstName may need your attention."

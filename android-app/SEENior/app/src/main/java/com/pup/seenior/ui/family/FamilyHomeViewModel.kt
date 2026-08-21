@@ -63,14 +63,6 @@ class FamilyHomeViewModel(application: Application) : AndroidViewModel(applicati
     var loaded by mutableStateOf(false)
         private set
 
-    /** The alert currently surfaced as a popup over Home, or null when nothing needs attention. */
-    var popupAlert by mutableStateOf<RecentAlert?>(null)
-        private set
-
-    // Alerts the family member has already waved away, held in memory only and on purpose: an
-    // alert nobody has acknowledged is still unacknowledged the next time they open the app, so
-    // it should surface again rather than be silenced forever by one stray tap.
-    private val dismissedPopups = mutableSetOf<String>()
 
     private var pollJob: Job? = null
 
@@ -110,7 +102,6 @@ class FamilyHomeViewModel(application: Application) : AndroidViewModel(applicati
         if (contacts.isEmpty()) {
             statuses = emptyMap()
             recent = emptyList()
-            popupAlert = null
             loadFailed = false
             loaded = true
             return
@@ -142,7 +133,6 @@ class FamilyHomeViewModel(application: Application) : AndroidViewModel(applicati
             recent = feed.sortedByDescending { it.alert.createdAt }.take(RECENT_LIMIT)
             loaded = true
             loadFailed = false
-            updatePopup(feed)
         } catch (e: HttpException) {
             error = if (SessionState.handleIfUnauthorized(getApplication(), e))
                 SessionState.SESSION_EXPIRED_MESSAGE
@@ -159,32 +149,6 @@ class FamilyHomeViewModel(application: Application) : AndroidViewModel(applicati
         }
     }
 
-    /**
-     * Decides which alert, if any, earns the popup.
-     *
-     * Only `pending` qualifies — one that has already been acknowledged doesn't need to interrupt
-     * anybody. Among those the newest wins.
-     *
-     * The Alerts tab picks its own active alert by a different rule (newest *open*, acknowledged
-     * ones included), so the two genuinely diverge — an acknowledged SOS that is newer than the
-     * newest pending alert would win there. "View" therefore names the alert explicitly via
-     * FamilyAlertsViewModel.focusAlert rather than trusting both sides to agree.
-     */
-    private fun updatePopup(feed: List<RecentAlert>) {
-        val candidate = feed
-            .filter { it.alert.status == "pending" && it.alert.syncId !in dismissedPopups }
-            .maxByOrNull { it.alert.createdAt }
-        // Only touch the state when the alert actually changes, so a dialog already on screen
-        // isn't torn down and rebuilt under the reader every poll.
-        if (candidate?.alert?.syncId != popupAlert?.alert?.syncId) {
-            popupAlert = candidate
-        }
-    }
-
-    fun dismissPopup() {
-        popupAlert?.let { dismissedPopups += it.alert.syncId }
-        popupAlert = null
-    }
 
     companion object {
         private val OPEN_STATUSES = setOf("pending", "acknowledged", "escalated")
