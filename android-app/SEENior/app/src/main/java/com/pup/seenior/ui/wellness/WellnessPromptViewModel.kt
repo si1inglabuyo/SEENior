@@ -78,17 +78,18 @@ class WellnessPromptViewModel(application: Application) : AndroidViewModel(appli
         }
 
         viewModelScope.launch {
-            // Anchored to when the alert was raised, not to when this screen opened. An alert
-            // that has been waiting eight minutes has two minutes left, however many times the
-            // app was reopened in between — and the watchdog is counting from the same instant.
-            val elapsedSeconds = (System.currentTimeMillis() - alert.triggeredAt) / 1000
-            secondsRemaining = (AlertEscalator.windowSecondsFor(alert.triggerType) - elapsedSeconds)
-                .coerceIn(0, Int.MAX_VALUE.toLong())
-                .toInt()
-
-            while (secondsRemaining > 0 && stage == PromptStage.PROMPT) {
+            // Anchored to when the alert was raised, not to when this screen opened — and
+            // re-derived from the clock on every tick rather than counted down. A decremented
+            // counter is only honest while the process keeps running: Doze freezes the app, the
+            // ticks stop, the deadline does not, and the screen comes back showing a countdown
+            // minutes behind the alarm it is supposed to mirror. Reading the clock each time
+            // makes the display agree with EscalationScheduler by construction.
+            val windowSeconds = AlertEscalator.windowSecondsFor(alert.triggerType).toLong()
+            while (stage == PromptStage.PROMPT) {
+                val remaining = windowSeconds - (System.currentTimeMillis() - alert.triggeredAt) / 1000
+                secondsRemaining = remaining.coerceIn(0, Int.MAX_VALUE.toLong()).toInt()
+                if (remaining <= 0) break
                 delay(1000)
-                secondsRemaining--
             }
             // No answer within the window: escalate. This is the branch the whole product is for.
             if (stage == PromptStage.PROMPT) escalate(onFinished)
