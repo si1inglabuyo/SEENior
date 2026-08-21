@@ -41,7 +41,14 @@ object WellnessMessages {
         val sosCancel: String,
         val sosAutoFooter: String,
         val sosBarangayRole: String,
-        val sosNoContacts: String
+        val sosNoContacts: String,
+        /* The Home tab's standing report on an alert the senior has already raised. Separate
+         * from alertSentBody, which is a one-off confirmation shown for five seconds on the way
+         * out of the prompt: these two are what Home says for as long as the situation lasts. */
+        val homePendingTitle: String,
+        val homePendingBody: String,
+        val homeDeliveredTitle: String,
+        val homeDeliveredBody: String
     )
 
     fun forAlert(language: String, seniorFirstName: String, triggerType: String, timeBlock: String): Copy =
@@ -81,7 +88,17 @@ object WellnessMessages {
         sosCancel = "Cancel — I'm Okay",
         sosAutoFooter = "If no action, SOS sends automatically",
         sosBarangayRole = "Barangay",
-        sosNoContacts = "No family contacts linked yet. Your barangay will still be alerted."
+        sosNoContacts = "No family contacts linked yet. Your barangay will still be alerted.",
+        homePendingTitle = "Waiting for Signal",
+        homePendingBody = if (triggerType == "sos")
+            "You pressed SOS. It will reach your family the moment this phone is back online."
+        else
+            "You asked for help. It will reach your family the moment this phone is back online.",
+        homeDeliveredTitle = "Your Family Has Been Notified",
+        homeDeliveredBody = if (triggerType == "sos")
+            "Your SOS reached them. Help is on the way."
+        else
+            "Your request for help reached them. Help is on the way."
     )
 
     private fun englishTrigger(triggerType: String) = when (triggerType) {
@@ -152,7 +169,17 @@ object WellnessMessages {
         sosCancel = "Kanselahin — Maayos po ako",
         sosAutoFooter = "Kung walang aksyon, awtomatikong ipapadala ang SOS",
         sosBarangayRole = "Barangay",
-        sosNoContacts = "Wala pang naka-link na pamilya. Aabisuhan pa rin ang inyong barangay."
+        sosNoContacts = "Wala pang naka-link na pamilya. Aabisuhan pa rin ang inyong barangay.",
+        homePendingTitle = "Hinihintay ang Signal",
+        homePendingBody = if (triggerType == "sos")
+            "Napindot po ninyo ang SOS. Ipapadala ito sa inyong pamilya sa oras na bumalik ang signal."
+        else
+            "Humingi po kayo ng tulong. Ipapadala ito sa inyong pamilya sa oras na bumalik ang signal.",
+        homeDeliveredTitle = "Naabisuhan na ang Inyong Pamilya",
+        homeDeliveredBody = if (triggerType == "sos")
+            "Naipadala na po ang inyong SOS. Paparating na po ang tulong."
+        else
+            "Naipadala na po ang inyong paghingi ng tulong. Paparating na po ang tulong."
     )
 
     private fun filipinoTrigger(triggerType: String) = when (triggerType) {

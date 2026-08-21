@@ -43,6 +43,15 @@ object AlertEscalator {
     /** Marks the point in the audit timeline where the family tier was notified. */
     private const val STEP_FAMILY = "escalated_family"
 
+    /**
+     * Marks the point where the cloud actually accepted the alert.
+     *
+     * Deliberately distinct from [STEP_FAMILY], which records only that this device decided to
+     * escalate. Offline the two can be minutes or hours apart, and the senior's Home tab needs
+     * to tell those states apart to say "waiting for signal" rather than "your family knows".
+     */
+    private const val STEP_DELIVERED = "delivered_family"
+
     sealed interface Outcome {
         /** The cloud row exists; the family app can see it. */
         data object Delivered : Outcome
@@ -104,11 +113,12 @@ object AlertEscalator {
     suspend fun escalateToFamily(db: SeniorAppDatabase, alertId: Int): Outcome = escalateLock.withLock {
         val alert = db.alertDao().getById(alertId) ?: return Outcome.Failed
 
+        // Carried forward rather than re-read from `alert` each time: appending the delivery
+        // step to the stale snapshot below would silently drop the escalation step written here.
+        var steps = alert.escalationSteps
         if (!hasEscalatedToFamily(alert)) {
-            db.alertDao().updateEscalationSteps(
-                alert.alertId,
-                appendStep(alert.escalationSteps, STEP_FAMILY, System.currentTimeMillis())
-            )
+            steps = appendStep(steps, STEP_FAMILY, System.currentTimeMillis())
+            db.alertDao().updateEscalationSteps(alert.alertId, steps)
         }
 
         // Already up. A retry after a network failure must not create a second cloud alert.
@@ -131,12 +141,26 @@ object AlertEscalator {
             // Adopt the id the backend minted so both sides can refer to the same alert later.
             db.alertDao().updateSyncId(alert.alertId, cloudAlert.syncId)
             db.alertDao().markSynced(alert.alertId)
+            db.alertDao().updateEscalationSteps(
+                alert.alertId,
+                appendStep(steps, STEP_DELIVERED, System.currentTimeMillis())
+            )
             Outcome.Delivered
         } catch (e: IOException) {
             Outcome.Offline
         } catch (e: Exception) {
             Outcome.Failed
         }
+    }
+
+    /** When the cloud accepted this alert, or null if it has not yet. */
+    fun deliveredAt(alert: Alert): Long? {
+        val arr = steps(alert.escalationSteps)
+        return (0 until arr.length())
+            .mapNotNull { arr.optJSONObject(it) }
+            .lastOrNull { it.optString("step") == STEP_DELIVERED }
+            ?.optString("at")
+            ?.toLongOrNull()
     }
 
     /** Appends one entry to the alert's audit timeline (CLAUDE.md §8 `escalation_steps`). */

@@ -23,6 +23,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BatteryFull
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
@@ -49,6 +51,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.pup.seenior.ui.theme.SeniorColors
+import com.pup.seenior.ui.wellness.WellnessMessages
 import com.pup.seenior.ui.wellness.WellnessPromptScreen
 import com.pup.seenior.ui.wellness.WellnessPromptViewModel
 import kotlin.math.roundToInt
@@ -98,6 +101,14 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                 Spacer(Modifier.height(14.dp))
                 StatusCard(atRisk = viewModel.isMonitoringAtRisk)
 
+                // Directly under the status card, because it contradicts it. "You're Safe /
+                // Monitoring is active" is about passive watching; this is about help the senior
+                // has actively asked for and is still waiting on.
+                viewModel.helpDelivery?.let { delivery ->
+                    Spacer(Modifier.height(12.dp))
+                    HelpDeliveryCard(delivery, viewModel.language, viewModel.firstName)
+                }
+
                 Spacer(Modifier.height(16.dp))
                 BatteryRow(percent = viewModel.batteryPercent, atRisk = viewModel.isMonitoringAtRisk)
 
@@ -111,6 +122,55 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                 SimulationRow(viewModel)
                 Spacer(Modifier.height(20.dp))
             }
+        }
+    }
+}
+
+/**
+ * Standing confirmation that the senior's own request for help is being carried.
+ *
+ * Exists because the alert screen closes after five seconds and the senior is then looking at a
+ * Home tab that says "You're Safe" — with no sign anywhere that they pressed SOS at all. Offline
+ * that was worse than uninformative: the alert really was sitting undelivered on the phone, and
+ * nothing on screen said so, so the only honest reading available to them was that nothing had
+ * happened.
+ */
+@Composable
+private fun HelpDeliveryCard(delivery: HelpDelivery, language: String, firstName: String) {
+    val waiting = delivery is HelpDelivery.Waiting
+    val copy = WellnessMessages.forAlert(
+        language, firstName, delivery.alert.triggerType, delivery.alert.timeBlock
+    )
+    val accent = if (waiting) WarningAmber else SeniorColors.Green
+    val bg = if (waiting) WarningAmberBg else SeniorColors.GreenLightBg
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(bg)
+            .border(1.dp, accent, RoundedCornerShape(14.dp))
+            .padding(horizontal = 18.dp, vertical = 16.dp)
+    ) {
+        Icon(
+            imageVector = if (waiting) Icons.Filled.CloudOff else Icons.Filled.CheckCircle,
+            contentDescription = null,
+            tint = accent,
+            modifier = Modifier.size(26.dp)
+        )
+        Column(modifier = Modifier.padding(start = 14.dp)) {
+            Text(
+                if (waiting) copy.homePendingTitle else copy.homeDeliveredTitle,
+                color = accent,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                if (waiting) copy.homePendingBody else copy.homeDeliveredBody,
+                color = SeniorColors.TextPrimary,
+                fontSize = 15.sp,
+                modifier = Modifier.padding(top = 2.dp)
+            )
         }
     }
 }

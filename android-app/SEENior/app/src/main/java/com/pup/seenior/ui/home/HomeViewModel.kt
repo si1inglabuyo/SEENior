@@ -9,6 +9,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.pup.seenior.alerts.AlertEscalator
 import com.pup.seenior.alerts.AlertResponder
 import com.pup.seenior.database.SeniorAppDatabase
 import com.pup.seenior.database.entities.Alert
@@ -20,8 +21,27 @@ import com.pup.seenior.network.RetrofitClient
 import com.pup.seenior.network.SeniorCloudSync
 import com.pup.seenior.network.dto.FamilyContactDto
 import com.pup.seenior.ui.wellness.WellnessMessages
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+
+/**
+ * What Home says about an alert the senior has already raised, once the prompt has closed.
+ *
+ * The two states are not cosmetic variants of each other. [Waiting] means the alert exists only
+ * on this phone; nobody has been told. [Delivered] means the cloud accepted it and the family
+ * app can see it. Collapsing them would make the app claim help was summoned when it was sitting
+ * in a queue — the exact false reassurance the offline path used to give.
+ */
+sealed interface HelpDelivery {
+    val alert: Alert
+
+    /** Raised and recorded here, not yet accepted by the cloud. */
+    data class Waiting(override val alert: Alert) : HelpDelivery
+
+    /** The cloud row exists, so the family app can see it. */
+    data class Delivered(override val alert: Alert) : HelpDelivery
+}
 
 /**
  * Backs the senior's Home tab (`designs/senior/home_screen/`) and decides when the wellness
@@ -60,6 +80,15 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private var answeredThisSession by mutableStateOf(emptySet<Int>())
 
     /**
+     * Ticks so [helpDelivery] can retire a delivery confirmation on time.
+     *
+     * Everything else on this screen changes only when the database does, and Room re-emits for
+     * free. "Delivered twenty minutes ago" becoming "delivered thirty-one minutes ago" is the one
+     * transition no write accompanies, so it needs a clock of its own.
+     */
+    private var now by mutableStateOf(System.currentTimeMillis())
+
+    /**
      * The alert the prompt is currently showing.
      *
      * Latched rather than recomputed from [openAlerts] on every emission. "I'm safe" sets the
@@ -73,6 +102,33 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     /** The alert currently owed a response, if any. */
     val activeAlert: Alert?
         get() = handling
+
+    /**
+     * What Home reports about help the senior has already asked for, or null when there is
+     * nothing to report.
+     *
+     * Undelivered outranks delivered, always: if anything at all is still stuck on this phone,
+     * that is the fact the senior needs, even when a later alert did get through.
+     *
+     * [HelpDelivery.Waiting] is never retired on age. It is an unkept promise, and it stays on
+     * screen until it becomes true. [HelpDelivery.Delivered] is retired after
+     * [DELIVERED_DISPLAY_MILLIS] — long enough to be read and believed, short enough that Home
+     * does not permanently advertise an old incident. (It would otherwise never clear at all:
+     * the family resolving in the cloud is not synced back to this device yet.)
+     */
+    val helpDelivery: HelpDelivery?
+        get() {
+            val escalated = openAlerts.filter { AlertEscalator.hasEscalatedToFamily(it) }
+            escalated.filterNot { it.isSynced }.maxByOrNull { it.triggeredAt }
+                ?.let { return HelpDelivery.Waiting(it) }
+            return escalated
+                .filter { alert ->
+                    AlertEscalator.deliveredAt(alert)
+                        ?.let { now - it <= DELIVERED_DISPLAY_MILLIS } == true
+                }
+                .maxByOrNull { it.triggeredAt }
+                ?.let { HelpDelivery.Delivered(it) }
+        }
 
     val firstName: String
         get() = senior?.firstName ?: ""
@@ -97,6 +153,12 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             }
             refreshBattery()
             loadWillAlertContacts()
+            launch {
+                while (true) {
+                    delay(DELIVERY_TICK_MILLIS)
+                    now = System.currentTimeMillis()
+                }
+            }
             db.alertDao().getUnacknowledgedAlerts(loaded.seniorId).collectLatest { alerts ->
                 openAlerts = alerts
                 if (handling == null) handling = nextUnanswered()
@@ -197,5 +259,19 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     private companion object {
         const val LOW_BATTERY_PERCENT = 20
+
+        /**
+         * How long the delivery confirmation stays on Home.
+         *
+         * Half an hour: long enough that a senior who put the phone down after pressing SOS
+         * still finds the answer when they pick it up, short enough that Home is not permanently
+         * reporting an incident that is over. There is no better signal to end on yet -- the
+         * family resolving the alert in the cloud is never synced back to this device.
+         */
+        const val DELIVERED_DISPLAY_MILLIS = 30L * 60 * 1000
+
+        /** Coarse on purpose. It only has to retire a half-hour banner, and this wakes the
+         *  main thread for as long as the Home tab is open. */
+        const val DELIVERY_TICK_MILLIS = 30_000L
     }
 }
