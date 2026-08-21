@@ -31,7 +31,21 @@ import kotlin.math.abs
  * sensor samples to protect the battery target, so a whole second of readings can arrive in one
  * burst; wall-clock timing would see them as simultaneous and no phase would ever have duration.
  */
-class FallDetector(private val config: Config = Config()) {
+class FallDetector(
+    private val config: Config = Config(),
+    /**
+     * Optional narration of every decision this state machine makes.
+     *
+     * A callback rather than `android.util.Log` on purpose: this class is deliberately free of
+     * Android imports so the whole thing can be driven from a synthetic stream in a plain JUnit
+     * test, and `Log` is not mocked there. [com.pup.seenior.sensors.SensorCollectionService]
+     * wires this to logcat; a test can wire it to a list and assert on the reasoning.
+     *
+     * It earns its place: without it, a drop that fails to confirm is indistinguishable from a
+     * drop that was never seen at all, and all four gates fail silently and identically.
+     */
+    private val trace: (String) -> Unit = {}
+) {
 
     /**
      * Thresholds in SI units — m/s² for acceleration, rad/s for rotation, milliseconds for time.
@@ -81,6 +95,8 @@ class FallDetector(private val config: Config = Config()) {
     private var rotationPeakAtMs = Long.MIN_VALUE
     private var impactRotationPeak = 0f
     private var cooldownUntilMs = Long.MIN_VALUE
+    /** Highest magnitude seen while awaiting impact, so a near miss can say how near. */
+    private var awaitingPeak = 0f
 
     /**
      * Feeds one accelerometer sample in. Returns true exactly once per confirmed fall, on the
@@ -95,17 +111,24 @@ class FallDetector(private val config: Config = Config()) {
                 if (magnitude <= config.freeFallMax) {
                     phase = Phase.FREE_FALL
                     freeFallStartMs = nowMs
+                    trace("1/4 free fall begins (mag ${f(magnitude)} <= ${f(config.freeFallMax)})")
                 }
 
             Phase.FREE_FALL ->
                 if (magnitude <= config.freeFallMax) {
                     // Sustained weightlessness is a stuck or faulty sensor, not a person falling.
-                    if (nowMs - freeFallStartMs > config.freeFallMaxMs) phase = Phase.IDLE
+                    if (nowMs - freeFallStartMs > config.freeFallMaxMs) {
+                        phase = Phase.IDLE
+                        trace("ABANDONED: weightless for ${nowMs - freeFallStartMs} ms, over the ${config.freeFallMaxMs} ms cap — stuck sensor, not a fall")
+                    }
                 } else if (nowMs - freeFallStartMs < config.freeFallMinMs) {
                     phase = Phase.IDLE
+                    trace("ABANDONED at gate 1: free fall lasted only ${nowMs - freeFallStartMs} ms, needs ${config.freeFallMinMs} ms — dropped from too low, or never actually released")
                 } else {
                     freeFallEndMs = nowMs
                     phase = Phase.AWAITING_IMPACT
+                    awaitingPeak = magnitude
+                    trace("1/4 PASSED: free fall ${nowMs - freeFallStartMs} ms — awaiting impact >= ${f(config.impactMin)}")
                     // At 50 Hz the sample that ends free fall is often the impact itself.
                     if (magnitude >= config.impactMin) beginSettling(nowMs)
                 }
@@ -113,8 +136,12 @@ class FallDetector(private val config: Config = Config()) {
             Phase.AWAITING_IMPACT ->
                 if (magnitude >= config.impactMin) {
                     beginSettling(nowMs)
-                } else if (nowMs - freeFallEndMs > config.impactWindowMs) {
-                    phase = Phase.IDLE
+                } else {
+                    awaitingPeak = maxOf(awaitingPeak, magnitude)
+                    if (nowMs - freeFallEndMs > config.impactWindowMs) {
+                        phase = Phase.IDLE
+                        trace("ABANDONED at gate 2: no impact inside ${config.impactWindowMs} ms — hardest sample was ${f(awaitingPeak)}, needed ${f(config.impactMin)}. Landing surface too soft.")
+                    }
                 }
 
             Phase.SETTLING -> {
@@ -123,12 +150,17 @@ class FallDetector(private val config: Config = Config()) {
                 if (abs(magnitude - GRAVITY) > config.stillnessTolerance) {
                     // They moved. Not the case this tier is for.
                     phase = Phase.IDLE
+                    trace("ABANDONED at gate 4: moved at +${sinceImpact} ms (mag ${f(magnitude)}, ${f(abs(magnitude - GRAVITY))} off gravity, tolerance ${f(config.stillnessTolerance)}) — needed stillness until +${config.settleGraceMs + config.stillnessMs} ms. Picked up too early, or still rocking.")
                     return false
                 }
                 if (sinceImpact >= config.settleGraceMs + config.stillnessMs) {
                     phase = Phase.IDLE
-                    if (config.requireRotation && !rotationConfirms()) return false
+                    if (config.requireRotation && !rotationConfirms()) {
+                        trace("ABANDONED at gate 3: stillness held, but rotation peaked at ${f(impactRotationPeak)} rad/s and needs ${f(config.rotationMin)} — it fell flat instead of tumbling.")
+                        return false
+                    }
                     cooldownUntilMs = nowMs + config.cooldownMs
+                    trace("CONFIRMED: all four gates passed (rotation ${f(impactRotationPeak)} rad/s)")
                     return true
                 }
             }
@@ -179,7 +211,11 @@ class FallDetector(private val config: Config = Config()) {
         phase = Phase.SETTLING
         impactRotationPeak =
             if (abs(nowMs - rotationPeakAtMs) <= config.rotationMemoryMs) rotationPeak else 0f
+        trace("2/4 PASSED: impact at +${nowMs - freeFallEndMs} ms — now hold still until +${config.settleGraceMs + config.stillnessMs} ms (rotation so far ${f(impactRotationPeak)} rad/s)")
     }
+
+    /** One decimal place, so a trace line stays readable. */
+    private fun f(v: Float): String = ((v * 10).toInt() / 10.0).toString()
 
     private fun rotationConfirms(): Boolean = impactRotationPeak >= config.rotationMin
 

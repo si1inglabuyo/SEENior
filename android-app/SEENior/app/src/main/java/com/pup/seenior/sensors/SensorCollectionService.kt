@@ -16,6 +16,7 @@ import android.os.BatteryManager
 import android.os.Build
 import android.os.IBinder
 import android.os.SystemClock
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.pup.seenior.R
 import com.pup.seenior.alerts.AlertResponder
@@ -99,7 +100,21 @@ class SensorCollectionService : Service(), SensorEventListener
 
         // Rotation confirms a fall (CLAUDE.md §4), but not every Android phone ships a gyroscope.
         // On one that does not, demanding rotation would mean never detecting a fall at all.
-        fallDetector = FallDetector(FallDetector.Config(requireRotation = gyroscope != null))
+        // The trace goes to logcat from out here rather than from inside FallDetector, which
+        // stays free of Android imports so a JUnit test can drive it. Read with:
+        //   adb logcat -s FallDetector
+        //
+        // INFO rather than DEBUG, and not by preference: the Infinix X6885 this is developed
+        // against ships with log.tag=I and drops every DEBUG line system-wide, so a Log.d
+        // trace is invisible on the one device that matters. A fall candidate is rare and
+        // important enough that INFO is defensible on its own terms anyway.
+        fallDetector = FallDetector(
+            FallDetector.Config(requireRotation = gyroscope != null),
+            trace = { Log.i("FallDetector", it) }
+        )
+        // Proves the trace path itself is alive. Without it, an empty log after a drop cannot
+        // be told apart from logging being broken again.
+        Log.i("FallDetector", "armed: requireRotation=${gyroscope != null}, accelerometer at 50 Hz")
 
         accelerometer?.let { registerForFallDetection(it) }
         gyroscope?.let { registerForFallDetection(it) }
