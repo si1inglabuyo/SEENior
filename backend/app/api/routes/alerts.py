@@ -266,7 +266,17 @@ async def resolve_alert(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Alert already closed")
     alert.status = AlertStatus.RESOLVED
     alert.resolved_at = datetime.now(timezone.utc).replace(tzinfo=None)
-    _append_step(alert, "resolved_family")
+    # Record WHO closed it, not just that it closed. A senior can have up to five family
+    # contacts (CLAUDE.md §2), so "somebody dealt with it" leaves the next contact to open the
+    # app unable to tell whether that was them or someone else.
+    #
+    # Written into escalation_steps rather than a new column: that field exists precisely to be
+    # the audit timeline (CLAUDE.md §8), and who closed an incident is an audit fact. It also
+    # means no migration and no change to the deployed schema.
+    #
+    # full_name is nullable (a Google account can arrive without one), so fall back to the
+    # username, which is not — better a login handle than a blank line where a name should be.
+    _append_step(alert, "resolved_family", by=current_user.full_name or current_user.username)
     await db.commit()
     await db.refresh(alert)
     return alert

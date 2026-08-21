@@ -34,7 +34,9 @@ data class ResolvedSummary(
     val alertShortId: String,
     val triggeredAt: String,
     val resolvedAt: String,
-    val durationMinutes: Long
+    val durationMinutes: Long,
+    /** Who closed it, from the audit timeline — see [resolverName]. */
+    val resolvedBy: String
 )
 
 /**
@@ -283,9 +285,29 @@ class FamilyAlertsViewModel(application: Application) : AndroidViewModel(applica
             alertShortId = "#SNR-" + alert.syncId.take(4).uppercase(),
             triggeredAt = created?.format(timeFmt) ?: "-",
             resolvedAt = resolved?.format(timeFmt) ?: "-",
-            durationMinutes = minutes
+            durationMinutes = minutes,
+            resolvedBy = resolverName(alert)
         )
     }
+
+    /**
+     * Who closed the alert, read from the `resolved_family` entry the backend writes into
+     * `escalation_steps`.
+     *
+     * The screen used to print a hardcoded "You", which was only ever right by luck: any of the
+     * senior's other family contacts can resolve an alert, and that screen would still have
+     * credited whoever happened to be reading it.
+     *
+     * Falls back to a dash rather than to "You". Alerts resolved before the backend started
+     * recording the name genuinely have no answer, and guessing would put the wrong person's
+     * name against someone else's action in an audit trail.
+     */
+    private fun resolverName(alert: AlertDto): String =
+        alert.escalationSteps
+            ?.lastOrNull { it["step"] == "resolved_family" }
+            ?.get("by")
+            ?.takeIf { it.isNotBlank() }
+            ?: "—"
 
     companion object {
         private val OPEN_STATUSES = setOf("pending", "acknowledged", "escalated")

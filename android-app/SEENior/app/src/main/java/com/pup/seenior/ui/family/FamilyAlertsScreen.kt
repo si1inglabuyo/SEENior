@@ -529,7 +529,7 @@ private fun ResolvedContent(senior: SeniorDto, summary: ResolvedSummary, onDone:
                 SummaryRow("Triggered", summary.triggeredAt)
                 SummaryRow("Resolved", summary.resolvedAt)
                 SummaryRow("Duration", "${summary.durationMinutes} minutes")
-                SummaryRow("Resolved by", "You", isLast = true)
+                SummaryRow("Resolved by", summary.resolvedBy, isLast = true)
             }
         }
     }
