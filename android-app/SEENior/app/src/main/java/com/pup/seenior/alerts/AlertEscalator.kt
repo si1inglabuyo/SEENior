@@ -5,6 +5,8 @@ import com.pup.seenior.database.entities.Alert
 import com.pup.seenior.network.RetrofitClient
 import com.pup.seenior.network.SeniorCloudSync
 import com.pup.seenior.network.dto.CreateAlertRequest
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
@@ -17,11 +19,26 @@ import java.io.IOException
  * prompt calls this when they tap "I need help"; [EscalationWorker] calls it when nobody answers
  * at all. Both paths must produce the same audit trail and the same cloud row.
  *
- * Every entry point is idempotent. The two callers race by design — the senior can tap "I need
- * help" in the same second the response window expires — and neither may produce a duplicate
- * timeline entry or a second cloud alert.
+ * The two callers race by design — the senior can tap "I need help" in the same second the
+ * response window expires, and the alarm fires on the same deadline the on-screen countdown is
+ * counting to — and neither may produce a duplicate timeline entry or a second cloud alert.
  */
 object AlertEscalator {
+
+    /**
+     * Serialises the whole read-post-mark sequence in [escalateToFamily].
+     *
+     * The `isSynced` check alone was not enough, and this was not theoretical: one SOS swipe
+     * produced two cloud alerts 4 ms apart. Both callers read `isSynced == false` before either
+     * had finished POSTing, so both posted, and the family was notified twice for one emergency.
+     *
+     * It only started happening once the deadline moved to setAlarmClock. While the alarm was
+     * being deferred ten minutes by Doze it could not possibly land on the same instant as the
+     * on-screen countdown; firing on time put it exactly there.
+     *
+     * Mirrors [AlertResponder.raiseLock], which guards the equivalent check-then-insert.
+     */
+    private val escalateLock = Mutex()
 
     /** Marks the point in the audit timeline where the family tier was notified. */
     private const val STEP_FAMILY = "escalated_family"
@@ -84,7 +101,7 @@ object AlertEscalator {
      * the tier after this one), and moving it would drop the alert out of
      * [com.pup.seenior.database.dao.AlertDao.getUnacknowledgedAlerts], which drives the chain.
      */
-    suspend fun escalateToFamily(db: SeniorAppDatabase, alertId: Int): Outcome {
+    suspend fun escalateToFamily(db: SeniorAppDatabase, alertId: Int): Outcome = escalateLock.withLock {
         val alert = db.alertDao().getById(alertId) ?: return Outcome.Failed
 
         if (!hasEscalatedToFamily(alert)) {

@@ -1,6 +1,6 @@
 package com.pup.seenior.ui.home
 
-import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animate
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.Orientation
@@ -34,7 +34,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -52,7 +51,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.pup.seenior.ui.theme.SeniorColors
 import com.pup.seenior.ui.wellness.WellnessPromptScreen
 import com.pup.seenior.ui.wellness.WellnessPromptViewModel
-import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 private val EmergencyRed = Color(0xFFC62828)
@@ -219,13 +217,31 @@ private fun EmergencyCard(barangay: String, onSosConfirmed: () -> Unit) {
  */
 @Composable
 private fun SosSwipe(onConfirmed: () -> Unit) {
-    val scope = rememberCoroutineScope()
     val density = LocalDensity.current
     val knobSizeDp = 72.dp
     val knobSizePx = with(density) { knobSizeDp.toPx() }
 
     var trackWidthPx by remember { mutableFloatStateOf(0f) }
-    val offset = remember { Animatable(0f) }
+
+    /*
+     * Plain state, deliberately not an Animatable.
+     *
+     * Animatable is guarded by a MutatorMutex: every snapTo cancels the one before it. Because
+     * snapTo suspends, each drag delta had to be launched into its own coroutine -- and a finger
+     * emits 60-120 deltas a second. Most were cancelled before they ran, and since each one
+     * recomputed `value + delta` at execution time rather than at emission time, every cancelled
+     * delta was silently lost. The knob crawled behind the finger and usually never reached the
+     * confirm threshold, so on a real phone the SOS looked dead while a synthetic adb swipe --
+     * which emits far fewer events -- worked every time.
+     *
+     * The same mutex stranded the knob at the far end of the track: a straggler snapTo still
+     * queued from the last pointer events would outlive onDragStopped and cancel its spring-back,
+     * leaving the control looking already-used until the screen was left and re-entered.
+     *
+     * rememberDraggableState's lambda is not suspend, so assigning here is synchronous and no
+     * delta can be dropped.
+     */
+    var knobX by remember { mutableFloatStateOf(0f) }
     val maxOffset = (trackWidthPx - knobSizePx).coerceAtLeast(0f)
 
     Box(
@@ -250,25 +266,21 @@ private fun SosSwipe(onConfirmed: () -> Unit) {
 
         Box(
             modifier = Modifier
-                .offset { IntOffset(offset.value.roundToInt(), 0) }
+                .offset { IntOffset(knobX.roundToInt(), 0) }
                 .size(knobSizeDp)
                 .padding(4.dp)
                 .background(EmergencyRed, CircleShape)
                 .draggable(
                     orientation = Orientation.Horizontal,
                     state = rememberDraggableState { delta ->
-                        scope.launch {
-                            offset.snapTo((offset.value + delta).coerceIn(0f, maxOffset))
-                        }
+                        knobX = (knobX + delta).coerceIn(0f, maxOffset)
                     },
                     onDragStopped = {
                         // Must reach most of the way across, so a short accidental drag releases
                         // harmlessly back to the start.
-                        if (maxOffset > 0f && offset.value >= maxOffset * CONFIRM_FRACTION) {
-                            offset.animateTo(maxOffset)
-                            onConfirmed()
-                        }
-                        offset.animateTo(0f)
+                        if (maxOffset > 0f && knobX >= maxOffset * CONFIRM_FRACTION) onConfirmed()
+                        // Always springs back, and now nothing can cancel it.
+                        animate(knobX, 0f) { value, _ -> knobX = value }
                     }
                 ),
             contentAlignment = Alignment.Center
@@ -327,4 +339,15 @@ private fun SimulationRow(viewModel: HomeViewModel) {
     }
 }
 
-private const val CONFIRM_FRACTION = 0.9f
+/**
+ * How far across the track the knob must travel to count as a deliberate swipe.
+ *
+ * Was 0.9. Ninety percent of the track is a long, uninterrupted drag for the hands this app is
+ * built for -- CLAUDE.md §12 targets elderly users, and arthritic or shaky fingers lift early.
+ * Missing the threshold fails silently: the knob just slides back and no alert is raised, which
+ * is the worst possible feedback on an emergency control.
+ *
+ * 0.7 still rules out the accidental brush this exists to guard against (the knob is 72dp, so a
+ * stray contact moves it a fraction of that) while leaving room to fall short of the end.
+ */
+private const val CONFIRM_FRACTION = 0.7f

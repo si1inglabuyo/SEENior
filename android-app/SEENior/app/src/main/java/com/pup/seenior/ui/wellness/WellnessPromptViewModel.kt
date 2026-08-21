@@ -9,6 +9,7 @@ import androidx.lifecycle.viewModelScope
 import com.pup.seenior.alerts.AlertEscalator
 import com.pup.seenior.alerts.AlertNotifier
 import com.pup.seenior.alerts.EscalationScheduler
+import com.pup.seenior.alerts.EscalationWorker
 import com.pup.seenior.database.SeniorAppDatabase
 import com.pup.seenior.database.entities.Alert
 import kotlinx.coroutines.delay
@@ -135,7 +136,24 @@ class WellnessPromptViewModel(application: Application) : AndroidViewModel(appli
             stage = PromptStage.SENT
             isDelivering = true
 
-            deliveryWarning = when (AlertEscalator.escalateToFamily(db, current.alertId)) {
+            val outcome = AlertEscalator.escalateToFamily(db, current.alertId)
+
+            // Make the promise on the next screen true. Until now nothing did: this method
+            // cancels the deadline alarm before it posts, and EscalationWorker.enqueueRetry was
+            // only ever called from EscalationReceiver — so a senior who tapped "I need help"
+            // with no signal was told "your family will be notified once this phone reconnects"
+            // while the alert sat pending and unsynced forever, with nothing left to retry it.
+            // On the one path where they consciously asked for help.
+            //
+            // Enqueued for Failed as well as Offline: a backend that refused once may well
+            // accept the retry, and the worker already treats both as retryable. The alert is
+            // recorded locally either way, so a retry can only add delivery, never a duplicate
+            // — escalateToFamily short-circuits on isSynced.
+            if (outcome != AlertEscalator.Outcome.Delivered) {
+                EscalationWorker.enqueueRetry(getApplication(), current.alertId)
+            }
+
+            deliveryWarning = when (outcome) {
                 AlertEscalator.Outcome.Delivered -> null
                 AlertEscalator.Outcome.Offline ->
                     "You are offline. Your family will be notified once this phone reconnects."
