@@ -402,12 +402,12 @@ private fun SimulationRow(viewModel: HomeViewModel) {
 /**
  * How far across the track the knob must travel to count as a deliberate swipe.
  *
- * Was 0.9. Ninety percent of the track is a long, uninterrupted drag for the hands this app is
- * built for -- CLAUDE.md §12 targets elderly users, and arthritic or shaky fingers lift early.
- * Missing the threshold fails silently: the knob just slides back and no alert is raised, which
- * is the worst possible feedback on an emergency control.
+ * Deliberately near the full width. Briefly lowered to 0.7 on the theory that a long drag is
+ * hard for elderly hands, then put back: a swipe measured at roughly 75% of the track still did
+ * not fire, so the effective threshold was never where the arithmetic said it was, and shipping
+ * a number that does not match observed behaviour is worse than shipping a demanding one.
  *
- * 0.7 still rules out the accidental brush this exists to guard against (the knob is 72dp, so a
- * stray contact moves it a fraction of that) while leaving room to fall short of the end.
+ * A full swipe is also the clearer contract for an emergency control. "Drag it all the way" is
+ * something a senior can be told once and get right every time; "drag it most of the way" is not.
  */
-private const val CONFIRM_FRACTION = 0.7f
+private const val CONFIRM_FRACTION = 0.9f
