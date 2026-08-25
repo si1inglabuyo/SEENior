@@ -160,4 +160,37 @@ class FuzzyRiskClassifierTest {
         assertFalse(FuzzyRiskClassifier.isWithinNapWindow(14 * 60, "14:00", null))
         assertFalse(FuzzyRiskClassifier.isWithinNapWindow(14 * 60, "14:00", 0))
     }
+
+    // ------------------------------------- the device under test, for demo rehearsal
+
+    // Agnes Rayos as actually onboarded on the Infinix: wake 08:30, sleep 21:00, and a declared
+    // nap at 14:00 lasting 120 minutes. AnomalySimulator injects its reading at z = 4.0, so these
+    // pin down exactly what the demo button does at each hour of her day.
+    private val WAKE = "08:30"
+    private val SLEEP = "21:00"
+
+    private fun demoRiskAt(hour: Int, minute: Int = 0) =
+        classify(4.0, FuzzyRiskClassifier.restExpectation(hour * 60 + minute, WAKE, SLEEP))
+
+    @Test
+    fun `demo reading is high through Agnes's waking hours`() {
+        assertEquals(FuzzyRiskClassifier.Risk.HIGH, demoRiskAt(10))
+        assertEquals(FuzzyRiskClassifier.Risk.HIGH, demoRiskAt(13))
+        assertEquals(FuzzyRiskClassifier.Risk.HIGH, demoRiskAt(16))
+        assertEquals(FuzzyRiskClassifier.Risk.HIGH, demoRiskAt(19))
+    }
+
+    @Test
+    fun `demo reading goes quiet once Agnes is expected asleep`() {
+        assertEquals(FuzzyRiskClassifier.Risk.LOW, demoRiskAt(22, 45))
+        assertEquals(FuzzyRiskClassifier.Risk.LOW, demoRiskAt(3))
+    }
+
+    @Test
+    fun `Agnes's declared nap suppresses two whole afternoon hours`() {
+        assertTrue(FuzzyRiskClassifier.isWithinNapWindow(14 * 60, "14:00", 120))
+        assertTrue(FuzzyRiskClassifier.isWithinNapWindow(15 * 60 + 59, "14:00", 120))
+        assertFalse(FuzzyRiskClassifier.isWithinNapWindow(16 * 60, "14:00", 120))
+        assertFalse(FuzzyRiskClassifier.isWithinNapWindow(13 * 60 + 59, "14:00", 120))
+    }
 }
