@@ -74,6 +74,14 @@ class WellnessPromptViewModel(application: Application) : AndroidViewModel(appli
         // anything, and re-escalating would push a second copy of the same alert.
         if (AlertEscalator.hasEscalatedToFamily(alert)) {
             stage = PromptStage.SENT
+            // Escalated is not delivered. The audit step is written before the cloud accepts the
+            // alert, so on its own it would have this screen tell the senior their contacts have
+            // been notified while the alert is still sitting on this phone waiting for a network.
+            // That is the one claim this screen must never make falsely.
+            if (!alert.isSynced) {
+                deliveryWarning =
+                    "You are offline. Your family will be notified once this phone reconnects."
+            }
             viewModelScope.launch { countdownToClose(onFinished) }
             return
         }

@@ -249,11 +249,26 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
      * works from day one regardless of baseline status (CLAUDE.md §6).
      *
      * [AlertResponder.raise] returns null when an SOS is already open, so a repeated swipe joins
-     * the alert already in flight rather than stacking duplicates.
+     * the alert already in flight rather than stacking duplicates — and lands on that alert's
+     * prompt, so the swipe always leads somewhere.
      */
     fun sendSos() {
         viewModelScope.launch {
-            AlertResponder.raise(getApplication(), db, "sos", "high")
+            if (AlertResponder.raise(getApplication(), db, "sos", "high") != null) return@launch
+
+            // Inside the dedupe window, so nothing was raised. Doing nothing at all is the worst
+            // available answer to a senior asking for help: from their side a deduplicated swipe
+            // and a broken button look identical. Show them the alert that is already open — it
+            // is the screen where they can answer, self-cancel, or read that help is on its way.
+            openAlerts.filter { it.triggerType == "sos" }
+                .maxByOrNull { it.triggeredAt }
+                ?.let { existing ->
+                    // It may have been answered earlier this session, which is what let them back
+                    // to Home to swipe again; clear that so the prompt does not skip straight
+                    // past it when it closes.
+                    answeredThisSession = answeredThisSession - existing.alertId
+                    handling = existing
+                }
         }
     }
 

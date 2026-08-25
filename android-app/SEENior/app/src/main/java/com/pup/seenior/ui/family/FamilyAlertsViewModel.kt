@@ -184,8 +184,12 @@ class FamilyAlertsViewModel(application: Application) : AndroidViewModel(applica
      * Whether this fetch is allowed to change what is on screen.
      *
      * A foreground fetch always is. A background poll only may while the screen is still just
-     * reporting the situation — once the family member has acknowledged, opened the dispatch form
-     * or is looking at a resolved summary, they are mid-task and the screen belongs to them.
+     * reporting the situation — once the family member has acknowledged or opened the dispatch
+     * form, they are mid-task and the screen belongs to them.
+     *
+     * RESOLVED reports rather than asks. It summarises an alert that is already over, so nothing
+     * is taken from anyone by replacing it — whereas leaving it out meant a finished summary
+     * could hold the tab shut against a *live* alert arriving behind it, which was seen happen.
      */
     private fun mayClaimScreen(background: Boolean): Boolean =
         !background || screen in PASSIVE_SCREENS
@@ -319,7 +323,8 @@ class FamilyAlertsViewModel(application: Application) : AndroidViewModel(applica
             AlertScreen.LOADING,
             AlertScreen.ALL_CLEAR,
             AlertScreen.DETAIL,
-            AlertScreen.LOAD_FAILED
+            AlertScreen.LOAD_FAILED,
+            AlertScreen.RESOLVED
         )
 
         /** Matches the Home tab's cadence — the two tabs read the same endpoint and there is no
