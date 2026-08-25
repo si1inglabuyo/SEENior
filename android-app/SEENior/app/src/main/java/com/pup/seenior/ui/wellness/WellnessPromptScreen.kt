@@ -2,6 +2,7 @@ package com.pup.seenior.ui.wellness
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -83,8 +84,9 @@ fun WellnessPromptScreen(
             } else {
                 PromptBody(copy, viewModel, onFinished)
             }
-        PromptStage.ACKNOWLEDGED -> AcknowledgedBody(copy)
-        PromptStage.SENT -> AlertSentBody(copy, viewModel)
+        PromptStage.ACKNOWLEDGED ->
+            AcknowledgedBody(if (viewModel.stoodDown) copy.standDownDone else copy.acknowledged)
+        PromptStage.SENT -> AlertSentBody(copy, viewModel, onFinished)
     }
 }
 
@@ -250,7 +252,7 @@ private fun PromptBody(
 }
 
 @Composable
-private fun AcknowledgedBody(copy: WellnessMessages.Copy) {
+private fun AcknowledgedBody(message: String) {
     Surface(modifier = Modifier.fillMaxSize(), color = SeniorColors.Green) {
         Column(
             modifier = Modifier.fillMaxSize().systemBarsPadding(),
@@ -272,7 +274,7 @@ private fun AcknowledgedBody(copy: WellnessMessages.Copy) {
             }
             Spacer(Modifier.height(26.dp))
             Text(
-                text = copy.acknowledged,
+                text = message,
                 color = Color.White,
                 fontSize = 24.sp,
                 fontWeight = FontWeight.Bold,
@@ -283,7 +285,11 @@ private fun AcknowledgedBody(copy: WellnessMessages.Copy) {
 }
 
 @Composable
-private fun AlertSentBody(copy: WellnessMessages.Copy, viewModel: WellnessPromptViewModel) {
+private fun AlertSentBody(
+    copy: WellnessMessages.Copy,
+    viewModel: WellnessPromptViewModel,
+    onFinished: () -> Unit
+) {
     Surface(modifier = Modifier.fillMaxSize(), color = AlertRed) {
         Column(
             modifier = Modifier
@@ -329,12 +335,32 @@ private fun AlertSentBody(copy: WellnessMessages.Copy, viewModel: WellnessPrompt
             )
             Spacer(Modifier.weight(1f))
             if (!viewModel.isDelivering) {
+                // Offered here as well as on Home because this is where the senior is actually
+                // looking at the moment help goes out. Home carries it afterwards — this screen
+                // leaves on its own after a few seconds, which is far too short a window to be
+                // the only chance to say "I'm fine".
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp)
+                        .background(Color.White, RoundedCornerShape(14.dp))
+                        .clickable { viewModel.standDown(onFinished) },
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = copy.standDownButton,
+                        color = AlertRed,
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
                 Text(
                     text = if (viewModel.secondsRemaining == 1) copy.returningHomeOne
                     else copy.returningHome.format(viewModel.secondsRemaining),
                     color = Color.White.copy(alpha = 0.85f),
                     fontSize = 14.sp,
-                    modifier = Modifier.padding(bottom = 36.dp)
+                    modifier = Modifier.padding(top = 14.dp, bottom = 36.dp)
                 )
             }
         }

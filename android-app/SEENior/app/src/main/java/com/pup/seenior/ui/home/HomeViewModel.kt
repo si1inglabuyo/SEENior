@@ -11,6 +11,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.pup.seenior.alerts.AlertEscalator
 import com.pup.seenior.alerts.AlertResponder
+import com.pup.seenior.alerts.EscalationScheduler
 import com.pup.seenior.database.SeniorAppDatabase
 import com.pup.seenior.database.entities.Alert
 import com.pup.seenior.database.entities.Senior
@@ -98,6 +99,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
      * reports back through [onAlertAnswered].
      */
     private var handling by mutableStateOf<Alert?>(null)
+
+    /** Guards against a second tap while the first is still writing and calling the server. */
+    private var standingDownAlertId by mutableStateOf<Int?>(null)
 
     /** The alert currently owed a response, if any. */
     val activeAlert: Alert?
@@ -274,6 +278,35 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                     answeredThisSession = answeredThisSession - existing.alertId
                     handling = existing
                 }
+        }
+    }
+
+    /**
+     * "I'm fine now" from Home — withdraws an alert that has already reached the family.
+     *
+     * The wellness prompt offers the same thing, but that screen closes itself after a few
+     * seconds. This card stands for half an hour, which is the realistic window: a senior who
+     * falls, gets helped up and only then thinks to call it off is not going to manage it inside
+     * five seconds.
+     *
+     * No explicit state clearing is needed afterwards. The status write drops the alert out of
+     * the query feeding [openAlerts], Room re-emits, and the card goes with it.
+     */
+    fun standDown(alert: Alert) {
+        if (standingDownAlertId != null) return
+        standingDownAlertId = alert.alertId
+
+        viewModelScope.launch {
+            val now = System.currentTimeMillis()
+            db.alertDao().updateEscalationSteps(
+                alert.alertId,
+                AlertEscalator.appendStep(alert.escalationSteps, "self_cancelled", now)
+            )
+            db.alertDao().updateStatus(alert.alertId, "self_cancelled", now)
+            // Nothing is owed on it any more, including a queued delivery retry.
+            EscalationScheduler.cancel(getApplication(), alert.alertId)
+            AlertEscalator.cancelInCloud(db, alert.alertId)
+            standingDownAlertId = null
         }
     }
 

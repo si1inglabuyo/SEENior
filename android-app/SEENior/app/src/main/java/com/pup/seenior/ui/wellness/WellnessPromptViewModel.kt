@@ -53,6 +53,11 @@ class WellnessPromptViewModel(application: Application) : AndroidViewModel(appli
     var deliveryWarning by mutableStateOf<String?>(null)
         private set
 
+    /** True once the senior has closed an alert that had already gone out, so the confirmation
+     *  screen can say what actually happened rather than the generic acknowledgement. */
+    var stoodDown by mutableStateOf(false)
+        private set
+
     private var alert: Alert? = null
 
     /**
@@ -135,6 +140,39 @@ class WellnessPromptViewModel(application: Application) : AndroidViewModel(appli
         }
     }
 
+    /**
+     * "I'm fine now" — closes an alert that has already reached the family.
+     *
+     * [markSafe] cannot serve this: it is gated on the prompt still being unanswered, and by the
+     * time an alert has gone out that gate has closed. Which left the senior with a screen that
+     * told them help was coming and offered them no way to say it was not needed after all.
+     *
+     * The cloud call matters more here than anywhere else in this class. This is the one path
+     * where an alert the family can actually see is being withdrawn, so leaving Render untouched
+     * would leave a relative looking at an emergency the senior has personally called off.
+     */
+    fun standDown(onFinished: () -> Unit) {
+        val current = alert ?: return
+        if (stage != PromptStage.SENT) return
+        stage = PromptStage.ACKNOWLEDGED
+
+        viewModelScope.launch {
+            val now = System.currentTimeMillis()
+            db.alertDao().updateEscalationSteps(
+                current.alertId,
+                AlertEscalator.appendStep(current.escalationSteps, "self_cancelled", now)
+            )
+            db.alertDao().updateStatus(current.alertId, "self_cancelled", now)
+            // Nothing is owed on this alert any more — including any queued delivery retry.
+            EscalationScheduler.cancel(getApplication(), current.alertId)
+            AlertEscalator.cancelInCloud(db, current.alertId)
+
+            stoodDown = true
+            delay(ACKNOWLEDGED_DISPLAY_MILLIS)
+            onFinished()
+        }
+    }
+
     /** "I need help", or the response window expiring. */
     fun escalate(onFinished: () -> Unit) {
         val current = alert ?: return
@@ -187,11 +225,13 @@ class WellnessPromptViewModel(application: Application) : AndroidViewModel(appli
      *  a failure warning — is on screen long enough to be read. */
     private suspend fun countdownToClose(onFinished: () -> Unit) {
         secondsRemaining = SENT_DISPLAY_SECONDS
-        while (secondsRemaining > 0) {
+        while (secondsRemaining > 0 && stage == PromptStage.SENT) {
             delay(1000)
             secondsRemaining--
         }
-        onFinished()
+        // [standDown] moves the stage on and owns the close from there. Without this guard both
+        // would call onFinished and the screen would be torn down twice.
+        if (stage == PromptStage.SENT) onFinished()
     }
 
     private companion object {

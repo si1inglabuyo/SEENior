@@ -3,6 +3,7 @@ package com.pup.seenior.ui.home
 import androidx.compose.animation.core.animate
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
@@ -106,7 +107,12 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                 // has actively asked for and is still waiting on.
                 viewModel.helpDelivery?.let { delivery ->
                     Spacer(Modifier.height(12.dp))
-                    HelpDeliveryCard(delivery, viewModel.language, viewModel.firstName)
+                    HelpDeliveryCard(
+                        delivery,
+                        viewModel.language,
+                        viewModel.firstName,
+                        onStandDown = { viewModel.standDown(delivery.alert) }
+                    )
                 }
 
                 Spacer(Modifier.height(16.dp))
@@ -136,7 +142,12 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
  * happened.
  */
 @Composable
-private fun HelpDeliveryCard(delivery: HelpDelivery, language: String, firstName: String) {
+private fun HelpDeliveryCard(
+    delivery: HelpDelivery,
+    language: String,
+    firstName: String,
+    onStandDown: () -> Unit
+) {
     val waiting = delivery is HelpDelivery.Waiting
     val copy = WellnessMessages.forAlert(
         language, firstName, delivery.alert.triggerType, delivery.alert.timeBlock
@@ -171,6 +182,29 @@ private fun HelpDeliveryCard(delivery: HelpDelivery, language: String, firstName
                 fontSize = 15.sp,
                 modifier = Modifier.padding(top = 2.dp)
             )
+
+            // The way back out. Help being on its way used to be a one-way door: a senior who
+            // got up unhurt had no way to say so, and the alert sat in the family app until a
+            // relative opened it and resolved it by hand.
+            Row(
+                modifier = Modifier
+                    .padding(top = 12.dp)
+                    .height(44.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color.White)
+                    .border(1.dp, accent, RoundedCornerShape(12.dp))
+                    .clickable(onClick = onStandDown)
+                    .padding(horizontal = 20.dp),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    copy.standDownButton,
+                    color = accent,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
         }
     }
 }

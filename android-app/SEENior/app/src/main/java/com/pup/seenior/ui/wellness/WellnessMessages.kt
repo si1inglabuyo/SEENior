@@ -27,6 +27,13 @@ object WellnessMessages {
         val acknowledged: String,
         val alertSentTitle: String,
         val alertSentBody: String,
+        /* Lets the senior close an alert that has already gone out. Until this existed, help
+         * being on its way was a one-way door: a senior who got up unhurt had no way to say so,
+         * and the alert sat in the family app until a relative happened to open it and resolve
+         * it by hand. CLAUDE.md 1 promises the senior stays in the loop, not only until the
+         * moment the alert leaves the phone. */
+        val standDownButton: String,
+        val standDownDone: String,
         val delivering: String,
         val returningHome: String,
         val returningHomeOne: String,
@@ -74,6 +81,8 @@ object WellnessMessages {
         // senior otherwise would be a false reassurance in an emergency. Restore that line when
         // location capture is actually built.
         alertSentBody = "Your contacts have been notified.",
+        standDownButton = "I'M FINE NOW",
+        standDownDone = "We have told your family you are fine.",
         delivering = "Notifying your contacts now...",
         returningHome = "Returning to home in %d seconds...",
         returningHomeOne = "Returning to home in 1 second...",
@@ -155,6 +164,8 @@ object WellnessMessages {
         acknowledged = "Natanggap na po ang inyong sagot!",
         alertSentTitle = "Naipadala na ang Alerto!",
         alertSentBody = "Naabisuhan na po ang inyong mga contact.",
+        standDownButton = "MAAYOS NA PO AKO",
+        standDownDone = "Naipaalam na po namin sa inyong pamilya na maayos kayo.",
         delivering = "Inaabisuhan na po ang inyong mga contact...",
         returningHome = "Babalik sa home sa loob ng %d segundo...",
         returningHomeOne = "Babalik sa home sa loob ng 1 segundo...",
