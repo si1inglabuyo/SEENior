@@ -10,12 +10,15 @@ import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -115,25 +118,39 @@ fun PermissionsScreen(
     Surface(modifier = Modifier.fillMaxSize(), color = Color.White) {
         Column(modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp)) {
             OnboardingTopBar(currentStep = 4, onBack = onBack)
-            OnboardingHeading(
-                title = "Allow Permissions",
-                subtitle = "SEENior needs these to monitor quietly in the background. All data stays on your phone."
-            )
 
+            // Five permissions, each with a sentence of justification, is more than a short
+            // display holds — and this is the one screen a senior cannot skip past, so the
+            // button below must stay reachable. The heading and the list scroll; the top bar
+            // keeps its back arrow and the footer keeps the button, both pinned.
+            //
+            // The weight lives here now rather than on a spacer: a weighted child inside a
+            // scrolling Column is measured against an unbounded height and throws.
             Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 24.dp)
-                    .border(1.dp, SeniorColors.GreenBorder, RoundedCornerShape(20.dp))
-                    .padding(20.dp)
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState())
             ) {
-                permissionRows.forEachIndexed { index, row ->
-                    PermissionItem(row)
-                    if (index != permissionRows.lastIndex) Spacer(modifier = Modifier.padding(top = 20.dp))
-                }
-            }
+                OnboardingHeading(
+                    title = "Allow Permissions",
+                    subtitle = "SEENior needs these to monitor quietly in the background. All data stays on your phone."
+                )
 
-            Spacer(modifier = Modifier.weight(1f))
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 24.dp)
+                        .border(1.dp, SeniorColors.GreenBorder, RoundedCornerShape(20.dp))
+                        .padding(20.dp)
+                ) {
+                    permissionRows.forEachIndexed { index, row ->
+                        PermissionItem(row)
+                        if (index != permissionRows.lastIndex) Spacer(modifier = Modifier.padding(top = 20.dp))
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+            }
 
             Text(
                 text = "Protected under RA 10173 · Data Privacy Act",

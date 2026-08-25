@@ -1,6 +1,8 @@
 package com.pup.seenior.ui.family
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -46,7 +48,16 @@ fun LinkScreen(viewModel: FamilyPairingViewModel, onVerified: () -> Unit) {
     ) {
         BlueHeader(Icons.Filled.Link, "Link")
 
-        Column(modifier = Modifier.padding(horizontal = 24.dp)) {
+        // Scrolls; the header does not. This screen has a text field, so the moment the
+        // keyboard opens the window shrinks (MainActivity is adjustResize) and the Verify
+        // button lands underneath it — with no scroll there was no way to reach the button
+        // you had just typed the code for.
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 24.dp)
+        ) {
             Text(
                 "Share With Family",
                 color = FamilyColors.Blue,
@@ -144,6 +155,9 @@ fun LinkScreen(viewModel: FamilyPairingViewModel, onVerified: () -> Unit) {
                     modifier = Modifier.padding(start = 12.dp)
                 )
             }
+
+            // Clears the bottom navigation bar at the end of the scroll.
+            Spacer(Modifier.height(24.dp))
         }
     }
 }

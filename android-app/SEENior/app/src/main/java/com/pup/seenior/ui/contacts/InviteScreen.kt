@@ -4,6 +4,8 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -49,7 +51,16 @@ fun InviteScreen(viewModel: InviteViewModel = viewModel()) {
     ) {
         GreenHeader(icon = { Icon(Icons.Filled.PersonAddAlt1, null, tint = Color.White) }, title = "Invite")
 
-        Column(modifier = Modifier.padding(horizontal = 24.dp)) {
+        // Scrolls; the header does not. The senior's half of the pairing flow, and it grew
+        // the same way LinkScreen did: code card, countdown, instructions and a warning banner
+        // together outrun a short display, and the regenerate control was the part that fell
+        // off the bottom.
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 24.dp)
+        ) {
             Text(
                 "Share With Family",
                 color = SeniorColors.Green,
