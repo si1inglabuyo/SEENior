@@ -4,6 +4,7 @@ import com.pup.seenior.database.SeniorAppDatabase
 import com.pup.seenior.database.entities.Alert
 import com.pup.seenior.network.RetrofitClient
 import com.pup.seenior.network.SeniorCloudSync
+import com.pup.seenior.network.dto.CancelAlertRequest
 import com.pup.seenior.network.dto.CreateAlertRequest
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -41,6 +42,10 @@ object AlertEscalator {
     private val escalateLock = Mutex()
 
     /** Marks the point in the audit timeline where the family tier was notified. */
+    /** Written once the cloud has accepted that the senior closed this alert. Its absence is
+     *  what makes a failed cancel retryable rather than lost. */
+    private const val STEP_CANCEL_SYNCED = "cancel_synced"
+
     private const val STEP_FAMILY = "escalated_family"
 
     /**
@@ -152,6 +157,56 @@ object AlertEscalator {
             Outcome.Failed
         }
     }
+
+    /**
+     * Tells the cloud the senior answered the prompt themselves, so the alert stops sitting in
+     * the family app as pending.
+     *
+     * Only alerts that reached the cloud have anything to close — one dismissed before it ever
+     * escalated has no cloud row, which is why this is a no-op for them rather than an error.
+     *
+     * Returns true when the cloud is known to agree, so the caller can tell "done" from "try
+     * again later". The step it writes on success is the only record that the two databases are
+     * in step; without it a phone that was offline at the moment of the cancel would have no way
+     * to know it still owed the server an update.
+     */
+    suspend fun cancelInCloud(db: SeniorAppDatabase, alertId: Int): Boolean {
+        val alert = db.alertDao().getById(alertId) ?: return false
+        if (!alert.isSynced) return true
+        if (hasStep(alert, STEP_CANCEL_SYNCED)) return true
+
+        return try {
+            SeniorCloudSync(db).withSyncId { seniorSyncId ->
+                RetrofitClient.api.cancelAlert(alert.syncId, CancelAlertRequest(seniorSyncId))
+            }
+            db.alertDao().updateEscalationSteps(
+                alert.alertId,
+                appendStep(alert.escalationSteps, STEP_CANCEL_SYNCED, System.currentTimeMillis())
+            )
+            true
+        } catch (e: Exception) {
+            // Never rethrown: the senior has already been told they are safe and the local record
+            // is correct. The only casualty is the family's view being briefly stale, which the
+            // watchdog's next pass repairs.
+            false
+        }
+    }
+
+    /**
+     * Retries every self-cancel the cloud was never told about.
+     *
+     * Called from the watchdog. A senior who dismisses a prompt in a dead spot would otherwise
+     * leave that alert open in the family app permanently — the one moment it was possible to
+     * send the update having passed and nothing remembering it was owed.
+     */
+    suspend fun reconcileCancelledAlerts(db: SeniorAppDatabase, seniorId: Int) {
+        db.alertDao().getSelfCancelledSyncedAlerts(seniorId)
+            .filterNot { hasStep(it, STEP_CANCEL_SYNCED) }
+            .forEach { cancelInCloud(db, it.alertId) }
+    }
+
+    private fun hasStep(alert: Alert, step: String): Boolean = steps(alert.escalationSteps)
+        .let { arr -> (0 until arr.length()).any { arr.optJSONObject(it)?.optString("step") == step } }
 
     /** When the cloud accepted this alert, or null if it has not yet. */
     fun deliveredAt(alert: Alert): Long? {

@@ -295,8 +295,13 @@ class FamilyAlertsViewModel(application: Application) : AndroidViewModel(applica
     }
 
     /**
-     * Who closed the alert, read from the `resolved_family` entry the backend writes into
+     * Who closed the alert, read from the closing entry the backend writes into
      * `escalation_steps`.
+     *
+     * Two steps can close one: a family member resolving it, or the senior answering the wellness
+     * prompt on their own phone. Both are worth naming, and naming the senior matters most — "the
+     * person we were worried about said they were fine" is a different reassurance from "one of
+     * your relatives dealt with it".
      *
      * The screen used to print a hardcoded "You", which was only ever right by luck: any of the
      * senior's other family contacts can resolve an alert, and that screen would still have
@@ -308,13 +313,16 @@ class FamilyAlertsViewModel(application: Application) : AndroidViewModel(applica
      */
     private fun resolverName(alert: AlertDto): String =
         alert.escalationSteps
-            ?.lastOrNull { it["step"] == "resolved_family" }
+            ?.lastOrNull { it["step"] in CLOSING_STEPS }
             ?.get("by")
             ?.takeIf { it.isNotBlank() }
             ?: "—"
 
     companion object {
         private val OPEN_STATUSES = setOf("pending", "acknowledged", "escalated")
+
+        /** Audit steps that close an incident, newest of which names who closed it. */
+        private val CLOSING_STEPS = setOf("resolved_family", "self_cancelled_senior")
 
         /** Screens that only report the current situation, so a poll may replace them. The rest
          *  are steps the family member is part-way through and must not be pulled out from under

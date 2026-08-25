@@ -7,6 +7,7 @@ import android.app.job.JobService
 import android.content.ComponentName
 import android.content.Context
 import android.util.Log
+import com.pup.seenior.alerts.AlertEscalator
 import com.pup.seenior.alerts.EscalationScheduler
 import com.pup.seenior.database.SeniorAppDatabase
 import com.pup.seenior.network.HeartbeatReporter
@@ -122,6 +123,13 @@ class MonitoringWatchdogJobService : JobService() {
         // Alarms are lost on reboot and on force-stop. Anything still open needs its deadline put
         // back, or it waits for a wake-up that is never coming.
         EscalationScheduler.rearmAll(app)
+
+        // Any self-cancel the cloud was never told about, usually because the senior answered
+        // while the phone had no signal. Left alone, the family keeps seeing an alert the senior
+        // has already dismissed.
+        db.seniorDao().getOnboardedSenior()?.let { senior ->
+            AlertEscalator.reconcileCancelledAlerts(db, senior.seniorId)
+        }
 
         // Last, and deliberately so: this is the only part of the pass that touches the network,
         // and monitoring must already be restored before anything waits on a radio. It never

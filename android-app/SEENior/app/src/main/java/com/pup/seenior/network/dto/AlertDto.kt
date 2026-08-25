@@ -32,6 +32,12 @@ data class CreateAlertRequest(
 )
 
 /** Mirrors backend AlertDispatchRequest (family requesting a barangay welfare check). */
+/** Mirrors backend AlertCancel. The senior's id travels with the alert's so the server can
+ *  check the two belong together — the senior has no account, so this pairing is the credential. */
+data class CancelAlertRequest(
+    val seniorSyncId: String
+)
+
 data class AlertDispatchRequest(
     val reason: String,
     val notes: String?

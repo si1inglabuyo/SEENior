@@ -2,6 +2,7 @@ package com.pup.seenior.network
 
 import com.pup.seenior.network.dto.AlertDispatchRequest
 import com.pup.seenior.network.dto.AlertDto
+import com.pup.seenior.network.dto.CancelAlertRequest
 import com.pup.seenior.network.dto.ChangePasswordRequest
 import com.pup.seenior.network.dto.HeartbeatRequest
 import com.pup.seenior.network.dto.ContactDto
@@ -45,6 +46,12 @@ interface ApiService {
         @Path("syncId") syncId: String,
         @Body body: UpdateSeniorRequest
     ): SeniorDto
+
+    @PATCH("alerts/{syncId}/cancel")
+    suspend fun cancelAlert(
+        @Path("syncId") syncId: String,
+        @Body body: CancelAlertRequest
+    ): AlertDto
 
     @POST("seniors/{syncId}/heartbeat")
     suspend fun sendHeartbeat(

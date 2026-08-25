@@ -6,6 +6,7 @@ from uuid import UUID
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.api.deps import get_current_user
 from app.core import push
@@ -20,7 +21,7 @@ from app.db.models import (
     UserRole,
 )
 from app.db.session import SessionLocal, get_db
-from app.schemas.alert import AlertCreate, AlertDispatchRequest, AlertOut
+from app.schemas.alert import AlertCancel, AlertCreate, AlertDispatchRequest, AlertOut
 
 logger = logging.getLogger(__name__)
 
@@ -215,6 +216,53 @@ def _append_step(alert: Alert, step: str, **extra: str | None) -> None:
     at = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
     steps.append({"step": step, "at": at, **extra})
     alert.escalation_steps = steps
+
+
+@router.patch("/{sync_id}/cancel", response_model=AlertOut)
+async def cancel_alert(
+    sync_id: UUID, payload: AlertCancel, db: AsyncSession = Depends(get_db)
+) -> Alert:
+    """The senior answers the wellness prompt themselves, closing the incident.
+
+    Without this the two databases drifted apart permanently. "I am safe" was written to the
+    phone's own copy and nowhere else, so an alert the senior had already dismissed went on
+    sitting in the family app as pending for as long as the row existed -- five days, in the
+    case of the ones this endpoint was written for. A family member watching a stale alert they
+    cannot clear learns to ignore the screen, which costs more than the alert was worth.
+
+    No JWT, because the senior has no account to hold one. Both sync_ids are required instead
+    and the pairing is checked below.
+
+    Idempotent on purpose. The caller is a phone that may be retrying after a lost network, and
+    an already-closed alert is the outcome it wanted -- answering 400 would turn a successful
+    retry into an error the device would log and abandon.
+    """
+    result = await db.execute(
+        select(Alert).where(Alert.sync_id == sync_id).options(selectinload(Alert.senior))
+    )
+    alert = result.scalar_one_or_none()
+    if alert is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Alert not found")
+
+    if alert.senior is None or alert.senior.sync_id != payload.senior_sync_id:
+        # Deliberately the same 404 as above rather than a 403: telling a caller that an alert
+        # exists but belongs to someone else is itself a disclosure.
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Alert not found")
+
+    if alert.status in (AlertStatus.RESOLVED, AlertStatus.FALSE_POSITIVE):
+        return alert
+
+    alert.status = AlertStatus.RESOLVED
+    alert.resolved_at = datetime.now(timezone.utc).replace(tzinfo=None)
+    # RESOLVED rather than a new status value: the incident is over, which is what every reader
+    # of this column needs to know, and `status` is a native Postgres enum whose vocabulary
+    # cannot grow without an ALTER TYPE. *Who* closed it is an audit fact, and escalation_steps
+    # is where audit facts already live (CLAUDE.md 8) -- so the timeline records that this was
+    # the senior, not a family member, and no migration is needed to say so.
+    _append_step(alert, "self_cancelled_senior", by=alert.senior.first_name)
+    await db.commit()
+    await db.refresh(alert)
+    return alert
 
 
 @router.patch("/{sync_id}/acknowledge", response_model=AlertOut)

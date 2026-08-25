@@ -97,6 +97,21 @@ interface AlertDao {
     """)
     suspend fun getRecentLoggedAlert(seniorId: Int, triggerType: String, notBefore: Long): Alert?
 
+    /**
+     * Alerts the senior closed on this phone that also exist in the cloud.
+     *
+     * Exists so a self-cancel that could not reach the server at the time — no signal, radio off,
+     * server asleep — is retried later instead of leaving the family looking at an alert the
+     * senior already dismissed. Whether each one still needs sending is decided by the caller
+     * from its audit timeline; that cannot be expressed in SQL against a JSON string column.
+     */
+    @Query("""
+        SELECT * FROM Alerts
+        WHERE senior_id = :seniorId AND status = 'self_cancelled' AND is_synced = 1
+        ORDER BY triggered_at DESC
+    """)
+    suspend fun getSelfCancelledSyncedAlerts(seniorId: Int): List<Alert>
+
     @Query("UPDATE Alerts SET risk_level = :riskLevel, deviation_score = :deviationScore WHERE alert_id = :alertId")
     suspend fun updateSeverity(alertId: Int, riskLevel: String, deviationScore: Double)
 

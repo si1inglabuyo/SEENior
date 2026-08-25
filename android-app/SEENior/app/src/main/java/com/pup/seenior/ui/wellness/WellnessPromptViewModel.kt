@@ -122,6 +122,14 @@ class WellnessPromptViewModel(application: Application) : AndroidViewModel(appli
                 AlertEscalator.appendStep(current.escalationSteps, "self_cancelled", now)
             )
             db.alertDao().updateStatus(current.alertId, "self_cancelled", now)
+
+            // The senior's phone is the only thing that knows they answered, so it has to say so.
+            // Before this, "I am safe" was written here and nowhere else, and the alert went on
+            // sitting in the family app as pending — for five days, in the case that prompted the
+            // fix. Swallows its own failure and the watchdog retries; the acknowledgement below
+            // is not held up by a network, because the senior has already answered.
+            AlertEscalator.cancelInCloud(db, current.alertId)
+
             delay(ACKNOWLEDGED_DISPLAY_MILLIS)
             onFinished()
         }
