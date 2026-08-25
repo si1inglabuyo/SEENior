@@ -92,6 +92,7 @@ class SensorCollectionService : Service(), SensorEventListener
     override fun onCreate() {
         super.onCreate()
         startForeground(NOTIFICATION_ID, buildNotification())
+        isRunning = true
 
         sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
         accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
@@ -146,6 +147,8 @@ class SensorCollectionService : Service(), SensorEventListener
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
+        // Cleared first, so nothing can read a stale `true` while the service tears down.
+        isRunning = false
         sensorManager.unregisterListener(this)
         unregisterReceiver(screenReceiver)
         serviceScope.cancel()
@@ -341,6 +344,18 @@ class SensorCollectionService : Service(), SensorEventListener
 
         /** Keeps the Layer 1 movement signals sampling at their original 5 Hz. */
         private const val MOVEMENT_SAMPLE_INTERVAL_NANOS = 200_000_000L
+
+        /**
+         * Whether this service is alive in the current process.
+         *
+         * Read by [com.pup.seenior.sensors.MonitoringWatchdogJobService] to decide whether
+         * monitoring needs restarting. A process kill resets it to false along with everything
+         * else in the process, which is exactly the answer the watchdog wants: no process, no
+         * monitoring.
+         */
+        @Volatile
+        var isRunning: Boolean = false
+            private set
 
         fun start(context: Context) {
             val intent = Intent(context, SensorCollectionService::class.java)

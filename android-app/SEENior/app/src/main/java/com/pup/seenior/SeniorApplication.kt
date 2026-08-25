@@ -7,6 +7,7 @@ import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import com.pup.seenior.aggregation.NightlyAggregationWorker
+import com.pup.seenior.sensors.MonitoringWatchdogJobService
 import java.util.Calendar
 import java.util.concurrent.TimeUnit
 
@@ -27,6 +28,7 @@ class SeniorApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         scheduleNightlyAggregation()
+        scheduleMonitoringWatchdog()
         trackForegroundState()
     }
 
@@ -54,6 +56,24 @@ class SeniorApplication : Application() {
             override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) = Unit
             override fun onActivityDestroyed(activity: Activity) = Unit
         })
+    }
+
+    /**
+     * The recovery net for passive monitoring (see [MonitoringWatchdogJobService]).
+     *
+     * Called from here, which means it runs on every process start — but the job is not
+     * *created* here in any meaningful sense. It is persisted, so JobScheduler already holds it
+     * across reboots, and that is the whole point: it has to be in the system's store before the
+     * reboot that this app's own boot receiver will not survive. [MonitoringWatchdogJobService]
+     * leaves a matching registration alone rather than restarting its clock.
+     *
+     * Note this is raw JobScheduler, not WorkManager like the aggregation job below. That is not
+     * inconsistency: WorkManager does not persist its jobs and recovers them from a
+     * `BOOT_COMPLETED` receiver, which is the mechanism the watchdog exists to route around.
+     * Nightly aggregation has no such requirement — a missed run rolls into the next one.
+     */
+    private fun scheduleMonitoringWatchdog() {
+        MonitoringWatchdogJobService.schedule(this)
     }
 
     private fun scheduleNightlyAggregation() {

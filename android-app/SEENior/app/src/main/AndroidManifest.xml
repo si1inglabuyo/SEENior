@@ -52,6 +52,12 @@
             android:exported="false"
             android:foregroundServiceType="health"
         />
+        <!-- The reboot recovery net. BIND_JOB_SERVICE is required by the platform and is
+             what stops anything but JobScheduler from starting it. -->
+        <service
+            android:name=".sensors.MonitoringWatchdogJobService"
+            android:exported="false"
+            android:permission="android.permission.BIND_JOB_SERVICE" />
         <receiver
             android:name=".sensors.BootReceiver"
             android:exported="false">

@@ -90,18 +90,32 @@ object EscalationScheduler {
     }
 
     /**
-     * Re-arms every still-open alert. Called from [com.pup.seenior.sensors.BootReceiver].
+     * Re-arms every open alert whose deadline could still do something.
      *
-     * Alarms do not survive a reboot. Without this, an alert that was open when the phone
+     * Alarms do not survive a reboot, and on handsets where the boot broadcast never arrives
+     * they are not restored at all. Without this, an alert that was open when the phone
      * restarted would sit `pending` forever, and the senior would never be escalated for it —
      * a silent failure in the one direction that matters.
+     *
+     * Called from [com.pup.seenior.sensors.MonitoringWatchdogJobService] on a repeating
+     * schedule, and from [com.pup.seenior.sensors.BootReceiver] where the boot broadcast does
+     * arrive.
+     *
+     * The filter is the price of running repeatedly rather than once. [AlertEscalator] leaves
+     * an escalated alert's status as `pending` on purpose, so this query also returns alerts
+     * that are already fully handled; their deadline is in the past, and re-arming one fires
+     * the alarm at once and plants a fresh alarm icon on the lock screen — every period,
+     * indefinitely. Skip an alert only when it has reached the family **and** the cloud has
+     * it: an escalated alert that never synced is precisely the one recovery exists for, and
+     * re-arming it is what drives the retry.
      */
     suspend fun rearmAll(context: Context) {
         val db = SeniorAppDatabase.getInstance(context.applicationContext)
-        val pending = db.alertDao().getPendingAlerts()
-        pending.forEach { arm(context.applicationContext, it) }
-        if (pending.isNotEmpty()) {
-            Log.i(TAG, "Re-armed ${pending.size} open alert(s) after boot")
+        val actionable = db.alertDao().getPendingAlerts()
+            .filterNot { AlertEscalator.hasEscalatedToFamily(it) && it.isSynced }
+        actionable.forEach { arm(context.applicationContext, it) }
+        if (actionable.isNotEmpty()) {
+            Log.i(TAG, "Re-armed ${actionable.size} open alert(s)")
         }
     }
 
