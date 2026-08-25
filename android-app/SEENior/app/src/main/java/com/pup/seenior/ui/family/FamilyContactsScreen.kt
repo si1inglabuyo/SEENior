@@ -15,8 +15,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ChevronRight
@@ -177,7 +179,16 @@ private fun ContactDetailScreen(
             Text("${senior.firstName} ${senior.lastName}", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
         }
 
-        Column(modifier = Modifier.padding(24.dp)) {
+        // Scrolls, and the header above it does not. A senior's address is a joined
+        // PSGC string and can run to several lines, which pushed the Unlink button off the
+        // bottom of the display with no way to reach it. Putting the scroll on the outer
+        // Column instead would have taken the back arrow with it.
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .verticalScroll(rememberScrollState())
+                .padding(24.dp)
+        ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -235,6 +246,10 @@ private fun ContactDetailScreen(
             viewModel.error?.let {
                 Text(it, color = FamilyColors.ErrorRed, fontSize = 14.sp, modifier = Modifier.padding(top = 12.dp))
             }
+
+            // Clears the bottom navigation bar, which would otherwise sit on top of the last
+            // element once the content is scrolled all the way down.
+            Spacer(Modifier.height(24.dp))
         }
     }
 
