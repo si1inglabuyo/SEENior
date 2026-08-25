@@ -3,6 +3,12 @@ package com.pup.seenior
 import android.app.Activity
 import android.app.Application
 import android.os.Bundle
+import com.pup.seenior.database.SeniorAppDatabase
+import com.pup.seenior.network.HeartbeatReporter
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
@@ -25,6 +31,12 @@ object AppForeground {
 
 class SeniorApplication : Application() {
 
+    /** Outlives every screen on purpose — a check-in must not be cancelled by the senior
+     *  navigating away a moment after opening the app. */
+    private val appScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+
+    private var lastForegroundHeartbeatAt = 0L
+
     override fun onCreate() {
         super.onCreate()
         scheduleNightlyAggregation()
@@ -41,8 +53,10 @@ class SeniorApplication : Application() {
             private var startedActivities = 0
 
             override fun onActivityStarted(activity: Activity) {
+                val wasInBackground = startedActivities == 0
                 startedActivities++
                 AppForeground.isForeground = true
+                if (wasInBackground) reportHeartbeatOnForeground()
             }
 
             override fun onActivityStopped(activity: Activity) {
@@ -76,6 +90,30 @@ class SeniorApplication : Application() {
         MonitoringWatchdogJobService.schedule(this)
     }
 
+    /**
+     * Checks in the moment the senior opens the app.
+     *
+     * The watchdog's fifteen-minute pass is the reliable channel and stays the reliable channel;
+     * this exists because fifteen minutes is a long time to wait to find out a phone is at 4%,
+     * and because opening the app is the one moment we know for certain the phone is awake, has
+     * a live process and is probably on a network. It is also what makes the family's view
+     * answer on demand rather than on a timer.
+     *
+     * Rate limited because [android.app.Activity] starts are not rare — a senior flicking
+     * between apps would otherwise post a check-in per flick, and the number will not have
+     * changed. A minute is far below the fifteen the watchdog runs at and far above anything a
+     * person does by hand.
+     */
+    private fun reportHeartbeatOnForeground() {
+        val now = System.currentTimeMillis()
+        if (now - lastForegroundHeartbeatAt < FOREGROUND_HEARTBEAT_MIN_INTERVAL_MS) return
+        lastForegroundHeartbeatAt = now
+
+        appScope.launch {
+            HeartbeatReporter.report(this@SeniorApplication, SeniorAppDatabase.getInstance(this@SeniorApplication))
+        }
+    }
+
     private fun scheduleNightlyAggregation() {
         val request = PeriodicWorkRequestBuilder<NightlyAggregationWorker>(24, TimeUnit.HOURS)
             .setInitialDelay(millisUntilNext2AM(), TimeUnit.MILLISECONDS)
@@ -98,5 +136,10 @@ class SeniorApplication : Application() {
             if (before(now)) add(Calendar.DAY_OF_MONTH, 1)
         }
         return next2AM.timeInMillis - now.timeInMillis
+    }
+
+    private companion object {
+        /** Shortest gap between two foreground-triggered check-ins. */
+        const val FOREGROUND_HEARTBEAT_MIN_INTERVAL_MS = 60_000L
     }
 }

@@ -41,6 +41,13 @@ object HeartbeatReporter {
      */
     suspend fun report(context: Context, db: SeniorAppDatabase) {
         val app = context.applicationContext
+
+        // The same APK serves both roles, and this is now called from the Application class, so
+        // it fires on a family contact's handset as well. There is no senior on that device to
+        // report on, and without this the attempt would still cost a database read and a failed
+        // registration round trip every time they opened the app.
+        if (db.seniorDao().getOnboardedSenior() == null) return
+
         try {
             val reading = readBattery(app)
             SeniorCloudSync(db).withSyncId { syncId ->
