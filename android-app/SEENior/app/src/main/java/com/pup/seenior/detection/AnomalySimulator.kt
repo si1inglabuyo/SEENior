@@ -43,6 +43,11 @@ object AnomalySimulator {
          *  chain. The detector dedups into it by design rather than spawning a duplicate. */
         data object AlreadyActive : Result
         data object NoSenior : Result
+        /** The reading crossed the threshold and Layer 3 judged it unremarkable for this hour, so
+         *  it was recorded and nobody was told. Not a failure — the graduated response working. */
+        data class LoggedOnly(val zScore: Double) : Result
+        /** Inside the senior's declared nap, where stillness is the expected reading (§6). */
+        data object SuppressedByNap : Result
     }
 
     suspend fun simulateProlongedInactivity(db: SeniorAppDatabase): Result {
@@ -50,6 +55,19 @@ object AnomalySimulator {
         val onboarding = db.seniorOnboardingDao().getBySeniorId(senior.seniorId) ?: return Result.NoSenior
 
         val now = System.currentTimeMillis()
+
+        // Checked here as well as inside the detector so the demo can say *why* nothing happened.
+        // The detector returns an empty list either way, and "no alert" with no reason is the
+        // least useful thing this button could report.
+        if (FuzzyRiskClassifier.isWithinNapWindow(
+                FuzzyRiskClassifier.minuteOfDay(now),
+                onboarding.napTime.takeIf { onboarding.hasNap },
+                onboarding.napDurationMinutes
+            )
+        ) {
+            return Result.SuppressedByNap
+        }
+
         val timeBlock = SeedBaselineGenerator
             .resolveTimeBlock(now, onboarding.wakeTime, onboarding.sleepTime)
             .name.lowercase()
@@ -93,14 +111,16 @@ object AnomalySimulator {
             stepCount = 0
         )
 
-        val created = MedianMadDetector.evaluate(senior.seniorId, syntheticReading, baselineDao, alertDao)
+        val created =
+            MedianMadDetector.evaluate(senior.seniorId, syntheticReading, onboarding, baselineDao, alertDao)
 
         return if (alertDao.getActiveAlert(senior.seniorId, "inactivity") != null) {
             Result.Triggered(TARGET_Z_SCORE, created.firstOrNull { it.triggerType == "inactivity" })
         } else {
-            // Defensive: the detector declined to alert. Only reachable if the baseline changed
-            // between the read above and the evaluate call.
-            Result.NoBaseline
+            // No open alert, so Layer 3 answered Low: the same z-score, read against the hour it
+            // arrived in, was not worth telling anyone about. Expected at night and during
+            // declared rest — which is the layer doing its job, not the demo failing.
+            Result.LoggedOnly(TARGET_Z_SCORE)
         }
     }
 }

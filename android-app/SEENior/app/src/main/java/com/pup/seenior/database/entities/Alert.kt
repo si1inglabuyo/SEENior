@@ -47,8 +47,13 @@ data class Alert(
      */
     @ColumnInfo(name = "location_cluster_id") val locationClusterId: String? = null,
     /**
-     * "pending", "self_cancelled", "acknowledged_family", "escalated_barangay",
+     * "pending", "logged", "self_cancelled", "acknowledged_family", "escalated_barangay",
      * "resolved", or "false_positive"
+     *
+     * "logged" is the low-risk tier of CLAUDE.md §5 — an anomaly the Fuzzy Logic layer judged not
+     * worth telling anyone about. It is deliberately outside every status set the response chain
+     * queries, so such a row raises no prompt, arms no alarm, and cannot dedupe a real alert away.
+     * It exists so the record shows what was seen and consciously not acted on.
      */
     @ColumnInfo(name = "status") val status: String = "pending",
     /** JSON array string logging the full escalation timeline for audit purposes */

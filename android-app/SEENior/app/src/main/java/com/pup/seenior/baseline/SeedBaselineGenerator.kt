@@ -143,7 +143,10 @@ object SeedBaselineGenerator {
         }
     }
 
-    private fun parseToMinuteOfDay(hhmm: String): Int {
+    /** Public because [com.pup.seenior.detection.FuzzyRiskClassifier] places readings on the
+     *  same wall clock these seeds were built from, and two parsers would be two chances to
+     *  disagree about what "22:30" means. */
+    fun parseToMinuteOfDay(hhmm: String): Int {
         val (hour, minute) = hhmm.split(":").map { it.toInt() }
         return hour * 60 + minute
     }

@@ -215,6 +215,11 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                     "No baseline for this time block yet, so there is nothing to compare against."
                 AnomalySimulator.Result.NoSenior ->
                     "No senior profile found on this phone."
+                is AnomalySimulator.Result.LoggedOnly ->
+                    "Deviation found (z = %.1f), judged normal for this hour — logged, nobody notified."
+                        .format(result.zScore)
+                AnomalySimulator.Result.SuppressedByNap ->
+                    "Inside the declared nap window, so detection is suppressed — stillness is expected here."
             }
         }
     }

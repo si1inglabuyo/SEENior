@@ -79,6 +79,24 @@ interface AlertDao {
     """)
     suspend fun getRecentActiveAlert(seniorId: Int, triggerType: String, notBefore: Long): Alert?
 
+    /**
+     * The most recent low-risk note for this signal, for collapsing repeats.
+     *
+     * Separate from [getRecentActiveAlert] because it asks the opposite question. That one looks
+     * for an alert somebody is being told about, so that a second detection joins it instead of
+     * spawning a duplicate; this one looks only among rows nobody was told about, so an hour of
+     * unremarkable stillness leaves one line in the record rather than twelve.
+     */
+    @Query("""
+        SELECT * FROM Alerts
+        WHERE senior_id = :seniorId AND trigger_type = :triggerType
+          AND status = 'logged'
+          AND triggered_at >= :notBefore
+        ORDER BY triggered_at DESC
+        LIMIT 1
+    """)
+    suspend fun getRecentLoggedAlert(seniorId: Int, triggerType: String, notBefore: Long): Alert?
+
     @Query("UPDATE Alerts SET risk_level = :riskLevel, deviation_score = :deviationScore WHERE alert_id = :alertId")
     suspend fun updateSeverity(alertId: Int, riskLevel: String, deviationScore: Double)
 

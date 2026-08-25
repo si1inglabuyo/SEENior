@@ -281,6 +281,7 @@ class SensorCollectionService : Service(), SensorEventListener
         MedianMadDetector.evaluate(
             senior.seniorId,
             sensorData,
+            onboarding,
             database.baselineDao(),
             database.alertDao()
         ).forEach { alert ->
