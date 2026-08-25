@@ -318,13 +318,20 @@ private fun SeniorCard(contact: ContactDto, status: SeniorStatus?) {
                 label = "Alerts Today",
                 modifier = Modifier.weight(1f).fillMaxHeight()
             )
-            // Battery stays "—": no battery telemetry exists in the cloud schema, and charge
-            // level is device sensor data, which CLAUDE.md §11 keeps on the senior's phone.
-            // Surfacing it needs an explicit privacy decision, not a quiet new field.
+            // The privacy decision the earlier note here asked for was taken deliberately:
+            // the senior's phone reports its *current* charge on each heartbeat and the server
+            // overwrites the previous value. A single reading is device health — whether the
+            // phone can keep monitoring at all — while a series of readings would describe when
+            // the senior charges their phone, and so roughly when they sleep, which is the
+            // behavioural data CLAUDE.md §11 keeps on the device. Nothing accumulates.
+            //
+            // Still "—" for a senior whose phone has never checked in. That is a real state
+            // worth showing as itself rather than dressing up as 0%.
             StatTile(
                 icon = Icons.Filled.BatteryChargingFull,
-                value = "—",
-                label = "Battery",
+                value = senior.batteryPercent?.let { "$it%" } ?: "—",
+                label = if (senior.isCharging == true) "Charging" else "Battery",
+                background = batteryTileColor(senior.batteryPercent, senior.isCharging == true),
                 modifier = Modifier.weight(1f).fillMaxHeight()
             )
         }
@@ -356,6 +363,20 @@ private fun StatusChip(status: SeniorStatus?) {
 
 /** High/medium open risk breaks out of the flat blue palette — a family member scanning Home
  *  should not have to read the tile's text to notice something is wrong. */
+/**
+ * Colours the battery tile only when the charge is something a family member could act on.
+ *
+ * A phone on the charger is being dealt with, whatever the number says — 8% and climbing needs
+ * nobody's attention, so it stays the ordinary blue. It is 8% and *falling* that means monitoring
+ * is about to stop, and that is worth the same red the risk tile uses for a high-risk alert.
+ */
+private fun batteryTileColor(percent: Int?, charging: Boolean): Color = when {
+    percent == null || charging -> FamilyColors.Blue
+    percent <= 15 -> FamilyColors.AlertRed
+    percent <= 30 -> FamilyColors.Orange
+    else -> FamilyColors.Blue
+}
+
 private fun riskTileColor(riskLevel: String?): Color = when (riskLevel) {
     "high" -> FamilyColors.AlertRed
     "medium" -> FamilyColors.Orange

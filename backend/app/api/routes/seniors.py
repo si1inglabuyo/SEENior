@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.models import Senior
 from app.db.session import get_db
 from app.schemas.contact import InviteCodeOut
-from app.schemas.senior import SeniorCreate, SeniorOut, SeniorUpdate
+from app.schemas.senior import SeniorCreate, SeniorHeartbeat, SeniorOut, SeniorUpdate
 
 router = APIRouter(prefix="/seniors", tags=["seniors"])
 
@@ -48,6 +48,42 @@ async def update_senior(
     senior = await _get_senior_or_404(sync_id, db)
     for field, value in payload.model_dump().items():
         setattr(senior, field, value)
+    await db.commit()
+    await db.refresh(senior)
+    return senior
+
+
+@router.post("/{sync_id}/heartbeat", response_model=SeniorOut)
+async def heartbeat(
+    sync_id: UUID, payload: SeniorHeartbeat, db: AsyncSession = Depends(get_db)
+) -> Senior:
+    """Records that this senior's phone is still running, and how much charge it has left.
+
+    The senior has no account to sign in with (CLAUDE.md 2), so the sync_id is the
+    credential here exactly as it is for update_senior and generate_invite.
+
+    The *timestamp* is the point of this endpoint. Between alerts nothing in the system
+    could distinguish a phone quietly monitoring from one that was flat, switched off, or
+    no longer running the app after a reboot -- a failure mode measured on the test
+    handset, where a reboot left monitoring off until somebody opened the app by hand. A
+    check-in that carries no readings at all is therefore still worth recording.
+
+    Each call overwrites the previous values. Nothing accumulates: a series of battery
+    readings would describe when the senior charges their phone, and therefore roughly
+    when they sleep, which is the behavioural data 11 keeps on the device. A single
+    current reading only describes whether the device can keep working.
+    """
+    senior = await _get_senior_or_404(sync_id, db)
+
+    # Naive UTC to match the column type, same convention as generate_invite below.
+    senior.last_seen_at = datetime.now(timezone.utc).replace(tzinfo=None)
+    # Only overwrite a reading the phone actually sent. A check-in that could not read the
+    # battery must not erase the last figure the family saw and replace it with nothing.
+    if payload.battery_percent is not None:
+        senior.battery_percent = payload.battery_percent
+    if payload.is_charging is not None:
+        senior.is_charging = payload.is_charging
+
     await db.commit()
     await db.refresh(senior)
     return senior

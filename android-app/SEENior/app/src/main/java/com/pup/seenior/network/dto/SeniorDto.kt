@@ -25,6 +25,15 @@ data class UpdateSeniorRequest(
     val mobileNumber: String
 )
 
+/**
+ * Mirrors backend SeniorHeartbeat. Both fields are nullable because a reading can genuinely be
+ * unavailable, and a check-in that carries nothing but "still running" is still worth sending.
+ */
+data class HeartbeatRequest(
+    val batteryPercent: Int?,
+    val isCharging: Boolean?
+)
+
 /** Mirrors backend SeniorOut. */
 data class SeniorDto(
     val syncId: String,
@@ -35,5 +44,13 @@ data class SeniorDto(
     val barangay: String,
     val address: String,
     val mobileNumber: String,
-    val createdAt: String
+    val createdAt: String,
+    /**
+     * Device health, not behaviour — the current reading only, never a series (CLAUDE.md §11).
+     * All three are null until the senior's phone has checked in at least once, and against an
+     * older backend they simply stay null rather than breaking the parse.
+     */
+    val lastSeenAt: String? = null,
+    val batteryPercent: Int? = null,
+    val isCharging: Boolean? = null
 )

@@ -9,6 +9,7 @@ import android.content.Context
 import android.util.Log
 import com.pup.seenior.alerts.EscalationScheduler
 import com.pup.seenior.database.SeniorAppDatabase
+import com.pup.seenior.network.HeartbeatReporter
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -121,6 +122,11 @@ class MonitoringWatchdogJobService : JobService() {
         // Alarms are lost on reboot and on force-stop. Anything still open needs its deadline put
         // back, or it waits for a wake-up that is never coming.
         EscalationScheduler.rearmAll(app)
+
+        // Last, and deliberately so: this is the only part of the pass that touches the network,
+        // and monitoring must already be restored before anything waits on a radio. It never
+        // throws, so a phone with no signal still completes everything above.
+        HeartbeatReporter.report(app, db)
     }
 
     companion object {

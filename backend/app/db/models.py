@@ -144,6 +144,17 @@ class Senior(Base):
     invite_code: Mapped[str | None ] = mapped_column(String(6), nullable=True)
     invite_code_expires_at: Mapped[datetime | None] = mapped_column(nullable=True)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+    # Device health, written by POST /seniors/{sync_id}/heartbeat and overwritten every
+    # time. Deliberately three scalars rather than a history: the current charge says
+    # whether the phone can keep monitoring, while a series of charge readings is
+    # behavioural -- when someone plugs in is roughly when they go to bed -- and that is
+    # the routine CLAUDE.md 11 keeps on the device. NULL means never heard from, which is
+    # a different answer from 0% and draining.
+    last_seen_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    battery_percent: Mapped[int | None] = mapped_column(nullable=True)
+    is_charging: Mapped[bool | None] = mapped_column(nullable=True)
+
     contacts: Mapped[list["Contact"]] = relationship(back_populates="senior")
     alerts: Mapped[list["Alert"]] = relationship(back_populates="senior")
 

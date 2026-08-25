@@ -3,6 +3,7 @@ package com.pup.seenior.network
 import com.pup.seenior.network.dto.AlertDispatchRequest
 import com.pup.seenior.network.dto.AlertDto
 import com.pup.seenior.network.dto.ChangePasswordRequest
+import com.pup.seenior.network.dto.HeartbeatRequest
 import com.pup.seenior.network.dto.ContactDto
 import com.pup.seenior.network.dto.CreateAlertRequest
 import com.pup.seenior.network.dto.CreateSeniorRequest
@@ -43,6 +44,12 @@ interface ApiService {
     suspend fun updateSenior(
         @Path("syncId") syncId: String,
         @Body body: UpdateSeniorRequest
+    ): SeniorDto
+
+    @POST("seniors/{syncId}/heartbeat")
+    suspend fun sendHeartbeat(
+        @Path("syncId") syncId: String,
+        @Body body: HeartbeatRequest
     ): SeniorDto
 
     @POST("seniors/{syncId}/invite")
