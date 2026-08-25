@@ -23,6 +23,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -111,13 +113,30 @@ fun ConnectedScreen(
                         .padding(vertical = 4.dp)
                         .background(if (selected) FamilyColors.BlueLightBg else Color.White, RoundedCornerShape(20.dp))
                         .border(1.dp, if (selected) FamilyColors.Blue else FamilyColors.FieldBorder, RoundedCornerShape(20.dp))
-                        .clickable { viewModel.selectedRelationship = rel }
+                        .clickable { viewModel.chooseRelationship(rel) }
                         .padding(horizontal = 18.dp, vertical = 10.dp)
                 ) {
                     Text(rel.replaceFirstChar { it.uppercase() }, color = if (selected) FamilyColors.Blue else FamilyColors.TextPrimary, fontSize = 15.sp)
                 }
             }
         }
+
+        // "Other", per the design: a free-text field under the chips rather than a seventh chip.
+        // Six labels cannot cover how Filipino families actually describe themselves — niece,
+        // neighbour, kapitbahay — and a pairing that cannot be completed because none of the
+        // words fit is a worse outcome than an unusual label in the database.
+        OutlinedTextField(
+            value = viewModel.otherRelationship,
+            onValueChange = { viewModel.typeOtherRelationship(it) },
+            modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+            placeholder = { Text("Other") },
+            singleLine = true,
+            shape = RoundedCornerShape(12.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = FamilyColors.Blue,
+                unfocusedBorderColor = FamilyColors.FieldBorder
+            )
+        )
 
         viewModel.error?.let {
             Text(it, color = FamilyColors.ErrorRed, fontSize = 14.sp, modifier = Modifier.padding(top = 12.dp))
@@ -126,7 +145,7 @@ fun ConnectedScreen(
         Spacer(Modifier.height(24.dp))
         BluePillButton(
             text = if (viewModel.isPairing) "CONNECTING…" else "Go to Home",
-            enabled = viewModel.selectedRelationship != null && !viewModel.isPairing,
+            enabled = viewModel.relationshipLabel != null && !viewModel.isPairing,
             onClick = { viewModel.pair(onGoHome) }
         )
 

@@ -31,7 +31,35 @@ class FamilyPairingViewModel(application: Application) : AndroidViewModel(applic
         private set
 
     // Connected step — relationship + pair
+    /** One of the offered chips, or null when the family member typed their own instead. */
     var selectedRelationship by mutableStateOf<String?>(null)
+        private set
+
+    /** A relationship the chips do not cover ("niece", "neighbour", "kapitbahay"). */
+    var otherRelationship by mutableStateOf("")
+        private set
+
+    /**
+     * What actually gets stored, whichever way it was given.
+     *
+     * The typed value wins when there is one: the chips are a shortcut, and someone who has
+     * bothered to type means the shortcut did not fit them. Null means neither was supplied,
+     * which is what keeps the button disabled.
+     */
+    val relationshipLabel: String?
+        get() = otherRelationship.trim().takeIf { it.isNotEmpty() } ?: selectedRelationship
+
+    /** Picking a chip clears anything typed, so only one answer is ever in play. */
+    fun chooseRelationship(value: String) {
+        selectedRelationship = value
+        otherRelationship = ""
+    }
+
+    /** Typing clears the chip for the same reason, and stops at what the column can hold. */
+    fun typeOtherRelationship(value: String) {
+        otherRelationship = value.take(RELATIONSHIP_MAX_LENGTH)
+        if (otherRelationship.isNotBlank()) selectedRelationship = null
+    }
     var isPairing by mutableStateOf(false)
         private set
 
@@ -43,6 +71,7 @@ class FamilyPairingViewModel(application: Application) : AndroidViewModel(applic
         code = ""
         verifiedSenior = null
         selectedRelationship = null
+        otherRelationship = ""
         error = null
     }
 
@@ -67,7 +96,7 @@ class FamilyPairingViewModel(application: Application) : AndroidViewModel(applic
     }
 
     fun pair(onPaired: () -> Unit) {
-        val relationship = selectedRelationship ?: return
+        val relationship = relationshipLabel ?: return
         val token = FamilySession.getToken(getApplication()) ?: return
         if (isPairing) return
         viewModelScope.launch {
@@ -91,5 +120,11 @@ class FamilyPairingViewModel(application: Application) : AndroidViewModel(applic
                 isPairing = false
             }
         }
+    }
+
+    private companion object {
+        /** Matches contacts.relationship_label, String(32) — truncate here rather than let the
+         *  server reject a pairing over a long word typed in good faith. */
+        const val RELATIONSHIP_MAX_LENGTH = 32
     }
 }

@@ -23,10 +23,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Contacts
-import androidx.compose.material.icons.filled.Phone
-import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.LocationOn
+import androidx.compose.material.icons.outlined.Phone
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
@@ -224,23 +225,42 @@ private fun ContactDetailScreen(
                 modifier = Modifier.padding(top = 24.dp, bottom = 10.dp)
             )
 
-            InfoRow(Icons.Filled.Phone, "Phone", formatPhone(senior.mobileNumber))
-            Spacer(Modifier.height(10.dp))
-            InfoRow(Icons.Filled.Place, "Home address", senior.address)
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, FamilyColors.FieldBorder, RoundedCornerShape(14.dp))
+            ) {
+                InfoRow(Icons.Outlined.Phone, "Phone", formatPhone(senior.mobileNumber))
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 14.dp), thickness = 1.dp, color = FamilyColors.FieldBorder)
+                InfoRow(Icons.Outlined.LocationOn, "Home address", senior.address)
+            }
 
             Spacer(Modifier.height(28.dp))
 
             Row(
                 modifier = Modifier
+                    .padding(horizontal = 20.dp)
                     .fillMaxWidth()
-                    .height(52.dp)
-                    .border(1.dp, FamilyColors.ErrorRed, RoundedCornerShape(14.dp))
+                    .height(56.dp)
+                    .background(Color.White, RoundedCornerShape(16.dp))
+                    .border(1.dp, FamilyColors.FieldBorder, RoundedCornerShape(16.dp))
                     .clickable { showConfirm = true },
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(Icons.Outlined.Delete, null, tint = FamilyColors.ErrorRed, modifier = Modifier.size(20.dp))
-                Text("Unlink Senior", color = FamilyColors.ErrorRed, fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 8.dp))
+                Icon(
+                    Icons.Outlined.Delete,
+                    null,
+                    tint = Color(0xFF9E2A2A),
+                    modifier = Modifier.size(22.dp)
+                )
+                Text(
+                    "Unlink Senior",
+                    color = Color(0xFF9E2A2A),
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(start = 8.dp)
+                )
             }
 
             viewModel.error?.let {
@@ -278,17 +298,16 @@ private fun InfoRow(icon: ImageVector, label: String, value: String) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .border(1.dp, FamilyColors.FieldBorder, RoundedCornerShape(14.dp))
             .padding(14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
-            modifier = Modifier.size(36.dp).background(FamilyColors.BlueLightBg, RoundedCornerShape(10.dp)),
+            modifier = Modifier.size(40.dp).background(FamilyColors.BlueLightBg, RoundedCornerShape(12.dp)),
             contentAlignment = Alignment.Center
         ) {
-            Icon(icon, null, tint = FamilyColors.Blue, modifier = Modifier.size(18.dp))
+            Icon(icon, null, tint = FamilyColors.TextPrimary, modifier = Modifier.size(20.dp))
         }
-        Column(modifier = Modifier.padding(start = 12.dp)) {
+        Column(modifier = Modifier.padding(start = 14.dp)) {
             Text(label, color = FamilyColors.TextSecondary, fontSize = 13.sp)
             Text(value, color = FamilyColors.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
         }
