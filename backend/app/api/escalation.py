@@ -31,7 +31,7 @@ from app.api.routes.alerts import (
 )
 from app.core import push
 from app.core.config import settings
-from app.db.models import Alert, AlertStatus, RiskLevel
+from app.db.models import Alert, AlertStatus, RiskLevel, TriggerType
 from app.db.session import SessionLocal
 
 logger = logging.getLogger(__name__)
@@ -84,7 +84,21 @@ def family_deadline(alert: Alert) -> datetime:
 
 
 def barangay_deadline(alert: Alert) -> datetime:
-    """When the server gives up on the family answering and escalates to the barangay."""
+    """When the barangay is told.
+
+    For everything except SOS this is one family-response window after the family were
+    notified: a detected anomaly is the system's *guess* that something is wrong, so it is
+    walked up the tiers, giving the family their turn and sparing the barangay a call-out
+    for something a daughter two streets away can handle.
+
+    An SOS is not a guess. The senior has consciously said they need help, and there is
+    nothing left for the system to confirm -- so once the pocket-press window closes,
+    everyone is told at once (CLAUDE.md §7). Making someone who has already pressed the
+    button wait another two minutes while the system re-establishes what they just told it
+    is the opposite of what the button is for.
+    """
+    if alert.trigger_type == TriggerType.SOS:
+        return family_deadline(alert)
     return family_deadline(alert) + timedelta(seconds=settings.family_response_seconds)
 
 
@@ -138,21 +152,19 @@ async def sweep_overdue_alerts(db: AsyncSession) -> tuple[int, int]:
         if alert.senior is None:
             continue
 
-        # Tier 3. Checked before tier 2 so an alert that has been sitting since before the
-        # service last restarted lands in the right place in one pass instead of two.
-        if now >= barangay_deadline(alert):
-            alert.status = AlertStatus.ESCALATED
-            append_step(
-                alert,
-                "escalated_barangay_auto",
-                reason="No response from the senior or any family contact",
-            )
-            escalated_barangay += 1
-            logger.info("Auto-escalated alert %s to barangay", alert.sync_id)
-            continue
+        # The two tiers are evaluated independently, and neither one short-circuits the
+        # other. That matters for SOS, where both deadlines are the same instant: an
+        # `elif`, or the `continue` this loop used to have, would fire the barangay and
+        # leave the family never told at all -- the exact opposite of the "notify everyone
+        # at once" the button promises.
+        #
+        # It also means a backlog alert -- one that sat through a restart and is now past
+        # both deadlines -- notifies both tiers in a single pass rather than silently
+        # skipping the family. When the system has already been late, telling more people
+        # is the safer failure.
 
-        # Tier 2, but only as a backstop: if the phone's own timer already did this, the
-        # step is on the timeline and there is nothing to do. This is the rung Hiber eats.
+        # Tier 2, as a backstop: if the phone's own timer already did this, the step is on
+        # the timeline and there is nothing to do. This is the rung Hiber eats.
         if now >= family_deadline(alert) and not has_step(alert, *FAMILY_NOTIFIED_STEPS):
             append_step(
                 alert,
@@ -174,6 +186,21 @@ async def sweep_overdue_alerts(db: AsyncSession) -> tuple[int, int]:
                         trigger_type=alert.trigger_type.value,
                     ),
                 ))
+
+        # Tier 3.
+        if now >= barangay_deadline(alert):
+            alert.status = AlertStatus.ESCALATED
+            append_step(
+                alert,
+                "escalated_barangay_auto",
+                reason=(
+                    "SOS pressed by the senior"
+                    if alert.trigger_type == TriggerType.SOS
+                    else "No response from the senior or any family contact"
+                ),
+            )
+            escalated_barangay += 1
+            logger.info("Auto-escalated alert %s to barangay", alert.sync_id)
 
     if notified_family or escalated_barangay:
         await db.commit()
