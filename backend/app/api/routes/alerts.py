@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/alerts", tags=["alerts"])
 
 
-async def _family_device_tokens(db: AsyncSession, senior_id: int) -> list[str]:
+async def family_device_tokens(db: AsyncSession, senior_id: int) -> list[str]:
     """Every push token belonging to a currently-linked, active family contact.
 
     `Contact.is_active()` is as load-bearing here as it is on the read paths: a family
@@ -54,7 +54,7 @@ async def _family_device_tokens(db: AsyncSession, senior_id: int) -> list[str]:
     return list(result.scalars().all())
 
 
-async def _deliver_alert_push(tokens: list[str], payload: push.AlertPush) -> None:
+async def deliver_alert_push(tokens: list[str], payload: push.AlertPush) -> None:
     """Sends the push and prunes any token FCM declared permanently dead.
 
     Runs as a background task, after the response has gone back to the senior's phone.
@@ -124,10 +124,10 @@ async def create_alert(
     # does not exist. Scheduling it as a background task keeps FCM off the critical path:
     # the senior's phone gets its 201 whether or not Google is reachable, and the family
     # app's polling remains the fallback it always was.
-    tokens = await _family_device_tokens(db, senior.id)
+    tokens = await family_device_tokens(db, senior.id)
     if tokens:
         background_tasks.add_task(
-            _deliver_alert_push,
+            deliver_alert_push,
             tokens,
             push.AlertPush(
                 alert_sync_id=str(alert.sync_id),
@@ -210,7 +210,7 @@ async def _family_alert(sync_id: UUID, db: AsyncSession, current_user: User) -> 
     return alert
 
 
-def _append_step(alert: Alert, step: str, **extra: str | None) -> None:
+def append_step(alert: Alert, step: str, **extra: str | None) -> None:
     steps = list(alert.escalation_steps or [])
     # Naive UTC, matching Alert.created_at/resolved_at's column type.
     at = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
@@ -259,7 +259,7 @@ async def cancel_alert(
     # cannot grow without an ALTER TYPE. *Who* closed it is an audit fact, and escalation_steps
     # is where audit facts already live (CLAUDE.md 8) -- so the timeline records that this was
     # the senior, not a family member, and no migration is needed to say so.
-    _append_step(alert, "self_cancelled_senior", by=alert.senior.first_name)
+    append_step(alert, "self_cancelled_senior", by=alert.senior.first_name)
     await db.commit()
     await db.refresh(alert)
     return alert
@@ -277,7 +277,7 @@ async def acknowledge_alert(
     if alert.status != AlertStatus.PENDING:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Alert is not pending")
     alert.status = AlertStatus.ACKNOWLEDGED
-    _append_step(alert, "acknowledged_family")
+    append_step(alert, "acknowledged_family")
     await db.commit()
     await db.refresh(alert)
     return alert
@@ -296,7 +296,7 @@ async def dispatch_barangay(
     if alert.status in (AlertStatus.RESOLVED, AlertStatus.FALSE_POSITIVE):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Alert already closed")
     alert.status = AlertStatus.ESCALATED
-    _append_step(alert, "escalated_barangay", reason=payload.reason, notes=payload.notes)
+    append_step(alert, "escalated_barangay", reason=payload.reason, notes=payload.notes)
     await db.commit()
     await db.refresh(alert)
     return alert
@@ -324,7 +324,7 @@ async def resolve_alert(
     #
     # full_name is nullable (a Google account can arrive without one), so fall back to the
     # username, which is not — better a login handle than a blank line where a name should be.
-    _append_step(alert, "resolved_family", by=current_user.full_name or current_user.username)
+    append_step(alert, "resolved_family", by=current_user.full_name or current_user.username)
     await db.commit()
     await db.refresh(alert)
     return alert

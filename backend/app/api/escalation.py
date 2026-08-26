@@ -1,0 +1,209 @@
+"""The server-side escalation clock: what moves an unanswered alert up the chain.
+
+Why this is here and not on the senior's phone
+----------------------------------------------
+Three on-device alarm mechanisms were measured failing on the Infinix test handset
+(WorkManager, setExactAndAllowWhileIdle, setAlarmClock). The cause was not Android's own
+Doze but Transsion's "Hiber" layer, which freezes the app seconds after the screen goes
+off and removes its alarms from AlarmManager -- the alarm is not delayed, it is gone.
+
+Nothing running on that phone can be relied on to fire on time. This can: it executes in
+the API process, which no handset can freeze. FCM delivery was never the problem (Play
+Services holds an exemption the app cannot get); the *timer* was.
+
+The phone's own timer is deliberately kept as well. It is faster and works with no signal,
+which is what CLAUDE.md §1 promises. This module waits a grace period longer than the
+phone does, so it only acts when the phone did not.
+"""
+
+import asyncio
+import logging
+from datetime import datetime, timedelta, timezone
+
+from sqlalchemy import select, text
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+
+from app.api.routes.alerts import (
+    append_step,
+    deliver_alert_push,
+    family_device_tokens,
+)
+from app.core import push
+from app.core.config import settings
+from app.db.models import Alert, AlertStatus, RiskLevel
+from app.db.session import SessionLocal
+
+logger = logging.getLogger(__name__)
+
+# Mirrors AlertEscalator.windowSecondsFor() in the Android app -- how long the senior gets
+# to answer the wellness prompt, which depends on what raised the alert. If these two ever
+# disagree, the server could escalate while the senior's own countdown is still visibly
+# running: exactly the bug that table was written to prevent on the device side.
+SENIOR_WINDOW_SECONDS = {
+    "sos": 10,           # long enough to catch a pocket press, no longer (CLAUDE.md §7)
+    "fall_pattern": 60,  # Layer 0 gets a compressed window (CLAUDE.md §5)
+}
+DEFAULT_SENIOR_WINDOW_SECONDS = 600
+
+
+def utc_now() -> datetime:
+    """Naive UTC. Every timestamp column in this schema is TIMESTAMP WITHOUT TIME ZONE,
+    and asyncpg refuses a timezone-aware value against one."""
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+async def db_now(db: AsyncSession) -> datetime:
+    """"Now" as the database itself reckons it.
+
+    Not the same thing as utc_now(), and the difference is load-bearing. `alerts.created_at`
+    is filled in by Postgres (server_default=func.now()) and lands in a TIMESTAMP WITHOUT
+    TIME ZONE column, which keeps the server's wall-clock reading and throws the zone away.
+    Comparing that against Python's UTC clock only works if the database happens to run in
+    UTC. Render's does; a development machine set to Manila time does not, and there the
+    stored value reads eight hours ahead -- so every deadline computed from it sits eight
+    hours in the future and nothing ever escalates. That is not a failure anyone would
+    notice quickly: the sweep runs, finds nothing overdue, and says nothing.
+
+    Asking the database for its own clock puts both sides of the comparison on the same one,
+    whatever zone either machine is set to.
+    """
+    result = await db.execute(text("SELECT localtimestamp"))
+    return result.scalar_one()
+
+
+def senior_window(alert: Alert) -> int:
+    return SENIOR_WINDOW_SECONDS.get(alert.trigger_type.value, DEFAULT_SENIOR_WINDOW_SECONDS)
+
+
+def family_deadline(alert: Alert) -> datetime:
+    """When the server gives up on the senior answering and notifies family itself."""
+    return alert.created_at + timedelta(
+        seconds=senior_window(alert) + settings.escalation_grace_seconds
+    )
+
+
+def barangay_deadline(alert: Alert) -> datetime:
+    """When the server gives up on the family answering and escalates to the barangay."""
+    return family_deadline(alert) + timedelta(seconds=settings.family_response_seconds)
+
+
+def has_step(alert: Alert, *steps: str) -> bool:
+    return any((entry or {}).get("step") in steps for entry in (alert.escalation_steps or []))
+
+
+# Both of these mean "the family tier has already been told". The first is what the phone
+# writes when its own timer wins; the second is what this sweep writes when it does not.
+#
+# Checking only the phone's name was a real bug, caught the first time this ran against a
+# database: the sweep could never see its own step, so it re-fired on every pass -- twenty
+# duplicate timeline entries in ninety seconds, and, for a senior who actually has family
+# devices registered, twenty duplicate pushes. An emergency notification that arrives
+# twenty times is worse than one that arrives once; people turn those off.
+FAMILY_NOTIFIED_STEPS = ("escalated_family", "escalated_family_server")
+
+
+async def sweep_overdue_alerts(db: AsyncSession) -> tuple[int, int]:
+    """One pass of the clock. Returns (families notified, barangays escalated).
+
+    Only `pending` alerts are considered, and that single check is the entire test for
+    "nobody has answered". Every possible response already moves the row off pending --
+    the senior's own "I'm safe" resolves it; family acknowledge/dispatch/resolve all move
+    it -- so there is no separate flag to keep in step with reality.
+
+    Low-risk alerts are skipped. CLAUDE.md §5 says low risk is logged only, and sending a
+    responder to someone's house over an alert the system itself judged not worth a
+    notification is how a barangay learns to stop reading the dashboard.
+
+    Both deadlines are computed from `created_at` rather than stored in a column. That
+    means no migration, and it means changing a window in the environment immediately
+    changes the behaviour of alerts already in flight -- convenient while demonstrating,
+    and one less field for the two databases to have to agree about.
+    """
+    # The database's clock, not Python's -- see db_now(). These deadlines are measured
+    # against created_at, which Postgres wrote, so Postgres has to be the one asked what
+    # time it is now.
+    now = await db_now(db)
+    result = await db.execute(
+        select(Alert)
+        .where(Alert.status == AlertStatus.PENDING, Alert.risk_level != RiskLevel.LOW)
+        .options(selectinload(Alert.senior))
+    )
+
+    notified_family = 0
+    escalated_barangay = 0
+    pushes: list[tuple[list[str], push.AlertPush]] = []
+
+    for alert in result.scalars().all():
+        if alert.senior is None:
+            continue
+
+        # Tier 3. Checked before tier 2 so an alert that has been sitting since before the
+        # service last restarted lands in the right place in one pass instead of two.
+        if now >= barangay_deadline(alert):
+            alert.status = AlertStatus.ESCALATED
+            append_step(
+                alert,
+                "escalated_barangay_auto",
+                reason="No response from the senior or any family contact",
+            )
+            escalated_barangay += 1
+            logger.info("Auto-escalated alert %s to barangay", alert.sync_id)
+            continue
+
+        # Tier 2, but only as a backstop: if the phone's own timer already did this, the
+        # step is on the timeline and there is nothing to do. This is the rung Hiber eats.
+        if now >= family_deadline(alert) and not has_step(alert, *FAMILY_NOTIFIED_STEPS):
+            append_step(
+                alert,
+                "escalated_family_server",
+                reason="Senior did not answer; phone timer did not report in",
+            )
+            notified_family += 1
+            logger.info("Server-side family escalation for alert %s", alert.sync_id)
+
+            tokens = await family_device_tokens(db, alert.senior_id)
+            if tokens:
+                pushes.append((
+                    tokens,
+                    push.AlertPush(
+                        alert_sync_id=str(alert.sync_id),
+                        senior_sync_id=str(alert.senior.sync_id),
+                        senior_name=alert.senior.first_name,
+                        risk_level=alert.risk_level.value,
+                        trigger_type=alert.trigger_type.value,
+                    ),
+                ))
+
+    if notified_family or escalated_barangay:
+        await db.commit()
+
+    # Pushes go out only after the commit, so a notification can never announce a state
+    # change that failed to save. Same rule create_alert already follows.
+    for tokens, payload in pushes:
+        await deliver_alert_push(tokens, payload)
+
+    return notified_family, escalated_barangay
+
+
+async def escalation_sweep_loop() -> None:
+    """Runs the sweep forever inside the API process.
+
+    A plain background task rather than APScheduler or a second Render service: no new
+    dependency, nothing extra to deploy or pay for.
+
+    The tradeoff is real and worth stating in the defense rather than hiding: Render's
+    free tier spins an idle web service down, and this loop stops when it does. Two things
+    cover that. The dashboard polls every ten seconds, so the service stays awake as long
+    as anyone is watching it; and the barangay alert list runs this same sweep on every
+    request, so even after a cold start an incident is never staler than one refresh.
+    """
+    while True:
+        try:
+            async with SessionLocal() as db:
+                await sweep_overdue_alerts(db)
+        except Exception:
+            # One bad pass must never kill the loop. It is the only thing standing
+            # between tier 2 and tier 3.
+            logger.exception("Escalation sweep failed")
+        await asyncio.sleep(settings.escalation_sweep_seconds)

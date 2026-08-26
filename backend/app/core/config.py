@@ -33,6 +33,34 @@ class Settings:
     # over a notification channel. push.py logs loudly instead.
     firebase_credentials: str | None = os.environ.get("FIREBASE_CREDENTIALS")
 
+    # --- Escalation clock (CLAUDE.md 7) ----------------------------------------
+    # These run the server-side countdown that moves an unanswered alert up the
+    # chain. They exist because no on-device timer can be trusted on this handset:
+    # Transsion's "Hiber" layer freezes the app after the screen goes off and takes
+    # its alarms out of AlarmManager entirely (measured 2026-08-20). A countdown
+    # running here cannot be frozen by the phone it is counting down for.
+    #
+    # Short defaults so the whole three-tier chain can be demonstrated in one
+    # sitting. A real pilot would raise family_response_seconds to 5-10 minutes.
+    #
+    # Grace: how much longer than the phone's own window the server waits before
+    # stepping in. The phone is faster and works offline, so it should win whenever
+    # it is actually running; the server only covers the case where it was frozen.
+    escalation_grace_seconds: int = int(os.environ.get("ESCALATION_GRACE_SECONDS", "30"))
+    family_response_seconds: int = int(os.environ.get("FAMILY_RESPONSE_SECONDS", "120"))
+    escalation_sweep_seconds: int = int(os.environ.get("ESCALATION_SWEEP_SECONDS", "20"))
+
+    # Browser origins allowed to call this API. The barangay dashboard is the first
+    # part of SEENior that runs in a browser, so it is the first thing this applies
+    # to - the Android apps were never subject to it.
+    cors_origins: list[str] = [
+        origin.strip()
+        for origin in os.environ.get(
+            "CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173"
+        ).split(",")
+        if origin.strip()
+    ]
+
 
 settings = Settings()
 
