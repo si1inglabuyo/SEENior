@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.api.deps import require_role
-from app.api.escalation import append_step, db_now, sweep_overdue_alerts
+from app.api.escalation import append_step, db_now, has_family_tier, sweep_overdue_alerts
 from app.db.models import Alert, AlertStatus, Senior, User, UserRole
 from app.db.session import get_db
 from app.schemas.barangay import (
@@ -65,6 +65,7 @@ def _alert_out(alert: Alert) -> BarangayAlertOut:
         senior_age=senior.age,
         senior_address=senior.address,
         senior_mobile=senior.mobile_number,
+        senior_has_family_contact=has_family_tier(senior),
     )
 
 
@@ -95,7 +96,7 @@ async def list_barangay_alerts(
         select(Alert)
         .join(Senior, Senior.id == Alert.senior_id)
         .where(Senior.barangay == barangay, Alert.status != AlertStatus.PENDING)
-        .options(selectinload(Alert.senior))
+        .options(selectinload(Alert.senior).selectinload(Senior.contacts))
         .order_by(Alert.created_at.desc())
     )
     if scope == "active":
@@ -111,7 +112,9 @@ async def _responder_alert(sync_id: UUID, db: AsyncSession, responder: User) -> 
     """Fetch one alert, confirming it belongs to this responder's barangay."""
     barangay = _assigned_barangay(responder)
     result = await db.execute(
-        select(Alert).where(Alert.sync_id == sync_id).options(selectinload(Alert.senior))
+        select(Alert)
+        .where(Alert.sync_id == sync_id)
+        .options(selectinload(Alert.senior).selectinload(Senior.contacts))
     )
     alert = result.scalar_one_or_none()
     if alert is None or alert.senior is None or alert.senior.barangay != barangay:

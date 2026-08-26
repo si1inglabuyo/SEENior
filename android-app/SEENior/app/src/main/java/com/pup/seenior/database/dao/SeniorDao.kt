@@ -35,4 +35,14 @@ interface SeniorDao {
 
     @Query("UPDATE Seniors SET cloud_sync_id = :cloudSyncId WHERE senior_id = :seniorId")
     suspend fun updateCloudSyncId(seniorId: Int, cloudSyncId: String)
+
+    /**
+     * Moves a senior off "alone" once a family contact actually pairs with them.
+     *
+     * A column write rather than [update] with a whole entity: the caller holds a Senior that
+     * may be seconds stale, and writing all of it back would silently revert an edit the
+     * senior made on the Profile screen in the meantime.
+     */
+    @Query("UPDATE Seniors SET living_arrangement = :livingArrangement WHERE senior_id = :seniorId")
+    suspend fun updateLivingArrangement(seniorId: Int, livingArrangement: String)
 }

@@ -167,6 +167,10 @@ Alert cancelled       ▼
                     Final tier — always available even if family is unreachable
 ```
 
+**Seniors with no family contact.** Where a senior has no active family contact — they chose "Lives alone" at sign-up, or every pairing has been unlinked — tier 2 has no recipient and the chain compresses to **senior → barangay**, skipping the family response window rather than waiting it out on nobody. This is evaluated per alert from the live contact rows (`has_family_tier()` in `backend/app/api/escalation.py`), never from a stored flag, so a senior who pairs a family contact later is automatically restored to the full three-tier chain with nothing to reconfigure. The timeline records a `no_family_contact` step — deliberately *not* `escalated_family_server`, which would claim a notification that was never sent. The barangay dashboard shows a "Lives alone" badge on these incidents so the responder knows nobody else is on the way.
+
+The senior app mirrors this in the UI only: a senior living alone gets **Home / Profile** instead of the four tabs, with Invite and Contacts re-parented under **Profile → Family contacts** so pairing later is still reachable. `Seniors.living_arrangement` drives *tab visibility only* — never escalation — and pairing a contact flips it back automatically. Keep those two decisions separate: a stale UI flag must never be able to misroute an alert.
+
 **SOS button** (one-swipe, senior-initiated) bypasses the normal wait times — it has only a short cancellation window (to catch accidental presses) and then notifies all parties simultaneously.
 
 **Important interface requirement (from panel feedback):** the senior-facing wellness prompt must show *why* it's asking — a plain-language reason derived from what triggered the alert (e.g., "We noticed you haven't moved in a while during your usual active hours") — not just a bare "are you okay" with no context. This is built from the `trigger_type` and `time_block` fields already in the Alerts table; no extra database fields needed.

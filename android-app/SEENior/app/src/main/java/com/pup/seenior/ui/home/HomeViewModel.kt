@@ -21,6 +21,7 @@ import com.pup.seenior.detection.FallSimulator
 import com.pup.seenior.network.RetrofitClient
 import com.pup.seenior.network.SeniorCloudSync
 import com.pup.seenior.network.dto.FamilyContactDto
+import com.pup.seenior.ui.onboarding.OnboardingOptions
 import com.pup.seenior.ui.wellness.WellnessMessages
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
@@ -143,6 +144,18 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     val barangay: String
         get() = senior?.barangay.orEmpty()
 
+    /**
+     * Whether to hide the pairing tabs. A presentation flag and nothing more.
+     *
+     * It deliberately does NOT decide anything about escalation. The server works that out
+     * from the contact rows on every sweep, so if this ever disagrees with reality the worst
+     * that happens is a tab is in the wrong place -- never an alert sent to the wrong tier.
+     * Keeping the two apart is what makes it safe to drive UI off an answer the senior gave
+     * once during sign-up.
+     */
+    val livesAlone: Boolean
+        get() = senior?.livingArrangement == OnboardingOptions.LIVING_ALONE
+
     /** Monitoring degrades on a dying battery, so the status card says so rather than claiming
      *  everything is fine (`Senior Dashboard - With Family-3.png`). */
     val isMonitoringAtRisk: Boolean
@@ -157,6 +170,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             }
             refreshBattery()
             loadWillAlertContacts()
+            restoreFamilyTabsIfPaired()
             launch {
                 while (true) {
                     delay(DELIVERY_TICK_MILLIS)
@@ -179,6 +193,33 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         } catch (e: Exception) {
             willAlertContacts = emptyList()
         }
+    }
+
+    /**
+     * Puts the Invite and Contacts tabs back the moment a family member actually pairs.
+     *
+     * The senior said "lives alone" at sign-up; a daughter has since entered their invite
+     * code. Requiring them to also go and change a dropdown in Edit profile before the app
+     * would show them their own contacts is a step they would never find, and the app would
+     * sit there claiming they have no family while the family app shows the pairing.
+     * Pairing IS the answer to the question, so it updates the answer.
+     *
+     * Only ever in this direction. Removing the last contact does not hide the tabs again:
+     * taking away navigation an elderly user has already learned is worse than leaving one
+     * tab they no longer need, and by then they know what the tab is for.
+     */
+    private suspend fun restoreFamilyTabsIfPaired() {
+        val current = senior ?: return
+        if (current.livingArrangement != OnboardingOptions.LIVING_ALONE) return
+        if (willAlertContacts.isEmpty()) return
+
+        db.seniorDao().updateLivingArrangement(
+            current.seniorId,
+            OnboardingOptions.LIVING_WITH_FAMILY
+        )
+        // Mirrored into the in-memory copy as well: nothing re-reads the Senior row until the
+        // next app start, so without this the tabs would only appear tomorrow.
+        senior = current.copy(livingArrangement = OnboardingOptions.LIVING_WITH_FAMILY)
     }
 
     fun refreshBattery() {

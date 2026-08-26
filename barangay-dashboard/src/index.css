@@ -78,7 +78,19 @@ h4 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase;
 }
 .card.high { border-left-color: var(--high); }
 .card.selected { box-shadow: 0 0 0 2px var(--brand); }
-.card-top { display: flex; justify-content: space-between; font-size: 12px; }
+.card-top { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+/* Pins the timestamp right regardless of how many badges sit before it, so a card with
+   the lives-alone badge lines up with one without it. */
+.card-top .muted { margin-left: auto; }
+
+/* Deliberately not red. Living alone is not itself an emergency and must not compete
+   with the risk level for attention -- it is context the responder reads once they are
+   already looking at the card. */
+.badge-alone {
+  text-transform: uppercase; font-size: 10px; font-weight: 700; letter-spacing: .5px;
+  color: var(--warn); border: 1px solid var(--warn); border-radius: 999px;
+  padding: 1px 7px; white-space: nowrap;
+}
 .card-name { margin: 8px 0 2px; font-weight: 700; font-size: 16px; }
 .card-reason { margin: 0 0 4px; }
 .card-address { margin: 0 0 8px; color: var(--muted); font-size: 13px; }

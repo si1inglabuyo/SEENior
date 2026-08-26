@@ -32,6 +32,12 @@ class BarangayAlertOut(BaseModel):
     senior_address: str
     senior_mobile: str
 
+    # Whether anyone sits on the family tier for this senior. Not a privacy field -- it
+    # says nothing about who the family are -- but it changes what the incident means to
+    # the responder. False is "there is nobody else, this is on you"; True is "the family
+    # have had their turn and did not answer". Same signal the escalation clock uses.
+    senior_has_family_contact: bool
+
 
 class BarangaySeniorOut(BaseModel):
     """A senior record in this responder's barangay, for the roster screen."""

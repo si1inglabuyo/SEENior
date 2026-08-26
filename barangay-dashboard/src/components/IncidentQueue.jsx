@@ -118,6 +118,15 @@ export default function IncidentQueue({ onSessionLost }) {
             >
               <div className="card-top">
                 <span className={`risk risk-${alert.risk_level}`}>{alert.risk_level}</span>
+                {/* The responder's most useful piece of context after the risk level: it
+                    tells them whether anyone else is already on this. No family means the
+                    chain skipped tier 2 because there was no tier 2 -- nobody is on the
+                    way, and nobody else can be called. */}
+                {!alert.senior_has_family_contact && (
+                  <span className="badge-alone" title="This senior has no family contact linked">
+                    Lives alone
+                  </span>
+                )}
                 <span className="muted">{timeAgo(alert.created_at)}</span>
               </div>
               <p className="card-name">{alert.senior_name}, {alert.senior_age}</p>
@@ -159,6 +168,12 @@ function IncidentDetail({ alert, onClose, onAct }) {
         <dd><a href={`tel:${alert.senior_mobile}`}>{alert.senior_mobile}</a></dd>
         <dt>Raised</dt><dd>{formatTime(alert.created_at)}</dd>
         <dt>Status</dt><dd>{statusLabel(alert.status)}</dd>
+        <dt>Family contact</dt>
+        <dd>
+          {alert.senior_has_family_contact
+            ? 'Linked — notified before this reached you'
+            : 'None linked — this came straight to the barangay'}
+        </dd>
       </dl>
 
       <h4>What happened, in order</h4>

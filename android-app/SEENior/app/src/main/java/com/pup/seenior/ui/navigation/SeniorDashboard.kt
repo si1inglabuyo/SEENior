@@ -99,6 +99,22 @@ private enum class SeniorTab(val label: String, val icon: ImageVector) {
     PROFILE("Profile", Icons.Outlined.Person)
 }
 
+/**
+ * The tabs this senior actually gets.
+ *
+ * A senior who told us at sign-up that they live alone has no use for Invite (a code for
+ * nobody) or Contacts (a list that stays empty) — two of their four tabs would be dead
+ * weight on a screen designed to be scanned quickly. They get Home and Profile.
+ *
+ * Nothing is deleted: both screens still exist and are reachable from Profile → Family
+ * contacts, so a senior whose situation changes can pair without reinstalling anything.
+ * And the moment someone does pair, HomeViewModel.restoreFamilyTabsIfPaired() flips the
+ * stored answer and all four tabs come back on their own.
+ */
+private fun tabsFor(livesAlone: Boolean): List<SeniorTab> =
+    if (livesAlone) listOf(SeniorTab.HOME, SeniorTab.PROFILE)
+    else SeniorTab.entries
+
 @Composable
 fun SeniorDashboard() {
     var tab by remember { mutableStateOf(SeniorTab.HOME) }
@@ -128,12 +144,21 @@ fun SeniorDashboard() {
         return
     }
 
+    val tabs = tabsFor(homeViewModel.livesAlone)
+
+    // The senior's own data arrives asynchronously, so the tab list can shrink under a tab
+    // that is already selected — pairing flips it the other way too. Derived rather than
+    // written back into `tab`: assigning state during composition is how recomposition
+    // loops start, and there is nothing to persist here. Home is always present, so this
+    // always resolves to something in the bar.
+    val activeTab = if (tab in tabs) tab else SeniorTab.HOME
+
     Scaffold(
         bottomBar = {
             NavigationBar(containerColor = Color.White) {
-                SeniorTab.entries.forEach { entry ->
+                tabs.forEach { entry ->
                     NavigationBarItem(
-                        selected = tab == entry,
+                        selected = activeTab == entry,
                         onClick = { tab = entry },
                         icon = { Icon(entry.icon, contentDescription = entry.label) },
                         label = {
@@ -156,10 +181,13 @@ fun SeniorDashboard() {
         }
     ) { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
-            when (tab) {
+            when (activeTab) {
                 SeniorTab.HOME -> HomeScreen(homeViewModel)
                 SeniorTab.INVITE -> InviteScreen()
-                SeniorTab.CONTACTS -> SeniorContactsScreen(onGoToInvite = { tab = SeniorTab.INVITE })
+                SeniorTab.CONTACTS -> SeniorContactsScreen(
+                    onGoToInvite = { tab = SeniorTab.INVITE },
+                    inviteActionLabel = "Invite tab"
+                )
                 SeniorTab.PROFILE -> SeniorProfileScreen()
             }
         }

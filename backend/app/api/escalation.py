@@ -31,7 +31,14 @@ from app.api.routes.alerts import (
 )
 from app.core import push
 from app.core.config import settings
-from app.db.models import Alert, AlertStatus, RiskLevel, TriggerType
+from app.db.models import (
+    Alert,
+    AlertStatus,
+    ContactType,
+    RiskLevel,
+    Senior,
+    TriggerType,
+)
 from app.db.session import SessionLocal
 
 logger = logging.getLogger(__name__)
@@ -83,21 +90,48 @@ def family_deadline(alert: Alert) -> datetime:
     )
 
 
-def barangay_deadline(alert: Alert) -> datetime:
+def has_family_tier(senior: Senior) -> bool:
+    """Whether this senior has anyone on the family tier at all.
+
+    Derived from the contact rows on every pass rather than read from a flag the senior set
+    once. A senior who lives alone today may have a daughter pair with them next month, and
+    the reverse; a stored answer would have to be kept in step with that by hand, and the
+    cost of it being stale is an alert routed to a tier that cannot answer. The contact rows
+    are the thing that is actually true.
+
+    `unlinked_at is None` is the same soft-unlink filter every other read path applies -- a
+    family member who was removed is not a tier, and counting them would make the system
+    wait out a response window on someone who no longer receives anything.
+    """
+    return any(
+        contact.contact_type == ContactType.FAMILY and contact.unlinked_at is None
+        for contact in senior.contacts
+    )
+
+
+def barangay_deadline(alert: Alert, has_family: bool) -> datetime:
     """When the barangay is told.
 
-    For everything except SOS this is one family-response window after the family were
-    notified: a detected anomaly is the system's *guess* that something is wrong, so it is
-    walked up the tiers, giving the family their turn and sparing the barangay a call-out
-    for something a daughter two streets away can handle.
+    In the ordinary case this is one family-response window after the family were notified:
+    a detected anomaly is the system's *guess* that something is wrong, so it is walked up
+    the tiers, giving the family their turn and sparing the barangay a call-out for
+    something a daughter two streets away can handle.
 
-    An SOS is not a guess. The senior has consciously said they need help, and there is
-    nothing left for the system to confirm -- so once the pocket-press window closes,
-    everyone is told at once (CLAUDE.md §7). Making someone who has already pressed the
-    button wait another two minutes while the system re-establishes what they just told it
-    is the opposite of what the button is for.
+    Two cases skip that wait, for the same underlying reason -- there is nothing left for
+    the middle tier to add:
+
+    An SOS is not a guess. The senior has consciously said they need help, so once the
+    pocket-press window closes, everyone is told at once (CLAUDE.md §7). Making someone who
+    has already pressed the button wait another two minutes while the system re-establishes
+    what they just told it is the opposite of what the button is for.
+
+    A senior with no family contact has no tier 2. Waiting `family_response_seconds` for an
+    acknowledgement that cannot arrive delays the only responder who can actually come, by
+    exactly the length of a window held open for nobody. The chain compresses to senior ->
+    barangay, and the barangay tier is what makes that safe: it is always present, so a
+    senior living alone is never left with a chain that runs out of people.
     """
-    if alert.trigger_type == TriggerType.SOS:
+    if alert.trigger_type == TriggerType.SOS or not has_family:
         return family_deadline(alert)
     return family_deadline(alert) + timedelta(seconds=settings.family_response_seconds)
 
@@ -115,6 +149,14 @@ def has_step(alert: Alert, *steps: str) -> bool:
 # devices registered, twenty duplicate pushes. An emergency notification that arrives
 # twenty times is worse than one that arrives once; people turn those off.
 FAMILY_NOTIFIED_STEPS = ("escalated_family", "escalated_family_server")
+
+# ...and this means "the family rung has been dealt with", which is not the same claim.
+# A senior with nobody on tier 2 still passes the family deadline, and the sweep still has
+# to record that it got there -- but recording it as a notification would put a line in the
+# audit trail saying family were told when no message was addressed to anyone. The
+# timeline is evidence; it has to say what actually happened.
+NO_FAMILY_STEP = "no_family_contact"
+FAMILY_TIER_STEPS = FAMILY_NOTIFIED_STEPS + (NO_FAMILY_STEP,)
 
 
 async def sweep_overdue_alerts(db: AsyncSession) -> tuple[int, int]:
@@ -141,7 +183,7 @@ async def sweep_overdue_alerts(db: AsyncSession) -> tuple[int, int]:
     result = await db.execute(
         select(Alert)
         .where(Alert.status == AlertStatus.PENDING, Alert.risk_level != RiskLevel.LOW)
-        .options(selectinload(Alert.senior))
+        .options(selectinload(Alert.senior).selectinload(Senior.contacts))
     )
 
     notified_family = 0
@@ -151,6 +193,12 @@ async def sweep_overdue_alerts(db: AsyncSession) -> tuple[int, int]:
     for alert in result.scalars().all():
         if alert.senior is None:
             continue
+
+        # Recomputed per alert rather than cached: a family contact can pair while an alert
+        # is mid-flight, and when they do this senior stops being alone from the very next
+        # pass -- the barangay deadline slides back out to the full window and the family
+        # get their turn after all. Nothing has to be migrated for that to happen.
+        has_family = has_family_tier(alert.senior)
 
         # The two tiers are evaluated independently, and neither one short-circuits the
         # other. That matters for SOS, where both deadlines are the same instant: an
@@ -165,30 +213,42 @@ async def sweep_overdue_alerts(db: AsyncSession) -> tuple[int, int]:
 
         # Tier 2, as a backstop: if the phone's own timer already did this, the step is on
         # the timeline and there is nothing to do. This is the rung Hiber eats.
-        if now >= family_deadline(alert) and not has_step(alert, *FAMILY_NOTIFIED_STEPS):
-            append_step(
-                alert,
-                "escalated_family_server",
-                reason="Senior did not answer; phone timer did not report in",
-            )
-            notified_family += 1
-            logger.info("Server-side family escalation for alert %s", alert.sync_id)
+        if now >= family_deadline(alert) and not has_step(alert, *FAMILY_TIER_STEPS):
+            if not has_family:
+                # Recorded, not notified. The senior lives alone (or every pairing has been
+                # unlinked), so this rung is passed through rather than acted on -- and the
+                # barangay deadline above is already the same instant, so tier 3 fires in
+                # this very pass. Written before that so the timeline reads in order.
+                append_step(
+                    alert,
+                    NO_FAMILY_STEP,
+                    reason="No family contact is linked; escalating straight to the barangay",
+                )
+                logger.info("Alert %s has no family tier; skipping to barangay", alert.sync_id)
+            else:
+                append_step(
+                    alert,
+                    "escalated_family_server",
+                    reason="Senior did not answer; phone timer did not report in",
+                )
+                notified_family += 1
+                logger.info("Server-side family escalation for alert %s", alert.sync_id)
 
-            tokens = await family_device_tokens(db, alert.senior_id)
-            if tokens:
-                pushes.append((
-                    tokens,
-                    push.AlertPush(
-                        alert_sync_id=str(alert.sync_id),
-                        senior_sync_id=str(alert.senior.sync_id),
-                        senior_name=alert.senior.first_name,
-                        risk_level=alert.risk_level.value,
-                        trigger_type=alert.trigger_type.value,
-                    ),
-                ))
+                tokens = await family_device_tokens(db, alert.senior_id)
+                if tokens:
+                    pushes.append((
+                        tokens,
+                        push.AlertPush(
+                            alert_sync_id=str(alert.sync_id),
+                            senior_sync_id=str(alert.senior.sync_id),
+                            senior_name=alert.senior.first_name,
+                            risk_level=alert.risk_level.value,
+                            trigger_type=alert.trigger_type.value,
+                        ),
+                    ))
 
         # Tier 3.
-        if now >= barangay_deadline(alert):
+        if now >= barangay_deadline(alert, has_family):
             alert.status = AlertStatus.ESCALATED
             append_step(
                 alert,
@@ -196,6 +256,8 @@ async def sweep_overdue_alerts(db: AsyncSession) -> tuple[int, int]:
                 reason=(
                     "SOS pressed by the senior"
                     if alert.trigger_type == TriggerType.SOS
+                    else "No family contact is linked to this senior"
+                    if not has_family
                     else "No response from the senior or any family contact"
                 ),
             )

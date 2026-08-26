@@ -29,6 +29,7 @@ export const STEP_LABEL = {
   acknowledged_family: 'Family acknowledged',
   escalated_barangay: 'Family requested a barangay welfare check',
   escalated_barangay_auto: 'No answer from family — escalated to barangay',
+  no_family_contact: 'No family contact linked — skipped straight to barangay',
   self_cancelled: 'Senior answered: safe',
   self_cancelled_senior: 'Senior answered: safe',
   cancel_synced: "Senior's all-clear reached the cloud",

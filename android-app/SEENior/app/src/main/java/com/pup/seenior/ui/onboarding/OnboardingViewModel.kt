@@ -22,7 +22,12 @@ import java.time.format.DateTimeFormatter
 
 object OnboardingOptions {
     val genders = listOf("Male", "Female", "Other")
-    val livingArrangements = listOf("With family" to "with_family", "Lives alone" to "alone")
+    /** Stored in `Seniors.living_arrangement`. Named because they are read outside onboarding
+     *  too -- the senior dashboard decides which tabs exist from them. */
+    const val LIVING_ALONE = "alone"
+    const val LIVING_WITH_FAMILY = "with_family"
+
+    val livingArrangements = listOf("With family" to LIVING_WITH_FAMILY, "Lives alone" to LIVING_ALONE)
     val yesNo = listOf("Yes", "No")
     val napDurations = listOf("15 minutes", "30 minutes", "45 minutes", "1 hour", "1.5 hours", "2 hours or more")
     val activityLevels = listOf(

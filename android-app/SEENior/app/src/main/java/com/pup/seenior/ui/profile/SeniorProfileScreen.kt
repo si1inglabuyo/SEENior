@@ -21,6 +21,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Contacts
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Gavel
 import androidx.compose.material.icons.filled.Info
@@ -47,6 +48,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.pup.seenior.ui.contacts.GreenHeader
+import com.pup.seenior.ui.contacts.InviteScreen
+import com.pup.seenior.ui.contacts.SeniorContactsScreen
 import com.pup.seenior.ui.onboarding.OnboardingOptions
 import com.pup.seenior.ui.onboarding.components.LabeledDropdownField
 import com.pup.seenior.ui.onboarding.components.LabeledTextField
@@ -54,7 +57,11 @@ import com.pup.seenior.ui.onboarding.components.PrimaryPillButton
 import com.pup.seenior.ui.theme.SeniorColors
 import com.pup.seenior.validation.PhilippinePhone
 
-private enum class ProfilePage { HOME, EDIT, ABOUT, HOW_TO_USE, FAQS, SUPPORT, TERMS, PRIVACY }
+private enum class ProfilePage {
+    HOME, EDIT, ABOUT, HOW_TO_USE, FAQS, SUPPORT, TERMS, PRIVACY,
+    /** Only reachable for a senior living alone — for everyone else these are bottom tabs. */
+    FAMILY, FAMILY_INVITE
+}
 
 /**
  * Senior "Profile" tab (designs/senior/profile). Account card + MY INFO (Edit profile) +
@@ -86,6 +93,15 @@ fun SeniorProfileScreen() {
         ProfilePage.SUPPORT -> SeniorContactSupportScreen { page = ProfilePage.HOME }
         ProfilePage.TERMS -> SeniorTermsScreen { page = ProfilePage.HOME }
         ProfilePage.PRIVACY -> SeniorPrivacyScreen { page = ProfilePage.HOME }
+        // The same two composables the Invite and Contacts tabs use, re-parented rather
+        // than reimplemented — a second copy of the pairing flow is a second place for it
+        // to drift out of step with the family app.
+        ProfilePage.FAMILY -> SeniorContactsScreen(
+            onGoToInvite = { page = ProfilePage.FAMILY_INVITE },
+            inviteActionLabel = "Get an invite code",
+            onBack = { page = ProfilePage.HOME }
+        )
+        ProfilePage.FAMILY_INVITE -> InviteScreen(onBack = { page = ProfilePage.FAMILY })
     }
 }
 
@@ -163,6 +179,20 @@ private fun ProfileHome(viewModel: SeniorProfileViewModel, onNavigate: (ProfileP
                     subtitle = "First Name, Surname, Age, Gender, Mobile Number…",
                     onClick = { onNavigate(ProfilePage.EDIT) }
                 )
+            }
+
+            // Shown only to seniors living alone, and it is the whole answer to "what if
+            // they get family later". For everyone else this duplicates two bottom tabs.
+            if (viewModel.livesAlone) {
+                SectionLabel("MY CONTACTS")
+                ProfileGroup {
+                    ProfileRow(
+                        icon = Icons.Filled.Contacts,
+                        title = "Family contacts",
+                        subtitle = "Add someone to be notified before your barangay",
+                        onClick = { onNavigate(ProfilePage.FAMILY) }
+                    )
+                }
             }
 
             SectionLabel("HELP & INFORMATION")

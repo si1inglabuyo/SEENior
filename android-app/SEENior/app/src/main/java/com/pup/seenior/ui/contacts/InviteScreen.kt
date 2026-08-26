@@ -20,11 +20,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.PersonAddAlt1
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -41,7 +43,10 @@ private val WarningBg = Color(0xFFFBEEDC)
 private val WarningText = Color(0xFF9A6B1E)
 
 @Composable
-fun InviteScreen(viewModel: InviteViewModel = viewModel()) {
+fun InviteScreen(
+    viewModel: InviteViewModel = viewModel(),
+    onBack: (() -> Unit)? = null
+) {
     val context = LocalContext.current
 
     Column(
@@ -49,7 +54,11 @@ fun InviteScreen(viewModel: InviteViewModel = viewModel()) {
             .fillMaxSize()
             .background(Color.White)
     ) {
-        GreenHeader(icon = { Icon(Icons.Filled.PersonAddAlt1, null, tint = Color.White) }, title = "Invite")
+        GreenHeader(
+            icon = { Icon(Icons.Filled.PersonAddAlt1, null, tint = Color.White) },
+            title = "Invite",
+            onBack = onBack
+        )
 
         // Scrolls; the header does not. The senior's half of the pairing flow, and it grew
         // the same way LinkScreen did: code card, countdown, instructions and a warning banner
@@ -159,14 +168,25 @@ fun InviteScreen(viewModel: InviteViewModel = viewModel()) {
 }
 
 @Composable
-fun GreenHeader(icon: @Composable () -> Unit, title: String) {
+/**
+ * @param onBack when non-null, the header grows a back arrow and drops its own padding to
+ *   suit it. Null is the tab case, where the bottom bar is the way out and a back arrow
+ *   would point nowhere. Same header either way so a screen does not visibly change
+ *   identity depending on how it was reached.
+ */
+fun GreenHeader(icon: @Composable () -> Unit, title: String, onBack: (() -> Unit)? = null) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .background(SeniorColors.Green)
-            .padding(horizontal = 20.dp, vertical = 18.dp),
+            .padding(horizontal = if (onBack != null) 8.dp else 20.dp, vertical = if (onBack != null) 12.dp else 18.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        if (onBack != null) {
+            IconButton(onClick = onBack) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
+            }
+        }
         icon()
         Text(title, color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 10.dp))
     }

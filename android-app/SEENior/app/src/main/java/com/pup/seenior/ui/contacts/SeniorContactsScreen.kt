@@ -47,9 +47,18 @@ private val RemoveRed = Color(0xFFDA4A4A)
 private val OnlineGreen = Color(0xFF57B84E)
 
 @Composable
+/**
+ * @param inviteActionLabel what the empty state's button is called. It says "Invite tab"
+ *   when this screen is a tab, because that is literally where it sends you — but a senior
+ *   living alone reaches this from Profile and has no Invite tab, and a button naming a
+ *   tab that is not on their screen is worse than no button.
+ * @param onBack non-null only when hosted under Profile; see [GreenHeader].
+ */
 fun SeniorContactsScreen(
     viewModel: SeniorContactsViewModel = viewModel(),
-    onGoToInvite: () -> Unit
+    onGoToInvite: () -> Unit,
+    inviteActionLabel: String = "Invite tab",
+    onBack: (() -> Unit)? = null
 ) {
     LaunchedEffect(Unit) { viewModel.refresh() }
 
@@ -58,7 +67,11 @@ fun SeniorContactsScreen(
             .fillMaxSize()
             .background(Color.White)
     ) {
-        GreenHeader(icon = { Icon(Icons.Filled.Contacts, null, tint = Color.White) }, title = "Contacts")
+        GreenHeader(
+            icon = { Icon(Icons.Filled.Contacts, null, tint = Color.White) },
+            title = "Contacts",
+            onBack = onBack
+        )
 
         // Only surface the error inline when there's still a list under it; a failed load with
         // nothing to show gets the full CouldNotLoadState below instead.
@@ -76,7 +89,7 @@ fun SeniorContactsScreen(
                 message = viewModel.error ?: "Could not load your contacts.",
                 onRetry = { viewModel.refresh() }
             )
-            viewModel.contacts.isEmpty() -> EmptyState(onGoToInvite)
+            viewModel.contacts.isEmpty() -> EmptyState(inviteActionLabel, onGoToInvite)
             else -> LazyColumn(
                 modifier = Modifier.padding(horizontal = 20.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -233,7 +246,7 @@ private fun CouldNotLoadState(message: String, onRetry: () -> Unit) {
 }
 
 @Composable
-private fun EmptyState(onGoToInvite: () -> Unit) {
+private fun EmptyState(inviteActionLabel: String, onGoToInvite: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -261,6 +274,17 @@ private fun EmptyState(onGoToInvite: () -> Unit) {
                 fontSize = 15.sp,
                 modifier = Modifier.padding(top = 8.dp)
             )
+            // Said plainly rather than left to be inferred. With nobody on the family tier
+            // the escalation chain really does run senior -> barangay, and a senior who is
+            // deciding whether to bother adding a contact deserves to know that is what
+            // happens today — not to be nudged with an implied warning that they are
+            // unprotected. They are not; the barangay tier is always there.
+            Text(
+                "Until then, if something seems wrong we will alert your barangay directly.",
+                color = SeniorColors.TextSecondary,
+                fontSize = 15.sp,
+                modifier = Modifier.padding(top = 8.dp)
+            )
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -271,7 +295,7 @@ private fun EmptyState(onGoToInvite: () -> Unit) {
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Invite tab", color = SeniorColors.Green, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                Text(inviteActionLabel, color = SeniorColors.Green, fontSize = 17.sp, fontWeight = FontWeight.Bold)
             }
         }
     }

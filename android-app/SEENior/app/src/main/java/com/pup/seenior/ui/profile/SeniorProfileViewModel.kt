@@ -49,6 +49,16 @@ class SeniorProfileViewModel(application: Application) : AndroidViewModel(applic
     val fullName: String
         get() = senior?.let { "${it.firstName} ${it.lastName}".trim() } ?: "Senior"
 
+    /**
+     * Whether Profile hosts the "Family contacts" row.
+     *
+     * Read from the saved record, not from [livingArrangementLabel]: that one tracks the Edit
+     * Profile form and changes on every keystroke of a dropdown the senior may still abandon.
+     * The row appearing and disappearing under a half-made edit would be its own small bug.
+     */
+    val livesAlone: Boolean
+        get() = senior?.livingArrangement == OnboardingOptions.LIVING_ALONE
+
     val isEditValid: Boolean
         get() = firstName.isNotBlank() &&
             lastName.isNotBlank() &&
