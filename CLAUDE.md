@@ -294,4 +294,27 @@ Detection accuracy is validated via **simulated sensor data injection** in test 
 
 ---
 
+## 15. Who Owns What (two people work on this repo)
+
+SEENior is built by two people in parallel, so a change landing in the wrong lane costs somebody
+a merge conflict on work they cannot see.
+
+| Lane | Branch | Owns |
+|---|---|---|
+| Android + backend | `main` | `android-app/**`, `backend/**`, this file |
+| Barangay dashboard | `dashboard` | `barangay-dashboard/**`, `backend/app/api/routes/barangay.py`, `backend/app/schemas/barangay.py` |
+
+The dashboard lane has its own rules in `barangay-dashboard/CLAUDE.md`, which Claude Code loads
+automatically when working on files in that directory. The short version: that lane may not touch
+`db/models.py`, `migrations/`, escalation, auth or config, and must report rather than widen its
+own scope.
+
+**Migrations belong to `main`, always.** Two Alembic revisions written against one
+`alembic_version` row have to be untangled by hand against a live database.
+
+The dashboard defaults to the **production** API (`barangay-dashboard/src/api.js`), so Acknowledge
+and Resolve from either machine mutate real alert rows that the other lane may be testing against.
+
+---
+
 *This README is meant to be the single source of context for AI coding agents (Claude Code, Codex, etc.) working on this project. Update it as the system design evolves so agents always have current ground truth.*
