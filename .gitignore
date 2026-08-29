@@ -15,3 +15,11 @@ android-app/SEENior/local.properties
 barangay-dashboard/node_modules/
 barangay-dashboard/dist/
 barangay-dashboard/dist-ssr/
+
+# JVM crash dumps from Gradle/Kotlin daemons. Large, machine-specific, and useless
+# to anyone else -- they name local paths and thread state from one crashed build.
+android-app/SEENior/hs_err_pid*.log
+android-app/SEENior/replay_pid*.log
+
+# Local config for a secondary tool, personal to whoever set it up.
+opencode.json
