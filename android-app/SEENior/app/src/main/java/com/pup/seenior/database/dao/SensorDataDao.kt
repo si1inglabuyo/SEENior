@@ -31,6 +31,16 @@ interface SensorDataDao {
     @Query("SELECT * FROM Sensor_Data WHERE senior_id = :seniorId AND is_aggregated = 0 ORDER BY timestamp ASC")
     suspend fun getUnaggregatedSensorData(seniorId: Int): List<SensorData>
 
+    /**
+     * The most recent reading, whatever block it fell in.
+     *
+     * Used to measure the gap since the last sample. A gap far longer than the poll
+     * interval means the process was frozen rather than idle, and the two demand different
+     * readings of the same numbers -- see collectAndStore in SensorCollectionService.
+     */
+    @Query("SELECT * FROM Sensor_Data WHERE senior_id = :seniorId ORDER BY timestamp DESC LIMIT 1")
+    suspend fun getLatest(seniorId: Int): SensorData?
+
     @Query("SELECT * FROM Sensor_Data WHERE senior_id = :seniorId AND time_block = :timeBlock ORDER BY timestamp DESC LIMIT :limit")
     suspend fun getRecentByTimeBlock(seniorId: Int, timeBlock: String, limit: Int): List<SensorData>
 

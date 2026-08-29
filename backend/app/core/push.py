@@ -212,6 +212,60 @@ def send_alert(tokens: list[str], alert: AlertPush) -> PushResult:
     )
 
 
+def send_wake(token: str) -> PushResult:
+    """Wakes one senior's phone so it can take a sensor sample.
+
+    This exists because the handset cannot be trusted to wake itself. Measured on the
+    Infinix X6885 on 2026-08-29: the sensor service's own five-minute loop produced one
+    sample in twenty-four minutes, and the persisted fifteen-minute watchdog job ran three
+    times in thirteen and a half hours -- a twelve-hour hole through the night, which is
+    the exact window passive monitoring exists to cover. A high-priority data-only message
+    is the one thing Android does not defer in Doze, so it is the only remaining clock.
+
+    Carries NOTHING but the word "wake". There is no senior name, no alert, no reading --
+    the phone already knows who it is, and the whole point of CLAUDE.md 11 is that what it
+    then measures never leaves it. This push is a tap on the shoulder, not a message.
+
+    Returns rather than raises, like everything else here: a phone that could not be woken
+    is a degraded pass of a background sweep, not a request that should fail.
+    """
+    app = _get_app()
+    if app is None:
+        return PushResult(failed=1)
+
+    from firebase_admin import messaging
+
+    message = messaging.Message(
+        token=token,
+        data={"type": "wake"},
+        android=messaging.AndroidConfig(
+            priority="high",
+            # Shorter than the alert TTL by a wide margin, and for the opposite reason.
+            # An alert is worth delivering late; a nudge is not. If this one could not be
+            # delivered within the window it was meant to cover, the next sweep is already
+            # due and will send a fresher one -- delivering a stale wake as well would
+            # spend the phone's battery twice for a single sample.
+            ttl=timedelta(seconds=settings.device_nudge_every_seconds),
+        ),
+    )
+
+    try:
+        response = messaging.send_each([message])
+    except Exception:
+        logger.exception("FCM wake send failed")
+        return PushResult(failed=1)
+
+    result = response.responses[0]
+    if result.success:
+        return PushResult(sent=1)
+
+    if _is_dead_token(messaging, result.exception):
+        return PushResult(failed=1, stale_tokens=(token,))
+
+    logger.warning("FCM wake delivery failed: %s", result.exception)
+    return PushResult(failed=1)
+
+
 def _is_dead_token(messaging, exception: Exception | None) -> bool:
     """Whether a per-token failure means that token is dead for good, so its row should be
     deleted rather than retried forever.

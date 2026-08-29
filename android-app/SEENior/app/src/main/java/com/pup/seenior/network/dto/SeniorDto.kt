@@ -31,7 +31,16 @@ data class UpdateSeniorRequest(
  */
 data class HeartbeatRequest(
     val batteryPercent: Int?,
-    val isCharging: Boolean?
+    val isCharging: Boolean?,
+    /**
+     * This handset's FCM token, so the server can wake it when it stops checking in.
+     *
+     * Carried by the heartbeat rather than by a registration call of its own: the senior
+     * has no account to authenticate a separate endpoint with, and refreshing the token on
+     * exactly the schedule that proves the phone is alive means the two can never drift.
+     * Null when a token could not be obtained -- the check-in still counts.
+     */
+    val pushToken: String?
 )
 
 /** Mirrors backend SeniorOut. */

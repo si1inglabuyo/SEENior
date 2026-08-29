@@ -34,6 +34,11 @@ class SeniorHeartbeat(BaseModel):
 
     battery_percent: int | None = Field(default=None, ge=0, le=100)
     is_charging: bool | None = None
+    # Rides along on the check-in instead of having an endpoint of its own: one call
+    # site cannot drift out of step with another, and the token is refreshed on exactly
+    # the schedule that already proves this phone is alive. Optional because a handset
+    # with no Play Services, or one whose token request failed, still checks in.
+    push_token: str | None = Field(default=None, max_length=255)
 
 
 class SeniorOut(BaseModel):

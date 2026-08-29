@@ -4,6 +4,7 @@ import android.util.Log
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import com.pup.seenior.network.PushTokenRegistrar
+import com.pup.seenior.sensors.SensorCollectionService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -33,6 +34,17 @@ class SeeniorMessagingService : FirebaseMessagingService() {
      */
     override fun onMessageReceived(message: RemoteMessage) {
         val data = message.data
+
+        // A tap on the shoulder from the server, carrying nothing else (see send_wake in
+        // backend/app/core/push.py). This handset cannot keep its own five-minute clock --
+        // measured on the Infinix on 2026-08-29, the sensor loop produced one sample in
+        // twenty-four minutes and the persisted watchdog job left a twelve-hour hole
+        // overnight -- so the server keeps it and this is where the phone answers.
+        if (data["type"] == "wake") {
+            SensorCollectionService.pollNow(applicationContext)
+            return
+        }
+
         if (data["type"] != "alert") {
             Log.d(TAG, "Ignoring push of unknown type: ${data["type"]}")
             return

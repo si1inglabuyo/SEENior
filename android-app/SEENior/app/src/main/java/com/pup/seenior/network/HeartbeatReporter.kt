@@ -49,7 +49,11 @@ object HeartbeatReporter {
         if (db.seniorDao().getOnboardedSenior() == null) return
 
         try {
-            val reading = readBattery(app)
+            // Fetched on every check-in rather than cached: FCM rotates tokens on its own
+            // schedule, and a stale one here is a phone the server believes it can wake and
+            // cannot. Null is fine -- the route leaves the stored token alone rather than
+            // erasing it (see the heartbeat endpoint).
+            val reading = readBattery(app).copy(pushToken = PushTokenRegistrar.currentTokenOrNull())
             SeniorCloudSync(db).withSyncId { syncId ->
                 RetrofitClient.api.sendHeartbeat(syncId, reading)
             }
@@ -82,6 +86,6 @@ object HeartbeatReporter {
         val plugged = status?.getIntExtra(BatteryManager.EXTRA_PLUGGED, -1) ?: -1
         val charging = if (plugged >= 0) plugged != 0 else null
 
-        return HeartbeatRequest(batteryPercent = percent, isCharging = charging)
+        return HeartbeatRequest(batteryPercent = percent, isCharging = charging, pushToken = null)
     }
 }

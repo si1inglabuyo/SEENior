@@ -24,6 +24,7 @@ import com.pup.seenior.alerts.AlertResponder
 import com.pup.seenior.baseline.SeedBaselineGenerator
 import com.pup.seenior.database.SeniorAppDatabase
 import com.pup.seenior.database.entities.SensorData
+import com.pup.seenior.network.HeartbeatReporter
 import com.pup.seenior.detection.FallDetector
 import com.pup.seenior.detection.MedianMadDetector
 import kotlinx.coroutines.CoroutineScope
@@ -147,7 +148,48 @@ class SensorCollectionService : Service(), SensorEventListener
         }
     }
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == ACTION_POLL_NOW) pollOnce()
+        return START_STICKY
+    }
+
+    /**
+     * Takes one sample now, because the server said this phone had gone quiet.
+     *
+     * **The listening window is the point of this method.** A frozen process receives no
+     * accelerometer callbacks, so waking and sampling immediately would read `movementScore`
+     * as 0.0 -- indistinguishable from a senior who has not moved a muscle, and pointed at
+     * exactly the half of the distribution [MedianMadDetector] treats as worrying. That
+     * would manufacture the false alarms this app spent 2026-08-29 removing. Listening for
+     * a few seconds first means the number written is one that was actually measured.
+     *
+     * A partial wake lock holds the CPU up for that window. Without it the handset is free
+     * to suspend again the moment FCM's brief allowlist lapses, halfway through the sample.
+     * It is released in `finally`: a leaked wake lock on a senior's phone is a flat battery
+     * by morning, which is a worse failure than the one this is fixing.
+     */
+    private fun pollOnce() {
+        val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
+        val wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, WAKE_LOCK_TAG)
+
+        serviceScope.launch {
+            wakeLock.acquire(WAKE_LOCK_TIMEOUT_MS)
+            try {
+                delay(LISTEN_WINDOW_MS)
+                collectAndStore()
+                // Tells the server the nudge worked, which is also what stops it nudging
+                // again on the next sweep.
+                HeartbeatReporter.report(
+                    applicationContext,
+                    SeniorAppDatabase.getInstance(applicationContext)
+                )
+            } catch (e: Exception) {
+                Log.w(TAG_WAKE, "Wake sample failed", e)
+            } finally {
+                if (wakeLock.isHeld) wakeLock.release()
+            }
+        }
+    }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -276,15 +318,18 @@ class SensorCollectionService : Service(), SensorEventListener
         val onboarding = database.seniorOnboardingDao().getBySeniorId(senior.seniorId) ?: return
 
         val now = System.currentTimeMillis()
+        val previous = database.sensorDataDao().getLatest(senior.seniorId)
         val snapshot = snapshotAndReset(now)
         val timeBlock = SeedBaselineGenerator.resolveTimeBlock(now, onboarding.wakeTime, onboarding.sleepTime)
+
+        val inactivitySeconds = reconcileInactivity(now, previous, snapshot)
 
         val sensorData = SensorData(
             seniorId = senior.seniorId,
             timestamp = now,
             timeBlock = timeBlock.name.lowercase(),
             movementScore = snapshot.movementScore,
-            inactivityDuration = snapshot.inactivityDurationSeconds,
+            inactivityDuration = inactivitySeconds,
             screenIdleDuration = snapshot.screenIdleDurationSeconds,
             screenUnlockCount = snapshot.screenUnlockCount,
             isCharging = isCurrentlyCharging(),
@@ -301,6 +346,55 @@ class SensorCollectionService : Service(), SensorEventListener
         ).forEach { alert ->
             AlertResponder.onAlertCreated(applicationContext, database, alert)
         }
+    }
+
+    /**
+     * Corrects an inactivity reading taken across a gap the process slept through.
+     *
+     * `inactivityDuration` is measured from the last accelerometer callback that crossed
+     * [MOVEMENT_THRESHOLD]. While the CPU is suspended there are no callbacks, so after a
+     * two-hour freeze the figure reads 7200 seconds -- not because the senior was still,
+     * but because nobody was listening. Handing that to Layer 1 would raise an inactivity
+     * alert about a period the phone did not observe.
+     *
+     * The step counter is the witness. TYPE_STEP_COUNTER is a hardware counter: it keeps
+     * counting through a suspend and reports its running total when the CPU comes back, so
+     * a rise across the gap is proof the senior moved during it. That is precisely the
+     * complementary role CLAUDE.md 4 gives it.
+     *
+     * So: **time that could not be measured is not counted as stillness.** If steps rose
+     * across a slept gap the reading is capped at the listening window, because the last
+     * proof of movement lies somewhere inside the gap and its exact moment is unknowable.
+     * If steps did not rise the long reading stands, because the counter was awake and
+     * agrees with it.
+     *
+     * Erring towards "she moved" is deliberate. The cost is a detection delayed by one
+     * nudge interval, since the next sample finds the steps flat and the clock running
+     * again from here. The opposite error is an alarm about a senior who was walking
+     * around, and this system has already been measured doing that.
+     */
+    private fun reconcileInactivity(
+        now: Long,
+        previous: SensorData?,
+        snapshot: SensorSnapshot,
+    ): Long {
+        if (previous == null) return snapshot.inactivityDurationSeconds
+
+        val gapMillis = now - previous.timestamp
+        if (gapMillis <= POLL_INTERVAL_MS * 2) return snapshot.inactivityDurationSeconds
+
+        // A reboot restarts the counter from zero, so a decrease is a reboot boundary and
+        // not a negative number of steps. Same rule the nightly aggregation applies to the
+        // same sensor.
+        val stepsDuringGap = snapshot.stepCount - previous.stepCount
+        if (stepsDuringGap <= 0) return snapshot.inactivityDurationSeconds
+
+        Log.i(
+            TAG_WAKE,
+            "Slept " + (gapMillis / 1000) + "s with " + stepsDuringGap + " step(s); " +
+                "capping inactivity at " + (LISTEN_WINDOW_MS / 1000) + "s"
+        )
+        return minOf(snapshot.inactivityDurationSeconds, LISTEN_WINDOW_MS / 1000)
     }
 
     /**
@@ -372,8 +466,41 @@ class SensorCollectionService : Service(), SensorEventListener
         var isRunning: Boolean = false
             private set
 
+        /** Log tag for the server-woken sampling path, which has no screen to report to. */
+        private const val TAG_WAKE = "SensorWake"
+
+        const val ACTION_POLL_NOW = "com.pup.seenior.action.POLL_NOW"
+
+        /**
+         * How long to listen to the accelerometer before sampling on a server wake.
+         *
+         * Long enough for the 5 Hz movement sampler to gather a real average, short enough
+         * to finish inside the allowlist a high-priority FCM message grants its receiver.
+         */
+        private const val LISTEN_WINDOW_MS = 12_000L
+
+        /** Ceiling on the wake lock, so a sample that hangs cannot hold the CPU up all night. */
+        private const val WAKE_LOCK_TIMEOUT_MS = 60_000L
+
+        private const val WAKE_LOCK_TAG = "seenior:wake-sample"
+
         fun start(context: Context) {
             val intent = Intent(context, SensorCollectionService::class.java)
+            context.startForegroundService(intent)
+        }
+
+        /**
+         * Asks for one immediate sample, starting the service first if it is not running.
+         *
+         * Called from [com.pup.seenior.alerts.SeeniorMessagingService] when the server says
+         * this phone has gone quiet. Starting a foreground service from the background is
+         * allowed here on two grounds that both have to hold: the battery-optimisation
+         * exemption taken during onboarding, and the temporary allowlist a high-priority
+         * FCM message grants its receiver.
+         */
+        fun pollNow(context: Context) {
+            val intent = Intent(context, SensorCollectionService::class.java)
+                .setAction(ACTION_POLL_NOW)
             context.startForegroundService(intent)
         }
     }

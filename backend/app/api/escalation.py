@@ -275,6 +275,74 @@ async def sweep_overdue_alerts(db: AsyncSession) -> tuple[int, int]:
     return notified_family, escalated_barangay
 
 
+async def nudge_quiet_devices(db: AsyncSession) -> int:
+    """Pushes a wake to every senior phone that has stopped checking in.
+
+    The problem this solves is not Android's Doze but what the handset does inside it.
+    Measured on the Infinix X6885 on 2026-08-29: the sensor service's own five-minute
+    coroutine loop produced ONE sample in twenty-four minutes, and `dumpsys jobscheduler`
+    showed the persisted fifteen-minute watchdog running three times in thirteen and a
+    half hours -- nothing at all between 00:30 and 13:00. Passive monitoring was therefore
+    not running overnight, which is precisely when a senior living alone is least observed
+    and the claim in CLAUDE.md 1 matters most.
+
+    It is the same answer the escalation deadline reached at the top of this module, applied
+    to sampling instead of to escalation: the phone cannot hold a clock, so the server holds
+    it, and FCM is the one channel Play Services can still deliver into a frozen app.
+
+    **A healthy phone is never nudged.** The condition is silence, not a schedule -- a
+    handset checking in every fifteen minutes never crosses `device_quiet_after_seconds`
+    and costs nothing. That is what keeps this inside the CLAUDE.md 10 battery budget: the
+    push is spent only on the case where monitoring has already stopped.
+
+    Returns how many were nudged, so a caller can log it. Never raises: this shares a loop
+    with the escalation sweep, and failing to wake a phone must not stop an overdue alert
+    from being escalated.
+    """
+    now = db_now()
+    quiet_before = now - timedelta(seconds=settings.device_quiet_after_seconds)
+    nudge_before = now - timedelta(seconds=settings.device_nudge_every_seconds)
+
+    result = await db.execute(
+        select(Senior).where(
+            Senior.push_token.is_not(None),
+            # NULL last_seen_at is a phone that has NEVER checked in -- it has no token
+            # either, so it cannot match the clause above and is not a case to handle here.
+            Senior.last_seen_at.is_not(None),
+            Senior.last_seen_at < quiet_before,
+            # NULL means never nudged, which is due by definition.
+            (Senior.last_nudge_at.is_(None)) | (Senior.last_nudge_at < nudge_before),
+        )
+    )
+    seniors = result.scalars().all()
+    if not seniors:
+        return 0
+
+    nudged = 0
+    for senior in seniors:
+        # Stamped whether or not the push lands. A phone that is genuinely off -- flat, or
+        # switched off and left at home -- fails every time, and stamping only on success
+        # would retry it on every pass forever.
+        senior.last_nudge_at = now
+
+        outcome = await asyncio.to_thread(push.send_wake, senior.push_token)
+
+        if outcome.stale_tokens:
+            # FCM says this token is dead for good (reinstall, cleared data, rotation).
+            # Clearing it stops the sweep pushing at nothing until the phone next checks
+            # in and registers a fresh one.
+            senior.push_token = None
+            logger.info("Cleared dead push token for senior %s", senior.sync_id)
+        elif outcome.sent:
+            nudged += 1
+
+    await db.commit()
+
+    if nudged:
+        logger.info("Nudged %d quiet device(s) awake", nudged)
+    return nudged
+
+
 async def escalation_sweep_loop() -> None:
     """Runs the sweep forever inside the API process.
 
@@ -291,6 +359,10 @@ async def escalation_sweep_loop() -> None:
         try:
             async with SessionLocal() as db:
                 await sweep_overdue_alerts(db)
+                # Same pass, same session. An overdue alert is the more urgent of the
+                # two and goes first; a phone that has been quiet for fifteen minutes
+                # can wait the milliseconds that takes.
+                await nudge_quiet_devices(db)
         except Exception:
             # One bad pass must never kill the loop. It is the only thing standing
             # between tier 2 and tier 3.

@@ -111,6 +111,19 @@ object PushTokenRegistrar {
 
     /** Bridges FirebaseMessaging's Task API into a coroutine without pulling in the
      *  play-services-coroutines artifact for one call. */
+    /**
+     * This device's FCM token, or null if one could not be obtained.
+     *
+     * Public because the senior side of the app needs the same token for a different
+     * purpose -- being woken by the server -- and has no family JWT, so it cannot go
+     * through [syncToken]. Two paths to Firebase would be two chances to disagree about
+     * which token this handset has.
+     */
+    suspend fun currentTokenOrNull(): String? =
+        runCatching { currentToken() }
+            .onFailure { Log.w(TAG, "Could not obtain FCM token", it) }
+            .getOrNull()
+
     private suspend fun currentToken(): String = suspendCancellableCoroutine { cont ->
         FirebaseMessaging.getInstance().token
             .addOnSuccessListener { if (cont.isActive) cont.resume(it) }

@@ -155,6 +155,18 @@ class Senior(Base):
     battery_percent: Mapped[int | None] = mapped_column(nullable=True)
     is_charging: Mapped[bool | None] = mapped_column(nullable=True)
 
+    # This handset's FCM registration token, and when the server last used it to wake a
+    # phone that had gone quiet. On `seniors` rather than in `device_tokens` because that
+    # table is keyed to a users row and a senior has no account (CLAUDE.md 2); see
+    # migration 0008 for the full reasoning and the measurements behind it.
+    #
+    # Refreshed on every heartbeat rather than through its own endpoint, so the token
+    # cannot go stale on a schedule different from the check-in that proves the phone is
+    # alive. NULL means this phone cannot be woken -- push is not configured, the token
+    # has not arrived yet, or FCM refused to issue one.
+    push_token: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    last_nudge_at: Mapped[datetime | None] = mapped_column(nullable=True)
+
     contacts: Mapped[list["Contact"]] = relationship(back_populates="senior")
     alerts: Mapped[list["Alert"]] = relationship(back_populates="senior")
 

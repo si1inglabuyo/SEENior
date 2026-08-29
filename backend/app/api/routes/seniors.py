@@ -83,6 +83,11 @@ async def heartbeat(
         senior.battery_percent = payload.battery_percent
     if payload.is_charging is not None:
         senior.is_charging = payload.is_charging
+    # Same rule as the readings above -- only overwrite what the phone actually sent. A
+    # check-in from a handset that could not obtain a token must not erase the token that
+    # is currently the only way to wake it.
+    if payload.push_token:
+        senior.push_token = payload.push_token
 
     await db.commit()
     await db.refresh(senior)

@@ -50,6 +50,22 @@ class Settings:
     family_response_seconds: int = int(os.environ.get("FAMILY_RESPONSE_SECONDS", "120"))
     escalation_sweep_seconds: int = int(os.environ.get("ESCALATION_SWEEP_SECONDS", "20"))
 
+    # How long a senior's phone may go without checking in before the server pushes it
+    # awake, and how long it then waits before pushing again.
+    #
+    # Both are generous on purpose. A phone that is awake and polling normally reports
+    # every fifteen minutes and is therefore NEVER nudged -- the nudge exists only for a
+    # handset the OS has frozen. Nudging harder would spend battery on the common case to
+    # fix the rare one. A phone that is genuinely off (flat, or left at home switched off)
+    # cannot be woken at all, so the second knob is what stops the server pushing at a
+    # dead handset every twenty seconds forever.
+    device_quiet_after_seconds: int = int(
+        os.environ.get("DEVICE_QUIET_AFTER_SECONDS", "900")
+    )
+    device_nudge_every_seconds: int = int(
+        os.environ.get("DEVICE_NUDGE_EVERY_SECONDS", "900")
+    )
+
     # Browser origins allowed to call this API. The barangay dashboard is the first
     # part of SEENior that runs in a browser, so it is the first thing this applies
     # to - the Android apps were never subject to it.
