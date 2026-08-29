@@ -28,6 +28,9 @@ data class DailyAggregate(
     @ColumnInfo(name = "time_block") val timeBlock: String,
     @ColumnInfo(name = "avg_movement_score") val avgMovementScore: Double,
     @ColumnInfo(name = "total_inactivity_duration") val totalInactivityDuration: Long,
+    /** Longest screen-idle stretch in the block, in seconds. Named `avg_` for historical
+     *  reasons -- it held a per-poll average before screen idle became a running counter, and
+     *  renaming the column needs a table rebuild on API 26. */
     @ColumnInfo(name = "avg_screen_idle_duration") val avgScreenIdleDuration: Long,
     @ColumnInfo(name = "total_screen_unlocks") val totalScreenUnlocks: Int,
     @ColumnInfo(name = "total_steps") val totalSteps: Int,

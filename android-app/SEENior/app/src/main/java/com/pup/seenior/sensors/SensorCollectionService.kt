@@ -15,6 +15,7 @@ import android.hardware.SensorManager
 import android.os.BatteryManager
 import android.os.Build
 import android.os.IBinder
+import android.os.PowerManager
 import android.os.SystemClock
 import android.util.Log
 import androidx.core.app.NotificationCompat
@@ -51,7 +52,6 @@ class SensorCollectionService : Service(), SensorEventListener
     private var latestStepCount = 0
     private var screenUnlockCount = 0
     private var screenOffSince: Long? = null
-    private var screenIdleSecondsThisWindow = 0L
 
     /**
      * Layer 0 (CLAUDE.md §5). Confined to the sensor callback thread along with
@@ -77,22 +77,27 @@ class SensorCollectionService : Service(), SensorEventListener
         override fun onReceive(context: Context, intent: Intent) {
             synchronized(stateLock) {
                 when (intent.action) {
-                    Intent.ACTION_SCREEN_OFF -> screenOffSince = System.currentTimeMillis()
-                    Intent.ACTION_SCREEN_ON -> {
-                        screenOffSince?.let { screenIdleSecondsThisWindow +=
-                            (System.currentTimeMillis() - it) / 1000 }
-                        screenOffSince = null
-                        }
+                    // Only the first SCREEN_OFF starts the clock. A repeat without an
+                    // intervening SCREEN_ON would restart it and lose the stretch so far.
+                    Intent.ACTION_SCREEN_OFF ->
+                        if (screenOffSince == null) screenOffSince = System.currentTimeMillis()
+                    Intent.ACTION_SCREEN_ON -> screenOffSince = null
                     Intent.ACTION_USER_PRESENT -> screenUnlockCount++
-                    }
                 }
             }
         }
+    }
 
     override fun onCreate() {
         super.onCreate()
         startForeground(NOTIFICATION_ID, buildNotification())
         isRunning = true
+
+        // The service can start while the screen is already off (boot, or a restart with the
+        // phone in a pocket). Without this the idle clock never starts, because the SCREEN_OFF
+        // that would have started it already happened.
+        val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
+        screenOffSince = if (powerManager.isInteractive) null else System.currentTimeMillis()
 
         sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
         accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
@@ -238,20 +243,29 @@ class SensorCollectionService : Service(), SensorEventListener
             (movementSampleSum / movementSampleCount).coerceIn(0.0, 1.0)
         } else 0.0
         val inactivityDurationSeconds = (now - lastSignificantMovementAt) / 1000
-        screenOffSince?.let {
-            screenIdleSecondsThisWindow += (now - it) / 1000
-            screenOffSince = now
-        }
+
+        // Seconds since the screen was last on: 0 while it is on, growing for as long as it
+        // stays off. Same running-counter shape as inactivity, and deliberately NOT reset each
+        // poll.
+        //
+        // The per-poll version measured screen-off time *within the window since the last poll*,
+        // which sounds equivalent and is not: this device's power management suspends the polling
+        // loop, so observed windows ranged from five minutes to three and a half hours. The
+        // reading therefore meant "screen-off seconds during however long the OS happened to let
+        // us sleep" -- a scale that changes from one row to the next, compared against a baseline
+        // authored as a fixed number of minutes. A running counter is the same quantity every
+        // time it is read, whenever it is read.
+        val screenIdleDurationSeconds = screenOffSince?.let { (now - it) / 1000 } ?: 0L
+
         val snapshot = SensorSnapshot(
             movementScore = movementScore,
             inactivityDurationSeconds = inactivityDurationSeconds,
-            screenIdleDurationSeconds = screenIdleSecondsThisWindow,
+            screenIdleDurationSeconds = screenIdleDurationSeconds,
             screenUnlockCount = screenUnlockCount,
             stepCount = latestStepCount,
         )
         movementSampleSum = 0.0
         movementSampleCount = 0
-        screenIdleSecondsThisWindow = 0
         screenUnlockCount = 0
         snapshot
     }

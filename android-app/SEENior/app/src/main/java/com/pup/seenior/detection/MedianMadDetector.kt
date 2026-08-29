@@ -35,6 +35,34 @@ object MedianMadDetector {
         "screen_idle_duration" to "screen_idle"
     )
 
+    /** Which side of the median is the side worth acting on. See [FEATURE_CONCERN]. */
+    private enum class Concern { ABOVE_MEDIAN, BELOW_MEDIAN }
+
+    /**
+     * The direction of deviation that means something may be wrong, per feature.
+     *
+     * The Modified Z-Score of CLAUDE.md §5 is a distance and carries no sign: `|current - median|`
+     * scores a senior who is moving *more* than usual exactly as high as one who has stopped
+     * moving. Only one of those is a reason to ask if she is safe.
+     *
+     * It is not a small effect at the margins, either — it is most of the false positives. The
+     * seed baseline sets `madValue = median * 0.4`, so `median / mad` is exactly 2.5 for every
+     * seeded feature, which puts a reading of **zero** precisely on [MODERATE_THRESHOLD]. A
+     * senior holding her phone reads inactivity 0 and screen-idle 0, and the app told her it had
+     * noticed she hadn't moved in a while — while she was moving.
+     *
+     * The score itself is unchanged, and still stored unchanged on the alert. This decides which
+     * half of it is worth acting on, which is a different question from how far from normal the
+     * reading is, and CLAUDE.md §14 requires those to stay separate.
+     */
+    private val FEATURE_CONCERN = mapOf(
+        // Unusually still, and unusually disengaged from the phone.
+        "inactivity_duration" to Concern.ABOVE_MEDIAN,
+        "screen_idle_duration" to Concern.ABOVE_MEDIAN,
+        // Unusually little movement. Agitation is not what this system is watching for.
+        "movement_score" to Concern.BELOW_MEDIAN,
+    )
+
     /** Returns the alerts this reading created, so the caller can start their response chain. An
      *  alert that was merely upgraded in severity is not returned — its chain is already running.
      *  Neither are low-risk ones: they are recorded and nobody is told (CLAUDE.md §5). */
@@ -72,6 +100,15 @@ object MedianMadDetector {
         for ((featureName, currentValue) in readings) {
             val baseline = baselineDao.getBaselineByFeatureAndTimeBlock(seniorId, featureName, sensorData.timeBlock)
                 ?: continue
+
+            // Deviating the safe way is not an anomaly (see [FEATURE_CONCERN]). Checked before
+            // the score rather than after, so a reading nobody would act on never reaches Layer 3
+            // and never lands in the log as an anomaly that was merely judged unremarkable.
+            val deviatesTowardConcern = when (FEATURE_CONCERN.getValue(featureName)) {
+                Concern.ABOVE_MEDIAN -> currentValue > baseline.medianValue
+                Concern.BELOW_MEDIAN -> currentValue < baseline.medianValue
+            }
+            if (!deviatesTowardConcern) continue
 
             val madFloor = SeedBaselineGenerator.MIN_MAD_FLOOR[featureName] ?: 1.0
             val zScore = MedianMad.deviationsScore(currentValue, baseline.medianValue, baseline.madValue, madFloor)

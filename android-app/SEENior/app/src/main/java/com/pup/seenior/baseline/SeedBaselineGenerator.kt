@@ -44,10 +44,18 @@ object SeedBaselineGenerator {
     private val NIGHT_MOVEMENT_SCORE = 0.03
     private val NIGHT_STEP_COUNT = 20.0
     private val NIGHT_UNLOCK_COUNT = 0.5
+    /**
+     * Smallest MAD the z-score is allowed to divide by, per feature.
+     *
+     * **In the units the Baseline table stores** -- seconds for the two time-based features, not
+     * the minutes the questionnaire is authored in. [com.pup.seenior.detection.MedianMadDetector]
+     * reads this map straight with no conversion, so a value in any other unit is silently 60x
+     * too small at detection time and every quiet minute reads as an emergency.
+     */
     val MIN_MAD_FLOOR = mapOf(
-        "inactivity_duration" to 5.0,
+        "inactivity_duration" to 300.0,
         "movement_score" to 0.05,
-        "screen_idle_duration" to 5.0,
+        "screen_idle_duration" to 300.0,
         "screen_unlock_count" to 1.0,
         "step_count" to 50.0,
     )
@@ -130,7 +138,7 @@ object SeedBaselineGenerator {
             val isMinutesBased = featureName in MINUTES_BASED_FEATURES
             val median = if (isMinutesBased) medianRaw * SECONDS_PER_MINUTE else medianRaw
             val marginRatio = if (isNapBlock && featureName == "inactivity_duration") NAP_MARGIN_RATIO else SEED_MARGIN_RATIO
-            val madFloor = MIN_MAD_FLOOR.getValue(featureName).let { if (isMinutesBased) it * SECONDS_PER_MINUTE else it }
+            val madFloor = MIN_MAD_FLOOR.getValue(featureName)
             Baseline(
                 seniorId = seniorId,
                 featureName = featureName,

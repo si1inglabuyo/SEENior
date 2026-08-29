@@ -42,11 +42,19 @@ class NightlyAggregationWorker(
         aggregatedIds.chunked(900).forEach { chunk -> sensorDataDao.markAsAggregated(chunk) }
         sensorDataDao.deleteAggregated()
 
-        com.pup.seenior.baseline.BaselineUpdater.updateForSenior(
-            senior.seniorId,
-            database.baselineDao(),
-            dailyAggregateDao
-        )
+        // The updater blends real data against this senior's seed values, so it needs the
+        // onboarding answers those seeds were built from. No onboarding row means no seed to
+        // blend against, and overwriting a baseline with unblended early data is the bug this
+        // is here to prevent -- so skip rather than fall back.
+        val onboarding = database.seniorOnboardingDao().getBySeniorId(senior.seniorId)
+        if (onboarding != null) {
+            com.pup.seenior.baseline.BaselineUpdater.updateForSenior(
+                senior.seniorId,
+                onboarding,
+                database.baselineDao(),
+                dailyAggregateDao
+            )
+        }
 
         return Result.success()
     }
@@ -63,7 +71,11 @@ class NightlyAggregationWorker(
         // not a per-poll delta — the block's longest streak is its max reading.
         val totalInactivityDuration = rows.maxOf { it.inactivityDuration }
 
-        val avgScreenIdleDuration = rows.map { it.screenIdleDuration }.average().toLong()
+        // screen_idle_duration is a running "seconds since the screen was last on" counter
+        // now, not a per-poll delta -- so the block's longest streak is its max reading, exactly
+        // as for inactivity above. Averaging a running counter halves it and would drag the
+        // baseline median below what the block actually looked like.
+        val avgScreenIdleDuration = rows.maxOf { it.screenIdleDuration }
         val totalScreenUnlocks = rows.sumOf { it.screenUnlockCount }
 
         // step_count is the raw cumulative-since-boot sensor reading. A device reboot

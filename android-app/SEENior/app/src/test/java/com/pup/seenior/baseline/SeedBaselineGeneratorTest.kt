@@ -41,9 +41,9 @@ class SeedBaselineGeneratorTest {
     @Test
     fun `night block reflects sleep, not activity level`() {
         val rows = SeedBaselineGenerator.generate(1, onboarding(activityLevel = "active"))
-        // 22:00 to 06:00 is 8 hours = 480 minutes
-        assertEquals(480.0, median(rows, "night", "inactivity_duration"), 0.001)
-        assertEquals(480.0, median(rows, "night", "screen_idle_duration"), 0.001)
+        // 22:00 to 06:00 is 8 hours = 480 minutes, stored as seconds to match SensorData.
+        assertEquals(480.0 * 60, median(rows, "night", "inactivity_duration"), 0.001)
+        assertEquals(480.0 * 60, median(rows, "night", "screen_idle_duration"), 0.001)
         assertTrue(median(rows, "night", "movement_score") < 0.1)
     }
 
@@ -59,7 +59,7 @@ class SeedBaselineGeneratorTest {
         val baseAfternoonInactivity = median(withoutNap, "afternoon", "inactivity_duration")
         val napAfternoonInactivity = median(withNap, "afternoon", "inactivity_duration")
         assertTrue(napAfternoonInactivity > baseAfternoonInactivity)
-        assertEquals(90.0, napAfternoonInactivity, 0.001)
+        assertEquals(90.0 * 60, napAfternoonInactivity, 0.001)
 
         // Nap should widen the MAD margin for that feature/block too.
         assertTrue(mad(withNap, "afternoon", "inactivity_duration") > mad(withoutNap, "afternoon", "inactivity_duration"))
