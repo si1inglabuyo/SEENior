@@ -299,7 +299,7 @@ async def nudge_quiet_devices(db: AsyncSession) -> int:
     with the escalation sweep, and failing to wake a phone must not stop an overdue alert
     from being escalated.
     """
-    now = db_now()
+    now = await db_now(db)
     quiet_before = now - timedelta(seconds=settings.device_quiet_after_seconds)
     nudge_before = now - timedelta(seconds=settings.device_nudge_every_seconds)
 
