@@ -132,6 +132,8 @@ class MonitoringWatchdogJobService : JobService() {
             // And any severity upgrade the cloud missed, usually for the same reason: the phone
             // had no signal at the one moment it could have sent it.
             AlertEscalator.reconcileSeverity(db, senior.seniorId)
+            // And any location cell that landed after its alert had already gone out.
+            AlertEscalator.reconcileLocation(db, senior.seniorId)
         }
 
         // Last, and deliberately so: this is the only part of the pass that touches the network,

@@ -56,6 +56,23 @@ class AlertSeverityUpdate(BaseModel):
     risk_level: RiskLevel
 
 
+class AlertLocationUpdate(BaseModel):
+    """The senior's phone reporting where an already-sent alert happened.
+
+    The fix and the deadline are two clocks that do not wait for each other. An SOS posts at the
+    end of its ten-second cancel window (CLAUDE.md 7 -- that window is the senior's, not ours to
+    lengthen), while the GPS is allowed twenty. A cold GPS indoors routinely answers in between,
+    and before this the cell it produced stayed on the phone permanently: the family's map and
+    the barangay dashboard showed no pin for the two alert types where a responder most needs one.
+
+    Carries the senior's sync_id for the same reason AlertCancel does: the senior has no account
+    (CLAUDE.md 2), so holding both ids is the only credential available.
+    """
+
+    senior_sync_id: UUID
+    location_cluster_id: str
+
+
 class AlertDispatchRequest(BaseModel):
     reason: str
     notes: str | None = None

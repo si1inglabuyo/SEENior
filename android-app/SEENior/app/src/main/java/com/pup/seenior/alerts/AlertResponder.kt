@@ -94,14 +94,19 @@ object AlertResponder {
     }
 
     /**
-     * Asks where the phone is and stores the answer as this alert's cluster (CLAUDE.md §11).
+     * Asks where the phone is and stores the answer as this alert's location cell (CLAUDE.md §11).
      *
-     * Launched rather than awaited. A fix can take up to twenty seconds, and this runs on the
-     * sensor service's thread and on the SOS button's — neither can be made to wait on a radio
-     * for a field that is metadata. The escalation reads whatever has landed by the time it
-     * sends, which for the tightest window in the chain (SOS, 40 s) still leaves room.
+     * Launched rather than awaited. A fix can take twenty seconds, and this runs on the sensor
+     * service's thread and on the SOS button's — neither can be made to wait on a radio for a
+     * field that is metadata.
      *
-     * Best effort by design: a cluster that never arrives costs the family a precise map, not an
+     * The fix can and does arrive after the alert has already been sent: an SOS posts at the end
+     * of its ten-second cancel window, which is the senior's and not ours to lengthen. That is
+     * what [AlertEscalator.syncLocation] exists for, and why it is called here rather than left
+     * to the watchdog — the next pass is fifteen minutes away, and a responder looking for a pin
+     * cannot wait that long.
+     *
+     * Best effort by design: a cell that never arrives costs the family a precise map, not an
      * alert. [AlertLocationCapture] already returns null for a declined permission or a phone
      * with every provider off, and the family's map falls back to the registered address.
      */
@@ -112,6 +117,7 @@ object AlertResponder {
                 AlertLocationCapture.capture(appContext, locationTimeoutMsFor(alert.triggerType))
             }.getOrNull() ?: return@launch
             db.alertDao().updateLocationCluster(alert.alertId, cell)
+            AlertEscalator.syncLocation(db, alert.alertId)
         }
     }
 

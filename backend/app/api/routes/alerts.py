@@ -26,6 +26,7 @@ from app.schemas.alert import (
     AlertCancel,
     AlertCreate,
     AlertDispatchRequest,
+    AlertLocationUpdate,
     AlertOut,
     AlertSeverityUpdate,
 )
@@ -317,6 +318,48 @@ async def update_alert_severity(
     previous = alert.risk_level.value
     alert.risk_level = payload.risk_level
     append_step(alert, "severity_raised", was=previous, now=payload.risk_level.value)
+    await db.commit()
+    await db.refresh(alert)
+    return alert
+
+
+
+@router.patch("/{sync_id}/location", response_model=AlertOut)
+async def update_alert_location(
+    sync_id: UUID, payload: AlertLocationUpdate, db: AsyncSession = Depends(get_db)
+) -> Alert:
+    """Fills in the location of an alert that was posted before its GPS fix arrived.
+
+    Set-once: it can only ever fill a blank. Location is read exactly once per alert
+    (CLAUDE.md 11), so a second value is either the same cell arriving twice -- a retry after a
+    lost network -- or something that should not be trusted over the first. Either way the row
+    keeps what it has, which is also what makes this idempotent.
+
+    Unlike the severity route this does not refuse a closed incident. Severity re-labels a
+    judgement somebody may already have acted on; this only adds a fact that was always true and
+    merely arrived late. An SOS can be resolved within twenty seconds -- alert 74 took eighteen --
+    so refusing closed ones would lose the pin in exactly the case it was hardest to get.
+
+    No JWT, same posture as the cancel and severity routes: the senior has no account, and the
+    pairing of the two sync_ids is the credential.
+    """
+    result = await db.execute(
+        select(Alert).where(Alert.sync_id == sync_id).options(selectinload(Alert.senior))
+    )
+    alert = result.scalar_one_or_none()
+    if alert is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Alert not found")
+
+    if alert.senior is None or alert.senior.sync_id != payload.senior_sync_id:
+        # Same 404 as the routes above: confirming an alert exists but belongs to somebody else
+        # is itself a disclosure.
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Alert not found")
+
+    if alert.location_cluster_id is not None:
+        return alert
+
+    alert.location_cluster_id = payload.location_cluster_id
+    append_step(alert, "location_added")
     await db.commit()
     await db.refresh(alert)
     return alert

@@ -6,6 +6,7 @@ import com.pup.seenior.network.RetrofitClient
 import com.pup.seenior.network.SeniorCloudSync
 import com.pup.seenior.network.dto.CancelAlertRequest
 import com.pup.seenior.network.dto.CreateAlertRequest
+import com.pup.seenior.network.dto.UpdateLocationRequest
 import com.pup.seenior.network.dto.UpdateSeverityRequest
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -65,6 +66,15 @@ object AlertEscalator {
      * retryable rather than lost, exactly as [STEP_CANCEL_SYNCED] does for a self-cancel.
      */
     private const val STEP_SEVERITY_SYNCED = "severity_synced"
+
+    /**
+     * Written once the cloud has accepted this alert's location cell.
+     *
+     * Its absence is what makes a late fix retryable rather than lost. Unlike
+     * [STEP_SEVERITY_SYNCED] it carries no value: the cell is set once and never changes, so
+     * "sent" is the whole question.
+     */
+    private const val STEP_LOCATION_SYNCED = "location_synced"
 
     sealed interface Outcome {
         /** The cloud row exists; the family app can see it. */
@@ -274,6 +284,65 @@ object AlertEscalator {
      */
     suspend fun reconcileSeverity(db: SeniorAppDatabase, seniorId: Int) {
         db.alertDao().getOpenSyncedAlerts(seniorId).forEach { syncSeverity(db, it.alertId) }
+    }
+
+    /**
+     * Sends a location cell that arrived after its alert had already been posted.
+     *
+     * [AlertResponder] gives the GPS up to twenty seconds; an SOS goes out at the end of its
+     * ten-second cancel window. Those two numbers do not fit, deliberately — the window belongs
+     * to the senior and is not ours to lengthen — so a slow fix lands after the alert has gone.
+     * Before this it stayed on the phone forever, and the one alert type a responder most needs
+     * a pin for was the one least likely to have one.
+     *
+     * A no-op until there is both a cloud row and a cell. A fix that lands before the post is
+     * carried by the post itself, which is what the re-read in [escalateToFamily] is for.
+     *
+     * Returns true when the cloud is known to have it, so [reconcileLocation] can tell "done"
+     * from "try again later".
+     */
+    suspend fun syncLocation(db: SeniorAppDatabase, alertId: Int): Boolean {
+        val alert = db.alertDao().getById(alertId) ?: return false
+        if (!alert.isSynced) return true
+        val cell = alert.locationClusterId ?: return true
+        if (hasSyncedLocation(alert)) return true
+
+        return try {
+            SeniorCloudSync(db).withSyncId { seniorSyncId ->
+                RetrofitClient.api.updateAlertLocation(
+                    alert.syncId,
+                    UpdateLocationRequest(seniorSyncId, cell)
+                )
+            }
+            db.alertDao().updateEscalationSteps(
+                alert.alertId,
+                appendStep(alert.escalationSteps, STEP_LOCATION_SYNCED, System.currentTimeMillis())
+            )
+            true
+        } catch (e: Exception) {
+            // Swallowed for the same reason as syncSeverity: the local record is right and the
+            // alert is already being acted on. The casualty is a missing pin, not a missing
+            // alert, and the watchdog's next pass retries it.
+            false
+        }
+    }
+
+    /**
+     * Retries every location cell the cloud was never told about.
+     *
+     * Called from the watchdog for the same reason [reconcileSeverity] is: a fix that landed in
+     * a dead spot has exactly one chance to be sent, and nothing else remembers it was owed.
+     */
+    suspend fun reconcileLocation(db: SeniorAppDatabase, seniorId: Int) {
+        db.alertDao().getOpenSyncedAlerts(seniorId).forEach { syncLocation(db, it.alertId) }
+    }
+
+    /** Whether the cloud has already confirmed this alert's cell. */
+    private fun hasSyncedLocation(alert: Alert): Boolean {
+        val arr = steps(alert.escalationSteps)
+        return (0 until arr.length())
+            .mapNotNull { arr.optJSONObject(it) }
+            .any { it.optString("step") == STEP_LOCATION_SYNCED }
     }
 
     /** The risk level the cloud last confirmed, or null if it has never confirmed one. */

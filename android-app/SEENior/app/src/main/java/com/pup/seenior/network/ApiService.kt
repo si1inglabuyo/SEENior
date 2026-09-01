@@ -18,6 +18,7 @@ import com.pup.seenior.network.dto.RegisterDeviceRequest
 import com.pup.seenior.network.dto.RegisterRequest
 import com.pup.seenior.network.dto.SeniorDto
 import com.pup.seenior.network.dto.TokenDto
+import com.pup.seenior.network.dto.UpdateLocationRequest
 import com.pup.seenior.network.dto.UpdateProfileRequest
 import com.pup.seenior.network.dto.UpdateSeniorRequest
 import com.pup.seenior.network.dto.UpdateSeverityRequest
@@ -61,6 +62,15 @@ interface ApiService {
     suspend fun updateAlertSeverity(
         @Path("syncId") syncId: String,
         @Body body: UpdateSeverityRequest
+    ): AlertDto
+
+    // Set-once on the server, and idempotent: the fix can land after the alert has already gone
+    // out -- an SOS posts at the end of a ten-second cancel window while the GPS is allowed
+    // twenty -- and a retry must not be able to replace a cell that already arrived.
+    @PATCH("alerts/{syncId}/location")
+    suspend fun updateAlertLocation(
+        @Path("syncId") syncId: String,
+        @Body body: UpdateLocationRequest
     ): AlertDto
 
     @POST("seniors/{syncId}/heartbeat")

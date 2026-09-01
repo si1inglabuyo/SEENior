@@ -46,6 +46,14 @@ data class UpdateSeverityRequest(
     val riskLevel: String
 )
 
+/** Mirrors backend AlertLocationUpdate -- a fix that arrived after its alert had already been
+ *  posted. Carries the senior's id alongside the alert's for the same reason
+ *  [CancelAlertRequest] does. */
+data class UpdateLocationRequest(
+    val seniorSyncId: String,
+    val locationClusterId: String
+)
+
 data class AlertDispatchRequest(
     val reason: String,
     val notes: String?
