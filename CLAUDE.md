@@ -195,7 +195,7 @@ The senior app mirrors this in the UI only: a senior living alone gets **Home / 
 - **`users`** — `id`, `username`, `password_hash` (nullable — null for Google-only accounts), `role` (`family_contact` / `barangay_responder`), `full_name`, `phone`, `email` (nullable/unique — family sign-in identity; barangay responders log in by `username` instead and leave this null), `google_sub` (nullable/unique — Google's stable per-account ID), `barangay` (scopes a barangay responder's dashboard queries; unused for family contacts), `is_active`, `created_at`.
 - **`seniors`** — `id`, `sync_id` (anonymous UUID used for all cloud-facing references, per §11), `first_name`, `last_name`, `age`, `gender`, `barangay`, `address` (joined PSGC-validated string), `mobile_number`, `invite_code` (nullable, 6-digit, time-limited), `invite_code_expires_at`, `created_at`.
 - **`contacts`** — `id`, `senior_id`, `user_id`, `contact_type` (`family` / `barangay_responder`), `relationship_label` (nullable — e.g. "daughter", "son"; named `_label` to avoid colliding with SQLAlchemy's `relationship()`), `created_at`. Unique on `(senior_id, user_id)` — one contact row per senior/family pairing.
-- **`alerts`** — `id`, `sync_id`, `senior_id`, `risk_level` (`low`/`medium`/`high`), `trigger_type` (`inactivity`/`movement`/`screen_idle`/`charging`/`sos`/`ml_flag`/`fall_pattern`), `status` (`pending`/`acknowledged`/`escalated`/`resolved`/`false_positive`), `location_cluster_id` (nullable, anonymous cluster — never raw coordinates), `escalation_steps` (JSON), `created_at`, `resolved_at`.
+- **`alerts`** — `id`, `sync_id`, `senior_id`, `risk_level` (`low`/`medium`/`high`), `trigger_type` (`inactivity`/`movement`/`screen_idle`/`charging`/`sos`/`ml_flag`/`fall_pattern`), `status` (`pending`/`acknowledged`/`escalated`/`resolved`/`false_positive`), `location_cluster_id` (nullable — a precision-9 geohash, ~5 m; **precise, not anonymous**, despite the legacy column name. Older rows hold ~150 m precision-7 values. See §11), `escalation_steps` (JSON), `created_at`, `resolved_at`.
 
 None of the fields above are raw sensor/behavioral data — they're identity, pairing, and alert-metadata fields added as pairing/auth features were built (multi-senior linking, Google Sign-In, PH address validation). The privacy boundary from §11 (no raw sensor data leaves the senior's device) remains intact.
 
@@ -245,7 +245,13 @@ Detection accuracy is validated via **simulated sensor data injection** in test 
 
 - Raw sensor data **never** leaves the senior's device. Period.
 - Cloud-synced alert data uses an anonymous `sync_id` (UUID) — not the local sequential `alert_id` — to avoid both ID collisions across devices and leaking volume information.
-- GPS location is captured **only at alert-trigger time**, never continuously, stored as an anonymous cluster ID, never raw coordinates.
+- GPS location is read **only at alert-trigger time**, never continuously. There is no location history: one fix per alert, nothing at all on an ordinary day, and no background location work of any kind. **This is the protection, and it is non-negotiable.**
+- **The stored location is precise** — a precision-9 geohash (`android-app/.../location/Geohash.kt`), a ~5 m cell, finer than a handset's own GPS error. It identifies a place.
+  - **Changed 2026-08-31, deliberately, reversing an earlier ~150 m design.** Two reasons. A responder has to be able to reach a senior who has fallen, and a 150 m cell in a dense barangay is several hundred households — an alert nobody can act on. And the system *already* discloses her registered street address to that same responder during an active alert, so the coarse cell was withholding far less than it appeared to while making the alert materially harder to act on.
+  - The justification for holding it is **RA 10173 §12(c) vital interests** (below), plus the access controls above — **not** anonymisation. **Do not describe the alert location as anonymous, de-identified, or a "cluster" in the paper, the slides, or any UI string.** It is not, and a panelist who checks will find that out. The DB column is still named `location_cluster_id` in both databases for historical reasons only; renaming it would cost a migration on both sides for no behavioural gain.
+  - Geohash is kept purely as a compact format that is self-describing about its own precision and decodes to bounds a map can draw. It hides nothing at this length.
+  - `AlertLocationMap` reads the precision back off the cell and draws what it actually holds: a **pin** for a modern ~5 m cell, a **square** for the ~150 m cells older alerts still carry. Both kinds are live in the database. Do not collapse this into one shape.
+  - The `Location` object itself is still never stored, logged, or transmitted — it exists only as a local inside `AlertLocationCapture.capture()`, which returns the encoded string.
 - `Sensor_Data` raw records are purged nightly after being rolled into `Daily_Aggregates` — both for storage efficiency and data minimization.
 - Role-based access control: family contacts only see their linked senior(s); barangay responders only see seniors within their assigned barangay.
 - Legal basis for sharing senior name/location with barangay during an active alert: **RA 10173 (Philippine Data Privacy Act of 2012), Section 12(c) — vital interests provision**. This is the standard justification to cite — don't treat sharing this data during an emergency as a privacy violation; it's an explicitly permitted exception.
@@ -290,7 +296,8 @@ Detection accuracy is validated via **simulated sensor data injection** in test 
 - Do not assume the barangay responder logs in with an email — they use a **pre-assigned username**, since credentials are issued/hardcoded by the OSCA officer, not self-registered.
 - Do not collapse the three detection layers into one combined score — they are deliberately separate (z-score, path-length anomaly score, and fuzzy risk level are three different outputs serving three different purposes).
 - Do not design the system to wait for real emergencies to validate detection accuracy — use simulated/injected sensor test data instead.
-- Do not add continuous GPS tracking "for convenience" — location is alert-trigger-only by design.
+- Do not add continuous GPS tracking "for convenience" — location is alert-trigger-only by design. This is the location protection; the *precision* of the single captured fix is deliberately high (§11) and is not the thing guarding the senior's privacy.
+- Do not call the alert location "anonymous" or "a cluster" — it is a precise position, held under RA 10173 §12(c). Saying otherwise in the paper is a factual error a panelist can catch.
 
 ---
 

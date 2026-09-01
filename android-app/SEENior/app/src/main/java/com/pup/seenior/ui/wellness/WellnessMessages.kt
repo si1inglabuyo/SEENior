@@ -75,11 +75,13 @@ object WellnessMessages {
         footer = "If no response, your emergency contacts will be notified immediately.",
         acknowledged = "Response Acknowledged!",
         alertSentTitle = "Alert Sent!",
-        // The mockup also promises "Your current location is being shared". It is not: location
-        // is captured at alert-trigger time as an anonymous cluster id (CLAUDE.md §11) and no
-        // cluster engine exists yet, so the alert goes up with no location at all. Telling the
-        // senior otherwise would be a false reassurance in an emergency. Restore that line when
-        // location capture is actually built.
+        // The mockup also promises "Your current location is being shared". Location capture is
+        // built now (AlertLocationCapture, 2026-08-31) and the cell it stores is precise, so the
+        // line would no longer be false — but it is not restored here, because it is not reliably
+        // true either: the fix is best effort and a real alert on 2026-09-01 went up with no
+        // location at all. Promising it in an emergency and not delivering is worse than not
+        // promising it. Whether to say something honest and softer is a copy decision, not a
+        // code one.
         alertSentBody = "Your contacts have been notified.",
         standDownButton = "I'M FINE NOW",
         standDownDone = "We have told your family you are fine.",

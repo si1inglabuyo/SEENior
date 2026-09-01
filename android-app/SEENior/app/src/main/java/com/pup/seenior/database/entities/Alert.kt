@@ -42,8 +42,16 @@ data class Alert(
      */
     @ColumnInfo(name = "deviation_score") val deviationScore: Double? = null,
     /**
-     * Anonymous location cluster ID — captured only at alert-trigger time, never raw coordinates.
-     * Null if GPS was unavailable or not yet captured.
+     * Where the phone was when this alert fired, as a geohash cell — captured only at
+     * alert-trigger time, never continuously, and never stored as raw coordinates.
+     *
+     * **Not anonymous** (CLAUDE.md §11): a precision-9 cell is about five metres, finer than the
+     * handset's own GPS error, and it identifies a place. It is held under RA 10173 §12(c) vital
+     * interests, not under any claim of de-identification. The column keeps its
+     * `location_cluster_id` name for historical reasons only — renaming it would cost a migration
+     * on both databases for no behavioural gain.
+     *
+     * Null if GPS was unavailable or not yet captured, which is a normal outcome.
      */
     @ColumnInfo(name = "location_cluster_id") val locationClusterId: String? = null,
     /**
