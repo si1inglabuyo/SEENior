@@ -8,6 +8,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.room.withTransaction
 import com.pup.seenior.address.PhAddressRepository
+import com.pup.seenior.address.PsgcMatch
 import com.pup.seenior.address.RegionNode
 import com.pup.seenior.baseline.SeedBaselineGenerator
 import com.pup.seenior.database.SeniorAppDatabase
@@ -90,6 +91,26 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
 
     fun onRegionSelected(name: String) {
         region = name; province = null; city = null; barangay = null
+    }
+
+    /**
+     * Fills the address fields from a spot the senior pinned on the map.
+     *
+     * Set together and without the cascade resets the per-field setters do, because these four
+     * already agree with each other — they were read out of the same PSGC entry. Running the
+     * cascade would blank each level as the one above it changed.
+     *
+     * The barangay can legitimately arrive null: the map found the city but nothing it returned
+     * matched a barangay in that city's list, and guessing is not an option for the field that
+     * routes tier 3. The senior is told so on the picker and chooses from the dropdown, which by
+     * then is already narrowed to the right city.
+     */
+    fun applyPickedAddress(match: PsgcMatch, streetLine: String) {
+        region = match.regionName
+        province = match.province
+        city = match.city
+        barangay = match.barangay
+        if (streetLine.isNotBlank()) streetAddress = streetLine
     }
 
     fun onProvinceSelected(name: String) {

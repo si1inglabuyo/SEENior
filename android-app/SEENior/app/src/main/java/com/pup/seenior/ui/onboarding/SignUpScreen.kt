@@ -1,31 +1,45 @@
 package com.pup.seenior.ui.onboarding
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Map
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.pup.seenior.ui.onboarding.components.LabeledDropdownField
 import com.pup.seenior.ui.onboarding.components.LabeledTextField
 import com.pup.seenior.ui.onboarding.components.OnboardingHeading
 import com.pup.seenior.ui.onboarding.components.OnboardingTopBar
 import com.pup.seenior.ui.onboarding.components.PrimaryPillButton
 import com.pup.seenior.ui.onboarding.components.SearchableDropdownField
+import com.pup.seenior.ui.theme.SeniorColors
 import com.pup.seenior.validation.PhilippinePhone
 
 @Composable
 fun SignUpScreen(
     viewModel: OnboardingViewModel,
     onBack: () -> Unit,
-    onNext: () -> Unit
+    onNext: () -> Unit,
+    onPickOnMap: () -> Unit
 ) {
     Surface(modifier = Modifier.fillMaxSize(), color = Color.White) {
         Column(
@@ -95,6 +109,11 @@ fun SignUpScreen(
                 placeholder = "Select"
             )
 
+            // Offered above the dropdowns, not below them: it exists to save a senior from four
+            // cascading lists, and placed after them it would only be found by someone who had
+            // already done the work.
+            PickOnMapRow(onPickOnMap)
+
             SearchableDropdownField(
                 label = "REGION",
                 selected = viewModel.region,
@@ -138,6 +157,47 @@ fun SignUpScreen(
                 onClick = onNext,
                 enabled = viewModel.isSignUpValid,
                 modifier = Modifier.padding(top = 32.dp, bottom = 32.dp)
+            )
+        }
+    }
+}
+
+/**
+ * The shortcut into [AddressMapPickerScreen].
+ *
+ * Deliberately a link beside the dropdowns rather than a replacement for them. OpenStreetMap's
+ * coverage of Philippine barangays is uneven, and a senior whose street it has never heard of must
+ * still be able to finish signing up — so typing the address stays the guaranteed path.
+ */
+@Composable
+private fun PickOnMapRow(onPickOnMap: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 24.dp)
+            .background(SeniorColors.GreenLightBg, RoundedCornerShape(14.dp))
+            .clickable(onClick = onPickOnMap)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Icon(
+            Icons.Filled.Map,
+            contentDescription = null,
+            tint = SeniorColors.GreenDark,
+            modifier = Modifier.size(22.dp)
+        )
+        Column {
+            Text(
+                "Find my address on a map",
+                color = SeniorColors.GreenDark,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                "Drag a pin to your house instead of filling in the boxes below.",
+                color = SeniorColors.TextSecondary,
+                fontSize = 13.sp
             )
         }
     }

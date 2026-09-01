@@ -11,6 +11,7 @@ import com.pup.seenior.ui.family.FamilyCompletePhoneScreen
 import com.pup.seenior.ui.family.FamilyLoginScreen
 import com.pup.seenior.ui.family.FamilySignUpScreen
 import com.pup.seenior.ui.onboarding.AllSetScreen
+import com.pup.seenior.ui.onboarding.AddressMapPickerScreen
 import com.pup.seenior.ui.onboarding.OnboardingQuestionnaireScreen
 import com.pup.seenior.ui.onboarding.OnboardingViewModel
 import com.pup.seenior.ui.onboarding.PermissionsScreen
@@ -25,6 +26,7 @@ object SeniorRoutes {
     const val WELCOME = "welcome"
     const val ROLE_SELECT = "role_select"
     const val SIGN_UP = "sign_up"
+    const val ADDRESS_MAP = "address_map"
     const val TERMS = "terms"
     const val QUESTIONNAIRE = "questionnaire"
     const val PERMISSIONS = "permissions"
@@ -72,7 +74,17 @@ fun SeniorNavGraph(navController: NavHostController = rememberNavController()) {
             SignUpScreen(
                 viewModel = onboardingViewModel,
                 onBack = { navController.popBackStack() },
-                onNext = { navController.navigate(SeniorRoutes.TERMS) }
+                onNext = { navController.navigate(SeniorRoutes.TERMS) },
+                onPickOnMap = { navController.navigate(SeniorRoutes.ADDRESS_MAP) }
+            )
+        }
+        composable(SeniorRoutes.ADDRESS_MAP) {
+            AddressMapPickerScreen(
+                viewModel = onboardingViewModel,
+                onBack = { navController.popBackStack() },
+                // Returns to the form rather than skipping ahead: the picker fills the fields in,
+                // and the senior still has to see and accept them.
+                onConfirmed = { navController.popBackStack() }
             )
         }
         composable(SeniorRoutes.TERMS) {
