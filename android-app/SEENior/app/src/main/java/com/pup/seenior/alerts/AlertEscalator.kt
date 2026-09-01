@@ -6,6 +6,7 @@ import com.pup.seenior.network.RetrofitClient
 import com.pup.seenior.network.SeniorCloudSync
 import com.pup.seenior.network.dto.CancelAlertRequest
 import com.pup.seenior.network.dto.CreateAlertRequest
+import com.pup.seenior.network.dto.UpdateSeverityRequest
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.json.JSONArray
@@ -56,6 +57,14 @@ object AlertEscalator {
      * to tell those states apart to say "waiting for signal" rather than "your family knows".
      */
     private const val STEP_DELIVERED = "delivered_family"
+
+    /**
+     * Written once the cloud has accepted a raised risk level, carrying the level it accepted.
+     *
+     * Its absence — or a level that no longer matches the local row — is what makes an upgrade
+     * retryable rather than lost, exactly as [STEP_CANCEL_SYNCED] does for a self-cancel.
+     */
+    private const val STEP_SEVERITY_SYNCED = "severity_synced"
 
     sealed interface Outcome {
         /** The cloud row exists; the family app can see it. */
@@ -130,16 +139,22 @@ object AlertEscalator {
         if (alert.isSynced) return Outcome.Delivered
 
         return try {
+            // Re-read immediately before posting. The snapshot at the top of this function can be
+            // stale by now in two different ways: the location capture is asynchronous and usually
+            // lands after it, and Layer 1 can upgrade the severity in between. On 2026-09-01 the
+            // upgrade and this POST happened within the same second, and the family were shown
+            // Medium for an alert the phone had already called High.
+            val current = db.alertDao().getById(alert.alertId)
             val cloudAlert = SeniorCloudSync(db).withSyncId { seniorSyncId ->
                 RetrofitClient.api.postAlert(
                     CreateAlertRequest(
                         seniorSyncId = seniorSyncId,
-                        riskLevel = alert.riskLevel,
+                        riskLevel = current?.riskLevel ?: alert.riskLevel,
                         triggerType = alert.triggerType,
-                        // Location is captured at alert-trigger time only, as an anonymous
-                        // cluster id, never coordinates (CLAUDE.md §11). No cluster engine
-                        // exists yet, so this stays null rather than sending a fake.
-                        locationClusterId = null
+                        // Captured at alert-trigger time only, as a geohash cell, never
+                        // coordinates (CLAUDE.md §11). Null when no fix could be had, which is a
+                        // normal outcome.
+                        locationClusterId = current?.locationClusterId
                     )
                 )
             }
@@ -205,6 +220,71 @@ object AlertEscalator {
             .forEach { cancelInCloud(db, it.alertId) }
     }
 
+    /**
+     * Tells the cloud that an already-sent alert has been re-classified as more serious.
+     *
+     * Layer 1 re-scores on every sample, so an alert posted as Medium can become High while it is
+     * still open. [com.pup.seenior.detection.MedianMadDetector] raises the local row; this is the
+     * only thing that carries the change to the copy the family app and the barangay dashboard
+     * actually read. Measured missing on 2026-09-01: alert 20 was posted Medium at 10:21 and
+     * upgraded to High in the same second, and the cloud still said Medium five hours later.
+     *
+     * A no-op for an alert that never reached the cloud. [escalateToFamily] reads the level at the
+     * moment it posts, so one that has not gone up yet carries the current level when it does.
+     *
+     * Returns true when the cloud is known to agree, so [reconcileSeverity] can tell "done" from
+     * "try again later".
+     */
+    suspend fun syncSeverity(db: SeniorAppDatabase, alertId: Int): Boolean {
+        val alert = db.alertDao().getById(alertId) ?: return false
+        if (!alert.isSynced) return true
+        if (lastSyncedSeverity(alert) == alert.riskLevel) return true
+
+        return try {
+            SeniorCloudSync(db).withSyncId { seniorSyncId ->
+                RetrofitClient.api.updateAlertSeverity(
+                    alert.syncId,
+                    UpdateSeverityRequest(seniorSyncId, alert.riskLevel)
+                )
+            }
+            db.alertDao().updateEscalationSteps(
+                alert.alertId,
+                appendStep(
+                    alert.escalationSteps,
+                    STEP_SEVERITY_SYNCED,
+                    System.currentTimeMillis(),
+                    mapOf("level" to alert.riskLevel)
+                )
+            )
+            true
+        } catch (e: Exception) {
+            // Never rethrown, for the same reason as cancelInCloud: the local record is right and
+            // the alert is already being acted on. The only casualty is a stale severity in the
+            // family's view, which the watchdog's next pass repairs.
+            false
+        }
+    }
+
+    /**
+     * Retries every severity upgrade the cloud was never told about.
+     *
+     * Called from the watchdog, for the same reason [reconcileCancelledAlerts] is: an upgrade that
+     * happened in a dead spot has exactly one chance to be sent, and nothing else remembers it was
+     * owed.
+     */
+    suspend fun reconcileSeverity(db: SeniorAppDatabase, seniorId: Int) {
+        db.alertDao().getOpenSyncedAlerts(seniorId).forEach { syncSeverity(db, it.alertId) }
+    }
+
+    /** The risk level the cloud last confirmed, or null if it has never confirmed one. */
+    private fun lastSyncedSeverity(alert: Alert): String? {
+        val arr = steps(alert.escalationSteps)
+        return (0 until arr.length())
+            .mapNotNull { arr.optJSONObject(it) }
+            .lastOrNull { it.optString("step") == STEP_SEVERITY_SYNCED }
+            ?.optString("level")
+    }
+
     private fun hasStep(alert: Alert, step: String): Boolean = steps(alert.escalationSteps)
         .let { arr -> (0 until arr.length()).any { arr.optJSONObject(it)?.optString("step") == step } }
 
@@ -218,10 +298,24 @@ object AlertEscalator {
             ?.toLongOrNull()
     }
 
-    /** Appends one entry to the alert's audit timeline (CLAUDE.md §8 `escalation_steps`). */
-    fun appendStep(existing: String, step: String, at: Long): String =
+    /**
+     * Appends one entry to the alert's audit timeline (CLAUDE.md §8 `escalation_steps`).
+     *
+     * [extra] carries any keys beyond step/at — the server's own entries already use free-form
+     * keys like `reason`, and the risk level the cloud accepted is the same kind of fact.
+     */
+    fun appendStep(
+        existing: String,
+        step: String,
+        at: Long,
+        extra: Map<String, String> = emptyMap()
+    ): String =
         steps(existing)
-            .put(JSONObject().put("step", step).put("at", at.toString()))
+            .put(
+                JSONObject().put("step", step).put("at", at.toString()).also { entry ->
+                    extra.forEach { (key, value) -> entry.put(key, value) }
+                }
+            )
             .toString()
 
     private fun steps(raw: String): JSONArray = try {

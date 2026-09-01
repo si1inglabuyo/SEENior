@@ -38,6 +38,14 @@ data class CancelAlertRequest(
     val seniorSyncId: String
 )
 
+/** Mirrors backend AlertSeverityUpdate -- an already-sent alert that Layer 1 has re-classified
+ *  upwards. Carries the senior's id alongside the alert's for the same reason
+ *  [CancelAlertRequest] does. */
+data class UpdateSeverityRequest(
+    val seniorSyncId: String,
+    val riskLevel: String
+)
+
 data class AlertDispatchRequest(
     val reason: String,
     val notes: String?

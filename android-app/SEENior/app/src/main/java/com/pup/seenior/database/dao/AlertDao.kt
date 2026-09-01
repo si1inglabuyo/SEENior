@@ -112,6 +112,22 @@ interface AlertDao {
     """)
     suspend fun getSelfCancelledSyncedAlerts(seniorId: Int): List<Alert>
 
+    /**
+     * Open alerts that already have a cloud row.
+     *
+     * For repairing metadata the server was never told about -- a severity upgrade that happened
+     * while the phone had no signal. Same three statuses as [getActiveAlert]: an incident nobody
+     * has closed yet is one whose cloud copy still matters.
+     */
+    @Query("""
+        SELECT * FROM Alerts
+        WHERE senior_id = :seniorId
+          AND is_synced = 1
+          AND status IN ('pending', 'acknowledged_family', 'escalated_barangay')
+        ORDER BY triggered_at DESC
+    """)
+    suspend fun getOpenSyncedAlerts(seniorId: Int): List<Alert>
+
     @Query("UPDATE Alerts SET risk_level = :riskLevel, deviation_score = :deviationScore WHERE alert_id = :alertId")
     suspend fun updateSeverity(alertId: Int, riskLevel: String, deviationScore: Double)
 

@@ -20,6 +20,7 @@ import com.pup.seenior.network.dto.SeniorDto
 import com.pup.seenior.network.dto.TokenDto
 import com.pup.seenior.network.dto.UpdateProfileRequest
 import com.pup.seenior.network.dto.UpdateSeniorRequest
+import com.pup.seenior.network.dto.UpdateSeverityRequest
 import com.pup.seenior.network.dto.UserDto
 import com.pup.seenior.network.dto.VerifyCodeRequest
 import com.pup.seenior.network.dto.VerifyCodeResponse
@@ -51,6 +52,15 @@ interface ApiService {
     suspend fun cancelAlert(
         @Path("syncId") syncId: String,
         @Body body: CancelAlertRequest
+    ): AlertDto
+
+    // Upgrade-only on the server, and idempotent: an alert re-classified after it was already
+    // posted has to reach the family app and the barangay dashboard, and a retry must not be
+    // able to talk a level back down.
+    @PATCH("alerts/{syncId}/severity")
+    suspend fun updateAlertSeverity(
+        @Path("syncId") syncId: String,
+        @Body body: UpdateSeverityRequest
     ): AlertDto
 
     @POST("seniors/{syncId}/heartbeat")

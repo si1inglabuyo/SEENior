@@ -16,12 +16,19 @@ from app.db.models import (
     Contact,
     ContactType,
     DeviceToken,
+    RiskLevel,
     Senior,
     User,
     UserRole,
 )
 from app.db.session import SessionLocal, get_db
-from app.schemas.alert import AlertCancel, AlertCreate, AlertDispatchRequest, AlertOut
+from app.schemas.alert import (
+    AlertCancel,
+    AlertCreate,
+    AlertDispatchRequest,
+    AlertOut,
+    AlertSeverityUpdate,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -260,6 +267,56 @@ async def cancel_alert(
     # is where audit facts already live (CLAUDE.md 8) -- so the timeline records that this was
     # the senior, not a family member, and no migration is needed to say so.
     append_step(alert, "self_cancelled_senior", by=alert.senior.first_name)
+    await db.commit()
+    await db.refresh(alert)
+    return alert
+
+
+# Severity order, so the endpoint below can raise a level but never quietly lower one. Mirrors
+# MedianMadDetector.RISK_ORDER on the device.
+RISK_ORDER = [RiskLevel.LOW, RiskLevel.MEDIUM, RiskLevel.HIGH]
+
+
+@router.patch("/{sync_id}/severity", response_model=AlertOut)
+async def update_alert_severity(
+    sync_id: UUID, payload: AlertSeverityUpdate, db: AsyncSession = Depends(get_db)
+) -> Alert:
+    """Raises an open alert's risk level after the phone re-classified it.
+
+    Upgrade-only, exactly as the device is (MedianMadDetector.evaluate). An alert somebody is
+    already acting on must never be talked back down by a later, calmer reading, and a retry
+    arriving out of order must not undo an upgrade that already landed.
+
+    Idempotent: re-sending the level the row already holds returns it unchanged rather than
+    erroring, because the caller is a phone that may be retrying after a lost network.
+
+    Closed incidents are left alone. Re-labelling something already resolved changes nothing
+    anyone can act on and would only disturb the audit trail.
+
+    No JWT, same posture as the cancel route above: the senior has no account, and the pairing of
+    the two sync_ids is the credential.
+    """
+    result = await db.execute(
+        select(Alert).where(Alert.sync_id == sync_id).options(selectinload(Alert.senior))
+    )
+    alert = result.scalar_one_or_none()
+    if alert is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Alert not found")
+
+    if alert.senior is None or alert.senior.sync_id != payload.senior_sync_id:
+        # Deliberately the same 404 as the cancel route: confirming an alert exists but belongs
+        # to somebody else is itself a disclosure.
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Alert not found")
+
+    if alert.status in (AlertStatus.RESOLVED, AlertStatus.FALSE_POSITIVE):
+        return alert
+
+    if RISK_ORDER.index(payload.risk_level) <= RISK_ORDER.index(alert.risk_level):
+        return alert
+
+    previous = alert.risk_level.value
+    alert.risk_level = payload.risk_level
+    append_step(alert, "severity_raised", was=previous, now=payload.risk_level.value)
     await db.commit()
     await db.refresh(alert)
     return alert

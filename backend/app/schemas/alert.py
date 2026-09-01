@@ -40,6 +40,22 @@ class AlertCancel(BaseModel):
     senior_sync_id: UUID
 
 
+class AlertSeverityUpdate(BaseModel):
+    """The senior's phone reporting that an already-sent alert has got worse.
+
+    Layer 1 re-scores every sample, so an alert posted as Medium can be re-classified High
+    minutes later while it is still open. Without this the cloud copy keeps the level it was
+    created with, and the family app and the barangay dashboard show Medium for an incident the
+    phone now calls High -- measured on 2026-09-01, five hours apart.
+
+    Carries the senior's sync_id for the same reason AlertCancel does: the senior has no account
+    (CLAUDE.md 2), so holding both ids is the only credential available.
+    """
+
+    senior_sync_id: UUID
+    risk_level: RiskLevel
+
+
 class AlertDispatchRequest(BaseModel):
     reason: str
     notes: str | None = None

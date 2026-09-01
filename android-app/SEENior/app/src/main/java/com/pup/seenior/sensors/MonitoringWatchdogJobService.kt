@@ -129,6 +129,9 @@ class MonitoringWatchdogJobService : JobService() {
         // has already dismissed.
         db.seniorDao().getOnboardedSenior()?.let { senior ->
             AlertEscalator.reconcileCancelledAlerts(db, senior.seniorId)
+            // And any severity upgrade the cloud missed, usually for the same reason: the phone
+            // had no signal at the one moment it could have sent it.
+            AlertEscalator.reconcileSeverity(db, senior.seniorId)
         }
 
         // Last, and deliberately so: this is the only part of the pass that touches the network,
