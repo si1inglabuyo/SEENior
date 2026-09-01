@@ -5,7 +5,12 @@ import com.pup.seenior.AppForeground
 import com.pup.seenior.baseline.SeedBaselineGenerator
 import com.pup.seenior.database.SeniorAppDatabase
 import com.pup.seenior.database.entities.Alert
+import com.pup.seenior.location.AlertLocationCapture
 import com.pup.seenior.ui.wellness.WellnessMessages
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.util.UUID
@@ -24,6 +29,9 @@ object AlertResponder {
      *  duplicate check. Falls in particular can be reported by the live sensor stream and a demo
      *  trigger at once. */
     private val raiseLock = Mutex()
+
+    /** Outlives the caller on purpose: see [captureLocationCluster]. */
+    private val locationScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     /**
      * Raises an alert that carries no deviation score — one where something either happened or
@@ -68,7 +76,10 @@ object AlertResponder {
     }
 
     suspend fun onAlertCreated(context: Context, db: SeniorAppDatabase, alert: Alert) {
+        // Armed before anything else in this function. The deadline is the alert's one hard
+        // guarantee, and nothing added here may ever be able to delay it.
         EscalationScheduler.arm(context, alert)
+        captureLocationCluster(context, db, alert)
 
         // With the app open the wellness prompt takes over the screen by itself; a notification
         // on top of it would only be noise.
@@ -80,5 +91,45 @@ object AlertResponder {
             ?: WellnessMessages.ENGLISH
 
         AlertNotifier.notify(context, alert, language, senior?.firstName.orEmpty())
+    }
+
+    /**
+     * Asks where the phone is and stores the answer as this alert's cluster (CLAUDE.md §11).
+     *
+     * Launched rather than awaited. A fix can take up to twenty seconds, and this runs on the
+     * sensor service's thread and on the SOS button's — neither can be made to wait on a radio
+     * for a field that is metadata. The escalation reads whatever has landed by the time it
+     * sends, which for the tightest window in the chain (SOS, 40 s) still leaves room.
+     *
+     * Best effort by design: a cluster that never arrives costs the family a precise map, not an
+     * alert. [AlertLocationCapture] already returns null for a declined permission or a phone
+     * with every provider off, and the family's map falls back to the registered address.
+     */
+    private fun captureLocationCluster(context: Context, db: SeniorAppDatabase, alert: Alert) {
+        val appContext = context.applicationContext
+        locationScope.launch {
+            val cell = runCatching {
+                AlertLocationCapture.capture(appContext, locationTimeoutMsFor(alert.triggerType))
+            }.getOrNull() ?: return@launch
+            db.alertDao().updateLocationCluster(alert.alertId, cell)
+        }
+    }
+
+    /**
+     * How long this alert can afford to wait for a fix, by what raised it.
+     *
+     * Not one number, because the windows are not one length. An SOS or a fall notifies everyone
+     * in seconds, and a late cell would arrive after the message it belonged on. A Median-MAD
+     * alert has ten minutes before the family tier even begins — and on 2026-09-01 the first real
+     * one of those went to the family and then the barangay with no location at all, because the
+     * phone was indoors with a cold GPS and twenty seconds was not enough. A responder sent to a
+     * street address instead of a pin is the exact cost CLAUDE.md §11 was rewritten to avoid.
+     *
+     * Still best effort. Nothing waits on this: the capture runs in its own scope and the
+     * escalation sends whatever has landed by then.
+     */
+    private fun locationTimeoutMsFor(triggerType: String): Long = when (triggerType) {
+        "sos", "fall_pattern" -> 20_000L
+        else -> 120_000L
     }
 }

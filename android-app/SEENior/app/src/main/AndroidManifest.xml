@@ -3,6 +3,13 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
+    <!-- Both, and the pair matters. Coarse alone is silently fuzzed by Android 12+ to a
+         ~1-2km grid refreshed hourly, which would make the alert map draw a 150m square around
+         a point that was never that accurate - a map claiming more than it knows. Holding fine
+         means the rounding to a location cluster is this app's own deliberate act, done in
+         Geohash.encode() and citable as such, rather than an OS behaviour nobody can point to.
+         The precise fix is never stored: see AlertLocationCapture. -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />

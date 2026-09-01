@@ -298,7 +298,10 @@ private fun AlertDetailContent(alert: AlertDto, senior: SeniorDto, onAcknowledge
             EscalationRow(Icons.Filled.AccountBalance, FamilyColors.Blue, "Barangay - 10 mins window")
 
             SectionLabel("LAST KNOWN LOCATION", Modifier.padding(top = 24.dp, bottom = 10.dp))
-            MapPlaceholder()
+            AlertLocationMap(
+                clusterId = alert.locationClusterId,
+                registeredAddress = senior.address
+            )
         }
     }
 }
@@ -419,11 +422,18 @@ private fun AlertLocationContent(alert: AlertDto, senior: SeniorDto, onBack: () 
                 textColor = FamilyColors.AlertRed
             )
             Spacer(Modifier.height(16.dp))
-            MapPlaceholder(Modifier.height(220.dp))
+            AlertLocationMap(
+                clusterId = alert.locationClusterId,
+                registeredAddress = senior.address,
+                height = 220.dp,
+                interactive = true
+            )
             Spacer(Modifier.height(20.dp))
-            // No live coordinates exist in this system (CLAUDE.md §11 — cluster IDs only,
-            // never raw GPS), so this navigates to the senior's registered home address
-            // as the closest real stand-in rather than a fabricated live pin.
+            // The alert carries one geohash cell and no live coordinate stream (CLAUDE.md §11 —
+            // one fix per alert, nothing at all on an ordinary day), so there is nothing to
+            // navigate *along*. This sends the family to the senior's registered address, which
+            // is the stand-in that stays true even when no fix was captured. The map above
+            // already draws the cell itself when there is one.
             ColorPillButton(
                 "Navigate here",
                 color = FamilyColors.Blue,
