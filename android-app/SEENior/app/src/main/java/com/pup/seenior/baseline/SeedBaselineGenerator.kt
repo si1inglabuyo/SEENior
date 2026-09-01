@@ -93,9 +93,45 @@ object SeedBaselineGenerator {
             ?: TimeBlock.NIGHT
     }
 
+    /**
+     * How many seconds of the block [timestamp] falls in have already gone by.
+     *
+     * Needed because two of the sensor readings are *running counters* -- `inactivity_duration`
+     * and `screen_idle_duration` both mean "seconds since the last time X happened" and keep
+     * climbing straight across a block boundary -- while the Baseline they are compared against
+     * is written per block. At wake time the night block ends and morning begins, but the
+     * inactivity counter does not restart: a senior who slept normally arrives in the morning
+     * block carrying the whole night's stillness, which is unremarkable against night's median
+     * and enormous against morning's. Nothing about the senior changed; only the yardstick did.
+     *
+     * Measured on the pilot handset on 2026-09-01: alert 20, `inactivity` at z = 31.98, raised
+     * five minutes after wake time on a reading accumulated entirely during the night, escalated
+     * to the family and then to the barangay.
+     *
+     * [com.pup.seenior.detection.MedianMadDetector] clips those two readings to this value, so a
+     * block is only ever judged on stillness that happened inside it.
+     */
+    fun secondsSinceBlockStart(timestamp: Long, wakeTime: String, sleepTime: String): Long {
+        val minuteOfDay = minuteOfDayFor(timestamp)
+        val blocks = computeTimeBlocks(wakeTime, sleepTime)
+        val window = blocks.firstOrNull { minuteWithinWindow(minuteOfDay, it.startMinute, it.durationMinutes) }
+        // Mirrors resolveTimeBlock's own fallback, so a minute no window claims is treated as
+        // night by both functions rather than by only one of them.
+            ?: blocks.first { it.block == TimeBlock.NIGHT }
+        val minutesIn = ((minuteOfDay - window.startMinute) + MINUTES_PER_DAY) % MINUTES_PER_DAY
+        // Plus the seconds inside the current minute, so the clip rises smoothly instead of in
+        // sixty-second steps.
+        return minutesIn * 60L + secondOfMinuteFor(timestamp)
+    }
+
     private fun minuteOfDayFor(timestamp: Long): Int {
         val calendar = Calendar.getInstance().apply { timeInMillis = timestamp }
         return calendar.get(Calendar.HOUR_OF_DAY) * 60 + calendar.get(Calendar.MINUTE)
+    }
+
+    private fun secondOfMinuteFor(timestamp: Long): Int {
+        val calendar = Calendar.getInstance().apply { timeInMillis = timestamp }
+        return calendar.get(Calendar.SECOND)
     }
 
     private fun findNapBlock(onboarding: SeniorOnboarding, blocks: List<TimeBlockWindow>): TimeBlock? {

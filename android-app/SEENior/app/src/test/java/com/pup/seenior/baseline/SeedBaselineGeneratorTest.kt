@@ -5,6 +5,7 @@ import com.pup.seenior.database.entities.SeniorOnboarding
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.util.Calendar
 
 class SeedBaselineGeneratorTest {
 
@@ -70,6 +71,36 @@ class SeedBaselineGeneratorTest {
             median(withNap, "morning", "inactivity_duration"),
             0.001,
         )
+    }
+
+    private fun timestampAt(hour: Int, minute: Int, second: Int = 0): Long =
+        Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, hour)
+            set(Calendar.MINUTE, minute)
+            set(Calendar.SECOND, second)
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+
+    @Test
+    fun `block elapsed is small just after wake time`() {
+        // Wake 10:00 — the morning block is five minutes old at 10:05, so the largest honest
+        // inactivity reading is 300 seconds however long the senior has really been still. This
+        // is what stops a night's stillness being scored against the morning baseline.
+        val elapsed = SeedBaselineGenerator.secondsSinceBlockStart(timestampAt(10, 5), "10:00", "23:00")
+        assertEquals(300L, elapsed)
+    }
+
+    @Test
+    fun `block elapsed counts from the start of the night block`() {
+        // Sleep 23:00, so at 02:30 the night block is three and a half hours old.
+        val elapsed = SeedBaselineGenerator.secondsSinceBlockStart(timestampAt(2, 30), "10:00", "23:00")
+        assertEquals(3 * 3600L + 1800L, elapsed)
+    }
+
+    @Test
+    fun `block elapsed includes the seconds inside the current minute`() {
+        val elapsed = SeedBaselineGenerator.secondsSinceBlockStart(timestampAt(10, 5, 20), "10:00", "23:00")
+        assertEquals(320L, elapsed)
     }
 
     @Test

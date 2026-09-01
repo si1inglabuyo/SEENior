@@ -1,5 +1,6 @@
 package com.pup.seenior.sensors
 
+import android.app.KeyguardManager
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -20,6 +21,7 @@ import android.os.SystemClock
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.pup.seenior.R
+import com.pup.seenior.alerts.AlertEscalator
 import com.pup.seenior.alerts.AlertResponder
 import com.pup.seenior.baseline.SeedBaselineGenerator
 import com.pup.seenior.database.SeniorAppDatabase
@@ -28,6 +30,8 @@ import com.pup.seenior.network.HeartbeatReporter
 import com.pup.seenior.detection.FallDetector
 import com.pup.seenior.detection.MedianMadDetector
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -55,6 +59,15 @@ class SensorCollectionService : Service(), SensorEventListener
     private var screenOffSince: Long? = null
 
     /**
+     * Whether the keyguard was up at the previous sample, so a lock-then-unlock across the gap can
+     * be spotted without [Intent.ACTION_USER_PRESENT] ever arriving. See [snapshotAndReset].
+     */
+    private var keyguardUpAtLastSample = false
+
+    private lateinit var powerManager: PowerManager
+    private lateinit var keyguardManager: KeyguardManager
+
+    /**
      * Layer 0 (CLAUDE.md §5). Confined to the sensor callback thread along with
      * [lastMovementSampleNanos], so unlike the counters above it needs no lock.
      */
@@ -66,17 +79,32 @@ class SensorCollectionService : Service(), SensorEventListener
     // All reads/writes of the counters above must go through this lock.
     private val stateLock = Any()
 
+    /** Serialises [collectAndStore] so the timer and a server-wake poll cannot interleave. */
+    private val collectionMutex = Mutex()
+
     private data class SensorSnapshot(
         val movementScore: Double,
         val inactivityDurationSeconds: Long,
         val screenIdleDurationSeconds: Long,
         val screenUnlockCount: Int,
         val stepCount: Int,
+        /**
+         * Whether [movementScore] was measured at all, as opposed to defaulting to zero because
+         * no accelerometer callback had arrived.
+         *
+         * The two are not the same claim and only one of them is evidence. A senior lying
+         * perfectly still still produces callbacks -- gravity keeps the sensor reporting at its
+         * registered rate -- so no callbacks means nobody was listening, not that nobody moved.
+         */
+        val movementMeasured: Boolean,
     )
 
     private val screenReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             synchronized(stateLock) {
+                // INFO, not DEBUG: this ROM drops DEBUG system-wide (see the FallDetector note in
+                // onCreate). Read with: adb logcat -s SeeniorScreen
+                Log.i(TAG_SCREEN, "screen broadcast: " + intent.action)
                 when (intent.action) {
                     // Only the first SCREEN_OFF starts the clock. A repeat without an
                     // intervening SCREEN_ON would restart it and lose the stretch so far.
@@ -97,8 +125,10 @@ class SensorCollectionService : Service(), SensorEventListener
         // The service can start while the screen is already off (boot, or a restart with the
         // phone in a pocket). Without this the idle clock never starts, because the SCREEN_OFF
         // that would have started it already happened.
-        val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
+        powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
+        keyguardManager = getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager
         screenOffSince = if (powerManager.isInteractive) null else System.currentTimeMillis()
+        keyguardUpAtLastSample = keyguardManager.isKeyguardLocked
 
         sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
         accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
@@ -281,7 +311,39 @@ class SensorCollectionService : Service(), SensorEventListener
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit
 
     private fun snapshotAndReset(now: Long): SensorSnapshot = synchronized(stateLock) {
-        val movementScore = if (movementSampleCount > 0) {
+        // Ask the system what it is doing rather than trusting that it told us.
+        //
+        // Both screen figures below were kept only by broadcasts, and on 2026-09-01 the pilot
+        // handset produced 55 consecutive rows reading idle = 0 and unlocks = 0 across thirteen
+        // hours -- with the service process alive the whole time and inactivity_duration, kept in
+        // this same object under this same lock, climbing normally. The receiver is registered and
+        // its other counters work; the broadcasts are not arriving. That is the same OEM
+        // interference that took out the alarms and the five-minute polling loop, and it is not
+        // something this app can argue with. It can stop depending on it.
+        //
+        // The receiver stays -- when it fires it is exact, and this only fills the gaps.
+        val interactive = powerManager.isInteractive
+        if (interactive) {
+            screenOffSince = null
+        } else if (screenOffSince == null) {
+            // The screen is off and we never saw it go off, so the honest starting point is now.
+            // Costs at most one sampling interval of idle time and corrects itself next sample.
+            screenOffSince = now
+        }
+
+        // A lower bound, deliberately, and never a count: at one sample every fifteen minutes this
+        // can see at most one unlock per sample. Used only when the receiver produced nothing, so
+        // a working USER_PRESENT is never doubled up. isKeyguardLocked rather than isDeviceLocked
+        // because the latter is always false on a handset with no PIN, which would read zero for
+        // exactly the seniors least likely to have one.
+        val keyguardUp = keyguardManager.isKeyguardLocked
+        if (screenUnlockCount == 0 && keyguardUpAtLastSample && !keyguardUp && interactive) {
+            screenUnlockCount = 1
+        }
+        keyguardUpAtLastSample = keyguardUp
+
+        val movementMeasured = movementSampleCount > 0
+        val movementScore = if (movementMeasured) {
             (movementSampleSum / movementSampleCount).coerceIn(0.0, 1.0)
         } else 0.0
         val inactivityDurationSeconds = (now - lastSignificantMovementAt) / 1000
@@ -305,6 +367,7 @@ class SensorCollectionService : Service(), SensorEventListener
             screenIdleDurationSeconds = screenIdleDurationSeconds,
             screenUnlockCount = screenUnlockCount,
             stepCount = latestStepCount,
+            movementMeasured = movementMeasured,
         )
         movementSampleSum = 0.0
         movementSampleCount = 0
@@ -312,14 +375,38 @@ class SensorCollectionService : Service(), SensorEventListener
         snapshot
     }
 
-    private suspend fun collectAndStore() {
+    /**
+     * Takes one sample and writes it, unless there is nothing new to say.
+     *
+     * Two callers race here in practice: [pollingJob]'s timer and the server-wake [pollOnce].
+     * When a frozen handset thaws, the suspended `delay` completes and the queued FCM nudge runs
+     * within milliseconds of each other. Both used to write, and because [snapshotAndReset] drains
+     * the accelerometer accumulator, the second row always claimed `movement_score = 0.0`.
+     * Measured on the pilot handset on 2026-09-01: **21 of 79 rows** were such phantoms, dragging
+     * every block's average movement toward zero and teaching the baseline a senior who moves half
+     * as much as she does.
+     *
+     * Both guards below are needed. The mutex stops the two collections interleaving; the
+     * interval check stops the second one writing at all; and refusing to store an unmeasured
+     * movement score means that even if a duplicate slips through both, it cannot invent stillness.
+     */
+    private suspend fun collectAndStore() = collectionMutex.withLock {
         val database = SeniorAppDatabase.getInstance(applicationContext)
-        val senior = database.seniorDao().getOnboardedSenior() ?: return
-        val onboarding = database.seniorOnboardingDao().getBySeniorId(senior.seniorId) ?: return
+        val senior = database.seniorDao().getOnboardedSenior() ?: return@withLock
+        val onboarding = database.seniorOnboardingDao().getBySeniorId(senior.seniorId)
+            ?: return@withLock
 
         val now = System.currentTimeMillis()
         val previous = database.sensorDataDao().getLatest(senior.seniorId)
+
+        // Checked before the snapshot, never after: snapshotAndReset() drains the accumulator, so
+        // bailing out afterwards would throw away real movement the next sample should have had.
+        if (previous != null && now - previous.timestamp < MIN_COLLECTION_INTERVAL_MS) {
+            return@withLock
+        }
+
         val snapshot = snapshotAndReset(now)
+        if (!snapshot.movementMeasured) return@withLock
         val timeBlock = SeedBaselineGenerator.resolveTimeBlock(now, onboarding.wakeTime, onboarding.sleepTime)
 
         val inactivitySeconds = reconcileInactivity(now, previous, snapshot)
@@ -337,15 +424,20 @@ class SensorCollectionService : Service(), SensorEventListener
         )
         database.sensorDataDao().insert(sensorData)
 
-        MedianMadDetector.evaluate(
+        val findings = MedianMadDetector.evaluate(
             senior.seniorId,
             sensorData,
             onboarding,
             database.baselineDao(),
             database.alertDao()
-        ).forEach { alert ->
+        )
+        findings.created.forEach { alert ->
             AlertResponder.onAlertCreated(applicationContext, database, alert)
         }
+        // An alert that got worse while it was open. Its chain is already running, so nothing is
+        // started again -- but the family app and the barangay dashboard are still showing the
+        // level it was posted with, and only this corrects that.
+        findings.upgraded.forEach { alertId -> AlertEscalator.syncSeverity(database, alertId) }
     }
 
     /**
@@ -443,7 +535,18 @@ class SensorCollectionService : Service(), SensorEventListener
         private const val CHANNEL_ID = "sensor_collection_channel"
         private const val NOTIFICATION_ID = 1001
         private const val POLL_INTERVAL_MS = 5 * 60 * 1000L
+
+        /**
+         * Shortest gap between two stored samples.
+         *
+         * Well under [POLL_INTERVAL_MS], so it never suppresses a scheduled sample, and far above
+         * the milliseconds that separate a timer poll from a server-wake poll landing together.
+         */
+        private const val MIN_COLLECTION_INTERVAL_MS = 60 * 1000L
         private const val MOVEMENT_THRESHOLD = 0.05
+
+        /** Trace tag for the screen-state broadcasts, whose delivery is not to be assumed. */
+        private const val TAG_SCREEN = "SeeniorScreen"
 
         /** 50 Hz — fast enough to resolve a fall's free-fall and impact phases. */
         private const val FALL_SAMPLING_PERIOD_US = 20_000

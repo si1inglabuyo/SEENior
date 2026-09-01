@@ -63,16 +63,47 @@ object MedianMadDetector {
         "movement_score" to Concern.BELOW_MEDIAN,
     )
 
-    /** Returns the alerts this reading created, so the caller can start their response chain. An
-     *  alert that was merely upgraded in severity is not returned — its chain is already running.
-     *  Neither are low-risk ones: they are recorded and nobody is told (CLAUDE.md §5). */
+    /**
+     * The features whose readings are running counters rather than per-sample measurements.
+     *
+     * Both mean "seconds since the last time something happened", so they climb straight across a
+     * time-block boundary while the Baseline they are scored against changes at it. See
+     * [SeedBaselineGenerator.secondsSinceBlockStart] for what that did in production and why the
+     * reading is clipped to the part of the streak that belongs to the current block.
+     */
+    private val RUNNING_COUNTER_FEATURES = setOf("inactivity_duration", "screen_idle_duration")
+
+    /**
+     * What one reading produced.
+     *
+     * [created] are alerts whose response chain the caller must start. [upgraded] are ids of
+     * alerts that were already open and have just been re-classified as more serious: their chain
+     * is already running and must not be started a second time, but the cloud copy now says the
+     * wrong thing and the caller has to push the new level up (see
+     * [com.pup.seenior.alerts.AlertEscalator.syncSeverity]). Low-risk anomalies appear in neither
+     * -- they are recorded and nobody is told (CLAUDE.md §5).
+     */
+    data class Findings(val created: List<Alert>, val upgraded: List<Int>)
+
+    /** Runs Layer 1 and Layer 3 over one reading. See [Findings] for what comes back and what the
+     *  caller owes each part of it. */
     suspend fun evaluate(
         seniorId: Int,
         sensorData: SensorData,
         onboarding: SeniorOnboarding,
         baselineDao: BaselineDao,
-        alertDao: AlertDao
-    ): List<Alert> {
+        alertDao: AlertDao,
+        /**
+         * Seconds of the current time block already elapsed, used to clip
+         * [RUNNING_COUNTER_FEATURES]. Defaults to the real elapsed time. [AnomalySimulator]
+         * passes null on purpose: an injected reading (CLAUDE.md §10) stands in for a stretch of
+         * stillness the demo has no time to wait out, and clipping it to the few real minutes of
+         * the block would defeat the injection.
+         */
+        blockElapsedSeconds: Long? = SeedBaselineGenerator.secondsSinceBlockStart(
+            sensorData.timestamp, onboarding.wakeTime, onboarding.sleepTime
+        )
+    ): Findings {
         val minuteOfDay = FuzzyRiskClassifier.minuteOfDay(sensorData.timestamp)
 
         // CLAUDE.md §6: the senior told us they nap here, so stillness is the expected reading and
@@ -84,18 +115,28 @@ object MedianMadDetector {
                 onboarding.napDurationMinutes
             )
         ) {
-            return emptyList()
+            return Findings(emptyList(), emptyList())
         }
 
         val restExpectation =
             FuzzyRiskClassifier.restExpectation(minuteOfDay, onboarding.wakeTime, onboarding.sleepTime)
 
         val created = mutableListOf<Alert>()
+        val upgraded = mutableListOf<Int>()
         val readings = mapOf(
             "inactivity_duration" to sensorData.inactivityDuration.toDouble(),
             "movement_score" to sensorData.movementScore,
             "screen_idle_duration" to sensorData.screenIdleDuration.toDouble()
-        )
+        ).mapValues { (featureName, value) ->
+            // A streak that began in an earlier block is not evidence about this one. Only the
+            // running counters are clipped; movement_score is measured fresh every sample and
+            // means the same thing wherever it is read.
+            if (blockElapsedSeconds != null && featureName in RUNNING_COUNTER_FEATURES) {
+                minOf(value, blockElapsedSeconds.toDouble())
+            } else {
+                value
+            }
+        }
 
         for ((featureName, currentValue) in readings) {
             val baseline = baselineDao.getBaselineByFeatureAndTimeBlock(seniorId, featureName, sensorData.timeBlock)
@@ -137,6 +178,9 @@ object MedianMadDetector {
                 // a later, calmer reading.
                 if (RISK_ORDER.indexOf(risk.stored) > RISK_ORDER.indexOf(active.riskLevel)) {
                     alertDao.updateSeverity(active.alertId, risk.stored, zScore)
+                    // Reported to the caller so the cloud copy can be corrected. Everyone outside
+                    // this phone is still looking at the level the alert was first sent with.
+                    upgraded += active.alertId
                 }
                 continue
             }
@@ -152,7 +196,7 @@ object MedianMadDetector {
             created += alert.copy(alertId = alertDao.insert(alert).toInt())
         }
 
-        return created
+        return Findings(created, upgraded)
     }
 
     /**

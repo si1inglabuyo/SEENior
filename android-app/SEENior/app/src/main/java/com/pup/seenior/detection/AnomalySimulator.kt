@@ -111,11 +111,22 @@ object AnomalySimulator {
             stepCount = 0
         )
 
-        val created =
-            MedianMadDetector.evaluate(senior.seniorId, syntheticReading, onboarding, baselineDao, alertDao)
+        val findings = MedianMadDetector.evaluate(
+            senior.seniorId,
+            syntheticReading,
+            onboarding,
+            baselineDao,
+            alertDao,
+            // Null on purpose. The detector normally clips a running counter to the part of the
+            // block that has actually elapsed, which is right for a real reading and wrong for an
+            // injected one: this reading stands in for hours of stillness the demo cannot wait
+            // out, and at night the block is not even long enough to hold the target z-score.
+            // CLAUDE.md §10 endorses the injection; the clip must not quietly undo it.
+            blockElapsedSeconds = null
+        )
 
         return if (alertDao.getActiveAlert(senior.seniorId, "inactivity") != null) {
-            Result.Triggered(TARGET_Z_SCORE, created.firstOrNull { it.triggerType == "inactivity" })
+            Result.Triggered(TARGET_Z_SCORE, findings.created.firstOrNull { it.triggerType == "inactivity" })
         } else {
             // No open alert, so Layer 3 answered Low: the same z-score, read against the hour it
             // arrived in, was not worth telling anyone about. Expected at night and during
