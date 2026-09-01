@@ -44,8 +44,12 @@ class SeniorCloudSync(private val db: SeniorAppDatabase) {
     /**
      * Runs [block] with a cloud sync_id, registering first if there isn't one yet. If the backend
      * reports 404 the cached id is stale (see class docs), so this re-registers and retries once.
-     * Both senior-side endpoints that take a sync_id return 404 only for "Senior not found", so a
-     * 404 here is never ambiguous.
+     *
+     * **Only for calls addressed to the senior.** For those — register, heartbeat, invite,
+     * contacts — a 404 can only mean "Senior not found", which is the condition this recovery
+     * exists for. It is not true of every endpoint that happens to carry a sync_id, and reading a
+     * 404 as a stale identity where it meant something else is what
+     * [withCachedSyncId] exists to prevent. Use that one for anything addressed to an alert.
      */
     suspend fun <T> withSyncId(block: suspend (String) -> T): T {
         val existing = cachedSyncId()
@@ -55,6 +59,28 @@ class SeniorCloudSync(private val db: SeniorAppDatabase) {
         } catch (e: HttpException) {
             if (e.code() == 404) block(register()) else throw e
         }
+    }
+
+    /**
+     * Runs [block] with the cached sync_id and never re-registers, whatever comes back.
+     *
+     * For calls addressed to an *alert* rather than to the senior. Those answer 404 for "Alert
+     * not found" — including the deliberate one the backend returns when the alert exists but
+     * belongs to someone else, since it will not confirm an alert it is not going to show you.
+     *
+     * [withSyncId] reads a 404 as a stale identity and registers a replacement senior. Against an
+     * alert-scoped 404 that is exactly backwards, and on 2026-09-01 it ran every fifteen minutes
+     * for six hours: asked about an alert it could not prove it owned, the phone replaced the
+     * identity that was the proof, and each new one orphaned it further. It left 25 duplicate
+     * seniors in production and made the severity it was trying to repair permanently unrepairable.
+     *
+     * A 404 here is information about one alert, never about the senior. There is nothing to
+     * recover from, so the caller simply retries later.
+     */
+    suspend fun <T> withCachedSyncId(block: suspend (String) -> T): T {
+        val existing = cachedSyncId()
+            ?: throw IllegalStateException("No cloud sync_id; this alert cannot have been synced.")
+        return block(existing)
     }
 
     /** For read paths that should stay silent when the senior has never used a cloud feature:

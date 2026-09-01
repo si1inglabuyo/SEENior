@@ -201,7 +201,7 @@ object AlertEscalator {
         if (hasStep(alert, STEP_CANCEL_SYNCED)) return true
 
         return try {
-            SeniorCloudSync(db).withSyncId { seniorSyncId ->
+            SeniorCloudSync(db).withCachedSyncId { seniorSyncId ->
                 RetrofitClient.api.cancelAlert(alert.syncId, CancelAlertRequest(seniorSyncId))
             }
             db.alertDao().updateEscalationSteps(
@@ -251,7 +251,7 @@ object AlertEscalator {
         if (lastSyncedSeverity(alert) == alert.riskLevel) return true
 
         return try {
-            SeniorCloudSync(db).withSyncId { seniorSyncId ->
+            SeniorCloudSync(db).withCachedSyncId { seniorSyncId ->
                 RetrofitClient.api.updateAlertSeverity(
                     alert.syncId,
                     UpdateSeverityRequest(seniorSyncId, alert.riskLevel)
@@ -308,7 +308,7 @@ object AlertEscalator {
         if (hasSyncedLocation(alert)) return true
 
         return try {
-            SeniorCloudSync(db).withSyncId { seniorSyncId ->
+            SeniorCloudSync(db).withCachedSyncId { seniorSyncId ->
                 RetrofitClient.api.updateAlertLocation(
                     alert.syncId,
                     UpdateLocationRequest(seniorSyncId, cell)
