@@ -42,3 +42,24 @@ export const STEP_LABEL = {
 export const stepLabel = (step) => STEP_LABEL[step] || step
 export const triggerLabel = (trigger) => TRIGGER_LABEL[trigger] || trigger
 export const statusLabel = (status) => STATUS_LABEL[status] || status
+
+// The three "alert types" the Alert History filter offers. Only the first two map to a
+// trigger_type; "Dispatch by Family" is not a trigger at all -- it is *how the incident
+// reached the barangay*. The family app writes a real `escalated_barangay` step when a
+// relative asks for a welfare check (as opposed to `escalated_barangay_auto`, which the
+// server writes when nobody answered). So this is derived from data the API already
+// returns -- trigger_type plus the escalation timeline -- not a stored enum value, and not
+// a UI-only invention. Adding it to the TriggerType enum would be wrong twice over: it is
+// not a trigger, and the enum is a Postgres type this lane cannot migrate.
+export const CATEGORY_LABEL = {
+  anomaly: 'Anomaly',
+  sos: 'SOS',
+  dispatch_family: 'Dispatch by Family',
+}
+
+export function alertCategory(alert) {
+  if (alert.trigger_type === 'sos') return 'sos'
+  const steps = alert.escalation_steps || []
+  if (steps.some((entry) => entry && entry.step === 'escalated_barangay')) return 'dispatch_family'
+  return 'anomaly'
+}
