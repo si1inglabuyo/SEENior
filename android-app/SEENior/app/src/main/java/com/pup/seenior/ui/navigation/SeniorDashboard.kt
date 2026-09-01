@@ -1,9 +1,12 @@
 package com.pup.seenior.ui.navigation
 
+import android.Manifest
 import android.app.Activity
 import android.content.ContextWrapper
 import android.os.Build
 import android.view.WindowManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -32,6 +35,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.pup.seenior.location.LocationPermissionState
 import com.pup.seenior.ui.contacts.InviteScreen
 import com.pup.seenior.ui.contacts.SeniorContactsScreen
 import com.pup.seenior.ui.home.HomeScreen
@@ -115,6 +119,45 @@ private fun tabsFor(livesAlone: Boolean): List<SeniorTab> =
     if (livesAlone) listOf(SeniorTab.HOME, SeniorTab.PROFILE)
     else SeniorTab.entries
 
+/**
+ * Asks for location once on an install that was upgraded rather than onboarded.
+ *
+ * [com.pup.seenior.ui.onboarding.PermissionsScreen] runs only during onboarding, so a senior who
+ * set the app up before it captured an alert's location is never asked for it — installing a new
+ * APK does not re-open that screen. Their alerts then arrive with no cluster and the family's map
+ * silently falls back to the registered address, with nothing on any screen to explain why.
+ *
+ * Asked at most once, and only where [LocationPermissionState] holds no record of the question
+ * ever being put — so a senior who was asked and chose Approximate is left alone. Nagging on
+ * every launch would be a poor trade for a map pin in an app whose whole promise is to sit
+ * quietly, and nothing in the escalation chain depends on the answer.
+ *
+ * Deliberately placed after the wellness prompt's early return: a permission dialog must never
+ * appear on top of an alert that is counting down for an answer.
+ */
+@Composable
+private fun RepairLocationPermission() {
+    val context = LocalContext.current
+    val launcher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { /* Either answer is final — the record of asking is written before the dialog opens. */ }
+
+    LaunchedEffect(Unit) {
+        if (LocationPermissionState.wasAsked(context)) return@LaunchedEffect
+        LocationPermissionState.markAsked(context)
+        if (LocationPermissionState.hasPrecise(context)) return@LaunchedEffect
+
+        // Both, so Android 12+ offers the Precise/Approximate choice rather than silently
+        // treating this as a coarse-only request.
+        launcher.launch(
+            arrayOf(
+                Manifest.permission.ACCESS_FINE_LOCATION,
+                Manifest.permission.ACCESS_COARSE_LOCATION
+            )
+        )
+    }
+}
+
 @Composable
 fun SeniorDashboard() {
     var tab by remember { mutableStateOf(SeniorTab.HOME) }
@@ -143,6 +186,8 @@ fun SeniorDashboard() {
         )
         return
     }
+
+    RepairLocationPermission()
 
     val tabs = tabsFor(homeViewModel.livesAlone)
 

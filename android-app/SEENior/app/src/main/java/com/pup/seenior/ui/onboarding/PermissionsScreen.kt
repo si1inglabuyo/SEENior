@@ -42,6 +42,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.pup.seenior.location.LocationPermissionState
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -61,7 +62,7 @@ private data class PermissionRow(
 
 private val permissionRows = listOf(
     PermissionRow(Icons.AutoMirrored.Filled.DirectionsRun, "Motion & Activity", "Detects movement to track routine"),
-    PermissionRow(Icons.Filled.LocationOn, "Location (Alerts)", "Shared only when alert triggers"),
+    PermissionRow(Icons.Filled.LocationOn, "Location (Alerts)", "Only when an alert triggers, and only as an approximate area"),
     PermissionRow(Icons.Filled.Notifications, "Notifications", "Check-in prompts & SOS alerts"),
     PermissionRow(Icons.Filled.BatteryChargingFull, "Battery & screen", "Tracks charging & screen use"),
     PermissionRow(Icons.Filled.Alarm, "Run in background", "So alerts still go out while the phone rests")
@@ -69,8 +70,32 @@ private val permissionRows = listOf(
 
 private val runtimePermissions: List<String> = buildList {
     if (Build.VERSION.SDK_INT >= 29) add(Manifest.permission.ACTIVITY_RECOGNITION)
+    // Both location permissions are requested together so that Android 12+ shows the senior the
+    // Precise/Approximate choice at all. Which one they pick is up to them -- see
+    // [requiredPermissionsGranted], which accepts either.
+    add(Manifest.permission.ACCESS_FINE_LOCATION)
     add(Manifest.permission.ACCESS_COARSE_LOCATION)
     if (Build.VERSION.SDK_INT >= 33) add(Manifest.permission.POST_NOTIFICATIONS)
+}
+
+private val locationPermissions = setOf(
+    Manifest.permission.ACCESS_FINE_LOCATION,
+    Manifest.permission.ACCESS_COARSE_LOCATION
+)
+
+/**
+ * Whether onboarding may continue.
+ *
+ * Every permission is required except that the two location ones count as *one* answer. Android
+ * 12+ offers "Precise" or "Approximate" in a single dialog, and choosing Approximate returns
+ * ACCESS_FINE_LOCATION as denied. Requiring all of them would therefore trap a senior who
+ * answered the dialog perfectly reasonably on a screen they cannot skip -- and approximate
+ * location is still enough to place an alert, just to a wider area.
+ */
+private fun requiredPermissionsGranted(results: Map<String, Boolean>): Boolean {
+    val location = results.filterKeys { it in locationPermissions }
+    val everythingElse = results.filterKeys { it !in locationPermissions }
+    return everythingElse.values.all { it } && (location.isEmpty() || location.values.any { it })
 }
 
 @Composable
@@ -112,7 +137,7 @@ fun PermissionsScreen(
     val launcher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { results ->
-        if (results.values.all { it }) requestBatteryExemptionThenContinue() else showDenied = true
+        if (requiredPermissionsGranted(results)) requestBatteryExemptionThenContinue() else showDenied = true
     }
 
     Surface(modifier = Modifier.fillMaxSize(), color = Color.White) {
@@ -172,6 +197,10 @@ fun PermissionsScreen(
             onDeny = { showRationale = false },
             onAllow = {
                 showRationale = false
+                // Recorded before the dialog, not after: what matters is that the senior was
+                // put in front of the question at all, so that the dashboard's repair pass
+                // never second-guesses an answer they already gave.
+                LocationPermissionState.markAsked(context)
                 launcher.launch(runtimePermissions.toTypedArray())
             }
         )
