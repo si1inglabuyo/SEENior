@@ -37,7 +37,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.pup.seenior.network.dto.FamilyContactDto
+import com.pup.seenior.database.entities.Contact
 import com.pup.seenior.ui.theme.SeniorColors
 
 private val SosRed = Color(0xFFC62828)
@@ -59,7 +59,8 @@ fun SosCountdownScreen(
     copy: WellnessMessages.Copy,
     secondsRemaining: Int,
     totalSeconds: Int,
-    contacts: List<FamilyContactDto>,
+    contacts: List<Contact>,
+    contactsKnown: Boolean,
     barangay: String,
     onCancel: () -> Unit
 ) {
@@ -120,7 +121,12 @@ fun SosCountdownScreen(
                 HorizontalDivider(color = SeniorColors.FieldBorder)
                 Spacer(Modifier.height(16.dp))
 
-                WillAlertCard(copy = copy, contacts = contacts, barangay = barangay)
+                WillAlertCard(
+                    copy = copy,
+                    contacts = contacts,
+                    contactsKnown = contactsKnown,
+                    barangay = barangay
+                )
             }
 
             Column(
@@ -201,7 +207,8 @@ private fun CountdownRing(secondsRemaining: Int, totalSeconds: Int) {
 @Composable
 private fun WillAlertCard(
     copy: WellnessMessages.Copy,
-    contacts: List<FamilyContactDto>,
+    contacts: List<Contact>,
+    contactsKnown: Boolean,
     barangay: String
 ) {
     Column(
@@ -220,7 +227,7 @@ private fun WillAlertCard(
 
         contacts.forEach { contact ->
             WillAlertRow(
-                name = contact.fullName.orEmpty().ifBlank { "Family contact" },
+                name = contact.name.ifBlank { "Family contact" },
                 role = contact.relationshipLabel.orEmpty().replaceFirstChar { it.uppercase() },
                 accent = SosAvatarBorder,
                 roleColor = SosRed
@@ -238,7 +245,11 @@ private fun WillAlertCard(
             )
         }
 
-        if (contacts.isEmpty()) {
+        // Only claimed when it is actually known to be true. An empty list on a phone that has
+        // never managed to read its family list is an absence of information, not the absence of
+        // a family, and saying "no family contacts linked yet" to a senior whose three children
+        // are all about to be called would be a lie told at the worst possible moment.
+        if (contacts.isEmpty() && contactsKnown) {
             Text(
                 text = copy.sosNoContacts,
                 color = SeniorColors.TextSecondary,

@@ -39,7 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.pup.seenior.alerts.AlertEscalator
 import com.pup.seenior.database.entities.Alert
-import com.pup.seenior.network.dto.FamilyContactDto
+import com.pup.seenior.database.entities.Contact
 import com.pup.seenior.ui.theme.SeniorColors
 
 private val AlertRed = Color(0xFFC62828)
@@ -58,7 +58,8 @@ fun WellnessPromptScreen(
     alert: Alert,
     seniorFirstName: String,
     language: String,
-    willAlertContacts: List<FamilyContactDto>,
+    willAlertContacts: List<Contact>,
+    willAlertContactsKnown: Boolean,
     barangay: String,
     viewModel: WellnessPromptViewModel,
     onFinished: () -> Unit
@@ -78,6 +79,7 @@ fun WellnessPromptScreen(
                     secondsRemaining = viewModel.secondsRemaining,
                     totalSeconds = AlertEscalator.windowSecondsFor(alert.triggerType),
                     contacts = willAlertContacts,
+                    contactsKnown = willAlertContactsKnown,
                     barangay = barangay,
                     onCancel = { viewModel.markSafe(onFinished) }
                 )

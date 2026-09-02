@@ -7,6 +7,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.pup.seenior.database.SeniorAppDatabase
+import com.pup.seenior.database.entities.Contact
 import com.pup.seenior.network.RetrofitClient
 import com.pup.seenior.network.SeniorCloudSync
 import com.pup.seenior.network.dto.FamilyContactDto
@@ -49,7 +50,7 @@ class SeniorContactsViewModel(application: Application) : AndroidViewModel(appli
                     cloudSync.withSyncId { id ->
                         cloudSyncId = id
                         RetrofitClient.api.getFamilyContacts(id)
-                    }
+                    }.also { cacheForSos(it) }
                 } else emptyList()
             } catch (e: HttpException) {
                 error = "Could not load contacts (server error ${e.code()})."
@@ -60,6 +61,37 @@ class SeniorContactsViewModel(application: Application) : AndroidViewModel(appli
             } finally {
                 isLoading = false
             }
+        }
+    }
+
+    /**
+     * Mirrors a successful fetch into the device's own Contacts table.
+     *
+     * The SOS screen reads that table rather than the network, so this is what makes a
+     * newly paired daughter appear on it without waiting for the next app start -- opening
+     * Contacts after pairing is the natural moment, and the senior does it anyway to check
+     * the pairing worked.
+     *
+     * Failures are swallowed: this is a cache refresh riding along with a screen load, and
+     * a write that fails must not turn a working contacts list into an error message.
+     */
+    private suspend fun cacheForSos(fetched: List<FamilyContactDto>) {
+        try {
+            val seniorId = db.seniorDao().getOnboardedSenior()?.seniorId ?: return
+            db.contactDao().replaceFamilyContacts(
+                seniorId,
+                fetched.map {
+                    Contact(
+                        seniorId = seniorId,
+                        name = it.fullName.orEmpty(),
+                        phoneNumber = it.phone.orEmpty(),
+                        contactType = it.contactType,
+                        relationshipLabel = it.relationshipLabel
+                    )
+                }
+            )
+        } catch (e: Exception) {
+            // Cache only. The screen already has what it needs.
         }
     }
 

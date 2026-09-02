@@ -14,13 +14,13 @@ import com.pup.seenior.alerts.AlertResponder
 import com.pup.seenior.alerts.EscalationScheduler
 import com.pup.seenior.database.SeniorAppDatabase
 import com.pup.seenior.database.entities.Alert
+import com.pup.seenior.database.entities.Contact
 import com.pup.seenior.database.entities.Senior
 import com.pup.seenior.detection.AnomalySimulator
 import com.pup.seenior.detection.FallDetector
 import com.pup.seenior.detection.FallSimulator
 import com.pup.seenior.network.RetrofitClient
 import com.pup.seenior.network.SeniorCloudSync
-import com.pup.seenior.network.dto.FamilyContactDto
 import com.pup.seenior.ui.onboarding.OnboardingOptions
 import com.pup.seenior.ui.wellness.WellnessMessages
 import kotlinx.coroutines.delay
@@ -63,9 +63,23 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     var simulationMessage by mutableStateOf<String?>(null)
         private set
 
-    /** Who the SOS screen says it will alert. Best-effort: an empty list still shows the
-     *  barangay tier, which is available regardless of whether any family is linked. */
-    var willAlertContacts by mutableStateOf<List<FamilyContactDto>>(emptyList())
+    /** Who the SOS screen says it will alert. Read from the device's own Contacts table, not
+     *  from the network: SOS has to work with no connectivity at all (CLAUDE.md §1), and this
+     *  list is the senior's reassurance that someone is actually being called. An empty list
+     *  still shows the barangay tier, which is available regardless of whether any family is
+     *  linked. */
+    var willAlertContacts by mutableStateOf<List<Contact>>(emptyList())
+        private set
+
+    /** Whether [willAlertContacts] being empty is an answer or just an absence.
+     *
+     * False until this install has successfully read the family list from the cloud even once.
+     * The SOS screen only says "no family contacts linked yet" when this is true -- telling a
+     * senior mid-emergency that nobody in her family will be called, when three of them will be
+     * and the phone merely could not reach the server, is the worst moment in the app to be
+     * wrong. Same distinction [com.pup.seenior.ui.contacts.SeniorContactsViewModel] draws with
+     * `loadFailed`. */
+    var willAlertContactsKnown by mutableStateOf(false)
         private set
 
     private var openAlerts by mutableStateOf<List<Alert>>(emptyList())
@@ -184,14 +198,47 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /** Deliberately silent on failure: this only populates a reassurance list on the SOS screen,
-     *  and a network hiccup must never stop SOS itself from working. */
+    /**
+     * Fills the SOS screen's "Will Alert" list, cache first.
+     *
+     * The device's own Contacts table is read before anything is asked of the network, because
+     * that read cannot fail and cannot be slow. Only then is the cloud asked, and only a
+     * successful answer replaces the cache -- the cloud is authoritative about who is paired,
+     * so an unlinked contact disappears here too.
+     *
+     * Deliberately silent on failure: a network hiccup must never stop SOS itself from working,
+     * and it no longer empties the list either. Before this, the fetch was the only source, so
+     * an offline phone -- the exact phone SOS exists for -- showed a senior with three paired
+     * children a screen saying no family contact was linked.
+     */
     private suspend fun loadWillAlertContacts() {
+        val seniorId = senior?.seniorId ?: return
+
+        val cached = db.contactDao().getFamilyContactsOnce(seniorId)
+        if (cached.isNotEmpty()) {
+            willAlertContacts = cached
+            // Rows can only be here because a previous fetch put them here.
+            willAlertContactsKnown = true
+        }
+
         try {
             val syncId = cloudSync.withSyncIdOrNull() ?: return
-            willAlertContacts = RetrofitClient.api.getFamilyContacts(syncId)
+            val fetched = RetrofitClient.api.getFamilyContacts(syncId)
+            val rows = fetched.map { contact ->
+                Contact(
+                    seniorId = seniorId,
+                    name = contact.fullName.orEmpty(),
+                    phoneNumber = contact.phone.orEmpty(),
+                    contactType = contact.contactType,
+                    relationshipLabel = contact.relationshipLabel
+                )
+            }
+            db.contactDao().replaceFamilyContacts(seniorId, rows)
+            // Re-read rather than using `rows`, so the list carries the ids Room assigned.
+            willAlertContacts = db.contactDao().getFamilyContactsOnce(seniorId)
+            willAlertContactsKnown = true
         } catch (e: Exception) {
-            willAlertContacts = emptyList()
+            // The cache above, or the empty list, both already stand. Nothing to undo.
         }
     }
 

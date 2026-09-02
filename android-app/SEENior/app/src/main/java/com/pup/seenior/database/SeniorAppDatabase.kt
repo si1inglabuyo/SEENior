@@ -40,7 +40,7 @@ import com.pup.seenior.database.entities.SensorData
         MlModelMetadata::class,
         SeniorOnboarding::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = true
 )
 abstract class SeniorAppDatabase : RoomDatabase() {
@@ -67,13 +67,27 @@ abstract class SeniorAppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Adds the relationship label to Contacts, so a cached family contact can be shown the
+         * way the SOS screen shows it -- "Agatha A. / Daughter", not a bare name.
+         *
+         * Adding rather than recreating even though the table is empty on every device today:
+         * nothing had ever written to Contacts before this change, but a migration that drops a
+         * table is a migration that can lose data if that ever stops being true.
+         */
+        private val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE Contacts ADD COLUMN relationship_label TEXT")
+            }
+        }
+
         fun getInstance(context: Context): SeniorAppDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext,
                     SeniorAppDatabase::class.java,
                     "senior_app.db"
-                ).addMigrations(MIGRATION_1_2).build().also { INSTANCE = it }
+                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3).build().also { INSTANCE = it }
             }
         }
     }

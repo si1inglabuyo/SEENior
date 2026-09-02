@@ -177,6 +177,7 @@ fun SeniorDashboard() {
             seniorFirstName = homeViewModel.firstName,
             language = homeViewModel.language,
             willAlertContacts = homeViewModel.willAlertContacts,
+            willAlertContactsKnown = homeViewModel.willAlertContactsKnown,
             barangay = homeViewModel.barangay,
             viewModel = promptViewModel,
             onFinished = {

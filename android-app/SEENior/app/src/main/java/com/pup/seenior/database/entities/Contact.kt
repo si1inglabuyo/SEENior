@@ -26,6 +26,10 @@ data class Contact(
     @ColumnInfo(name = "phone_number") val phoneNumber: String,
     /** "family" or "barangay_responder" */
     @ColumnInfo(name = "contact_type") val contactType: String,
+    /** "daughter", "son", ... as the family contact described themselves when pairing. Shown
+     *  under their name on the SOS screen, so the senior recognises who is being called rather
+     *  than reading a bare name. Nullable because the cloud field is. */
+    @ColumnInfo(name = "relationship_label") val relationshipLabel: String? = null,
     @ColumnInfo(name = "fcm_token") val fcmToken: String? = null,
     /** Short-lived OTP code used to pair a family contact with a senior — expires in 5 minutes */
     @ColumnInfo(name = "invite_code") val inviteCode: String? = null,
