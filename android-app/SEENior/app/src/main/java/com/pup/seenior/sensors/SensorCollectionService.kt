@@ -13,6 +13,8 @@ import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
+import android.hardware.TriggerEvent
+import android.hardware.TriggerEventListener
 import android.os.BatteryManager
 import android.os.Build
 import android.os.IBinder
@@ -50,6 +52,16 @@ class SensorCollectionService : Service(), SensorEventListener
    private var accelerometer: Sensor? = null
    private var stepCounter: Sensor? = null
    private var gyroscope: Sensor? = null
+   private var significantMotion: Sensor? = null
+
+    /**
+     * Whether the one-shot trigger below is currently armed.
+     *
+     * Volatile rather than under [stateLock]: it is set from the trigger callback and read from
+     * [collectAndStore] on another thread, and it guards nothing but itself.
+     */
+    @Volatile
+    private var significantMotionArmed = false
 
     private var movementSampleSum = 0.0
     private var movementSampleCount = 0
@@ -117,6 +129,49 @@ class SensorCollectionService : Service(), SensorEventListener
         }
     }
 
+    /**
+     * The one witness to movement that keeps working while this process is frozen.
+     *
+     * [lastSignificantMovementAt] is otherwise only ever written from an accelerometer callback,
+     * and the accelerometer is a *non-wake-up* sensor: when Doze or the OEM freezer suspends this
+     * process, its samples stop being delivered at all. Inactivity then keeps climbing for a
+     * reason that has nothing to do with the senior — nobody was listening. That is the same
+     * interference already documented as killing the five-minute polling loop and the alarms.
+     *
+     * Measured on the pilot handset 2026-09-02: alert 25 claimed sixty-eight minutes of stillness
+     * across a period the phone was in use. The step counter, the existing witness in
+     * [reconcileInactivity], could not correct it because the phone was on a desk rather than
+     * carried, so it counted no steps either.
+     *
+     * TYPE_SIGNIFICANT_MOTION is detected inside the sensor hub and is a **wake-up** sensor: it
+     * wakes the application processor to deliver, so it reports movement the rest of this class
+     * is asleep for. Running in hardware is also why it can be left on permanently against the
+     * ≤10% battery target (CLAUDE.md §10).
+     *
+     * It deliberately does **not** feed [movementSampleSum]. `movement_score` stays a pure
+     * accelerometer statistic, so a baseline built before this change stays comparable with
+     * readings taken after it — the same argument [recordMovementSample] makes for decimating
+     * back to 5 Hz.
+     */
+    private val significantMotionListener = object : TriggerEventListener() {
+        override fun onTrigger(event: TriggerEvent) {
+            // A one-shot trigger disables itself on firing and reports nothing further until it
+            // is asked again, so this flag drops before anything else can read it.
+            significantMotionArmed = false
+
+            // System.currentTimeMillis() rather than wallClockOf(event.timestamp): that helper
+            // exists to undo the batching latency on accelerometer samples, which can be seconds
+            // old by the time they arrive. A wake-up trigger has none to undo — it wakes the CPU
+            // to deliver — and reading a HAL timestamp here only adds a way to be wrong.
+            val movedAt = System.currentTimeMillis()
+            synchronized(stateLock) { lastSignificantMovementAt = movedAt }
+            // Read with: adb logcat -s SensorWake
+            Log.i(TAG_WAKE, "significant motion — inactivity clock reset")
+
+            armSignificantMotion()
+        }
+    }
+
     override fun onCreate() {
         super.onCreate()
         startForeground(NOTIFICATION_ID, buildNotification())
@@ -134,6 +189,7 @@ class SensorCollectionService : Service(), SensorEventListener
         accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
         stepCounter = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER)
         gyroscope = sensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE)
+        significantMotion = sensorManager.getDefaultSensor(Sensor.TYPE_SIGNIFICANT_MOTION)
 
         // Rotation confirms a fall (CLAUDE.md §4), but not every Android phone ships a gyroscope.
         // On one that does not, demanding rotation would mean never detecting a fall at all.
@@ -158,6 +214,11 @@ class SensorCollectionService : Service(), SensorEventListener
         // The step counter is an on-change sensor reporting a running total; it has nothing to
         // contribute to a fall signature and stays at the low rate.
         stepCounter?.let { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL) }
+
+        // Stated up front so an absent sensor is visible in the log rather than inferred later
+        // from an inactivity reading that never resets. Read with: adb logcat -s SensorWake
+        Log.i(TAG_WAKE, "significant motion available=" + (significantMotion != null))
+        armSignificantMotion()
 
         val filter = IntentFilter().apply {
             addAction(Intent.ACTION_SCREEN_OFF)
@@ -227,6 +288,10 @@ class SensorCollectionService : Service(), SensorEventListener
         // Cleared first, so nothing can read a stale `true` while the service tears down.
         isRunning = false
         sensorManager.unregisterListener(this)
+        // A trigger sensor is not covered by unregisterListener; it is cancelled by its own call
+        // or it stays armed against a listener whose service is gone.
+        significantMotion?.let { sensorManager.cancelTriggerSensor(significantMotionListener, it) }
+        significantMotionArmed = false
         unregisterReceiver(screenReceiver)
         serviceScope.cancel()
         super.onDestroy()
@@ -399,6 +464,12 @@ class SensorCollectionService : Service(), SensorEventListener
         val now = System.currentTimeMillis()
         val previous = database.sensorDataDao().getLatest(senior.seniorId)
 
+        // Safety net, not the normal path: the trigger re-arms itself the instant it fires. This
+        // only catches an arming that was refused while the process was in a state the sensor
+        // service would not accept it, which would otherwise leave the witness permanently mute
+        // with nothing but one warning line to say so.
+        armSignificantMotion()
+
         // Checked before the snapshot, never after: snapshotAndReset() drains the accumulator, so
         // bailing out afterwards would throw away real movement the next sample should have had.
         if (previous != null && now - previous.timestamp < MIN_COLLECTION_INTERVAL_MS) {
@@ -501,6 +572,25 @@ class SensorCollectionService : Service(), SensorEventListener
      * [BATCH_LATENCY_US] of detection delay, which the compressed fall response window absorbs.
      * Devices without a FIFO fall back to unbatched delivery.
      */
+    /**
+     * Arms the one-shot significant-motion trigger, if this handset has one.
+     *
+     * Not every device implements it and there is no fallback worth building: without it the
+     * service behaves exactly as it did before, which is the situation this improves on rather
+     * than depends on. Both failure paths are logged, because a witness that silently stopped
+     * reporting looks identical to a senior who genuinely has not moved.
+     */
+    private fun armSignificantMotion() {
+        val sensor = significantMotion ?: return
+        if (significantMotionArmed) return
+
+        if (sensorManager.requestTriggerSensor(significantMotionListener, sensor)) {
+            significantMotionArmed = true
+        } else {
+            Log.w(TAG_WAKE, "significant motion sensor refused to arm")
+        }
+    }
+
     private fun registerForFallDetection(sensor: Sensor) {
         val latencyUs = if (sensor.fifoMaxEventCount > 0) BATCH_LATENCY_US else 0
         sensorManager.registerListener(this, sensor, FALL_SAMPLING_PERIOD_US, latencyUs)
