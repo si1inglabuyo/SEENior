@@ -7,6 +7,7 @@ import androidx.work.WorkerParameters
 import com.pup.seenior.database.SeniorAppDatabase
 import com.pup.seenior.database.entities.DailyAggregate
 import com.pup.seenior.database.entities.SensorData
+import com.pup.seenior.database.entities.SeniorOnboarding
 import com.pup.seenior.baseline.SeedBaselineGenerator
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -33,12 +34,27 @@ class NightlyAggregationWorker(
 
         val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.US)
         val now = System.currentTimeMillis()
-        val today = dateFormat.format(Date(now))
+
+        // Logical day, not calendar day -- see SeedBaselineGenerator.logicalDayMillis. Grouping a
+        // night by calendar date splits it in two and mixes each half with a different night.
+        //
+        // With no onboarding row there are no wake/sleep times to place the night with, so this
+        // falls back to the calendar date. Safe, because the deferral below already refuses to
+        // roll up anything dated today when onboarding is missing.
+        fun logicalDate(timestamp: Long): String = dateFormat.format(
+            Date(
+                onboarding?.let {
+                    SeedBaselineGenerator.logicalDayMillis(timestamp, it.wakeTime, it.sleepTime)
+                } ?: timestamp
+            )
+        )
+
+        val today = logicalDate(now)
         val openBlock = onboarding?.let {
             SeedBaselineGenerator.resolveTimeBlock(now, it.wakeTime, it.sleepTime).name.lowercase()
         }
 
-        val groups = unaggregated.groupBy { row -> dateFormat.format(Date(row.timestamp)) to row.timeBlock }
+        val groups = unaggregated.groupBy { row -> logicalDate(row.timestamp) to row.timeBlock }
 
         /*
          * Aggregate only blocks that can no longer receive samples, and leave the open one's raw
@@ -67,7 +83,7 @@ class NightlyAggregationWorker(
 
         for ((key, rows) in closed) {
             val (date, timeBlock) = key
-            val aggregate = buildAggregate(senior.seniorId, date, timeBlock, rows)
+            val aggregate = buildAggregate(senior.seniorId, date, timeBlock, rows, onboarding)
             dailyAggregateDao.deleteByDateAndTimeBlock(senior.seniorId, date, timeBlock)
             dailyAggregateDao.insert(aggregate)
         }
@@ -106,19 +122,37 @@ class NightlyAggregationWorker(
         seniorId: Int,
         date: String,
         timeBlock: String,
-        rows: List<SensorData>
+        rows: List<SensorData>,
+        onboarding: SeniorOnboarding?
     ): DailyAggregate {
         val avgMovementScore = rows.map { it.movementScore }.average()
 
-        // inactivity_duration is a running "seconds since last movement" counter,
-        // not a per-poll delta — the block's longest streak is its max reading.
-        val totalInactivityDuration = rows.maxOf { it.inactivityDuration }
+        /*
+         * inactivity_duration and screen_idle_duration are running "seconds since X last
+         * happened" counters, not per-poll deltas, so the block's longest streak is its max
+         * reading -- averaging a running counter halves it and would drag the baseline median
+         * below what the block actually looked like.
+         *
+         * But the counters keep climbing straight across a block boundary, so a reading taken
+         * early in a block can be describing stillness that belongs to the previous one. Each
+         * reading is therefore clipped to how much of its own block had elapsed when it was
+         * taken, so a block is only ever summarised on what happened inside it.
+         *
+         * MedianMadDetector already clips exactly this way -- that is what stopped alert 20's
+         * 10:05 false alarm. Without the same clip here the impossible value never fires an
+         * alert but still reaches the Baseline, and later Isolation Forest: `aggregate_id` 12 on
+         * the pilot handset recorded 26,652 s of morning stillness inside a morning block only
+         * 15,600 s long.
+         */
+        fun clipToBlock(row: SensorData, reading: Long): Long = onboarding?.let {
+            minOf(
+                reading,
+                SeedBaselineGenerator.secondsSinceBlockStart(row.timestamp, it.wakeTime, it.sleepTime)
+            )
+        } ?: reading
 
-        // screen_idle_duration is a running "seconds since the screen was last on" counter
-        // now, not a per-poll delta -- so the block's longest streak is its max reading, exactly
-        // as for inactivity above. Averaging a running counter halves it and would drag the
-        // baseline median below what the block actually looked like.
-        val avgScreenIdleDuration = rows.maxOf { it.screenIdleDuration }
+        val totalInactivityDuration = rows.maxOf { clipToBlock(it, it.inactivityDuration) }
+        val avgScreenIdleDuration = rows.maxOf { clipToBlock(it, it.screenIdleDuration) }
         val totalScreenUnlocks = rows.sumOf { it.screenUnlockCount }
 
         // step_count is the raw cumulative-since-boot sensor reading. A device reboot

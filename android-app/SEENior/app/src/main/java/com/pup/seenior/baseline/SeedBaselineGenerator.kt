@@ -124,6 +124,46 @@ object SeedBaselineGenerator {
         return minutesIn * 60L + secondOfMinuteFor(timestamp)
     }
 
+    /**
+     * The moment that identifies the "logical day" a sample belongs to.
+     *
+     * Night is the only block that crosses midnight -- with wake 10:00 and sleep 23:00 it runs
+     * 23:00 through to 10:00 the next morning. [com.pup.seenior.aggregation.NightlyAggregationWorker]
+     * files samples under a calendar date, so without this the after-midnight half of a night
+     * lands under the NEXT date and is grouped with the FOLLOWING night's first hour: two
+     * different nights in one aggregate row, with the whole waking day sitting in the gap
+     * between them.
+     *
+     * That gap is also why steps went wrong. Steps are summed as differences between consecutive
+     * readings, and the single difference spanning the gap swallows the entire day's walking.
+     * Measured on the pilot handset 2026-09-02: `aggregate_id` 11 ("2026-09-01 / night") reported
+     * 10,779 steps against a seed expectation of 20, while morning reported 0.
+     *
+     * So a sample in the after-midnight part of night reports the PREVIOUS calendar day, and one
+     * real night becomes one group. Every other block already lies inside its own date and is
+     * returned unchanged.
+     */
+    fun logicalDayMillis(timestamp: Long, wakeTime: String, sleepTime: String): Long {
+        val wakeMinute = parseToMinuteOfDay(wakeTime)
+        val sleepMinute = parseToMinuteOfDay(sleepTime)
+
+        // Night only crosses midnight when sleep is later on the clock than wake. A senior who
+        // sleeps at 01:00 and wakes at 10:00 has a night that already fits inside one date, and
+        // shifting it back a day would be the very bug this exists to prevent.
+        if (sleepMinute <= wakeMinute) return timestamp
+
+        if (resolveTimeBlock(timestamp, wakeTime, sleepTime) != TimeBlock.NIGHT) return timestamp
+
+        // The 23:00-23:59 side of the night is already on the right date; only the hours after
+        // midnight, which are before wake time, belong to the day before.
+        if (minuteOfDayFor(timestamp) >= wakeMinute) return timestamp
+
+        return Calendar.getInstance().apply {
+            timeInMillis = timestamp
+            add(Calendar.DAY_OF_YEAR, -1)
+        }.timeInMillis
+    }
+
     private fun minuteOfDayFor(timestamp: Long): Int {
         val calendar = Calendar.getInstance().apply { timeInMillis = timestamp }
         return calendar.get(Calendar.HOUR_OF_DAY) * 60 + calendar.get(Calendar.MINUTE)

@@ -115,13 +115,19 @@ class SeniorApplication : Application() {
     }
 
     private fun scheduleNightlyAggregation() {
-        val request = PeriodicWorkRequestBuilder<NightlyAggregationWorker>(24, TimeUnit.HOURS)
+        // Twice a day, not once. A night block does not close until wake time, so a single 02:00
+        // run always finds it still open, defers it correctly, and only rolls it up twenty-four
+        // hours later. The second run lands after the senior is up and closes the night the same
+        // day.
+        val request = PeriodicWorkRequestBuilder<NightlyAggregationWorker>(12, TimeUnit.HOURS)
             .setInitialDelay(millisUntilNext2AM(), TimeUnit.MILLISECONDS)
             .build()
 
+        // UPDATE, not KEEP: the 24-hour version is already enqueued under this name on every
+        // installed build, and KEEP would silently leave it there.
         WorkManager.getInstance(this).enqueueUniquePeriodicWork(
             "nightly_aggregation",
-            ExistingPeriodicWorkPolicy.KEEP,
+            ExistingPeriodicWorkPolicy.UPDATE,
             request
         )
     }
