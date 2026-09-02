@@ -176,7 +176,12 @@ class NightlyAggregationWorker(
             avgScreenIdleDuration = avgScreenIdleDuration,
             totalScreenUnlocks = totalScreenUnlocks,
             totalSteps = totalSteps,
-            isChargingMajority = isChargingMajority
+            isChargingMajority = isChargingMajority,
+            // The one moment this number can be taken. `rows` is about to be marked aggregated
+            // and deleted by `deleteAggregated()`, after which nothing can say whether this
+            // block was summarised from a full 52 readings or from the four that arrived before
+            // the battery died. Both produce rows that look equally plausible.
+            sampleCount = rows.size
         )
     }
 }

@@ -40,7 +40,7 @@ import com.pup.seenior.database.entities.SensorData
         MlModelMetadata::class,
         SeniorOnboarding::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = true
 )
 abstract class SeniorAppDatabase : RoomDatabase() {
@@ -81,13 +81,33 @@ abstract class SeniorAppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Records how many raw readings each `Daily_Aggregates` row was built from.
+         *
+         * Urgent in a way most columns are not: raw `Sensor_Data` is purged the same night it is
+         * rolled up (CLAUDE.md §11, data minimisation), so the count exists only in the instant
+         * the worker is grouping those rows. A day that passes without this column is a day whose
+         * completeness can never be established afterwards -- there is nothing left to count.
+         *
+         * Nullable, and deliberately not backfilled with a guess. The three rows already on the
+         * pilot handset keep `null`, meaning "unknown". A default of 0 would read as "this block
+         * had no readings" and a default of 52 would be a fabrication; both are worse than an
+         * honest gap. See [com.pup.seenior.database.entities.DailyAggregate.sampleCount].
+         */
+        private val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE Daily_Aggregates ADD COLUMN sample_count INTEGER")
+            }
+        }
+
         fun getInstance(context: Context): SeniorAppDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext,
                     SeniorAppDatabase::class.java,
                     "senior_app.db"
-                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3).build().also { INSTANCE = it }
+                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                    .build().also { INSTANCE = it }
             }
         }
     }

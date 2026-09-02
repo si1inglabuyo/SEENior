@@ -36,6 +36,29 @@ data class DailyAggregate(
     @ColumnInfo(name = "total_steps") val totalSteps: Int,
     /** True if the device was charging for a majority of readings in this block */
     @ColumnInfo(name = "is_charging_majority") val isChargingMajority: Boolean,
+    /**
+     * How many `Sensor_Data` rows this block was summarised from.
+     *
+     * Every other field here is a summary, and a summary of four readings is indistinguishable
+     * from a summary of fifty-two once the raw rows are gone -- which they are, because
+     * `deleteAggregated()` purges them the same night. Without this count there is no way to
+     * tell a real quiet morning from a morning the phone spent switched off.
+     *
+     * That distinction matters to Layer 2 specifically. Isolation Forest is unsupervised: it
+     * learns "normal" from whatever it is given, so a handful of near-empty blocks teach it that
+     * near-empty is ordinary -- and a senior lying motionless on the floor produces a block that
+     * looks very like one. The model would learn to shrug at the thing it exists to catch.
+     *
+     * Used to EXCLUDE thin blocks at training time, never as a feature to train on. Fed in as a
+     * feature it would have the model learning about handset uptime rather than about the senior.
+     *
+     * Expected counts at the 5-minute sampling of CLAUDE.md §4, for wake 10:00 / sleep 23:00:
+     * ~52 for each 260-minute waking block, ~132 for the 660-minute night.
+     *
+     * Nullable because rows written before this column existed cannot be counted retroactively;
+     * null means "unknown", which is not the same claim as a number and must not be trusted.
+     */
+    @ColumnInfo(name = "sample_count") val sampleCount: Int? = null,
     /** Isolation Forest path-length anomaly score — set after the daily IF run, null until then */
     @ColumnInfo(name = "isolation_forest_score") val isolationForestScore: Double? = null,
     @ColumnInfo(name = "created_at") val createdAt: Long = System.currentTimeMillis()
