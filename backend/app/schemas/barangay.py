@@ -59,6 +59,42 @@ class BarangaySeniorOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class BarangayContactOut(BaseModel):
+    """One family contact on a senior's record, for the responder's Senior Details page.
+
+    Name/phone/email come from the linked Users row; the relationship label ("daughter",
+    "son", ...) from the pairing. Barangay-responder contacts are not included -- the
+    responder is looking at who ELSE can be called, and that is the family.
+    """
+
+    name: str
+    relationship_label: str | None
+    phone: str | None
+    email: str | None
+
+
+class BarangaySeniorDetail(BaseModel):
+    """Full record for one senior: profile, family contacts, and their own alert history.
+
+    Still metadata only (CLAUDE.md §11) -- no sensor readings, no coordinates. `living_
+    arrangement` is *derived* from whether an active family contact exists, because the
+    onboarding `living_arrangement` answer lives in the phone's local database and never
+    syncs; it is display text on this screen and nothing routes on it.
+    """
+
+    sync_id: UUID
+    first_name: str
+    last_name: str
+    age: int
+    gender: str
+    address: str
+    mobile_number: str
+    living_arrangement: str
+    has_family_contact: bool
+    contacts: list[BarangayContactOut]
+    alerts: list[BarangayAlertOut]
+
+
 class ResponderAction(BaseModel):
     """What a responder types when acting on an incident. Optional -- an urgent dispatch
     must never be blocked behind a required text box."""
@@ -76,3 +112,15 @@ class BarangayStats(BaseModel):
     open_incidents: int
     alerts_this_week: list[DayCount]
     outcomes: dict[str, int]
+
+    # Dashboard stat-card figures. All scoped to this responder's barangay and reckoned
+    # against the database clock (see db_now) so "today" means the same day the stored
+    # timestamps were written in.
+    resolved_today: int = 0
+    sos_today: int = 0
+    sos_last_at: datetime | None = None
+    seniors_added_this_month: int = 0
+    # Non-pending alert counts for the two days, backing the "N from yesterday" delta on
+    # the Active Alerts card. A per-day volume, not a snapshot of how many were open.
+    alerts_today_total: int = 0
+    alerts_yesterday_total: int = 0

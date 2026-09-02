@@ -4,6 +4,13 @@
 const BASE = import.meta.env.VITE_API_BASE ?? 'https://seenior.onrender.com'
 const TOKEN_KEY = 'seenior.responder.token'
 
+// Shared poll interval for every screen that needs to notice a change made elsewhere
+// (another browser tab, or an action taken on a different screen of this same app) without
+// a live-update channel. Short enough that a responder watching the screen sees it,
+// long enough not to hammer a free-tier service -- and it keeps the Render instance awake,
+// which is what keeps the server-side escalation clock running.
+export const POLL_MS = 10000
+
 export const getToken = () => localStorage.getItem(TOKEN_KEY)
 export const clearToken = () => localStorage.removeItem(TOKEN_KEY)
 

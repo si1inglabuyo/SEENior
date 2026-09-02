@@ -17,10 +17,21 @@ from sqlalchemy.orm import selectinload
 
 from app.api.deps import require_role
 from app.api.escalation import append_step, db_now, has_family_tier, sweep_overdue_alerts
-from app.db.models import Alert, AlertStatus, Senior, User, UserRole
+from app.db.models import (
+    Alert,
+    AlertStatus,
+    Contact,
+    ContactType,
+    Senior,
+    TriggerType,
+    User,
+    UserRole,
+)
 from app.db.session import get_db
 from app.schemas.barangay import (
     BarangayAlertOut,
+    BarangayContactOut,
+    BarangaySeniorDetail,
     BarangaySeniorOut,
     BarangayStats,
     DayCount,
@@ -71,16 +82,18 @@ def _alert_out(alert: Alert) -> BarangayAlertOut:
 
 @router.get("/alerts", response_model=list[BarangayAlertOut])
 async def list_barangay_alerts(
-    scope: str = Query("active", pattern="^(active|history)$"),
+    scope: str = Query("active", pattern="^(active|history|today)$"),
     db: AsyncSession = Depends(get_db),
     responder: User = Depends(responder_only),
 ) -> list[BarangayAlertOut]:
-    """The incident queue (`active`) and the incident log (`history`).
+    """The incident queue (`active`), the incident log (`history`), and today's feed (`today`).
 
     `active` is the work queue: incidents that have reached this barangay and are not
-    closed. `history` is everything already acted on, for the log view.
+    closed. `history` is everything already acted on, for the log view. `today` is every
+    non-pending alert raised since local midnight, open or closed, for the dashboard's
+    "Alerts Today" panel.
 
-    Both deliberately exclude `pending`. An alert still inside the senior's own answer
+    All three deliberately exclude `pending`. An alert still inside the senior's own answer
     window, or one the family is in the middle of handling, has not reached the barangay
     yet -- showing it early would both leak an incident that is not theirs and train
     responders to react to alerts that resolve themselves a minute later.
@@ -101,6 +114,12 @@ async def list_barangay_alerts(
     )
     if scope == "active":
         query = query.where(Alert.status == AlertStatus.ESCALATED)
+    elif scope == "today":
+        # The database's clock, for the same reason barangay_stats uses it: created_at is
+        # a naive timestamp Postgres wrote, so "midnight" has to be reckoned the same way.
+        now = await db_now(db)
+        start_of_today = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        query = query.where(Alert.created_at >= start_of_today).limit(50)
     else:
         query = query.limit(100)
 
@@ -259,6 +278,66 @@ async def list_barangay_seniors(
     ]
 
 
+@router.get("/seniors/{sync_id}", response_model=BarangaySeniorDetail)
+async def barangay_senior_detail(
+    sync_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    responder: User = Depends(responder_only),
+) -> BarangaySeniorDetail:
+    """One senior's full record for the Senior Details page: profile, family contacts,
+    and that senior's own alert history."""
+    barangay = _assigned_barangay(responder)
+
+    result = await db.execute(
+        select(Senior)
+        .where(Senior.sync_id == sync_id)
+        .options(
+            selectinload(Senior.contacts).selectinload(Contact.user),
+            selectinload(Senior.alerts),
+        )
+    )
+    senior = result.scalar_one_or_none()
+    if senior is None or senior.barangay != barangay:
+        # One 404 for "no such senior" and "not your barangay" alike -- confirming a
+        # senior exists in a neighbouring barangay is itself a disclosure (CLAUDE.md §11).
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Senior not found")
+
+    family = [
+        contact
+        for contact in senior.contacts
+        if contact.contact_type == ContactType.FAMILY and contact.unlinked_at is None
+    ]
+    contacts_out = [
+        BarangayContactOut(
+            name=contact.user.full_name or contact.user.username,
+            relationship_label=contact.relationship_label,
+            phone=contact.user.phone,
+            email=contact.user.email,
+        )
+        for contact in family
+    ]
+
+    # Same "responders never see pending" rule as the alert queue, and newest first.
+    alerts = sorted(senior.alerts, key=lambda a: a.created_at, reverse=True)
+    for alert in alerts:
+        alert.senior = senior  # selectinload(Senior.alerts) doesn't backfill alert.senior
+    alerts_out = [_alert_out(a) for a in alerts if a.status != AlertStatus.PENDING]
+
+    return BarangaySeniorDetail(
+        sync_id=senior.sync_id,
+        first_name=senior.first_name,
+        last_name=senior.last_name,
+        age=senior.age,
+        gender=senior.gender,
+        address=senior.address,
+        mobile_number=senior.mobile_number,
+        living_arrangement="With Family" if family else "Lives alone",
+        has_family_contact=bool(family),
+        contacts=contacts_out,
+        alerts=alerts_out,
+    )
+
+
 @router.get("/stats", response_model=BarangayStats)
 async def barangay_stats(
     db: AsyncSession = Depends(get_db),
@@ -278,10 +357,18 @@ async def barangay_stats(
     # Postgres wrote. Using Python's UTC here would slide the seven-day boundary by
     # whatever the database's zone offset happens to be.
     now = await db_now(db)
+    today = now.date()
+    yesterday = today - timedelta(days=1)
     week_start = (now - timedelta(days=6)).replace(hour=0, minute=0, second=0, microsecond=0)
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
     alerts_result = await db.execute(
-        select(Alert.created_at, Alert.status).where(
+        select(
+            Alert.created_at,
+            Alert.status,
+            Alert.trigger_type,
+            Alert.resolved_at,
+        ).where(
             Alert.senior_id.in_(senior_ids),
             Alert.status != AlertStatus.PENDING,
             Alert.created_at >= week_start,
@@ -291,7 +378,7 @@ async def barangay_stats(
 
     # Every one of the last seven days is filled in, including the empty ones. A bar chart
     # that silently omits quiet days makes a quiet week look like a busy one.
-    per_day = Counter(created_at.date().isoformat() for created_at, _ in rows)
+    per_day = Counter(row.created_at.date().isoformat() for row in rows)
     days = [
         DayCount(
             day=(week_start + timedelta(days=offset)).date().isoformat(),
@@ -300,11 +387,33 @@ async def barangay_stats(
         for offset in range(7)
     ]
 
-    outcomes = Counter(alert_status.value for _, alert_status in rows)
+    outcomes = Counter(row.status.value for row in rows)
+
+    # Dashboard stat-card figures, all derived from the same week window already fetched --
+    # today and yesterday both sit inside it, so no extra alert query is needed.
+    resolved_today = sum(
+        1
+        for row in rows
+        if row.status == AlertStatus.RESOLVED
+        and row.resolved_at is not None
+        and row.resolved_at.date() == today
+    )
+    sos_today_times = sorted(
+        row.created_at
+        for row in rows
+        if row.trigger_type == TriggerType.SOS and row.created_at.date() == today
+    )
+    alerts_today_total = sum(1 for row in rows if row.created_at.date() == today)
+    alerts_yesterday_total = sum(1 for row in rows if row.created_at.date() == yesterday)
 
     open_result = await db.execute(
         select(func.count(Alert.id)).where(
             Alert.senior_id.in_(senior_ids), Alert.status == AlertStatus.ESCALATED
+        )
+    )
+    seniors_month_result = await db.execute(
+        select(func.count(Senior.id)).where(
+            Senior.barangay == barangay, Senior.created_at >= month_start
         )
     )
 
@@ -313,4 +422,10 @@ async def barangay_stats(
         open_incidents=open_result.scalar_one(),
         alerts_this_week=days,
         outcomes=dict(outcomes),
+        resolved_today=resolved_today,
+        sos_today=len(sos_today_times),
+        sos_last_at=sos_today_times[-1] if sos_today_times else None,
+        seniors_added_this_month=seniors_month_result.scalar_one(),
+        alerts_today_total=alerts_today_total,
+        alerts_yesterday_total=alerts_yesterday_total,
     )
