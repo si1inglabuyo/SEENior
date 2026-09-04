@@ -14,6 +14,14 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_HEALTH" />
+    <!-- Lets the monitoring service keep the "while in use" location grant it already holds
+         while no screen is open. NOT background location: what the senior granted is unchanged,
+         and the service carrying it is the one whose notification is visible the whole time.
+         Without this, Android 14+ refuses every location request a passive alert makes - measured
+         2026-09-04, a fall alert refused at 13:04:03.5 and permitted only at 13:04:06.9 once the
+         prompt reached the screen. That is why inactivity alerts reached the barangay with no
+         pin (CLAUDE.md §11). -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <!-- Held only for the seconds a server-woken sample takes: without it the handset may
          suspend again mid-sample, the moment FCM's brief allowlist lapses. -->
@@ -22,6 +30,15 @@
     <!-- Lets a high-risk alert open the wellness prompt over the lock screen instead of waiting
          behind a banner nobody taps. -->
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <!-- Lets an alert start the prompt over whatever is on screen, and is what permits a
+         background activity start at all from Android 10 on. The full-screen intent above only
+         covers a locked or dark screen; a senior part-way through another app gets a banner
+         instead unless this is held. Used for nothing but an open alert. -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <!-- Required to drive the vibrator directly. The notification channel's own vibration is
+         posted by the system on our behalf and needs no permission; a waveform that repeats
+         until the alert is answered does. -->
+    <uses-permission android:name="android.permission.VIBRATE" />
     <!-- The escalation deadline must fire at a wall-clock moment even in Doze. Measured on an
          Infinix X6885 (Android 15): with only a WorkManager job, a 60s fall window did not
          escalate at all while the phone was idle, and 10-minute windows ran 25 minutes late.
@@ -60,7 +77,7 @@
         <service
             android:name=".sensors.SensorCollectionService"
             android:exported="false"
-            android:foregroundServiceType="health"
+            android:foregroundServiceType="health|location"
         />
         <!-- The reboot recovery net. BIND_JOB_SERVICE is required by the platform and is
              what stops anything but JobScheduler from starting it. -->

@@ -1,10 +1,12 @@
 package com.pup.seenior.alerts
 
 import android.content.Context
+import android.content.Intent
 import com.pup.seenior.AppForeground
 import com.pup.seenior.baseline.SeedBaselineGenerator
 import com.pup.seenior.database.SeniorAppDatabase
 import com.pup.seenior.database.entities.Alert
+import com.pup.seenior.MainActivity
 import com.pup.seenior.location.AlertLocationCapture
 import com.pup.seenior.ui.wellness.WellnessMessages
 import kotlinx.coroutines.CoroutineScope
@@ -81,9 +83,33 @@ object AlertResponder {
         EscalationScheduler.arm(context, alert)
         captureLocationCluster(context, db, alert)
 
+        // After the deadline is armed, never before: the escalation guarantee comes first and
+        // nothing added here may be able to delay it. Low-risk anomalies never reach this
+        // function at all — MedianMadDetector.recordLowRisk writes those straight to the table
+        // and tells nobody — so anything arriving here is owed an answer and may make noise
+        // asking for one.
+        AlertAlarm.start(context)
+
         // With the app open the wellness prompt takes over the screen by itself; a notification
         // on top of it would only be noise.
         if (AppForeground.isForeground) return
+
+        // Two mechanisms, because each covers what the other cannot. The full-screen intent on
+        // the notification below owns the locked or dark screen. This owns the case where the
+        // senior is part-way through another app, where a full-screen intent quietly degrades to
+        // a banner. Both depend on grants Android will not give for a manifest declaration alone
+        // — see [AlertPermissions], and the refusals at 13:04:04 on 2026-09-04 that found this.
+        //
+        // Best effort, and deliberately not fatal: if the launch is refused the notification
+        // still posts underneath, carrying the same content intent.
+        if (AlertPermissions.canDrawOverlays(context)) {
+            runCatching {
+                context.startActivity(
+                    Intent(context, MainActivity::class.java)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                )
+            }
+        }
 
         val senior = db.seniorDao().getOnboardedSenior()
         val language = senior

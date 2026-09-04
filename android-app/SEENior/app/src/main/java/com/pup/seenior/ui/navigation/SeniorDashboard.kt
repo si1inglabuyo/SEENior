@@ -5,6 +5,7 @@ import android.app.Activity
 import android.content.ContextWrapper
 import android.os.Build
 import android.view.WindowManager
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
@@ -15,12 +16,14 @@ import androidx.compose.material.icons.outlined.Contacts
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.PersonAddAlt1
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -35,6 +38,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.pup.seenior.alerts.AlertPermissions
 import com.pup.seenior.location.LocationPermissionState
 import com.pup.seenior.ui.contacts.InviteScreen
 import com.pup.seenior.ui.contacts.SeniorContactsScreen
@@ -69,6 +73,10 @@ private fun ShowOverLockScreen() {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
                 activity.setShowWhenLocked(true)
                 activity.setTurnScreenOn(true)
+                // Not covered by setTurnScreenOn, which wakes the screen once and then lets it
+                // sleep again on the normal timeout with the prompt still up and still counting
+                // down. The legacy branch below has always set this; the modern one did not.
+                activity.window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             } else {
                 @Suppress("DEPRECATION")
                 activity.window.addFlags(
@@ -83,6 +91,7 @@ private fun ShowOverLockScreen() {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
                     activity.setShowWhenLocked(false)
                     activity.setTurnScreenOn(false)
+                    activity.window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
                 } else {
                     @Suppress("DEPRECATION")
                     activity.window.clearFlags(
@@ -158,6 +167,77 @@ private fun RepairLocationPermission() {
     }
 }
 
+/**
+ * Offers, once, to turn on the two grants that let an alert reach a senior who is not already
+ * looking at the phone.
+ *
+ * Neither can be granted from inside the app — both need the senior to visit a settings page —
+ * and neither is required for the system to work: an alert without them still posts, still counts
+ * down and still escalates on time. What they buy is the senior seeing it in time to answer, so
+ * this asks rather than insists, and never asks twice.
+ *
+ * Exists for installs that onboarded before these were asked for. Same shape and same reasoning
+ * as [RepairLocationPermission] directly above.
+ */
+@Composable
+private fun RepairAlertPermissions() {
+    val context = LocalContext.current
+    var show by remember { mutableStateOf(false) }
+
+    val launcher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { /* Nothing to read back: the grants are re-checked on the next alert, not here. */ }
+
+    LaunchedEffect(Unit) {
+        if (AlertPermissions.wasAsked(context)) return@LaunchedEffect
+        if (AlertPermissions.allGranted(context)) {
+            // Nothing to repair, but record the asking anyway so a later revocation does not
+            // reopen this dialog on a senior who has already dealt with it once.
+            AlertPermissions.markAsked(context)
+            return@LaunchedEffect
+        }
+        show = true
+    }
+
+    if (!show) return
+
+    AlertDialog(
+        onDismissRequest = {
+            AlertPermissions.markAsked(context)
+            show = false
+        },
+        title = { Text("Let SEENior reach you") },
+        text = {
+            Text(
+                "To wake your screen and show a check-in over other apps, SEENior needs two " +
+                    "settings turned on. Without them a check-in only appears as a small banner, " +
+                    "which is easy to miss."
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                AlertPermissions.markAsked(context)
+                show = false
+                // One page at a time. Sending the senior straight on to the second would look
+                // like the first had failed; the repair pass will not fire again, and the
+                // remaining grant is reachable from the phone's own settings.
+                val next = AlertPermissions.fullScreenIntentSettings(context)
+                    ?.takeIf { !AlertPermissions.canUseFullScreenIntent(context) }
+                    ?: AlertPermissions.overlaySettings(context)
+                // Some OEM builds ship without one of these pages. A missing settings screen
+                // must not crash the dashboard.
+                runCatching { launcher.launch(next) }
+            }) { Text("Open settings") }
+        },
+        dismissButton = {
+            TextButton(onClick = {
+                AlertPermissions.markAsked(context)
+                show = false
+            }) { Text("Not now") }
+        }
+    )
+}
+
 @Composable
 fun SeniorDashboard() {
     var tab by remember { mutableStateOf(SeniorTab.HOME) }
@@ -172,6 +252,11 @@ fun SeniorDashboard() {
     val alert = homeViewModel.activeAlert
     if (alert != null) {
         ShowOverLockScreen()
+        // Back would otherwise drop the senior onto the launcher with the alert still open and
+        // still counting down — the tabs are hidden just below for the same reason. Home cannot
+        // be intercepted by any app at any permission level, so this closes the one exit Android
+        // does let us hold. Walking away does not stop the chain either way.
+        BackHandler(enabled = true) { }
         WellnessPromptScreen(
             alert = alert,
             seniorFirstName = homeViewModel.firstName,
@@ -189,6 +274,7 @@ fun SeniorDashboard() {
     }
 
     RepairLocationPermission()
+    RepairAlertPermissions()
 
     val tabs = tabsFor(homeViewModel.livesAlone)
 

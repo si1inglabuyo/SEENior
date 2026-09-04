@@ -6,6 +6,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.pup.seenior.alerts.AlertAlarm
 import com.pup.seenior.alerts.AlertEscalator
 import com.pup.seenior.alerts.AlertNotifier
 import com.pup.seenior.alerts.EscalationScheduler
@@ -112,6 +113,10 @@ class WellnessPromptViewModel(application: Application) : AndroidViewModel(appli
 
     /** "I'm safe" / SOS "Cancel" — closes the alert without notifying anyone. */
     fun markSafe(onFinished: () -> Unit) {
+        // First statement, and outside the coroutine on purpose: the senior has just
+        // pressed a button, so the noise stops on that press rather than when a database
+        // write and a network call have finished.
+        AlertAlarm.stop()
         val current = alert ?: return
         if (stage != PromptStage.PROMPT) return
         stage = PromptStage.ACKNOWLEDGED
@@ -152,6 +157,10 @@ class WellnessPromptViewModel(application: Application) : AndroidViewModel(appli
      * would leave a relative looking at an emergency the senior has personally called off.
      */
     fun standDown(onFinished: () -> Unit) {
+        // First statement, and outside the coroutine on purpose: the senior has just
+        // pressed a button, so the noise stops on that press rather than when a database
+        // write and a network call have finished.
+        AlertAlarm.stop()
         val current = alert ?: return
         if (stage != PromptStage.SENT) return
         stage = PromptStage.ACKNOWLEDGED
@@ -175,6 +184,11 @@ class WellnessPromptViewModel(application: Application) : AndroidViewModel(appli
 
     /** "I need help", or the response window expiring. */
     fun escalate(onFinished: () -> Unit) {
+        // First statement, and outside the coroutine on purpose. Unlike the two above this is
+        // also the timeout path, so the alarm must stop whether the senior pressed something or
+        // simply never answered — either way the question has been asked and the chain has moved
+        // on to the family.
+        AlertAlarm.stop()
         val current = alert ?: return
         if (isSending) return
         isSending = true

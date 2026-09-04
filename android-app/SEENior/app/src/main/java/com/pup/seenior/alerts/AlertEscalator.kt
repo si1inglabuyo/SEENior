@@ -137,6 +137,10 @@ object AlertEscalator {
     suspend fun escalateToFamily(db: SeniorAppDatabase, alertId: Int): Outcome = escalateLock.withLock {
         val alert = db.alertDao().getById(alertId) ?: return Outcome.Failed
 
+        // The alarm existed to fetch an answer from the senior. That window has closed and the
+        // family is being told instead, so the noise has nobody left to summon.
+        AlertAlarm.stop()
+
         // Carried forward rather than re-read from `alert` each time: appending the delivery
         // step to the stale snapshot below would silently drop the escalation step written here.
         var steps = alert.escalationSteps

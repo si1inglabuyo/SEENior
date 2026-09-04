@@ -1,5 +1,6 @@
 package com.pup.seenior.sensors
 
+import android.Manifest
 import android.app.KeyguardManager
 import android.app.Notification
 import android.app.NotificationChannel
@@ -9,6 +10,8 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
+import android.content.pm.ServiceInfo
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
@@ -22,6 +25,8 @@ import android.os.PowerManager
 import android.os.SystemClock
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import androidx.core.app.ServiceCompat
+import androidx.core.content.ContextCompat
 import com.pup.seenior.R
 import com.pup.seenior.alerts.AlertEscalator
 import com.pup.seenior.alerts.AlertResponder
@@ -174,7 +179,7 @@ class SensorCollectionService : Service(), SensorEventListener
 
     override fun onCreate() {
         super.onCreate()
-        startForeground(NOTIFICATION_ID, buildNotification())
+        startForegroundWithLocationIfAllowed()
         isRunning = true
 
         // The service can start while the screen is already off (boot, or a restart with the
@@ -240,9 +245,52 @@ class SensorCollectionService : Service(), SensorEventListener
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // Re-asserted on every start rather than only in onCreate: onboarding can grant location
+        // after this service is already running, and a service that claimed only "health" at
+        // 06:00 would go on being refused a fix all day. Calling startForeground again on a
+        // service already in the foreground widens the type in place.
+        startForegroundWithLocationIfAllowed()
         if (intent?.action == ACTION_POLL_NOW) pollOnce()
         return START_STICKY
     }
+
+    /**
+     * Goes to the foreground claiming the `location` service type only when a location
+     * permission is actually held.
+     *
+     * The manifest declares `health|location`, but the manifest is a ceiling rather than a
+     * promise. From Android 14 a service that claims `location` without holding
+     * ACCESS_COARSE_LOCATION or ACCESS_FINE_LOCATION is refused with a SecurityException, and
+     * that exception would kill monitoring outright for a senior who declined the location
+     * dialog. Narrowing the claim at runtime means declining location costs the alert map and
+     * nothing else.
+     *
+     * Claiming the type is what the passive alerts were missing. Without it Android treats this
+     * service as background the moment no screen is open, and refuses every location request an
+     * alert makes - see [com.pup.seenior.location.AlertLocationCapture].
+     */
+    @Suppress("InlinedApi")
+    private fun startForegroundWithLocationIfAllowed() {
+        var type = ServiceInfo.FOREGROUND_SERVICE_TYPE_HEALTH
+        if (hasLocationPermission()) {
+            type = type or ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
+        }
+        ServiceCompat.startForeground(this, NOTIFICATION_ID, buildNotification(), type)
+    }
+
+    /**
+     * Either permission will do, matching what
+     * [com.pup.seenior.location.AlertLocationCapture] accepts: coarse still produces a usable
+     * cell, and withholding the service type over it would deny a fix to the senior who gave the
+     * more privacy-conscious answer.
+     */
+    private fun hasLocationPermission(): Boolean =
+        listOf(
+            Manifest.permission.ACCESS_FINE_LOCATION,
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        ).any {
+            ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED
+        }
 
     /**
      * Takes one sample now, because the server said this phone had gone quiet.

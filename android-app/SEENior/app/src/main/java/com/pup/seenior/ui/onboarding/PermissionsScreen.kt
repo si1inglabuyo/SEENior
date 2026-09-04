@@ -28,6 +28,8 @@ import androidx.compose.material.icons.automirrored.filled.DirectionsRun
 import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.BatteryChargingFull
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Layers
+import androidx.compose.material.icons.filled.ScreenLockPortrait
 import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material3.AlertDialog
@@ -42,6 +44,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.pup.seenior.alerts.AlertPermissions
 import com.pup.seenior.location.LocationPermissionState
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
@@ -65,7 +68,9 @@ private val permissionRows = listOf(
     PermissionRow(Icons.Filled.LocationOn, "Location (Alerts)", "Only when an alert triggers, and only as an approximate area"),
     PermissionRow(Icons.Filled.Notifications, "Notifications", "Check-in prompts & SOS alerts"),
     PermissionRow(Icons.Filled.BatteryChargingFull, "Battery & screen", "Tracks charging & screen use"),
-    PermissionRow(Icons.Filled.Alarm, "Run in background", "So alerts still go out while the phone rests")
+    PermissionRow(Icons.Filled.Alarm, "Run in background", "So alerts still go out while the phone rests"),
+    PermissionRow(Icons.Filled.ScreenLockPortrait, "Wake your screen", "So a check-in appears even while the phone is locked"),
+    PermissionRow(Icons.Filled.Layers, "Show over other apps", "So a check-in is not hidden behind whatever you are using")
 )
 
 private val runtimePermissions: List<String> = buildList {
@@ -115,14 +120,56 @@ fun PermissionsScreen(
      * those. A senior who declines still gets a working app — just one whose escalation can be
      * delayed by their manufacturer — so refusing must not trap them on this screen.
      */
-    val batteryLauncher = rememberLauncherForActivityResult(
+    /**
+     * The last two asks, and the two the app cannot make for itself.
+     *
+     * Neither is a runtime permission: both are settings pages the senior has to visit, and from
+     * Android 14 the full-screen one is refused outright unless they do. Measured on the pilot
+     * handset 2026-09-04 — a fall alert had both refused at 13:04:04 with the manifest lines
+     * already in place, so the prompt had never once taken over the screen on its own.
+     *
+     * Chained one page at a time and, like the battery exemption below, never gating onboarding
+     * on the answer. A senior who declines still gets a working app: the alert still posts, still
+     * counts down and still escalates. They are simply likelier to miss it, and trapping them on
+     * this screen over a settings toggle would be the worse outcome.
+     */
+    val overlayLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { onAllGranted() }
+
+    fun requestOverlayThenContinue() {
+        if (AlertPermissions.canDrawOverlays(context)) {
+            onAllGranted()
+            return
+        }
+        // Some OEM builds ship without this settings activity; onboarding must never dead-end
+        // because a manufacturer removed a screen.
+        runCatching { overlayLauncher.launch(AlertPermissions.overlaySettings(context)) }
+            .onFailure { onAllGranted() }
+    }
+
+    val fullScreenLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { requestOverlayThenContinue() }
+
+    fun requestFullScreenThenContinue() {
+        val intent = AlertPermissions.fullScreenIntentSettings(context)
+        if (intent == null || AlertPermissions.canUseFullScreenIntent(context)) {
+            requestOverlayThenContinue()
+            return
+        }
+        runCatching { fullScreenLauncher.launch(intent) }
+            .onFailure { requestOverlayThenContinue() }
+    }
+
+    val batteryLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { requestFullScreenThenContinue() }
 
     fun requestBatteryExemptionThenContinue() {
         val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
         if (powerManager.isIgnoringBatteryOptimizations(context.packageName)) {
-            onAllGranted()
+            requestFullScreenThenContinue()
             return
         }
         val intent = Intent(
@@ -131,7 +178,7 @@ fun PermissionsScreen(
         )
         // Some OEM builds ship without this settings activity; onboarding must not dead-end
         // because a manufacturer removed a screen.
-        runCatching { batteryLauncher.launch(intent) }.onFailure { onAllGranted() }
+        runCatching { batteryLauncher.launch(intent) }.onFailure { requestFullScreenThenContinue() }
     }
 
     val launcher = rememberLauncherForActivityResult(
@@ -201,6 +248,9 @@ fun PermissionsScreen(
                 // put in front of the question at all, so that the dashboard's repair pass
                 // never second-guesses an answer they already gave.
                 LocationPermissionState.markAsked(context)
+                // Same reasoning: recorded because the senior was put in front of the question,
+                // so the dashboard's repair pass never second-guesses an answer already given.
+                AlertPermissions.markAsked(context)
                 launcher.launch(runtimePermissions.toTypedArray())
             }
         )
