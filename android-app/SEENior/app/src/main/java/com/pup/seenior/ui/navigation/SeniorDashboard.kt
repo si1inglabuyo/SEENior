@@ -48,6 +48,7 @@ import com.pup.seenior.ui.profile.SeniorProfileScreen
 import com.pup.seenior.ui.theme.SeniorColors
 import com.pup.seenior.ui.wellness.WellnessPromptScreen
 import com.pup.seenior.ui.wellness.WellnessPromptViewModel
+import com.pup.seenior.ui.SeniorStrings
 
 /**
  * Lets the wellness prompt appear over the keyguard and wake the screen, for as long as it is on
@@ -105,11 +106,20 @@ private fun ShowOverLockScreen() {
     }
 }
 
-private enum class SeniorTab(val label: String, val icon: ImageVector) {
-    HOME("Home", Icons.Outlined.Home),
-    INVITE("Invite", Icons.Outlined.PersonAddAlt1),
-    CONTACTS("Contacts", Icons.Outlined.Contacts),
-    PROFILE("Profile", Icons.Outlined.Person)
+private enum class SeniorTab(val icon: ImageVector) {
+    HOME(Icons.Outlined.Home),
+    INVITE(Icons.Outlined.PersonAddAlt1),
+    CONTACTS(Icons.Outlined.Contacts),
+    PROFILE(Icons.Outlined.Person)
+}
+
+/** The label is looked up rather than held on the entry: it changes with the senior's chosen
+ *  language, and an enum constant is created once per process. */
+private fun SeniorTab.label(copy: SeniorStrings.Copy): String = when (this) {
+    SeniorTab.HOME -> copy.tabHome
+    SeniorTab.INVITE -> copy.tabInvite
+    SeniorTab.CONTACTS -> copy.tabContacts
+    SeniorTab.PROFILE -> copy.tabProfile
 }
 
 /**
@@ -180,7 +190,7 @@ private fun RepairLocationPermission() {
  * as [RepairLocationPermission] directly above.
  */
 @Composable
-private fun RepairAlertPermissions() {
+private fun RepairAlertPermissions(copy: SeniorStrings.Copy) {
     val context = LocalContext.current
     var show by remember { mutableStateOf(false) }
 
@@ -206,14 +216,8 @@ private fun RepairAlertPermissions() {
             AlertPermissions.markAsked(context)
             show = false
         },
-        title = { Text("Let SEENior reach you") },
-        text = {
-            Text(
-                "To wake your screen and show a check-in over other apps, SEENior needs two " +
-                    "settings turned on. Without them a check-in only appears as a small banner, " +
-                    "which is easy to miss."
-            )
-        },
+        title = { Text(copy.reachTitle) },
+        text = { Text(copy.reachBody) },
         confirmButton = {
             TextButton(onClick = {
                 AlertPermissions.markAsked(context)
@@ -227,13 +231,13 @@ private fun RepairAlertPermissions() {
                 // Some OEM builds ship without one of these pages. A missing settings screen
                 // must not crash the dashboard.
                 runCatching { launcher.launch(next) }
-            }) { Text("Open settings") }
+            }) { Text(copy.openSettings) }
         },
         dismissButton = {
             TextButton(onClick = {
                 AlertPermissions.markAsked(context)
                 show = false
-            }) { Text("Not now") }
+            }) { Text(copy.notNow) }
         }
     )
 }
@@ -273,8 +277,10 @@ fun SeniorDashboard() {
         return
     }
 
+    val copy = SeniorStrings.forLanguage(homeViewModel.language)
+
     RepairLocationPermission()
-    RepairAlertPermissions()
+    RepairAlertPermissions(copy)
 
     val tabs = tabsFor(homeViewModel.livesAlone)
 
@@ -292,10 +298,10 @@ fun SeniorDashboard() {
                     NavigationBarItem(
                         selected = activeTab == entry,
                         onClick = { tab = entry },
-                        icon = { Icon(entry.icon, contentDescription = entry.label) },
+                        icon = { Icon(entry.icon, contentDescription = entry.label(copy)) },
                         label = {
                             Text(
-                                entry.label,
+                                entry.label(copy),
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 12.sp
                             )

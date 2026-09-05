@@ -56,6 +56,7 @@ import com.pup.seenior.ui.wellness.WellnessMessages
 import com.pup.seenior.ui.wellness.WellnessPromptScreen
 import com.pup.seenior.ui.wellness.WellnessPromptViewModel
 import kotlin.math.roundToInt
+import com.pup.seenior.ui.SeniorStrings
 
 private val EmergencyRed = Color(0xFFC62828)
 private val EmergencyCardBg = Color(0xFFFDF7F5)
@@ -70,6 +71,7 @@ private val WarningAmberBg = Color(0xFFFDF3E7)
  */
 @Composable
 fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
+    val copy = SeniorStrings.forLanguage(viewModel.language)
     Surface(modifier = Modifier.fillMaxSize(), color = Color.White) {
         Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
             Row(
@@ -81,26 +83,26 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
             ) {
                 Column {
                     Text("SEENior", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-                    Text("Senior", color = Color.White.copy(alpha = 0.9f), fontSize = 13.sp)
+                    Text(copy.roleLabel, color = Color.White.copy(alpha = 0.9f), fontSize = 13.sp)
                 }
             }
 
             Column(modifier = Modifier.padding(horizontal = 20.dp)) {
                 Spacer(Modifier.height(18.dp))
                 Text(
-                    text = "Hi, ${viewModel.fullName}",
+                    text = copy.greeting(viewModel.fullName),
                     color = SeniorColors.Green,
                     fontSize = 24.sp,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    text = "You're all set today",
+                    text = copy.allSetToday,
                     color = SeniorColors.TextSecondary,
                     fontSize = 15.sp
                 )
 
                 Spacer(Modifier.height(14.dp))
-                StatusCard(atRisk = viewModel.isMonitoringAtRisk)
+                StatusCard(atRisk = viewModel.isMonitoringAtRisk, copy = copy)
 
                 // Directly under the status card, because it contradicts it. "You're Safe /
                 // Monitoring is active" is about passive watching; this is about help the senior
@@ -116,13 +118,13 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                 }
 
                 Spacer(Modifier.height(16.dp))
-                BatteryRow(percent = viewModel.batteryPercent, atRisk = viewModel.isMonitoringAtRisk)
+                BatteryRow(percent = viewModel.batteryPercent, atRisk = viewModel.isMonitoringAtRisk, copy = copy)
 
                 Spacer(Modifier.height(14.dp))
                 HorizontalDivider(color = SeniorColors.FieldBorder)
                 Spacer(Modifier.height(16.dp))
 
-                EmergencyCard(barangay = viewModel.barangay, onSosConfirmed = { viewModel.sendSos() })
+                EmergencyCard(barangay = viewModel.barangay, onSosConfirmed = { viewModel.sendSos() }, copy = copy)
 
                 Spacer(Modifier.height(10.dp))
                 SimulationRow(viewModel)
@@ -210,7 +212,7 @@ private fun HelpDeliveryCard(
 }
 
 @Composable
-private fun StatusCard(atRisk: Boolean) {
+private fun StatusCard(atRisk: Boolean, copy: SeniorStrings.Copy) {
     val bg = if (atRisk) WarningAmberBg else SeniorColors.GreenLightBg
     val border = if (atRisk) WarningAmber else SeniorColors.GreenBorder
     val dot = if (atRisk) WarningAmber else SeniorColors.Green
@@ -228,14 +230,13 @@ private fun StatusCard(atRisk: Boolean) {
         Spacer(Modifier.size(14.dp))
         Column {
             Text(
-                text = if (atRisk) "Monitoring At Risk" else "You're Safe",
+                text = if (atRisk) copy.monitoringAtRisk else copy.youAreSafe,
                 color = if (atRisk) WarningAmber else SeniorColors.Green,
                 fontSize = 19.sp,
                 fontWeight = FontWeight.Bold
             )
             Text(
-                text = if (atRisk) "Charge your phone to continue\nemergency monitoring"
-                else "Monitoring is active",
+                text = if (atRisk) copy.chargeToContinue else copy.monitoringActive,
                 color = SeniorColors.TextPrimary,
                 fontSize = 14.sp,
                 lineHeight = 19.sp
@@ -245,7 +246,7 @@ private fun StatusCard(atRisk: Boolean) {
 }
 
 @Composable
-private fun BatteryRow(percent: Int, atRisk: Boolean) {
+private fun BatteryRow(percent: Int, atRisk: Boolean, copy: SeniorStrings.Copy) {
     val tint = if (atRisk) WarningAmber else SeniorColors.Green
     Column {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -266,7 +267,7 @@ private fun BatteryRow(percent: Int, atRisk: Boolean) {
             Text("$percent%", color = tint, fontSize = 18.sp, fontWeight = FontWeight.Bold)
         }
         Text(
-            text = "Battery · ${if (atRisk) "Low" else "Good"}",
+            text = if (atRisk) copy.batteryLow else copy.batteryGood,
             color = tint,
             fontSize = 13.sp,
             modifier = Modifier.padding(start = 36.dp, top = 2.dp)
@@ -275,7 +276,7 @@ private fun BatteryRow(percent: Int, atRisk: Boolean) {
 }
 
 @Composable
-private fun EmergencyCard(barangay: String, onSosConfirmed: () -> Unit) {
+private fun EmergencyCard(barangay: String, onSosConfirmed: () -> Unit, copy: SeniorStrings.Copy) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -286,17 +287,16 @@ private fun EmergencyCard(barangay: String, onSosConfirmed: () -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-            text = "EMERGENCY ALERT",
+            text = copy.emergencyAlert,
             color = EmergencyRed,
             fontSize = 19.sp,
             fontWeight = FontWeight.Bold
         )
         Spacer(Modifier.height(26.dp))
-        SosSwipe(onConfirmed = onSosConfirmed)
+        SosSwipe(onConfirmed = onSosConfirmed, copy = copy)
         Spacer(Modifier.height(26.dp))
         Text(
-            text = if (barangay.isBlank()) "Alerts family and your barangay if no response"
-            else "Alerts family and Barangay $barangay\nif no response",
+            text = copy.alertsFamilyAndBarangay(barangay),
             color = EmergencyRed,
             fontSize = 14.sp,
             lineHeight = 19.sp,
@@ -310,7 +310,7 @@ private fun EmergencyCard(barangay: String, onSosConfirmed: () -> Unit) {
  * to summon a barangay responder, and CLAUDE.md §7 describes SOS as one-swipe throughout.
  */
 @Composable
-private fun SosSwipe(onConfirmed: () -> Unit) {
+private fun SosSwipe(onConfirmed: () -> Unit, copy: SeniorStrings.Copy) {
     val density = LocalDensity.current
     val knobSizeDp = 72.dp
     val knobSizePx = with(density) { knobSizeDp.toPx() }
@@ -350,7 +350,7 @@ private fun SosSwipe(onConfirmed: () -> Unit) {
         contentAlignment = Alignment.CenterStart
     ) {
         Text(
-            text = "Swipe to send alert",
+            text = copy.swipeToSend,
             color = Color.White,
             fontSize = 19.sp,
             fontWeight = FontWeight.Bold,
