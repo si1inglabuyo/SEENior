@@ -46,6 +46,8 @@ import androidx.compose.ui.unit.sp
 import com.pup.seenior.R
 import com.pup.seenior.ui.onboarding.components.PrimaryPillButton
 import com.pup.seenior.ui.theme.SeniorColors
+import com.pup.seenior.ui.onboarding.OnboardingOptions
+import androidx.compose.material3.RadioButton
 
 // TODO: replace both with the real support details before the demo — these are the
 // placeholders straight out of designs/senior/profile.
@@ -471,6 +473,56 @@ private fun LegalBody(title: String, sections: List<LegalSection>) {
 // ---------------------------------------------------------------- shared bits
 
 /** Green back-header + scrollable white body, shared by every Profile sub-screen. */
+/**
+ * Lets the senior change their language after onboarding.
+ *
+ * This exists as well as the onboarding question, not instead of it. The answer is stored per
+ * senior in `Senior_Onboarding.language_preference` and never taken from the device locale, so a
+ * handset a relative set up in English would otherwise decide, permanently, what an emergency
+ * prompt says to someone who reads only Filipino. Correcting that must not require a reinstall.
+ *
+ * Each option is written in its own language for the same reason it is in onboarding: a senior
+ * looking for Filipino has to be able to recognise the word without reading English first.
+ */
+@Composable
+fun SeniorLanguageScreen(viewModel: SeniorProfileViewModel, onBack: () -> Unit) {
+    InfoScaffold(title = "Language / Wika", onBack = onBack) {
+        InfoCard(heading = "Choose your language") {
+            InfoBody("Your wellness check and alerts will use this language.")
+            Spacer(modifier = Modifier.height(6.dp))
+            InfoBody("Ito ang wikang gagamitin sa pagsusuri ng inyong kalagayan at sa mga alerto.")
+            Spacer(modifier = Modifier.height(8.dp))
+            OnboardingOptions.languages.forEach { (label, code) ->
+                LanguageOption(
+                    label = label,
+                    selected = viewModel.language == code,
+                    onClick = { viewModel.chooseLanguage(code) }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun LanguageOption(label: String, selected: Boolean, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        RadioButton(selected = selected, onClick = onClick)
+        Spacer(modifier = Modifier.size(8.dp))
+        Text(
+            label,
+            fontSize = 17.sp,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+            color = SeniorColors.TextPrimary
+        )
+    }
+}
+
 @Composable
 private fun InfoScaffold(title: String, onBack: () -> Unit, content: @Composable () -> Unit) {
     Column(modifier = Modifier.fillMaxSize().background(Color.White)) {

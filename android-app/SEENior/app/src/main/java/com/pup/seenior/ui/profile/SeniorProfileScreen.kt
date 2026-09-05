@@ -56,9 +56,10 @@ import com.pup.seenior.ui.onboarding.components.LabeledTextField
 import com.pup.seenior.ui.onboarding.components.PrimaryPillButton
 import com.pup.seenior.ui.theme.SeniorColors
 import com.pup.seenior.validation.PhilippinePhone
+import androidx.compose.material.icons.filled.Language
 
 private enum class ProfilePage {
-    HOME, EDIT, ABOUT, HOW_TO_USE, FAQS, SUPPORT, TERMS, PRIVACY,
+    HOME, EDIT, LANGUAGE, ABOUT, HOW_TO_USE, FAQS, SUPPORT, TERMS, PRIVACY,
     /** Only reachable for a senior living alone — for everyone else these are bottom tabs. */
     FAMILY, FAMILY_INVITE
 }
@@ -87,6 +88,7 @@ fun SeniorProfileScreen() {
             },
             onSaved = { page = ProfilePage.HOME }
         )
+        ProfilePage.LANGUAGE -> SeniorLanguageScreen(viewModel) { page = ProfilePage.HOME }
         ProfilePage.ABOUT -> SeniorAboutScreen { page = ProfilePage.HOME }
         ProfilePage.HOW_TO_USE -> SeniorHowToUseScreen { page = ProfilePage.HOME }
         ProfilePage.FAQS -> SeniorFaqsScreen { page = ProfilePage.HOME }
@@ -178,6 +180,12 @@ private fun ProfileHome(viewModel: SeniorProfileViewModel, onNavigate: (ProfileP
                     title = "Edit profile",
                     subtitle = "First Name, Surname, Age, Gender, Mobile Number…",
                     onClick = { onNavigate(ProfilePage.EDIT) }
+                )
+                ProfileRow(
+                    icon = Icons.Filled.Language,
+                    title = "Language / Wika",
+                    subtitle = "English, Filipino / Tagalog",
+                    onClick = { onNavigate(ProfilePage.LANGUAGE) }
                 )
             }
 

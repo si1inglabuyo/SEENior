@@ -15,6 +15,7 @@ import com.pup.seenior.ui.onboarding.OnboardingOptions
 import com.pup.seenior.validation.PhilippinePhone
 import kotlinx.coroutines.launch
 import java.io.IOException
+import com.pup.seenior.ui.wellness.WellnessMessages
 
 /** Backs the senior's Profile tab and its Edit Profile screen. */
 class SeniorProfileViewModel(application: Application) : AndroidViewModel(application) {
@@ -42,6 +43,12 @@ class SeniorProfileViewModel(application: Application) : AndroidViewModel(applic
     var gender by mutableStateOf<String?>(null)
     var mobileNumber by mutableStateOf("")
     var livingArrangementLabel by mutableStateOf<String?>(null)
+
+    /** The senior's chosen language, mirroring `Senior_Onboarding.language_preference`. Held
+     *  here rather than read from the device locale on purpose: a handset set up in English by a
+     *  relative must not decide what an emergency prompt says to the senior. */
+    var language by mutableStateOf(WellnessMessages.ENGLISH)
+        private set
     var address by mutableStateOf("")
     var isSaving by mutableStateOf(false)
         private set
@@ -79,10 +86,29 @@ class SeniorProfileViewModel(application: Application) : AndroidViewModel(applic
                 } else {
                     senior = loaded
                     fillFormFrom(loaded)
+                    db.seniorOnboardingDao().getBySeniorId(loaded.seniorId)?.let {
+                        language = it.languagePreference
+                    }
                 }
             } finally {
                 isLoading = false
             }
+        }
+    }
+
+    /**
+     * Persists a new language choice immediately — there is no Save button on that screen.
+     *
+     * Written straight through to the database rather than held as a draft because this is the
+     * one setting whose only visible effect is on screens the senior may not reach again for
+     * days. A half-applied language is worse than either language.
+     */
+    fun chooseLanguage(code: String) {
+        val id = senior?.seniorId ?: return
+        if (code == language) return
+        language = code
+        viewModelScope.launch {
+            db.seniorOnboardingDao().updateLanguagePreference(id, code)
         }
     }
 

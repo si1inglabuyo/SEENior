@@ -20,6 +20,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
+import com.pup.seenior.ui.wellness.WellnessMessages
 
 object OnboardingOptions {
     val genders = listOf("Male", "Female", "Other")
@@ -30,6 +31,17 @@ object OnboardingOptions {
 
     val livingArrangements = listOf("With family" to LIVING_WITH_FAMILY, "Lives alone" to LIVING_ALONE)
     val yesNo = listOf("Yes", "No")
+
+    /**
+     * Stored in `Senior_Onboarding.language_preference` and read back by
+     * [com.pup.seenior.ui.wellness.WellnessMessages]. Both labels are written in their own
+     * language rather than both in English: a senior who reads only Filipino has to be able to
+     * find their own option in this list, and "Filipino" spelled in English is no help to them.
+     */
+    val languages = listOf(
+        "English" to WellnessMessages.ENGLISH,
+        "Filipino / Tagalog" to WellnessMessages.FILIPINO,
+    )
     val napDurations = listOf("15 minutes", "30 minutes", "45 minutes", "1 hour", "1.5 hours", "2 hours or more")
     val activityLevels = listOf(
         "Mostly resting (stays in bed or chair most of the day)" to "resting",
@@ -131,6 +143,7 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
     var goesOutside by mutableStateOf<String?>(null)
     var outsideTime by mutableStateOf<String?>(null)
     var chargesOvernight by mutableStateOf<String?>(null)
+    var languageLabel by mutableStateOf<String?>(null)
 
     var seniorId: Int = 0
         private set
@@ -156,7 +169,8 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
             activityLevelLabel != null &&
             goesOutside != null &&
             (goesOutside != "Yes" || outsideTime != null) &&
-            chargesOvernight != null
+            chargesOvernight != null &&
+            languageLabel != null
 
     suspend fun submitOnboarding(): Int = withContext(Dispatchers.IO) {
         val db = SeniorAppDatabase.getInstance(getApplication())
@@ -188,7 +202,8 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
                 napTime = if (hasNap == "Yes") napTime?.format(TIME_FORMAT) else null,
                 napDurationMinutes = if (hasNap == "Yes") parseDurationMinutes(napDuration) else null,
                 activityLevel = activityLevelValue,
-                languagePreference = "en"
+                languagePreference = OnboardingOptions.languages
+                    .first { it.first == languageLabel }.second
             )
             db.seniorOnboardingDao().insert(onboarding)
 

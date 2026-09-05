@@ -32,6 +32,19 @@ fun OnboardingQuestionnaireScreen(
             OnboardingTopBar(currentStep = 3, onBack = onBack)
             OnboardingHeading(title = "Onboarding", subtitle = "Let's get started")
 
+            // First question on the page on purpose. It is the one answer that changes what every
+            // later prompt is written in, and a senior who reads only Filipino should not have to
+            // work through an English form to reach it.
+            LabeledDropdownField(
+                label = "What language do you prefer? / Anong wika ang gusto ninyo?",
+                selected = viewModel.languageLabel,
+                options = OnboardingOptions.languages.map { it.first },
+                onSelect = { viewModel.languageLabel = it },
+                optionLabel = { it },
+                placeholder = "-Select Option-",
+                questionStyle = true
+            )
+
             LabeledTimeField(
                 label = "What time do you usually wake up?",
                 value = viewModel.wakeTime,
