@@ -268,14 +268,44 @@ class SensorCollectionService : Service(), SensorEventListener
      * Claiming the type is what the passive alerts were missing. Without it Android treats this
      * service as background the moment no screen is open, and refuses every location request an
      * alert makes - see [com.pup.seenior.location.AlertLocationCapture].
+     *
+     * **Holding the permission is not the same as being allowed to claim the type, and asking
+     * [hasLocationPermission] cannot tell the two apart.** A "while using the app" grant answers
+     * GRANTED to `checkSelfPermission` at every moment, but Android only counts it as eligible
+     * while the app is actually foreground. Start this service from a reboot or an FCM nudge on
+     * such a grant and `startForeground` throws, killing the process in `onCreate` before a
+     * single sample is taken. Measured on the pilot handset on 2026-09-05: the phone rebooted at
+     * 15:31 and monitoring stayed dead for five and a half hours, crash-looping every nudge,
+     * with nothing to show for it but a logcat entry nobody was reading.
+     *
+     * So the refusal is caught rather than predicted. Guessing eligibility ahead of time means
+     * reimplementing a rule that varies by Android version and OEM; letting the platform answer
+     * and degrading to `health` costs the alert map for that run and keeps every other thing
+     * this service does. An alert with no pin is worth enormously more than no alert, and
+     * [onStartCommand] re-asserts the type on every start, so the next start from an eligible
+     * state widens it back in place with nothing to reset.
+     *
+     * The health-only fallback is deliberately left to throw. If the platform refuses that too
+     * there is no foreground service to be had, and a silent retry loop would hide it.
      */
     @Suppress("InlinedApi")
     private fun startForegroundWithLocationIfAllowed() {
-        var type = ServiceInfo.FOREGROUND_SERVICE_TYPE_HEALTH
+        val health = ServiceInfo.FOREGROUND_SERVICE_TYPE_HEALTH
         if (hasLocationPermission()) {
-            type = type or ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
+            try {
+                ServiceCompat.startForeground(
+                    this,
+                    NOTIFICATION_ID,
+                    buildNotification(),
+                    health or ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION,
+                )
+                return
+            } catch (e: SecurityException) {
+                // Read with: adb logcat -s SensorWake
+                Log.w(TAG_WAKE, "location service type refused; monitoring on health only", e)
+            }
         }
-        ServiceCompat.startForeground(this, NOTIFICATION_ID, buildNotification(), type)
+        ServiceCompat.startForeground(this, NOTIFICATION_ID, buildNotification(), health)
     }
 
     /**

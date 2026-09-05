@@ -11,6 +11,13 @@
          The precise fix is never stored: see AlertLocationCapture. -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- An alert fires while the app is closed and the phone is in a pocket - that is the
+         normal case, not the edge case. Without this the foreground/background rules refuse a
+         location-typed service any time it starts from a reboot or an FCM nudge, which on
+         2026-09-05 crashed monitoring outright for five hours. This grants permission to *ask*;
+         it does not change how often we ask. AlertLocationCapture still takes exactly one fix
+         per alert and none at all on an ordinary day, as CLAUDE.md 11 requires. -->
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_HEALTH" />
