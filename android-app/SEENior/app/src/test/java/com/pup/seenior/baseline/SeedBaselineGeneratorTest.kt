@@ -168,6 +168,81 @@ class SeedBaselineGeneratorTest {
         assertEquals(2, dayOf(logical))
     }
 
+    // --- Any block can be the one that crosses midnight, not only night. -------------------
+    // The blocks tile the 24-hour clock, so exactly one contains midnight -- but which one
+    // depends on the senior's hours. A senior who goes to bed AFTER midnight has a night that
+    // sits inside one date and an EVENING that wraps, which the night-specific version of
+    // logicalDayMillis ignored entirely.
+
+    @Test
+    fun `evening that crosses midnight belongs to the day it began`() {
+        // Wake 08:00 / sleep 03:00 -> evening runs 20:40 through 03:00. 01:00 on Sept 2 is the
+        // tail of the evening that began at 20:40 on Sept 1.
+        val logical = SeedBaselineGenerator.logicalDayMillis(septemberAt(2, 1, 0), "08:00", "03:00")
+        assertEquals(1, dayOf(logical))
+    }
+
+    @Test
+    fun `evening before midnight keeps its own day`() {
+        val logical = SeedBaselineGenerator.logicalDayMillis(septemberAt(1, 22, 0), "08:00", "03:00")
+        assertEquals(1, dayOf(logical))
+    }
+
+    @Test
+    fun `both halves of one wrapping evening group under the same day`() {
+        val before = SeedBaselineGenerator.logicalDayMillis(septemberAt(1, 22, 0), "08:00", "03:00")
+        val after = SeedBaselineGenerator.logicalDayMillis(septemberAt(2, 1, 0), "08:00", "03:00")
+        assertEquals(dayOf(before), dayOf(after))
+    }
+
+    @Test
+    fun `a night that sits inside one date is never shifted`() {
+        // Same schedule, but 05:00 is night (03:00-08:00) and already on the correct date.
+        val logical = SeedBaselineGenerator.logicalDayMillis(septemberAt(2, 5, 0), "08:00", "03:00")
+        assertEquals(2, dayOf(logical))
+    }
+
+    @Test
+    fun `waking blocks are never shifted on a post-midnight bedtime`() {
+        listOf(9, 15, 21).forEach { hour ->
+            val logical =
+                SeedBaselineGenerator.logicalDayMillis(septemberAt(2, hour, 0), "08:00", "03:00")
+            assertEquals(2, dayOf(logical))
+        }
+    }
+
+    @Test
+    fun `afternoon that crosses midnight belongs to the day it began`() {
+        // Wake 17:00 / sleep 11:00 -> afternoon runs 23:00 through 05:00.
+        val logical = SeedBaselineGenerator.logicalDayMillis(septemberAt(2, 1, 0), "17:00", "11:00")
+        assertEquals(1, dayOf(logical))
+    }
+
+    @Test
+    fun `morning that crosses midnight belongs to the day it began`() {
+        // Wake 20:00 / sleep 14:00 -> morning runs 20:00 through 02:00.
+        val logical = SeedBaselineGenerator.logicalDayMillis(septemberAt(2, 1, 0), "20:00", "14:00")
+        assertEquals(1, dayOf(logical))
+    }
+
+    @Test
+    fun `a wrapping block groups one whole block into one logical day`() {
+        // The property the aggregation actually depends on: every reading across a block that
+        // straddles midnight reports the same logical day, so the block becomes one group and no
+        // step delta ever spans the gap that produced the 10,779-step night.
+        val schedule = "08:00" to "03:00"
+        val readings = listOf(
+            septemberAt(1, 20, 45),
+            septemberAt(1, 23, 30),
+            septemberAt(2, 0, 15),
+            septemberAt(2, 2, 55),
+        )
+        val days = readings.map {
+            dayOf(SeedBaselineGenerator.logicalDayMillis(it, schedule.first, schedule.second))
+        }
+        assertEquals(listOf(1, 1, 1, 1), days)
+    }
+
     @Test
     fun `block elapsed never exceeds the morning block length`() {
         // Morning is 260 minutes wide for wake 10:00 / sleep 23:00. This is the ceiling the

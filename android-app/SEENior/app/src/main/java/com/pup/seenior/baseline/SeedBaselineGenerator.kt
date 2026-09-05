@@ -127,36 +127,48 @@ object SeedBaselineGenerator {
     /**
      * The moment that identifies the "logical day" a sample belongs to.
      *
-     * Night is the only block that crosses midnight -- with wake 10:00 and sleep 23:00 it runs
-     * 23:00 through to 10:00 the next morning. [com.pup.seenior.aggregation.NightlyAggregationWorker]
-     * files samples under a calendar date, so without this the after-midnight half of a night
-     * lands under the NEXT date and is grouped with the FOLLOWING night's first hour: two
-     * different nights in one aggregate row, with the whole waking day sitting in the gap
-     * between them.
+     * [com.pup.seenior.aggregation.NightlyAggregationWorker] files samples under a calendar date,
+     * so a block that straddles midnight is torn in half: its first hours land under one date and
+     * the rest under the next, where they are grouped with the FOLLOWING day's first hours of the
+     * same block. Two different blocks in one aggregate row, with most of a day in the gap between
+     * them.
      *
      * That gap is also why steps went wrong. Steps are summed as differences between consecutive
      * readings, and the single difference spanning the gap swallows the entire day's walking.
      * Measured on the pilot handset 2026-09-02: `aggregate_id` 11 ("2026-09-01 / night") reported
      * 10,779 steps against a seed expectation of 20, while morning reported 0.
      *
-     * So a sample in the after-midnight part of night reports the PREVIOUS calendar day, and one
-     * real night becomes one group. Every other block already lies inside its own date and is
-     * returned unchanged.
+     * **Any of the four blocks can be the one that crosses midnight; it depends entirely on the
+     * senior's hours.** The blocks tile the 24-hour clock exactly, so midnight falls inside
+     * precisely one of them -- but which one is not fixed:
+     *
+     * - wake 06:00 / sleep 22:00 -> **night** (22:00-06:00)
+     * - wake 08:00 / sleep 03:00 -> **evening** (20:40-03:00)
+     * - wake 17:00 / sleep 11:00 -> **afternoon** (23:00-05:00)
+     * - wake 20:00 / sleep 14:00 -> **morning** (20:00-02:00)
+     *
+     * An earlier version tested for the night case specifically and disabled itself entirely when
+     * night did not wrap (`if (sleepMinute <= wakeMinute) return timestamp`). That is exactly
+     * backwards for a senior who goes to bed *after* midnight: their night sits inside one date so
+     * the guard bailed out, while their evening was the block being torn in half -- silently,
+     * every night, for as long as the app ran. Late bedtimes are ordinary, so that was a
+     * deployment bug rather than an edge case.
+     *
+     * The general rule needs no special cases. **If the block containing this reading starts at a
+     * later clock time than the reading itself, that block began yesterday**, so the reading is
+     * filed under yesterday. For a block that does not cross midnight the start is at or before
+     * every minute inside it, so the test never fires and the timestamp is returned untouched.
      */
     fun logicalDayMillis(timestamp: Long, wakeTime: String, sleepTime: String): Long {
-        val wakeMinute = parseToMinuteOfDay(wakeTime)
-        val sleepMinute = parseToMinuteOfDay(sleepTime)
+        val minuteOfDay = minuteOfDayFor(timestamp)
+        val blocks = computeTimeBlocks(wakeTime, sleepTime)
+        // Mirrors the fallback in [resolveTimeBlock] and [secondsSinceBlockStart], so a minute no
+        // window claims is treated as night by all three rather than by only some of them.
+        val window = blocks.firstOrNull {
+            minuteWithinWindow(minuteOfDay, it.startMinute, it.durationMinutes)
+        } ?: blocks.first { it.block == TimeBlock.NIGHT }
 
-        // Night only crosses midnight when sleep is later on the clock than wake. A senior who
-        // sleeps at 01:00 and wakes at 10:00 has a night that already fits inside one date, and
-        // shifting it back a day would be the very bug this exists to prevent.
-        if (sleepMinute <= wakeMinute) return timestamp
-
-        if (resolveTimeBlock(timestamp, wakeTime, sleepTime) != TimeBlock.NIGHT) return timestamp
-
-        // The 23:00-23:59 side of the night is already on the right date; only the hours after
-        // midnight, which are before wake time, belong to the day before.
-        if (minuteOfDayFor(timestamp) >= wakeMinute) return timestamp
+        if (window.startMinute <= minuteOfDay) return timestamp
 
         return Calendar.getInstance().apply {
             timeInMillis = timestamp
