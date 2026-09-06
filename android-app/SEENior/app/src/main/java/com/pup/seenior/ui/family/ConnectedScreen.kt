@@ -95,8 +95,16 @@ fun ConnectedScreen(
             }
         }
 
+        // Declarative fill-in-the-blank on purpose, not an open question. "What is your
+        // relationship to the senior?" reads two opposite ways: the chips below answer it as
+        // "I am the senior's ___" (their frame), but someone typing into the blank field
+        // underneath just as naturally answers "he/she is my ___" instead -- literally what
+        // happened on 2026-09-06, where a contact typed "Father" meaning the senior is his
+        // father, and the senior-facing contact list then displayed it as if the contact were
+        // the senior's father. "You are the senior's:" fixes the direction for both paths at
+        // once, since only one answer to the fill-in-the-blank is grammatical.
         Text(
-            "What is your relationship to the senior?",
+            "You are the senior's:",
             color = FamilyColors.Blue,
             fontSize = 15.sp,
             fontWeight = FontWeight.Bold,
@@ -129,7 +137,10 @@ fun ConnectedScreen(
             value = viewModel.otherRelationship,
             onValueChange = { viewModel.typeOtherRelationship(it) },
             modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
-            placeholder = { Text("Other") },
+            // Examples in the same direction as the chips above (niece, neighbor -- not "aunt",
+            // "landlord"), so a free-typed answer keeps the fill-in-the-blank grammatical instead
+            // of silently reversing it.
+            placeholder = { Text("Other (e.g. niece, neighbor)") },
             singleLine = true,
             shape = RoundedCornerShape(12.dp),
             colors = OutlinedTextFieldDefaults.colors(
