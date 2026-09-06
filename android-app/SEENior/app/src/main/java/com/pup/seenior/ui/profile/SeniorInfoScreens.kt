@@ -45,6 +45,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.pup.seenior.R
 import com.pup.seenior.ui.onboarding.components.PrimaryPillButton
+import com.pup.seenior.ui.LocalInfoCopy
+import com.pup.seenior.ui.OnboardingStrings
+import com.pup.seenior.ui.LocalProfileCopy
 import com.pup.seenior.ui.theme.SeniorColors
 import com.pup.seenior.ui.onboarding.OnboardingOptions
 import androidx.compose.material3.RadioButton
@@ -60,6 +63,7 @@ internal val ErrorRed = Color(0xFFCC3333)
 
 @Composable
 fun SeniorAboutScreen(onBack: () -> Unit) {
+    val copy = LocalInfoCopy.current
     val context = LocalContext.current
     val version = remember {
         runCatching {
@@ -68,7 +72,7 @@ fun SeniorAboutScreen(onBack: () -> Unit) {
         }.getOrNull() ?: "1.0"
     }
 
-    InfoScaffold(title = "About", onBack = onBack) {
+    InfoScaffold(title = copy.aboutTitle, onBack = onBack) {
         Column(
             modifier = Modifier.fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally
@@ -78,91 +82,38 @@ fun SeniorAboutScreen(onBack: () -> Unit) {
                 contentDescription = "SEENior",
                 modifier = Modifier.size(96.dp)
             )
-            Text("Version $version", color = SeniorColors.TextSecondary, fontSize = 15.sp)
+            Text(copy.version(version), color = SeniorColors.TextSecondary, fontSize = 15.sp)
         }
 
-        InfoCard(heading = "Our mission") {
-            InfoBody(
-                "To provide a safe, accessible, and passive monitoring system that supports the " +
-                    "well-being of seniors through intelligent, low-burden technology designed " +
-                    "for early detection and timely assistance."
-            )
+        InfoCard(heading = copy.missionHeading) {
+            InfoBody(copy.missionBody)
         }
-        InfoCard(heading = "Who we are") {
-            InfoBody(
-                "We are a small team of developers and healthcare-focused researchers who " +
-                    "designed SEENior to address the growing need for proactive support for " +
-                    "elderly individuals living alone or temporarily left alone at home in the " +
-                    "Philippines."
-            )
+        InfoCard(heading = copy.whoWeAreHeading) {
+            InfoBody(copy.whoWeAreBody1)
             Spacer(Modifier.height(12.dp))
-            InfoBody(
-                "We build mobile-based, low-burden systems that use passive monitoring and " +
-                    "simple design to help detect unusual behavior and enable timely assistance " +
-                    "when needed."
-            )
+            InfoBody(copy.whoWeAreBody2)
         }
-        InfoCard(heading = "Our values") {
-            InfoBody("Privacy. Simplicity. Dignity. Reliability.")
+        InfoCard(heading = copy.valuesHeading) {
+            InfoBody(copy.valuesList)
             Spacer(Modifier.height(12.dp))
-            InfoBody(
-                "SEENior is built to respect user data, reduce complexity for seniors, and " +
-                    "provide dependable support in times of need."
-            )
+            InfoBody(copy.valuesBody)
         }
     }
 }
 
 // ---------------------------------------------------------------- How to use
 
-private data class HowToStep(val title: String, val body: String)
-
-private val howToSteps = listOf(
-    HowToStep(
-        "Set up your profile",
-        "Enter your basic details and living arrangement during onboarding. This is done only " +
-            "once, and your app will proceed immediately after setup."
-    ),
-    HowToStep(
-        "Grant permissions and enable alerts (required)",
-        "During onboarding, you must enable notifications and required permissions for SEENior " +
-            "to function properly. The app cannot proceed without this setup."
-    ),
-    HowToStep(
-        "Answer onboarding questions (14-day baseline period)",
-        "After setup, you will answer a short set of onboarding questions. SEENior uses this " +
-            "information to learn your normal behavior patterns over a 14-day monitoring " +
-            "period, which serves as your personal baseline."
-    ),
-    HowToStep(
-        "Invite a trusted contact",
-        "Go to the Invite tab to generate a unique code. The code expires every 5 minutes for " +
-            "security, and you can generate a new one once it does. Share this code to connect " +
-            "with a trusted contact."
-    ),
-    HowToStep(
-        "Manage your contacts",
-        "In the Contacts tab, you can view connected contacts, check their status, and remove " +
-            "them if needed."
-    ),
-    HowToStep(
-        "Answer the wellness check when it appears",
-        "If SEENior notices something unusual, it will ask \"Are you safe and well?\" and tell " +
-            "you why it is asking. Tapping \"I'm safe\" stops the alert right there. If you do " +
-            "not answer, your family contact is notified, and then your barangay responder."
-    )
-)
-
 @Composable
 fun SeniorHowToUseScreen(onBack: () -> Unit) {
-    InfoScaffold(title = "How to use", onBack = onBack) {
+    val copy = LocalInfoCopy.current
+    InfoScaffold(title = copy.howToTitle, onBack = onBack) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .border(1.dp, SeniorColors.FieldBorder, RoundedCornerShape(20.dp))
                 .padding(20.dp)
         ) {
-            howToSteps.forEachIndexed { index, step ->
+            copy.howToSteps.forEachIndexed { index, step ->
                 if (index > 0) {
                     HorizontalDivider(
                         color = SeniorColors.FieldBorder,
@@ -183,12 +134,12 @@ fun SeniorHowToUseScreen(onBack: () -> Unit) {
                     }
                     Column(modifier = Modifier.padding(start = 14.dp)) {
                         Text(
-                            step.title,
+                            step.first,
                             color = SeniorColors.TextPrimary,
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold
                         )
-                        InfoBody(step.body, modifier = Modifier.padding(top = 4.dp))
+                        InfoBody(step.second, modifier = Modifier.padding(top = 4.dp))
                     }
                 }
             }
@@ -198,48 +149,17 @@ fun SeniorHowToUseScreen(onBack: () -> Unit) {
 
 // ---------------------------------------------------------------- FAQs
 
-private data class Faq(val question: String, val answer: String, val note: String? = null)
-
-private val faqs = listOf(
-    Faq(
-        "Is this app free?",
-        "Yes. SEENior is completely free to download and use."
-    ),
-    Faq(
-        "Will my location always be shared?",
-        "No. Your location is only captured at the moment an alert is triggered, never " +
-            "continuously. Only that last known location is shared with your trusted contacts."
-    ),
-    Faq(
-        "Can I use SEENior without internet?",
-        "Yes. SEENior keeps watching over you and can still show your saved contacts with no " +
-            "internet at all. Sending alerts and real-time updates to your family needs an " +
-            "internet or network connection.",
-        note = "If you have no signal at all, SEENior will try to send an SMS instead. Keep your " +
-            "phone charged and with you so it can reach someone for you."
-    ),
-    Faq(
-        "How do I remove a paired contact?",
-        "Go to the Contacts tab, select the contact, scroll down, and tap Remove Contact. A " +
-            "confirmation prompt will appear before removal."
-    ),
-    Faq(
-        "Do I need to open the app every day?",
-        "No. SEENior runs quietly in the background. You only need to answer if it asks you " +
-            "\"Are you safe and well?\""
-    )
-)
-
 @Composable
 fun SeniorFaqsScreen(onBack: () -> Unit) {
-    InfoScaffold(title = "FAQs", onBack = onBack) {
+    val copy = LocalInfoCopy.current
+    InfoScaffold(title = copy.faqsTitle, onBack = onBack) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .border(1.dp, SeniorColors.FieldBorder, RoundedCornerShape(20.dp))
                 .padding(20.dp)
         ) {
-            faqs.forEachIndexed { index, faq ->
+            copy.faqs.forEachIndexed { index, faq ->
                 if (index > 0) Spacer(Modifier.height(20.dp))
                 Text(
                     faq.question,
@@ -250,7 +170,7 @@ fun SeniorFaqsScreen(onBack: () -> Unit) {
                 InfoBody(faq.answer, modifier = Modifier.padding(top = 4.dp))
                 faq.note?.let {
                     Text(
-                        "Important Note:",
+                        copy.importantNote,
                         color = ErrorRed,
                         fontSize = 15.sp,
                         modifier = Modifier.padding(top = 10.dp)
@@ -266,10 +186,11 @@ fun SeniorFaqsScreen(onBack: () -> Unit) {
 
 @Composable
 fun SeniorContactSupportScreen(onBack: () -> Unit) {
+    val copy = LocalInfoCopy.current
     val context = LocalContext.current
     var message by remember { mutableStateOf("") }
 
-    InfoScaffold(title = "Contact support", onBack = onBack) {
+    InfoScaffold(title = copy.supportTitle, onBack = onBack) {
         // ACTION_DIAL, not ACTION_CALL: no CALL_PHONE permission needed, and the senior
         // still confirms the call themselves.
         Row(
@@ -294,7 +215,7 @@ fun SeniorContactSupportScreen(onBack: () -> Unit) {
                 Icon(Icons.Filled.Phone, null, tint = SeniorColors.Green, modifier = Modifier.size(24.dp))
             }
             Column(modifier = Modifier.padding(start = 14.dp)) {
-                Text("Call us", color = SeniorColors.TextPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Text(copy.callUs, color = SeniorColors.TextPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                 Text(SUPPORT_PHONE, color = SeniorColors.TextSecondary, fontSize = 16.sp)
             }
         }
@@ -305,9 +226,9 @@ fun SeniorContactSupportScreen(onBack: () -> Unit) {
                 .border(1.dp, SeniorColors.FieldBorder, RoundedCornerShape(20.dp))
                 .padding(18.dp)
         ) {
-            Text("Send us a message", color = SeniorColors.Green, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Text(copy.sendMessage, color = SeniorColors.Green, fontSize = 20.sp, fontWeight = FontWeight.Bold)
             Text(
-                "MESSAGE",
+                copy.messageLabel,
                 color = SeniorColors.TextPrimary,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Medium,
@@ -317,7 +238,7 @@ fun SeniorContactSupportScreen(onBack: () -> Unit) {
                 value = message,
                 onValueChange = { message = it },
                 modifier = Modifier.fillMaxWidth().height(140.dp),
-                placeholder = { Text("Suggest a new feature…", color = SeniorColors.TextHint) },
+                placeholder = { Text(copy.messagePlaceholder, color = SeniorColors.TextHint) },
                 shape = RoundedCornerShape(12.dp),
                 textStyle = TextStyle(fontSize = 18.sp),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
@@ -334,7 +255,7 @@ fun SeniorContactSupportScreen(onBack: () -> Unit) {
             // There is no support-ticket endpoint on the backend, so SEND hands the text to the
             // phone's mail app rather than pretending to submit it somewhere.
             PrimaryPillButton(
-                text = "SEND",
+                text = copy.send,
                 enabled = message.isNotBlank(),
                 onClick = {
                     val intent = Intent(Intent.ACTION_SENDTO).apply {
@@ -351,99 +272,24 @@ fun SeniorContactSupportScreen(onBack: () -> Unit) {
 
 // ---------------------------------------------------------------- Terms & Privacy
 
-private data class LegalSection(
-    val heading: String,
-    val body: String? = null,
-    val bullets: List<String>? = null
-)
-
-private val termsSections = listOf(
-    LegalSection(
-        "1. Acceptance of Terms",
-        "By creating an account and using SEENior, you agree to be bound by these Terms of Use. " +
-            "If you do not agree to these terms, please do not use our services."
-    ),
-    LegalSection(
-        "2. Description of Service",
-        "SEENior is a passive behavioral monitoring application that uses your smartphone's " +
-            "built-in sensors to establish a daily routine baseline and detect significant " +
-            "deviations that may indicate an emergency."
-    ),
-    LegalSection(
-        "3. User Eligibility",
-        "The SEENior senior app is intended for use by senior citizens (60 years and older) " +
-            "residing in the Philippines, consistent with RA 9994 (Expanded Senior Citizens Act " +
-            "of 2010). Use by persons below this age threshold is permitted only for testing " +
-            "purposes by the development team."
-    ),
-    LegalSection(
-        "4. User Responsibilities",
-        bullets = listOf(
-            "Keep your phone charged and with you for the monitoring system to function reliably.",
-            "Provide accurate personal information during account setup.",
-            "Grant the required app permissions (motion, notifications, background activity) for the system to work.",
-            "Add at least one emergency contact so alerts can be delivered if an anomaly is detected.",
-            "Inform your emergency contacts that they will receive alerts from SEENior on your behalf."
-        )
-    ),
-    LegalSection(
-        "5. Limitation of Liability",
-        "SEENior is provided \"as is\" and is a support tool only. It is not a substitute for " +
-            "professional medical care, emergency services, or human supervision. The developers " +
-            "are not liable for missed or delayed alerts caused by device, network, or " +
-            "third-party service failures."
-    )
-)
-
-private val privacySections = listOf(
-    LegalSection(
-        "1. Who collects your data",
-        "SEENior is developed by Polytechnic University of the Philippines students. We act as " +
-            "the personal information controller for data collected through this application, in " +
-            "compliance with RA 10173 and NPC guidelines."
-    ),
-    LegalSection(
-        "2. What data we collect",
-        body = "We collect the following data from senior users:",
-        bullets = listOf(
-            "Personal profile — full name, age, gender, living arrangement, address, phone number, and relationship to emergency contacts.",
-            "Behavioral sensor data — accelerometer readings, screen on/off timestamps, and battery/charging status. Used only to build your activity baseline.",
-            "Location (GPS) — captured only when an alert is triggered. Not continuously tracked. Stops immediately when the alert is resolved."
-        )
-    ),
-    LegalSection(
-        "3. How data is stored",
-        "Behavioral sensor data is stored locally on your device. It is not uploaded to any " +
-            "external server during normal monitoring. Alert records are synchronized to a " +
-            "secure cloud backend only when an alert is triggered, to enable notification " +
-            "delivery to your emergency contacts."
-    ),
-    LegalSection(
-        "4. Who can see your data",
-        bullets = listOf(
-            "Your emergency contacts — receive alert notifications and your location only during active alert events.",
-            "Barangay responders — receive escalated alerts only when your contacts do not respond within the set timeframe.",
-            "Development team — may access anonymized, aggregated data for academic research purposes only, with no individual identification."
-        )
-    )
-)
-
 @Composable
 fun SeniorTermsScreen(onBack: () -> Unit) {
-    InfoScaffold(title = "Terms & conditions", onBack = onBack) {
-        LegalBody("Terms & Conditions", termsSections)
+    val copy = LocalInfoCopy.current
+    InfoScaffold(title = copy.termsScaffoldTitle, onBack = onBack) {
+        LegalBody(copy.termsBodyTitle, copy.termsSections)
     }
 }
 
 @Composable
 fun SeniorPrivacyScreen(onBack: () -> Unit) {
-    InfoScaffold(title = "Privacy policy", onBack = onBack) {
-        LegalBody("Privacy Policy", privacySections)
+    val copy = LocalInfoCopy.current
+    InfoScaffold(title = copy.privacyScaffoldTitle, onBack = onBack) {
+        LegalBody(copy.privacyBodyTitle, copy.privacySections)
     }
 }
 
 @Composable
-private fun LegalBody(title: String, sections: List<LegalSection>) {
+private fun LegalBody(title: String, sections: List<OnboardingStrings.Section>) {
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(
             title,

@@ -41,6 +41,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.pup.seenior.network.dto.FamilyContactDto
+import com.pup.seenior.ui.LocalProfileCopy
 import com.pup.seenior.ui.theme.SeniorColors
 
 private val RemoveRed = Color(0xFFDA4A4A)
@@ -57,9 +58,10 @@ private val OnlineGreen = Color(0xFF57B84E)
 fun SeniorContactsScreen(
     viewModel: SeniorContactsViewModel = viewModel(),
     onGoToInvite: () -> Unit,
-    inviteActionLabel: String = "Invite tab",
+    inviteActionLabel: String? = null,
     onBack: (() -> Unit)? = null
 ) {
+    val copy = LocalProfileCopy.current
     LaunchedEffect(Unit) { viewModel.refresh() }
 
     Column(
@@ -69,7 +71,7 @@ fun SeniorContactsScreen(
     ) {
         GreenHeader(
             icon = { Icon(Icons.Filled.Contacts, null, tint = Color.White) },
-            title = "Contacts",
+            title = copy.contactsHeader,
             onBack = onBack
         )
 
@@ -86,10 +88,10 @@ fun SeniorContactsScreen(
             // Order matters: a failed load must never fall through to EmptyState, or a
             // temporary network problem looks like the contacts were deleted.
             viewModel.loadFailed -> CouldNotLoadState(
-                message = viewModel.error ?: "Could not load your contacts.",
+                message = viewModel.error ?: copy.contactsLoadFailedInline,
                 onRetry = { viewModel.refresh() }
             )
-            viewModel.contacts.isEmpty() -> EmptyState(inviteActionLabel, onGoToInvite)
+            viewModel.contacts.isEmpty() -> EmptyState(inviteActionLabel ?: copy.inviteTabLabel, onGoToInvite)
             else -> LazyColumn(
                 modifier = Modifier.padding(horizontal = 20.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -105,6 +107,7 @@ fun SeniorContactsScreen(
 
 @Composable
 private fun ContactCard(contact: FamilyContactDto, onRemove: () -> Unit) {
+    val copy = LocalProfileCopy.current
     // The family side has always confirmed before unlinking; this side removed on the
     // raw tap, so one stray touch dropped a family contact with no warning and no undo.
     var showConfirm by remember { mutableStateOf(false) }
@@ -125,8 +128,8 @@ private fun ContactCard(contact: FamilyContactDto, onRemove: () -> Unit) {
                 Text(initials(contact.fullName), color = SeniorColors.Green, fontWeight = FontWeight.Bold, fontSize = 18.sp)
             }
             Column(modifier = Modifier.padding(start = 14.dp)) {
-                Text(contact.fullName ?: "Family member", color = SeniorColors.TextPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                Text(relationshipDisplay(contact.relationshipLabel), color = SeniorColors.Green, fontSize = 16.sp)
+                Text(contact.fullName ?: copy.familyMemberFallback, color = SeniorColors.TextPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Text(relationshipDisplay(contact.relationshipLabel, copy.familyFallbackLabel), color = SeniorColors.Green, fontSize = 16.sp)
             }
         }
 
@@ -138,14 +141,14 @@ private fun ContactCard(contact: FamilyContactDto, onRemove: () -> Unit) {
                 .padding(14.dp)
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text("Phone", color = SeniorColors.TextSecondary, fontSize = 13.sp)
+                Text(copy.phone, color = SeniorColors.TextSecondary, fontSize = 13.sp)
                 Text(contact.phone ?: "—", color = SeniorColors.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
             }
             Column(modifier = Modifier.weight(1f)) {
-                Text("Status", color = SeniorColors.TextSecondary, fontSize = 13.sp)
+                Text(copy.status, color = SeniorColors.TextSecondary, fontSize = 13.sp)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(modifier = Modifier.size(8.dp).background(OnlineGreen, CircleShape))
-                    Text("Online Now", color = OnlineGreen, fontSize = 15.sp, modifier = Modifier.padding(start = 6.dp))
+                    Text(copy.onlineNow, color = OnlineGreen, fontSize = 15.sp, modifier = Modifier.padding(start = 6.dp))
                 }
             }
         }
@@ -161,30 +164,27 @@ private fun ContactCard(contact: FamilyContactDto, onRemove: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(Icons.Filled.Delete, null, tint = RemoveRed, modifier = Modifier.size(20.dp))
-            Text("Remove Contact", color = RemoveRed, fontSize = 17.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 8.dp))
+            Text(copy.removeContact, color = RemoveRed, fontSize = 17.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 8.dp))
         }
     }
 
     if (showConfirm) {
-        val name = contact.fullName ?: "this family member"
+        val name = contact.fullName ?: copy.thisFamilyMember
         AlertDialog(
             onDismissRequest = { showConfirm = false },
-            title = { Text("Remove $name?") },
+            title = { Text(copy.removeTitle(name)) },
             text = {
-                Text(
-                    "They will stop receiving your alerts, and you will disappear from their " +
-                        "app too. You can connect again later with a new invite code."
-                )
+                Text(copy.removeBody)
             },
             confirmButton = {
                 TextButton(onClick = {
                     showConfirm = false
                     onRemove()
-                }) { Text("Remove", color = RemoveRed) }
+                }) { Text(copy.remove, color = RemoveRed) }
             },
             dismissButton = {
                 TextButton(onClick = { showConfirm = false }) {
-                    Text("Cancel", color = SeniorColors.TextSecondary)
+                    Text(copy.cancel, color = SeniorColors.TextSecondary)
                 }
             }
         )
@@ -196,6 +196,7 @@ private fun ContactCard(contact: FamilyContactDto, onRemove: () -> Unit) {
  *  the "no family connected yet" empty state here, which looked like the pairing was lost. */
 @Composable
 private fun CouldNotLoadState(message: String, onRetry: () -> Unit) {
+    val copy = LocalProfileCopy.current
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -217,14 +218,14 @@ private fun CouldNotLoadState(message: String, onRetry: () -> Unit) {
                 Icon(Icons.Filled.CloudOff, null, tint = SeniorColors.TextSecondary, modifier = Modifier.size(30.dp))
             }
             Text(
-                "Could not load your contacts",
+                copy.contactsLoadFailedTitle,
                 color = SeniorColors.TextPrimary,
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(top = 16.dp)
             )
             Text(
-                "$message Your family members are still connected.",
+                message + " " + copy.contactsStillConnected,
                 color = SeniorColors.TextSecondary,
                 fontSize = 15.sp,
                 modifier = Modifier.padding(top = 8.dp)
@@ -239,7 +240,7 @@ private fun CouldNotLoadState(message: String, onRetry: () -> Unit) {
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Try again", color = SeniorColors.Green, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                Text(copy.tryAgain, color = SeniorColors.Green, fontSize = 17.sp, fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -247,6 +248,7 @@ private fun CouldNotLoadState(message: String, onRetry: () -> Unit) {
 
 @Composable
 private fun EmptyState(inviteActionLabel: String, onGoToInvite: () -> Unit) {
+    val copy = LocalProfileCopy.current
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -267,9 +269,9 @@ private fun EmptyState(inviteActionLabel: String, onGoToInvite: () -> Unit) {
             ) {
                 Icon(Icons.Outlined.Favorite, null, tint = SeniorColors.TextSecondary, modifier = Modifier.size(30.dp))
             }
-            Text("No family connected yet", color = SeniorColors.TextPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 16.dp))
+            Text(copy.noFamilyTitle, color = SeniorColors.TextPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 16.dp))
             Text(
-                "Share your code with a trusted family member so they can receive alerts and updates.",
+                copy.noFamilyBody,
                 color = SeniorColors.TextSecondary,
                 fontSize = 15.sp,
                 modifier = Modifier.padding(top = 8.dp)
@@ -280,7 +282,7 @@ private fun EmptyState(inviteActionLabel: String, onGoToInvite: () -> Unit) {
             // happens today — not to be nudged with an implied warning that they are
             // unprotected. They are not; the barangay tier is always there.
             Text(
-                "Until then, if something seems wrong we will alert your barangay directly.",
+                copy.noFamilyBarangayNote,
                 color = SeniorColors.TextSecondary,
                 fontSize = 15.sp,
                 modifier = Modifier.padding(top = 8.dp)
@@ -306,5 +308,5 @@ private fun initials(name: String?): String {
     return name.trim().split(" ").filter { it.isNotBlank() }.take(2).joinToString("") { it.first().uppercase() }
 }
 
-private fun relationshipDisplay(label: String?): String =
-    label?.replaceFirstChar { it.uppercase() } ?: "Family"
+private fun relationshipDisplay(label: String?, fallback: String): String =
+    label?.replaceFirstChar { it.uppercase() } ?: fallback

@@ -30,6 +30,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.pup.seenior.ui.LocalOnboardingCopy
 import com.pup.seenior.ui.onboarding.components.PrimaryPillButton
 import com.pup.seenior.ui.theme.SeniorColors
 import android.content.Context
@@ -41,6 +42,7 @@ fun AllSetScreen(
     viewModel: OnboardingViewModel,
     onContinue: () -> Unit
 ) {
+    val copy = LocalOnboardingCopy.current
     var isSaving by remember { mutableStateOf(true) }
     val context = LocalContext.current
 
@@ -73,7 +75,7 @@ fun AllSetScreen(
             }
 
             Text(
-                text = "You're All Set, Lola ${viewModel.firstName} ${viewModel.lastName}!",
+                text = copy.allSetTitle(viewModel.gender, viewModel.firstName, viewModel.lastName),
                 color = SeniorColors.Green,
                 fontSize = 26.sp,
                 fontWeight = FontWeight.Bold,
@@ -81,7 +83,7 @@ fun AllSetScreen(
                 modifier = Modifier.padding(top = 24.dp)
             )
             Text(
-                text = "SEENior is now watching over you quietly. Your family will be notified if anything seems unusual.",
+                text = copy.allSetBody,
                 color = SeniorColors.TextSecondary,
                 fontSize = 16.sp,
                 textAlign = TextAlign.Center,
@@ -95,15 +97,15 @@ fun AllSetScreen(
                     .border(1.dp, SeniorColors.GreenBorder, RoundedCornerShape(20.dp))
                     .padding(20.dp)
             ) {
-                ChecklistRow("Passive monitoring started")
+                ChecklistRow(copy.allSetMonitoringStarted)
                 Spacer(modifier = Modifier.padding(top = 16.dp))
-                ChecklistRow("Learning your routine - Day 1 of 14")
+                ChecklistRow(copy.allSetLearningRoutine)
             }
 
             Spacer(modifier = Modifier.weight(1f))
 
             PrimaryPillButton(
-                text = "CONTINUE",
+                text = copy.continueLabel,
                 onClick = onContinue,
                 enabled = !isSaving
             )

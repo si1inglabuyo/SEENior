@@ -1,0 +1,220 @@
+package com.pup.seenior.ui
+
+import androidx.compose.runtime.staticCompositionLocalOf
+import com.pup.seenior.ui.wellness.WellnessMessages
+
+/**
+ * The everyday screens a senior reaches from the tabs but does not live on — Profile, Contacts,
+ * Invite — in both supported languages.
+ *
+ * Third and last of the senior-side copy containers, and the split between them is by *when* the
+ * language is known, not by taste:
+ *
+ * - [SeniorStrings] — the tabs and Home, resolved from the database on every composition.
+ * - [OnboardingStrings] — the setup flow, where the answer is still being given. Its form
+ *   vocabulary (FIRST NAME, GENDER, Select…) is reused by Edit profile rather than translated
+ *   twice, which is why `SeniorDashboard` provides that local as well as this one.
+ * - this file — everything else behind the tabs.
+ *
+ * **A draft pending a native speaker's review**, same as its two siblings.
+ */
+object ProfileStrings {
+
+    data class Copy(
+        // Profile tab
+        val profileHeader: String,
+        val sectionMyInfo: String,
+        val editProfile: String,
+        val editProfileSubtitle: String,
+        val languageRow: String,
+        val languageRowSubtitle: String,
+        val sectionMyContacts: String,
+        val familyContacts: String,
+        val familyContactsSubtitle: String,
+        val sectionHelp: String,
+        val aboutApp: String,
+        val howToUse: String,
+        val faqs: String,
+        val contactSupport: String,
+        val sectionAboutApp: String,
+        val termsRow: String,
+        val privacyRow: String,
+        val getInviteCode: String,
+
+        // Edit profile — the labels it shares with sign-up come from OnboardingStrings
+        val addressLabel: String,
+        val addressPlaceholder: String,
+        val saving: String,
+        val saveChanges: String,
+
+        // Contacts tab
+        val contactsHeader: String,
+        val contactsLoadFailedInline: String,
+        val contactsLoadFailedTitle: String,
+        val contactsStillConnected: String,
+        val tryAgain: String,
+        val familyMemberFallback: String,
+        val familyFallbackLabel: String,
+        val phone: String,
+        val status: String,
+        val onlineNow: String,
+        val removeContact: String,
+        val thisFamilyMember: String,
+        val removeBody: String,
+        val remove: String,
+        val cancel: String,
+        val noFamilyTitle: String,
+        val noFamilyBody: String,
+        val noFamilyBarangayNote: String,
+        val inviteTabLabel: String,
+
+        // Invite tab
+        val inviteHeader: String,
+        val shareWithFamily: String,
+        val shareWithFamilyBody: String,
+        val yourInviteCode: String,
+        val copyCode: String,
+        val generating: String,
+        val generateNew: String,
+        val generateCode: String,
+        val codesExpireNote: String,
+    ) {
+        /** "Senior · 65 years old" — the age is the senior's own and reads the same either way. */
+        fun seniorAge(age: Int): String =
+            if (this === FILIPINO_COPY) "Senior · " + age + " taong gulang"
+            else "Senior · " + age + " years old"
+
+        fun expiresIn(remaining: String): String =
+            if (this === FILIPINO_COPY) "Mag-e-expire sa " + remaining else "Expires in " + remaining
+
+        fun removeTitle(name: String): String =
+            if (this === FILIPINO_COPY) "Alisin si " + name + "?" else "Remove " + name + "?"
+    }
+
+    private val ENGLISH_COPY = Copy(
+        profileHeader = "Profile",
+        sectionMyInfo = "MY INFO",
+        editProfile = "Edit profile",
+        editProfileSubtitle = "First Name, Surname, Age, Gender, Mobile Number…",
+        languageRow = "Language / Wika",
+        languageRowSubtitle = "English, Filipino / Tagalog",
+        sectionMyContacts = "MY CONTACTS",
+        familyContacts = "Family contacts",
+        familyContactsSubtitle = "Add someone to be notified before your barangay",
+        sectionHelp = "HELP & INFORMATION",
+        aboutApp = "About this app",
+        howToUse = "How to use",
+        faqs = "FAQs",
+        contactSupport = "Contact support",
+        sectionAboutApp = "ABOUT SEENIOR",
+        termsRow = "Terms & conditions",
+        privacyRow = "Privacy policy",
+        getInviteCode = "Get an invite code",
+
+        addressLabel = "ADDRESS",
+        addressPlaceholder = "House No., Street, Barangay, City",
+        saving = "SAVING…",
+        saveChanges = "SAVE CHANGES",
+
+        contactsHeader = "Contacts",
+        contactsLoadFailedInline = "Could not load your contacts.",
+        contactsLoadFailedTitle = "Could not load your contacts",
+        contactsStillConnected = "Your family members are still connected.",
+        tryAgain = "Try again",
+        familyMemberFallback = "Family member",
+        familyFallbackLabel = "Family",
+        phone = "Phone",
+        status = "Status",
+        onlineNow = "Online Now",
+        removeContact = "Remove Contact",
+        thisFamilyMember = "this family member",
+        removeBody = "They will stop receiving your alerts, and you will disappear from their " +
+            "app too. You can connect again later with a new invite code.",
+        remove = "Remove",
+        cancel = "Cancel",
+        noFamilyTitle = "No family connected yet",
+        noFamilyBody = "Share your code with a trusted family member so they can receive alerts and updates.",
+        noFamilyBarangayNote = "Until then, if something seems wrong we will alert your barangay directly.",
+        inviteTabLabel = "Invite tab",
+
+        inviteHeader = "Invite",
+        shareWithFamily = "Share With Family",
+        shareWithFamilyBody = "Give this code to family members so they can enter it in their app and monitor you.",
+        yourInviteCode = "Your invite code:",
+        copyCode = "Copy code",
+        generating = "Generating...",
+        generateNew = "Generate new",
+        generateCode = "Generate code",
+        codesExpireNote = "Codes expire after 5 minutes. A new code can only be generated once the current code expires.",
+    )
+
+    private val FILIPINO_COPY = Copy(
+        profileHeader = "Profile",
+        sectionMyInfo = "AKING IMPORMASYON",
+        editProfile = "I-edit ang profile",
+        editProfileSubtitle = "Pangalan, Apelyido, Edad, Kasarian, Numero ng Cellphone…",
+        languageRow = "Language / Wika",
+        languageRowSubtitle = "English, Filipino / Tagalog",
+        sectionMyContacts = "AKING MGA CONTACT",
+        familyContacts = "Mga contact sa pamilya",
+        familyContactsSubtitle = "Magdagdag po ng aabisuhan bago ang inyong barangay",
+        sectionHelp = "TULONG AT IMPORMASYON",
+        aboutApp = "Tungkol sa app na ito",
+        howToUse = "Paano gamitin",
+        faqs = "Mga Madalas Itanong",
+        contactSupport = "Makipag-ugnayan sa suporta",
+        sectionAboutApp = "TUNGKOL SA SEENIOR",
+        termsRow = "Mga tuntunin at kondisyon",
+        privacyRow = "Patakaran sa pagkapribado",
+        getInviteCode = "Kumuha ng invite code",
+
+        addressLabel = "TIRAHAN",
+        addressPlaceholder = "Bilang ng Bahay, Kalye, Barangay, Lungsod",
+        saving = "NAGSE-SAVE…",
+        saveChanges = "I-SAVE ANG MGA PAGBABAGO",
+
+        contactsHeader = "Mga Contact",
+        contactsLoadFailedInline = "Hindi po ma-load ang inyong mga contact.",
+        contactsLoadFailedTitle = "Hindi po ma-load ang inyong mga contact",
+        contactsStillConnected = "Nakakonekta pa rin po ang inyong mga kapamilya.",
+        tryAgain = "Subukan muli",
+        familyMemberFallback = "Kapamilya",
+        familyFallbackLabel = "Pamilya",
+        phone = "Telepono",
+        status = "Kalagayan",
+        onlineNow = "Online Ngayon",
+        removeContact = "Alisin ang Contact",
+        thisFamilyMember = "ang kapamilyang ito",
+        removeBody = "Hihinto po silang makatanggap ng inyong mga alerto, at mawawala rin po " +
+            "kayo sa kanilang app. Maaari po kayong magkonekta muli gamit ang bagong invite code.",
+        remove = "Alisin",
+        cancel = "Kanselahin",
+        noFamilyTitle = "Wala pa pong nakakonektang pamilya",
+        noFamilyBody = "Ibahagi po ang inyong code sa isang mapagkakatiwalaang kapamilya upang makatanggap sila ng mga alerto at update.",
+        noFamilyBarangayNote = "Hanggang doon po, kung may mapapansin kaming hindi maayos, direktang aabisuhan namin ang inyong barangay.",
+        inviteTabLabel = "tab na Imbitasyon",
+
+        inviteHeader = "Imbitasyon",
+        shareWithFamily = "Ibahagi sa Pamilya",
+        shareWithFamilyBody = "Ibigay po ang code na ito sa inyong pamilya upang mailagay nila ito sa kanilang app at kayo ay mabantayan.",
+        yourInviteCode = "Ang inyong invite code:",
+        copyCode = "Kopyahin ang code",
+        generating = "Ginagawa...",
+        generateNew = "Gumawa ng bago",
+        generateCode = "Gumawa ng code",
+        codesExpireNote = "Nag-e-expire po ang code pagkalipas ng 5 minuto. Makakagawa lang po ng bago kapag nag-expire na ang kasalukuyang code.",
+    )
+
+    fun forLanguage(language: String): Copy =
+        if (language == WellnessMessages.FILIPINO) FILIPINO_COPY else ENGLISH_COPY
+}
+
+/**
+ * Profile / Contacts / Invite copy in the senior's stored language.
+ *
+ * Provided in `SeniorDashboard`, which already reads `Senior_Onboarding.language_preference` for
+ * the tabs, so this follows a change made in Profile → Language the moment it is written.
+ */
+val LocalProfileCopy = staticCompositionLocalOf {
+    ProfileStrings.forLanguage(WellnessMessages.ENGLISH)
+}

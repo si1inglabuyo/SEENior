@@ -54,6 +54,8 @@ import com.pup.seenior.ui.onboarding.OnboardingOptions
 import com.pup.seenior.ui.onboarding.components.LabeledDropdownField
 import com.pup.seenior.ui.onboarding.components.LabeledTextField
 import com.pup.seenior.ui.onboarding.components.PrimaryPillButton
+import com.pup.seenior.ui.LocalOnboardingCopy
+import com.pup.seenior.ui.LocalProfileCopy
 import com.pup.seenior.ui.theme.SeniorColors
 import com.pup.seenior.validation.PhilippinePhone
 import androidx.compose.material.icons.filled.Language
@@ -100,7 +102,7 @@ fun SeniorProfileScreen() {
         // to drift out of step with the family app.
         ProfilePage.FAMILY -> SeniorContactsScreen(
             onGoToInvite = { page = ProfilePage.FAMILY_INVITE },
-            inviteActionLabel = "Get an invite code",
+            inviteActionLabel = LocalProfileCopy.current.getInviteCode,
             onBack = { page = ProfilePage.HOME }
         )
         ProfilePage.FAMILY_INVITE -> InviteScreen(onBack = { page = ProfilePage.FAMILY })
@@ -109,13 +111,14 @@ fun SeniorProfileScreen() {
 
 @Composable
 private fun ProfileHome(viewModel: SeniorProfileViewModel, onNavigate: (ProfilePage) -> Unit) {
+    val copy = LocalProfileCopy.current
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.White)
             .verticalScroll(rememberScrollState())
     ) {
-        GreenHeader(icon = { Icon(Icons.Filled.Person, null, tint = Color.White) }, title = "Profile")
+        GreenHeader(icon = { Icon(Icons.Filled.Person, null, tint = Color.White) }, title = copy.profileHeader)
 
         Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 20.dp)) {
 
@@ -147,7 +150,7 @@ private fun ProfileHome(viewModel: SeniorProfileViewModel, onNavigate: (ProfileP
                 )
                 viewModel.senior?.let {
                     Text(
-                        "Senior · ${it.age} years old",
+                        copy.seniorAge(it.age),
                         color = SeniorColors.TextPrimary,
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold
@@ -173,18 +176,18 @@ private fun ProfileHome(viewModel: SeniorProfileViewModel, onNavigate: (ProfileP
                 )
             }
 
-            SectionLabel("MY INFO")
+            SectionLabel(copy.sectionMyInfo)
             ProfileGroup {
                 ProfileRow(
                     icon = Icons.Filled.Edit,
-                    title = "Edit profile",
-                    subtitle = "First Name, Surname, Age, Gender, Mobile Number…",
+                    title = copy.editProfile,
+                    subtitle = copy.editProfileSubtitle,
                     onClick = { onNavigate(ProfilePage.EDIT) }
                 )
                 ProfileRow(
                     icon = Icons.Filled.Language,
-                    title = "Language / Wika",
-                    subtitle = "English, Filipino / Tagalog",
+                    title = copy.languageRow,
+                    subtitle = copy.languageRowSubtitle,
                     onClick = { onNavigate(ProfilePage.LANGUAGE) }
                 )
             }
@@ -192,33 +195,33 @@ private fun ProfileHome(viewModel: SeniorProfileViewModel, onNavigate: (ProfileP
             // Shown only to seniors living alone, and it is the whole answer to "what if
             // they get family later". For everyone else this duplicates two bottom tabs.
             if (viewModel.livesAlone) {
-                SectionLabel("MY CONTACTS")
+                SectionLabel(copy.sectionMyContacts)
                 ProfileGroup {
                     ProfileRow(
                         icon = Icons.Filled.Contacts,
-                        title = "Family contacts",
-                        subtitle = "Add someone to be notified before your barangay",
+                        title = copy.familyContacts,
+                        subtitle = copy.familyContactsSubtitle,
                         onClick = { onNavigate(ProfilePage.FAMILY) }
                     )
                 }
             }
 
-            SectionLabel("HELP & INFORMATION")
+            SectionLabel(copy.sectionHelp)
             ProfileGroup {
-                ProfileRow(Icons.Filled.Info, "About this app") { onNavigate(ProfilePage.ABOUT) }
+                ProfileRow(Icons.Filled.Info, copy.aboutApp) { onNavigate(ProfilePage.ABOUT) }
                 RowDivider()
-                ProfileRow(Icons.AutoMirrored.Filled.MenuBook, "How to use") { onNavigate(ProfilePage.HOW_TO_USE) }
+                ProfileRow(Icons.AutoMirrored.Filled.MenuBook, copy.howToUse) { onNavigate(ProfilePage.HOW_TO_USE) }
                 RowDivider()
-                ProfileRow(Icons.AutoMirrored.Filled.HelpOutline, "FAQs") { onNavigate(ProfilePage.FAQS) }
+                ProfileRow(Icons.AutoMirrored.Filled.HelpOutline, copy.faqs) { onNavigate(ProfilePage.FAQS) }
                 RowDivider()
-                ProfileRow(Icons.Filled.SupportAgent, "Contact support") { onNavigate(ProfilePage.SUPPORT) }
+                ProfileRow(Icons.Filled.SupportAgent, copy.contactSupport) { onNavigate(ProfilePage.SUPPORT) }
             }
 
-            SectionLabel("ABOUT SEENIOR")
+            SectionLabel(copy.sectionAboutApp)
             ProfileGroup {
-                ProfileRow(Icons.Filled.Gavel, "Terms & conditions") { onNavigate(ProfilePage.TERMS) }
+                ProfileRow(Icons.Filled.Gavel, copy.termsRow) { onNavigate(ProfilePage.TERMS) }
                 RowDivider()
-                ProfileRow(Icons.Filled.PrivacyTip, "Privacy policy") { onNavigate(ProfilePage.PRIVACY) }
+                ProfileRow(Icons.Filled.PrivacyTip, copy.privacyRow) { onNavigate(ProfilePage.PRIVACY) }
             }
 
             Spacer(Modifier.height(24.dp))
@@ -232,8 +235,12 @@ private fun SeniorEditProfileScreen(
     onBack: () -> Unit,
     onSaved: () -> Unit
 ) {
+    val copy = LocalProfileCopy.current
+    // The name/age/gender/mobile labels are the sign-up form's, reused rather than
+    // translated a second time — this screen edits the same fields.
+    val formCopy = LocalOnboardingCopy.current
     Column(modifier = Modifier.fillMaxSize().background(Color.White)) {
-        GreenBackHeader(title = "Edit profile", onBack = onBack)
+        GreenBackHeader(title = copy.editProfile, onBack = onBack)
 
         Column(
             modifier = Modifier
@@ -257,21 +264,21 @@ private fun SeniorEditProfileScreen(
             }
 
             LabeledTextField(
-                label = "FIRST NAME",
+                label = formCopy.firstNameLabel,
                 value = viewModel.firstName,
                 onValueChange = { viewModel.firstName = it },
-                placeholder = "First Name"
+                placeholder = formCopy.firstNamePlaceholder
             )
             LabeledTextField(
-                label = "LAST NAME",
+                label = formCopy.lastNameLabel,
                 value = viewModel.lastName,
                 onValueChange = { viewModel.lastName = it },
-                placeholder = "Last Name"
+                placeholder = formCopy.lastNamePlaceholder
             )
 
             Row(modifier = Modifier.fillMaxWidth()) {
                 LabeledTextField(
-                    label = "AGE",
+                    label = formCopy.ageLabel,
                     value = viewModel.age,
                     onValueChange = { if (it.length <= 3) viewModel.age = it.filter(Char::isDigit) },
                     placeholder = "00",
@@ -279,18 +286,18 @@ private fun SeniorEditProfileScreen(
                     modifier = Modifier.weight(1f).padding(end = 12.dp)
                 )
                 LabeledDropdownField(
-                    label = "GENDER",
+                    label = formCopy.genderLabel,
                     selected = viewModel.gender,
                     options = OnboardingOptions.genders,
                     onSelect = { viewModel.gender = it },
                     optionLabel = { it },
-                    placeholder = "Select",
+                    placeholder = formCopy.selectPlaceholder,
                     modifier = Modifier.weight(1f)
                 )
             }
 
             LabeledTextField(
-                label = "MOBILE NUMBER",
+                label = formCopy.mobileLabel,
                 value = viewModel.mobileNumber,
                 onValueChange = { input ->
                     // Digits only, plus an optional leading "+"; same filter as sign-up.
@@ -302,23 +309,23 @@ private fun SeniorEditProfileScreen(
                 keyboardType = KeyboardType.Phone,
                 isError = viewModel.mobileNumber.isNotBlank() &&
                     !PhilippinePhone.isValid(viewModel.mobileNumber),
-                errorText = "Enter a valid PH mobile number (09XXXXXXXXX or +639XXXXXXXXX)"
+                errorText = formCopy.mobileError
             )
 
             LabeledDropdownField(
-                label = "LIVING ARRANGEMENT",
+                label = formCopy.livingArrangementLabel,
                 selected = viewModel.livingArrangementLabel,
                 options = OnboardingOptions.livingArrangements.map { it.first },
                 onSelect = { viewModel.livingArrangementLabel = it },
                 optionLabel = { it },
-                placeholder = "Select"
+                placeholder = formCopy.selectPlaceholder
             )
 
             LabeledTextField(
-                label = "ADDRESS",
+                label = copy.addressLabel,
                 value = viewModel.address,
                 onValueChange = { viewModel.address = it },
-                placeholder = "House No., Street, Barangay, City"
+                placeholder = copy.addressPlaceholder
             )
 
             // Barangay routes alerts to the correct responder and was picked from the PSGC list
@@ -343,7 +350,7 @@ private fun SeniorEditProfileScreen(
             }
 
             PrimaryPillButton(
-                text = if (viewModel.isSaving) "SAVING…" else "SAVE CHANGES",
+                text = if (viewModel.isSaving) copy.saving else copy.saveChanges,
                 onClick = { viewModel.saveProfile(onSaved = onSaved) },
                 enabled = viewModel.isEditValid && !viewModel.isSaving,
                 modifier = Modifier.padding(top = 28.dp, bottom = 32.dp)

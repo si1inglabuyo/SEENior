@@ -25,6 +25,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.pup.seenior.ui.LocalOnboardingCopy
 import com.pup.seenior.ui.onboarding.components.LabeledDropdownField
 import com.pup.seenior.ui.onboarding.components.LabeledTextField
 import com.pup.seenior.ui.onboarding.components.OnboardingHeading
@@ -41,6 +42,7 @@ fun SignUpScreen(
     onNext: () -> Unit,
     onPickOnMap: () -> Unit
 ) {
+    val copy = LocalOnboardingCopy.current
     Surface(modifier = Modifier.fillMaxSize(), color = Color.White) {
         Column(
             modifier = Modifier
@@ -49,24 +51,24 @@ fun SignUpScreen(
                 .padding(horizontal = 24.dp)
         ) {
             OnboardingTopBar(currentStep = 1, onBack = onBack)
-            OnboardingHeading(title = "Tell Us About Yourself", subtitle = "Proceed with your setup.")
+            OnboardingHeading(title = copy.signUpTitle, subtitle = copy.signUpSubtitle)
 
             LabeledTextField(
-                label = "FIRST NAME",
+                label = copy.firstNameLabel,
                 value = viewModel.firstName,
                 onValueChange = { viewModel.firstName = it },
-                placeholder = "First Name"
+                placeholder = copy.firstNamePlaceholder
             )
             LabeledTextField(
-                label = "LAST NAME",
+                label = copy.lastNameLabel,
                 value = viewModel.lastName,
                 onValueChange = { viewModel.lastName = it },
-                placeholder = "Last Name"
+                placeholder = copy.lastNamePlaceholder
             )
 
             Row(modifier = Modifier.fillMaxWidth()) {
                 LabeledTextField(
-                    label = "AGE",
+                    label = copy.ageLabel,
                     value = viewModel.age,
                     onValueChange = { if (it.length <= 3) viewModel.age = it.filter(Char::isDigit) },
                     placeholder = "00",
@@ -74,18 +76,18 @@ fun SignUpScreen(
                     modifier = Modifier.weight(1f).padding(end = 12.dp)
                 )
                 LabeledDropdownField(
-                    label = "GENDER",
+                    label = copy.genderLabel,
                     selected = viewModel.gender,
                     options = OnboardingOptions.genders,
                     onSelect = { viewModel.gender = it },
-                    optionLabel = { it },
-                    placeholder = "Select",
+                    optionLabel = { copy.gender(it) },
+                    placeholder = copy.selectPlaceholder,
                     modifier = Modifier.weight(1f)
                 )
             }
 
             LabeledTextField(
-                label = "MOBILE NUMBER",
+                label = copy.mobileLabel,
                 value = viewModel.mobileNumber,
                 onValueChange = { input ->
                     // Digits only, plus an optional leading "+"; capped at "+639XXXXXXXXX" length.
@@ -97,16 +99,16 @@ fun SignUpScreen(
                 keyboardType = KeyboardType.Phone,
                 isError = viewModel.mobileNumber.isNotBlank() &&
                     !PhilippinePhone.isValid(viewModel.mobileNumber),
-                errorText = "Enter a valid PH mobile number (09XXXXXXXXX or +639XXXXXXXXX)"
+                errorText = copy.mobileError
             )
 
             LabeledDropdownField(
-                label = "LIVING ARRANGEMENT",
+                label = copy.livingArrangementLabel,
                 selected = viewModel.livingArrangementLabel,
                 options = OnboardingOptions.livingArrangements.map { it.first },
                 onSelect = { viewModel.livingArrangementLabel = it },
-                optionLabel = { it },
-                placeholder = "Select"
+                optionLabel = { copy.livingArrangement(it) },
+                placeholder = copy.selectPlaceholder
             )
 
             // Offered above the dropdowns, not below them: it exists to save a senior from four
@@ -115,14 +117,14 @@ fun SignUpScreen(
             PickOnMapRow(onPickOnMap)
 
             SearchableDropdownField(
-                label = "REGION",
+                label = copy.regionLabel,
                 selected = viewModel.region,
                 options = viewModel.regionOptions,
                 onSelect = viewModel::onRegionSelected
             )
 
             SearchableDropdownField(
-                label = "PROVINCE",
+                label = copy.provinceLabel,
                 selected = viewModel.province,
                 options = viewModel.provinceOptions,
                 onSelect = viewModel::onProvinceSelected,
@@ -130,7 +132,7 @@ fun SignUpScreen(
             )
 
             SearchableDropdownField(
-                label = "CITY / MUNICIPALITY",
+                label = copy.cityLabel,
                 selected = viewModel.city,
                 options = viewModel.cityOptions,
                 onSelect = viewModel::onCitySelected,
@@ -138,7 +140,7 @@ fun SignUpScreen(
             )
 
             SearchableDropdownField(
-                label = "BARANGAY",
+                label = copy.barangayLabel,
                 selected = viewModel.barangay,
                 options = viewModel.barangayOptions,
                 onSelect = { viewModel.barangay = it },
@@ -146,14 +148,14 @@ fun SignUpScreen(
             )
 
             LabeledTextField(
-                label = "STREET ADDRESS",
+                label = copy.streetLabel,
                 value = viewModel.streetAddress,
                 onValueChange = { viewModel.streetAddress = it },
-                placeholder = "House No., Street, Subdivision"
+                placeholder = copy.streetPlaceholder
             )
 
             PrimaryPillButton(
-                text = "NEXT",
+                text = copy.next,
                 onClick = onNext,
                 enabled = viewModel.isSignUpValid,
                 modifier = Modifier.padding(top = 32.dp, bottom = 32.dp)
@@ -171,6 +173,7 @@ fun SignUpScreen(
  */
 @Composable
 private fun PickOnMapRow(onPickOnMap: () -> Unit) {
+    val copy = LocalOnboardingCopy.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -189,13 +192,13 @@ private fun PickOnMapRow(onPickOnMap: () -> Unit) {
         )
         Column {
             Text(
-                "Find my address on a map",
+                copy.findOnMapTitle,
                 color = SeniorColors.GreenDark,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Bold
             )
             Text(
-                "Drag a pin to your house instead of filling in the boxes below.",
+                copy.findOnMapBody,
                 color = SeniorColors.TextSecondary,
                 fontSize = 13.sp
             )

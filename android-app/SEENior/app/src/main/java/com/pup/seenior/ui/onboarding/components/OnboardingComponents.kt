@@ -44,6 +44,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.pup.seenior.ui.LocalOnboardingCopy
 import com.pup.seenior.ui.theme.SeniorColors
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
@@ -194,7 +195,7 @@ fun SearchableDropdownField(
     selected: String?,
     options: List<String>,
     onSelect: (String) -> Unit,
-    placeholder: String = "Select",
+    placeholder: String = LocalOnboardingCopy.current.selectPlaceholder,
     modifier: Modifier = Modifier,
     enabled: Boolean = true
 ) {
@@ -237,7 +238,7 @@ fun SearchableDropdownField(
             confirmButton = {},
             dismissButton = {
                 TextButton(onClick = { showDialog = false }) {
-                    Text("Cancel", color = SeniorColors.TextSecondary)
+                    Text(LocalOnboardingCopy.current.cancel, color = SeniorColors.TextSecondary)
                 }
             },
             title = { Text(label) },
@@ -247,7 +248,7 @@ fun SearchableDropdownField(
                         value = query,
                         onValueChange = { query = it },
                         modifier = Modifier.fillMaxWidth(),
-                        placeholder = { Text("Search…", color = SeniorColors.TextHint) },
+                        placeholder = { Text(LocalOnboardingCopy.current.search, color = SeniorColors.TextHint) },
                         singleLine = true,
                         shape = fieldShape,
                         colors = fieldColors()
@@ -288,7 +289,7 @@ fun <T> LabeledDropdownField(
     options: List<T>,
     onSelect: (T) -> Unit,
     optionLabel: (T) -> String,
-    placeholder: String = "Select",
+    placeholder: String = LocalOnboardingCopy.current.selectPlaceholder,
     modifier: Modifier = Modifier,
     questionStyle: Boolean = false
 ) {
@@ -459,7 +460,7 @@ fun LabeledTimeField(
             },
             dismissButton = {
                 TextButton(onClick = { showPicker = false }) {
-                    Text("Cancel", color = SeniorColors.TextSecondary)
+                    Text(LocalOnboardingCopy.current.cancel, color = SeniorColors.TextSecondary)
                 }
             },
             text = { TimePicker(state = state) }

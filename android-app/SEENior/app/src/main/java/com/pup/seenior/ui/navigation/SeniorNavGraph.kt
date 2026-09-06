@@ -1,7 +1,12 @@
 package com.pup.seenior.ui.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.pup.seenior.ui.LocalOnboardingCopy
+import com.pup.seenior.ui.OnboardingStrings
+import com.pup.seenior.ui.onboarding.OnboardingOptions
+import com.pup.seenior.ui.wellness.WellnessMessages
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -47,6 +52,18 @@ fun SeniorNavGraph(navController: NavHostController = rememberNavController()) {
     // doesn't lose anything already typed.
     val familyAuthViewModel: FamilyAuthViewModel = viewModel()
 
+    // The language answer lives on the questionnaire, in the middle of this flow, so it is
+    // resolved here — above the NavHost — and every screen inside follows it from the moment it
+    // is given. Screens the senior has already passed by then were drawn in English; going back
+    // re-renders them translated.
+    val onboardingCopy = OnboardingStrings.forLanguage(
+        OnboardingOptions.languages
+            .firstOrNull { it.first == onboardingViewModel.languageLabel }
+            ?.second
+            ?: WellnessMessages.ENGLISH
+    )
+
+    CompositionLocalProvider(LocalOnboardingCopy provides onboardingCopy) {
     NavHost(navController = navController, startDestination = SeniorRoutes.SPLASH) {
         composable(SeniorRoutes.SPLASH) {
             SplashScreen(
@@ -172,5 +189,6 @@ fun SeniorNavGraph(navController: NavHostController = rememberNavController()) {
                 }
             )
         }
+    }
     }
 }

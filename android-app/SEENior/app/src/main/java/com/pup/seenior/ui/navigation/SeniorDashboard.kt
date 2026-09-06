@@ -25,6 +25,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -48,6 +49,12 @@ import com.pup.seenior.ui.profile.SeniorProfileScreen
 import com.pup.seenior.ui.theme.SeniorColors
 import com.pup.seenior.ui.wellness.WellnessPromptScreen
 import com.pup.seenior.ui.wellness.WellnessPromptViewModel
+import com.pup.seenior.ui.LocalInfoCopy
+import com.pup.seenior.ui.LocalOnboardingCopy
+import com.pup.seenior.ui.LocalProfileCopy
+import com.pup.seenior.ui.InfoStrings
+import com.pup.seenior.ui.OnboardingStrings
+import com.pup.seenior.ui.ProfileStrings
 import com.pup.seenior.ui.SeniorStrings
 
 /**
@@ -278,6 +285,12 @@ fun SeniorDashboard() {
     }
 
     val copy = SeniorStrings.forLanguage(homeViewModel.language)
+    // Everything behind the tabs reads its own copy from these two, rather than being handed a
+    // language parameter screen by screen. OnboardingStrings is provided here as well because
+    // Edit profile reuses the sign-up form's field labels — one translation, two places.
+    val profileCopy = ProfileStrings.forLanguage(homeViewModel.language)
+    val formCopy = OnboardingStrings.forLanguage(homeViewModel.language)
+    val infoCopy = InfoStrings.forLanguage(homeViewModel.language)
 
     RepairLocationPermission()
     RepairAlertPermissions(copy)
@@ -291,6 +304,11 @@ fun SeniorDashboard() {
     // always resolves to something in the bar.
     val activeTab = if (tab in tabs) tab else SeniorTab.HOME
 
+    CompositionLocalProvider(
+        LocalProfileCopy provides profileCopy,
+        LocalOnboardingCopy provides formCopy,
+        LocalInfoCopy provides infoCopy
+    ) {
     Scaffold(
         bottomBar = {
             NavigationBar(containerColor = Color.White) {
@@ -324,10 +342,11 @@ fun SeniorDashboard() {
                 SeniorTab.INVITE -> InviteScreen()
                 SeniorTab.CONTACTS -> SeniorContactsScreen(
                     onGoToInvite = { tab = SeniorTab.INVITE },
-                    inviteActionLabel = "Invite tab"
+                    inviteActionLabel = profileCopy.inviteTabLabel
                 )
                 SeniorTab.PROFILE -> SeniorProfileScreen()
             }
         }
+    }
     }
 }

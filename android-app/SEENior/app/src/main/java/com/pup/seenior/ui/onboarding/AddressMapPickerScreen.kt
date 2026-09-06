@@ -47,6 +47,7 @@ import com.pup.seenior.location.AddressGeocoder
 import com.pup.seenior.location.AlertLocationCapture
 import com.pup.seenior.location.Geohash
 import com.pup.seenior.location.LocationPermissionState
+import com.pup.seenior.ui.LocalOnboardingCopy
 import com.pup.seenior.ui.onboarding.components.OnboardingHeading
 import com.pup.seenior.ui.onboarding.components.OnboardingTopBar
 import com.pup.seenior.ui.onboarding.components.PrimaryPillButton
@@ -95,6 +96,7 @@ fun AddressMapPickerScreen(
     onBack: () -> Unit,
     onConfirmed: () -> Unit
 ) {
+    val copy = LocalOnboardingCopy.current
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val mapHandle = remember { MapHandle() }
@@ -128,8 +130,8 @@ fun AddressMapPickerScreen(
         Column(modifier = Modifier.fillMaxSize()) {
             OnboardingTopBar(currentStep = 1, onBack = onBack)
             OnboardingHeading(
-                title = "Point to Your Home",
-                subtitle = "Drag the map until the pin sits on your house."
+                title = copy.mapTitle,
+                subtitle = copy.mapSubtitle
             )
 
             Box(
@@ -181,7 +183,7 @@ fun AddressMapPickerScreen(
                 // so the point of the pin, not its middle, marks the spot.
                 Icon(
                     imageVector = Icons.Filled.LocationOn,
-                    contentDescription = "Map pin",
+                    contentDescription = copy.mapPinDescription,
                     tint = PinRed,
                     modifier = Modifier
                         .align(Alignment.Center)
@@ -220,14 +222,14 @@ fun AddressMapPickerScreen(
                         tint = SeniorColors.GreenDark,
                         modifier = Modifier.size(20.dp)
                     )
-                    Text("Find me", color = SeniorColors.GreenDark, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    Text(copy.mapFindMe, color = SeniorColors.GreenDark, fontSize = 15.sp, fontWeight = FontWeight.Bold)
                 }
             }
 
             AddressPreview(pinAddress)
 
             PrimaryPillButton(
-                text = "USE THIS ADDRESS",
+                text = copy.mapUseAddress,
                 onClick = {
                     (pinAddress as? PinAddress.Found)?.let {
                         viewModel.applyPickedAddress(it.match, it.streetLine)
@@ -245,6 +247,7 @@ fun AddressMapPickerScreen(
 
 @Composable
 private fun AddressPreview(state: PinAddress) {
+    val copy = LocalOnboardingCopy.current
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -262,12 +265,11 @@ private fun AddressPreview(state: PinAddress) {
                     color = SeniorColors.Green,
                     strokeWidth = 2.dp
                 )
-                Text("Looking up this spot...", color = SeniorColors.TextSecondary, fontSize = 15.sp)
+                Text(copy.mapLookingUp, color = SeniorColors.TextSecondary, fontSize = 15.sp)
             }
 
             PinAddress.Unknown -> Text(
-                "We could not name this spot. Try moving the pin, or go back and type your " +
-                    "address instead.",
+                copy.mapNoName,
                 color = SeniorColors.TextSecondary,
                 fontSize = 15.sp
             )
@@ -284,12 +286,7 @@ private fun AddressPreview(state: PinAddress) {
                 Text(
                     // Said plainly rather than hidden. The barangay is the one field tier 3 of the
                     // escalation chain depends on, and a wrong one fails silently.
-                    if (state.match.barangay == null) {
-                        "We could not tell which barangay this is — please choose it on the " +
-                            "next screen."
-                    } else {
-                        "Check this is right. You can still change it on the next screen."
-                    },
+                    if (state.match.barangay == null) copy.mapNoBarangay else copy.mapCheckThis,
                     color = SeniorColors.TextSecondary,
                     fontSize = 14.sp,
                     modifier = Modifier.padding(top = 6.dp)

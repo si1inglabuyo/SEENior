@@ -22,6 +22,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.pup.seenior.ui.LocalOnboardingCopy
 import com.pup.seenior.ui.onboarding.components.RoleCard
 import com.pup.seenior.ui.theme.SeniorColors
 
@@ -30,6 +31,7 @@ fun RoleSelectionScreen(
     onSeniorSelected: () -> Unit,
     onFamilyMemberSelected: () -> Unit
 ) {
+    val copy = LocalOnboardingCopy.current
     Surface(modifier = Modifier.fillMaxSize(), color = Color.White) {
         Column(
             modifier = Modifier
@@ -40,10 +42,10 @@ fun RoleSelectionScreen(
             Text(
                 text = buildAnnotatedString {
                     withStyle(style = androidx.compose.ui.text.SpanStyle(color = Color(0xFF6FA8DC))) {
-                        append("Welcome ")
+                        append(copy.welcomeLead)
                     }
                     withStyle(style = androidx.compose.ui.text.SpanStyle(color = SeniorColors.Green)) {
-                        append("To ")
+                        append(copy.welcomeMid)
                     }
                     withStyle(style = androidx.compose.ui.text.SpanStyle(color = Color(0xFFE8A33D))) {
                         append("SEENior")
@@ -53,7 +55,7 @@ fun RoleSelectionScreen(
                 fontWeight = FontWeight.Bold
             )
             Text(
-                text = "Choose your role",
+                text = copy.chooseRole,
                 color = SeniorColors.TextSecondary,
                 fontSize = 20.sp,
                 modifier = Modifier.padding(top = 8.dp, bottom = 24.dp)
@@ -63,13 +65,8 @@ fun RoleSelectionScreen(
                 borderColor = SeniorColors.GreenBorder,
                 backgroundColor = SeniorColors.GreenLightBg,
                 icon = { ShadowedIcon(Icons.Filled.Person) },
-                title = "I am a Senior",
-                bullets = listOf(
-                    "Requires safety and wellness support.",
-                    "Needs daily health monitoring.",
-                    "Stays connected with family members.",
-                    "Emergency alerts."
-                ),
+                title = copy.roleSeniorTitle,
+                bullets = copy.roleSeniorBullets,
                 onClick = onSeniorSelected
             )
 
@@ -78,13 +75,8 @@ fun RoleSelectionScreen(
                     borderColor = SeniorColors.BlueBorder,
                     backgroundColor = SeniorColors.BlueLightBg,
                     icon = { ShadowedIcon(Icons.Filled.People) },
-                    title = "Family Member",
-                    bullets = listOf(
-                        "Monitors senior status and activity.",
-                        "Receives safety and emergency alerts.",
-                        "Has alert-based location access.",
-                        "Maintains connection and care remotely."
-                    ),
+                    title = copy.roleFamilyTitle,
+                    bullets = copy.roleFamilyBullets,
                     onClick = onFamilyMemberSelected
                 )
             }

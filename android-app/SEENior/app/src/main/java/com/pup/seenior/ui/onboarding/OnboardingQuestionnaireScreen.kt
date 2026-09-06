@@ -10,6 +10,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.pup.seenior.ui.LocalOnboardingCopy
 import com.pup.seenior.ui.onboarding.components.LabeledDropdownField
 import com.pup.seenior.ui.onboarding.components.LabeledTimeField
 import com.pup.seenior.ui.onboarding.components.OnboardingHeading
@@ -22,6 +23,7 @@ fun OnboardingQuestionnaireScreen(
     onBack: () -> Unit,
     onNext: () -> Unit
 ) {
+    val copy = LocalOnboardingCopy.current
     Surface(modifier = Modifier.fillMaxSize(), color = Color.White) {
         Column(
             modifier = Modifier
@@ -30,35 +32,35 @@ fun OnboardingQuestionnaireScreen(
                 .padding(horizontal = 24.dp)
         ) {
             OnboardingTopBar(currentStep = 3, onBack = onBack)
-            OnboardingHeading(title = "Onboarding", subtitle = "Let's get started")
+            OnboardingHeading(title = copy.questionnaireTitle, subtitle = copy.questionnaireSubtitle)
 
             // First question on the page on purpose. It is the one answer that changes what every
             // later prompt is written in, and a senior who reads only Filipino should not have to
             // work through an English form to reach it.
             LabeledDropdownField(
-                label = "What language do you prefer? / Anong wika ang gusto ninyo?",
+                label = copy.qLanguage,
                 selected = viewModel.languageLabel,
                 options = OnboardingOptions.languages.map { it.first },
                 onSelect = { viewModel.languageLabel = it },
                 optionLabel = { it },
-                placeholder = "-Select Option-",
+                placeholder = copy.optionPlaceholder,
                 questionStyle = true
             )
 
             LabeledTimeField(
-                label = "What time do you usually wake up?",
+                label = copy.qWakeTime,
                 value = viewModel.wakeTime,
                 onValueChange = { viewModel.wakeTime = it },
                 questionStyle = true
             )
             LabeledTimeField(
-                label = "What time do you usually go to sleep?",
+                label = copy.qSleepTime,
                 value = viewModel.sleepTime,
                 onValueChange = { viewModel.sleepTime = it },
                 questionStyle = true
             )
             LabeledDropdownField(
-                label = "Do you take naps during the day?",
+                label = copy.qHasNap,
                 selected = viewModel.hasNap,
                 options = OnboardingOptions.yesNo,
                 onSelect = {
@@ -68,75 +70,75 @@ fun OnboardingQuestionnaireScreen(
                         viewModel.napDuration = null
                     }
                 },
-                optionLabel = { it },
-                placeholder = "-Select Option-",
+                optionLabel = { copy.yesNo(it) },
+                placeholder = copy.optionPlaceholder,
                 questionStyle = true
             )
 
             if (viewModel.hasNap == "Yes") {
                 LabeledTimeField(
-                    label = "What time do you usually nap?",
+                    label = copy.qNapTime,
                     value = viewModel.napTime,
                     onValueChange = { viewModel.napTime = it },
                     questionStyle = true
                 )
                 LabeledDropdownField(
-                    label = "How long is your usual nap?",
+                    label = copy.qNapDuration,
                     selected = viewModel.napDuration,
                     options = OnboardingOptions.napDurations,
                     onSelect = { viewModel.napDuration = it },
-                    optionLabel = { it },
-                    placeholder = "-Select Option-",
+                    optionLabel = { copy.napDuration(it) },
+                    placeholder = copy.optionPlaceholder,
                     questionStyle = true
                 )
             }
 
             LabeledDropdownField(
-                label = "How active are you during the day?",
+                label = copy.qActivityLevel,
                 selected = viewModel.activityLevelLabel,
                 options = OnboardingOptions.activityLevels.map { it.first },
                 onSelect = { viewModel.activityLevelLabel = it },
-                optionLabel = { it },
-                placeholder = "-Select Option-",
+                optionLabel = { copy.activityLevel(it) },
+                placeholder = copy.optionPlaceholder,
                 questionStyle = true
             )
             LabeledDropdownField(
-                label = "Do you go outside regularly?",
+                label = copy.qGoesOutside,
                 selected = viewModel.goesOutside,
                 options = OnboardingOptions.yesNo,
                 onSelect = {
                     viewModel.goesOutside = it
                     if (it == "No") viewModel.outsideTime = null
                 },
-                optionLabel = { it },
-                placeholder = "-Select Option-",
+                optionLabel = { copy.yesNo(it) },
+                placeholder = copy.optionPlaceholder,
                 questionStyle = true
             )
 
             if (viewModel.goesOutside == "Yes") {
                 LabeledDropdownField(
-                    label = "What time do you usually go outside?",
+                    label = copy.qOutsideTime,
                     selected = viewModel.outsideTime,
                     options = OnboardingOptions.outsideTimes,
                     onSelect = { viewModel.outsideTime = it },
-                    optionLabel = { it },
-                    placeholder = "-Select Option-",
+                    optionLabel = { copy.outsideTime(it) },
+                    placeholder = copy.optionPlaceholder,
                     questionStyle = true
                 )
             }
 
             LabeledDropdownField(
-                label = "Do you charge your phone overnight?",
+                label = copy.qChargesOvernight,
                 selected = viewModel.chargesOvernight,
                 options = OnboardingOptions.yesNo,
                 onSelect = { viewModel.chargesOvernight = it },
-                optionLabel = { it },
-                placeholder = "-Select Option-",
+                optionLabel = { copy.yesNo(it) },
+                placeholder = copy.optionPlaceholder,
                 questionStyle = true
             )
 
             PrimaryPillButton(
-                text = "NEXT",
+                text = copy.next,
                 onClick = onNext,
                 enabled = viewModel.isQuestionnaireValid,
                 modifier = Modifier.padding(top = 32.dp, bottom = 32.dp)

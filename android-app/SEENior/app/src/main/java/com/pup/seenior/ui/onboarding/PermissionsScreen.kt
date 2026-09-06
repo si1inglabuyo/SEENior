@@ -52,25 +52,26 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.pup.seenior.ui.LocalOnboardingCopy
 import com.pup.seenior.ui.onboarding.components.OnboardingHeading
 import com.pup.seenior.ui.onboarding.components.OnboardingTopBar
 import com.pup.seenior.ui.onboarding.components.PrimaryPillButton
 import com.pup.seenior.ui.theme.SeniorColors
 
-private data class PermissionRow(
-    val icon: androidx.compose.ui.graphics.vector.ImageVector,
-    val title: String,
-    val description: String
-)
-
-private val permissionRows = listOf(
-    PermissionRow(Icons.AutoMirrored.Filled.DirectionsRun, "Motion & Activity", "Detects movement to track routine"),
-    PermissionRow(Icons.Filled.LocationOn, "Location (Alerts)", "Only when an alert triggers, and only as an approximate area"),
-    PermissionRow(Icons.Filled.Notifications, "Notifications", "Check-in prompts & SOS alerts"),
-    PermissionRow(Icons.Filled.BatteryChargingFull, "Battery & screen", "Tracks charging & screen use"),
-    PermissionRow(Icons.Filled.Alarm, "Run in background", "So alerts still go out while the phone rests"),
-    PermissionRow(Icons.Filled.ScreenLockPortrait, "Wake your screen", "So a check-in appears even while the phone is locked"),
-    PermissionRow(Icons.Filled.Layers, "Show over other apps", "So a check-in is not hidden behind whatever you are using")
+/**
+ * Icons only. The title and description of each row are translated copy and live in
+ * [com.pup.seenior.ui.OnboardingStrings]; this list is zipped with that one by position, so the
+ * two must stay in the same order — motion, location, notifications, battery, background, wake,
+ * overlay.
+ */
+private val permissionIcons = listOf(
+    Icons.AutoMirrored.Filled.DirectionsRun,
+    Icons.Filled.LocationOn,
+    Icons.Filled.Notifications,
+    Icons.Filled.BatteryChargingFull,
+    Icons.Filled.Alarm,
+    Icons.Filled.ScreenLockPortrait,
+    Icons.Filled.Layers
 )
 
 private val runtimePermissions: List<String> = buildList {
@@ -108,6 +109,7 @@ fun PermissionsScreen(
     onBack: () -> Unit,
     onAllGranted: () -> Unit
 ) {
+    val copy = LocalOnboardingCopy.current
     var showRationale by remember { mutableStateOf(false) }
     var showDenied by remember { mutableStateOf(false) }
     val context = LocalContext.current
@@ -204,8 +206,8 @@ fun PermissionsScreen(
                     .verticalScroll(rememberScrollState())
             ) {
                 OnboardingHeading(
-                    title = "Allow Permissions",
-                    subtitle = "SEENior needs these to monitor quietly in the background. All data stays on your phone."
+                    title = copy.permissionsTitle,
+                    subtitle = copy.permissionsSubtitle
                 )
 
                 Column(
@@ -215,9 +217,9 @@ fun PermissionsScreen(
                         .border(1.dp, SeniorColors.GreenBorder, RoundedCornerShape(20.dp))
                         .padding(20.dp)
                 ) {
-                    permissionRows.forEachIndexed { index, row ->
-                        PermissionItem(row)
-                        if (index != permissionRows.lastIndex) Spacer(modifier = Modifier.padding(top = 20.dp))
+                    copy.permissionRows.forEachIndexed { index, row ->
+                        PermissionItem(permissionIcons[index], row.first, row.second)
+                        if (index != copy.permissionRows.lastIndex) Spacer(modifier = Modifier.padding(top = 20.dp))
                     }
                 }
 
@@ -225,14 +227,14 @@ fun PermissionsScreen(
             }
 
             Text(
-                text = "Protected under RA 10173 · Data Privacy Act",
+                text = copy.permissionsPrivacyNote,
                 color = SeniorColors.TextSecondary,
                 fontSize = 13.sp,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
             )
             PrimaryPillButton(
-                text = "ALLOW PERMISSIONS NOW",
+                text = copy.permissionsCta,
                 onClick = { showRationale = true },
                 modifier = Modifier.padding(bottom = 32.dp)
             )
@@ -262,7 +264,11 @@ fun PermissionsScreen(
 }
 
 @Composable
-private fun PermissionItem(row: PermissionRow) {
+private fun PermissionItem(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    description: String
+) {
     Row(verticalAlignment = Alignment.Top) {
         Column(
             modifier = Modifier
@@ -271,17 +277,18 @@ private fun PermissionItem(row: PermissionRow) {
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Icon(imageVector = row.icon, contentDescription = null, tint = Color.White)
+            Icon(imageVector = icon, contentDescription = null, tint = Color.White)
         }
         Column(modifier = Modifier.padding(start = 16.dp)) {
-            Text(row.title, fontSize = 19.sp, fontWeight = FontWeight.Bold, color = SeniorColors.TextPrimary)
-            Text(row.description, fontSize = 14.sp, color = SeniorColors.TextSecondary)
+            Text(title, fontSize = 19.sp, fontWeight = FontWeight.Bold, color = SeniorColors.TextPrimary)
+            Text(description, fontSize = 14.sp, color = SeniorColors.TextSecondary)
         }
     }
 }
 
 @Composable
 private fun PermissionRationaleDialog(onDeny: () -> Unit, onAllow: () -> Unit) {
+    val copy = LocalOnboardingCopy.current
     AlertDialog(
         onDismissRequest = onDeny,
         shape = RoundedCornerShape(24.dp),
@@ -290,23 +297,24 @@ private fun PermissionRationaleDialog(onDeny: () -> Unit, onAllow: () -> Unit) {
         title = null,
         text = {
             Text(
-                text = "Allow SEENior to access your device's activity, notifications, battery usage, and location during emergency alerts to support routine monitoring and emergency assistance?",
+                text = copy.permissionsDialogBody,
                 textAlign = TextAlign.Center,
                 fontSize = 16.sp,
                 color = SeniorColors.TextPrimary
             )
         },
         confirmButton = {
-            TextButton(onClick = onAllow) { Text("ALLOW", color = SeniorColors.Green, fontWeight = FontWeight.Bold) }
+            TextButton(onClick = onAllow) { Text(copy.allow, color = SeniorColors.Green, fontWeight = FontWeight.Bold) }
         },
         dismissButton = {
-            TextButton(onClick = onDeny) { Text("DENY", color = SeniorColors.Green, fontWeight = FontWeight.Bold) }
+            TextButton(onClick = onDeny) { Text(copy.deny, color = SeniorColors.Green, fontWeight = FontWeight.Bold) }
         }
     )
 }
 
 @Composable
 private fun PermissionDeniedDialog(onClose: () -> Unit) {
+    val copy = LocalOnboardingCopy.current
     AlertDialog(
         onDismissRequest = onClose,
         shape = RoundedCornerShape(24.dp),
@@ -314,7 +322,7 @@ private fun PermissionDeniedDialog(onClose: () -> Unit) {
         icon = { Icon(Icons.Filled.NotificationsOff, contentDescription = null, tint = SeniorColors.Green, modifier = Modifier.size(40.dp)) },
         title = {
             Text(
-                "App was denied access",
+                copy.deniedTitle,
                 textAlign = TextAlign.Center,
                 fontWeight = FontWeight.Bold,
                 fontSize = 20.sp,
@@ -324,13 +332,13 @@ private fun PermissionDeniedDialog(onClose: () -> Unit) {
         },
         text = {
             Text(
-                "It is possible the app won't work properly without this restricted permission.",
+                copy.deniedBody,
                 fontSize = 15.sp,
                 color = SeniorColors.TextPrimary
             )
         },
         confirmButton = {
-            TextButton(onClick = onClose) { Text("CLOSE", color = SeniorColors.Green, fontWeight = FontWeight.Bold) }
+            TextButton(onClick = onClose) { Text(copy.close, color = SeniorColors.Green, fontWeight = FontWeight.Bold) }
         }
     )
 }

@@ -28,40 +28,18 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.pup.seenior.ui.LocalOnboardingCopy
 import com.pup.seenior.ui.onboarding.components.OnboardingHeading
 import com.pup.seenior.ui.onboarding.components.OnboardingTopBar
 import com.pup.seenior.ui.onboarding.components.PrimaryPillButton
 import com.pup.seenior.ui.theme.SeniorColors
-
-private data class TermsSection(val heading: String, val body: String? = null, val bullets: List<String>? = null)
-
-private val sections = listOf(
-    TermsSection(
-        "1. Acceptance of Terms",
-        body = "By creating an account and using SEENior, you agree to be bound by these Terms of Use. If you do not agree to these terms, please do not use our services."
-    ),
-    TermsSection(
-        "2. Description of Service",
-        body = "SEENior is a passive behavioral monitoring application that uses your smartphone's built-in sensors to establish a daily routine baseline and detect significant deviations that may indicate an emergency."
-    ),
-    TermsSection(
-        "3. User Eligibility",
-        body = "The SEENior senior app is intended for use by senior citizens (60 years and older) residing in the Philippines, consistent with RA 9994 (Expanded Senior Citizens Act of 2010). Use by persons below this age threshold is permitted only for testing purposes by the development team."
-    ),
-    TermsSection(
-        "4. User Responsibilities",
-        bullets = listOf(
-            "Keep your phone charged and with you for the monitoring system to function reliably.",
-            "Provide accurate personal information during account setup."
-        )
-    )
-)
 
 @Composable
 fun TermsConditionsScreen(
     onBack: () -> Unit,
     onNext: () -> Unit
 ) {
+    val copy = LocalOnboardingCopy.current
     var acceptedTerms by remember { mutableStateOf(false) }
     var acceptedPrivacy by remember { mutableStateOf(false) }
 
@@ -69,8 +47,8 @@ fun TermsConditionsScreen(
         Column(modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp)) {
             OnboardingTopBar(currentStep = 2, onBack = onBack)
             OnboardingHeading(
-                title = "Terms & Conditions",
-                subtitle = "Review our Terms and Conditions to continue using the app."
+                title = copy.termsTitle,
+                subtitle = copy.termsSubtitle
             )
 
             Column(
@@ -80,7 +58,7 @@ fun TermsConditionsScreen(
                     .verticalScroll(rememberScrollState())
                     .padding(top = 16.dp)
             ) {
-                sections.forEach { section ->
+                copy.termsSections.forEach { section ->
                     Text(
                         text = section.heading,
                         fontSize = 17.sp,
@@ -105,20 +83,20 @@ fun TermsConditionsScreen(
             ConsentRow(
                 checked = acceptedTerms,
                 onCheckedChange = { acceptedTerms = it },
-                prefix = "I acknowledge that I have carefully read and accepted the ",
-                linkText = "Terms and Conditions",
-                suffix = " of SEENior."
+                prefix = copy.termsConsentPrefix,
+                linkText = copy.termsConsentLink,
+                suffix = copy.termsConsentSuffix
             )
             ConsentRow(
                 checked = acceptedPrivacy,
                 onCheckedChange = { acceptedPrivacy = it },
-                prefix = "I have read and agree to the ",
-                linkText = "Privacy Policy",
-                suffix = " and consent to the collection of my data as described, under RA 10173."
+                prefix = copy.privacyConsentPrefix,
+                linkText = copy.privacyConsentLink,
+                suffix = copy.privacyConsentSuffix
             )
 
             PrimaryPillButton(
-                text = "NEXT",
+                text = copy.next,
                 onClick = onNext,
                 enabled = acceptedTerms && acceptedPrivacy,
                 modifier = Modifier.padding(top = 16.dp, bottom = 32.dp)

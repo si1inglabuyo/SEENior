@@ -37,6 +37,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.pup.seenior.ui.LocalProfileCopy
 import com.pup.seenior.ui.theme.SeniorColors
 
 private val WarningBg = Color(0xFFFBEEDC)
@@ -47,6 +48,7 @@ fun InviteScreen(
     viewModel: InviteViewModel = viewModel(),
     onBack: (() -> Unit)? = null
 ) {
+    val copy = LocalProfileCopy.current
     val context = LocalContext.current
 
     Column(
@@ -56,7 +58,7 @@ fun InviteScreen(
     ) {
         GreenHeader(
             icon = { Icon(Icons.Filled.PersonAddAlt1, null, tint = Color.White) },
-            title = "Invite",
+            title = copy.inviteHeader,
             onBack = onBack
         )
 
@@ -71,14 +73,14 @@ fun InviteScreen(
                 .padding(horizontal = 24.dp)
         ) {
             Text(
-                "Share With Family",
+                copy.shareWithFamily,
                 color = SeniorColors.Green,
                 fontSize = 24.sp,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(top = 20.dp)
             )
             Text(
-                "Give this code to family members so they can enter it in their app and monitor you.",
+                copy.shareWithFamilyBody,
                 color = SeniorColors.TextSecondary,
                 fontSize = 15.sp,
                 modifier = Modifier.padding(top = 6.dp)
@@ -93,7 +95,7 @@ fun InviteScreen(
                     .padding(vertical = 24.dp, horizontal = 20.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text("Your invite code:", color = SeniorColors.TextPrimary, fontSize = 17.sp)
+                Text(copy.yourInviteCode, color = SeniorColors.TextPrimary, fontSize = 17.sp)
 
                 if (viewModel.hasActiveCode) {
                     Text(
@@ -104,7 +106,7 @@ fun InviteScreen(
                         modifier = Modifier.padding(top = 8.dp)
                     )
                     Text(
-                        "Expires in ${viewModel.formattedRemaining()}",
+                        copy.expiresIn(viewModel.formattedRemaining()),
                         color = SeniorColors.TextSecondary,
                         fontSize = 14.sp
                     )
@@ -120,7 +122,7 @@ fun InviteScreen(
 
                 CardButton(
                     icon = { Icon(Icons.Filled.ContentCopy, null, tint = SeniorColors.TextPrimary, modifier = Modifier.size(20.dp)) },
-                    label = "Copy code",
+                    label = copy.copyCode,
                     enabled = viewModel.hasActiveCode,
                     modifier = Modifier.padding(top = 16.dp)
                 ) {
@@ -133,9 +135,9 @@ fun InviteScreen(
             // ---- Generate button ----
             CardButton(
                 icon = { Icon(Icons.Filled.Refresh, null, tint = if (viewModel.hasActiveCode) SeniorColors.TextHint else SeniorColors.TextPrimary, modifier = Modifier.size(24.dp)) },
-                label = if (viewModel.isLoading) "Generating..."
-                    else if (viewModel.hasActiveCode) "Generate new"
-                    else "Generate code",
+                label = if (viewModel.isLoading) copy.generating
+                    else if (viewModel.hasActiveCode) copy.generateNew
+                    else copy.generateCode,
                 enabled = !viewModel.hasActiveCode && !viewModel.isLoading,
                 big = true
             ) {
@@ -157,7 +159,7 @@ fun InviteScreen(
             ) {
                 Icon(Icons.Outlined.Info, null, tint = WarningText, modifier = Modifier.size(22.dp))
                 Text(
-                    "Codes expire after 5 minutes. A new code can only be generated once the current code expires.",
+                    copy.codesExpireNote,
                     color = WarningText,
                     fontSize = 14.sp,
                     modifier = Modifier.padding(start = 12.dp)

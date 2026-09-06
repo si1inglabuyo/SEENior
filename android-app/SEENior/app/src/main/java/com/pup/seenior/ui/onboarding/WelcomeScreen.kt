@@ -14,10 +14,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import com.pup.seenior.R
+import com.pup.seenior.ui.LocalOnboardingCopy
 import com.pup.seenior.ui.onboarding.components.PrimaryPillButton
 
 @Composable
 fun WelcomeScreen(onGetStarted: () -> Unit) {
+    val copy = LocalOnboardingCopy.current
     Surface(modifier = Modifier.fillMaxSize(), color = Color.White) {
         Column(
             modifier = Modifier
@@ -30,7 +32,7 @@ fun WelcomeScreen(onGetStarted: () -> Unit) {
                     contentDescription = "SEENior"
                 )
             }
-            PrimaryPillButton(text = "GET STARTED", onClick = onGetStarted)
+            PrimaryPillButton(text = copy.getStarted, onClick = onGetStarted)
         }
     }
 }
