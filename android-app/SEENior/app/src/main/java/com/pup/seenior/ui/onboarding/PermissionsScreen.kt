@@ -155,6 +155,10 @@ fun PermissionsScreen(
     ) { requestOverlayThenContinue() }
 
     fun requestFullScreenThenContinue() {
+        // Marked here, not at the rationale dialog several steps up: this is the first of the
+        // two settings-page questions AlertPermissions tracks, and only reaching here means the
+        // senior actually got to them (see the comment on that removed call for why).
+        AlertPermissions.markAsked(context)
         val intent = AlertPermissions.fullScreenIntentSettings(context)
         if (intent == null || AlertPermissions.canUseFullScreenIntent(context)) {
             requestOverlayThenContinue()
@@ -249,10 +253,18 @@ fun PermissionsScreen(
                 // Recorded before the dialog, not after: what matters is that the senior was
                 // put in front of the question at all, so that the dashboard's repair pass
                 // never second-guesses an answer they already gave.
+                //
+                // AlertPermissions.markAsked() does NOT belong here too, despite looking
+                // symmetric to the line above -- that was the actual bug once. Its two grants
+                // (full-screen intent, overlay) are separate settings-page questions, asked
+                // several steps further down this chain in requestFullScreenThenContinue(),
+                // reached only if the runtime dialog below is actually granted. Marking it here
+                // meant a senior who denied the runtime dialog -- and so never reached those two
+                // settings pages at all -- still had AlertPermissions.wasAsked() return true
+                // forever, permanently skipping RepairAlertPermissions on the dashboard for
+                // exactly the senior it existed to catch. It is marked where it belongs, in
+                // requestFullScreenThenContinue() below.
                 LocationPermissionState.markAsked(context)
-                // Same reasoning: recorded because the senior was put in front of the question,
-                // so the dashboard's repair pass never second-guesses an answer already given.
-                AlertPermissions.markAsked(context)
                 launcher.launch(runtimePermissions.toTypedArray())
             }
         )
