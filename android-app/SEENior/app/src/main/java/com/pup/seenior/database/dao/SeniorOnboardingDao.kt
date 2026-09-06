@@ -46,4 +46,18 @@ interface SeniorOnboardingDao {
 
     @Query("UPDATE Senior_Onboarding SET language_preference = :language WHERE senior_id = :seniorId")
     suspend fun updateLanguagePreference(seniorId: Int, language: String)
+
+    /**
+     * The senior's language, re-emitted whenever it changes.
+     *
+     * A Flow rather than another suspend read because the setting has no Save button and no
+     * screen transition to hide behind: tapping "English" in Profile has to repaint the tabs, the
+     * Home screen and every screen behind them at once. Read once, the app went on speaking the
+     * old language until it was next launched, which reads as the toggle being broken.
+     *
+     * Nullable because the row does not exist until onboarding is submitted; collectors keep
+     * their default until it does.
+     */
+    @Query("SELECT language_preference FROM Senior_Onboarding WHERE senior_id = :seniorId LIMIT 1")
+    fun observeLanguagePreference(seniorId: Int): Flow<String?>
 }

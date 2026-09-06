@@ -24,6 +24,7 @@ import com.pup.seenior.network.SeniorCloudSync
 import com.pup.seenior.ui.onboarding.OnboardingOptions
 import com.pup.seenior.ui.wellness.WellnessMessages
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
@@ -181,6 +182,16 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             senior = loaded
             db.seniorOnboardingDao().getBySeniorId(loaded.seniorId)?.let {
                 language = it.languagePreference
+            }
+            // Collected, not read once. Profile -> Language writes straight through with no Save
+            // button, and everything this view model dresses -- the tabs, Home, and the screens
+            // behind them -- has to change with it rather than at the next app launch.
+            //
+            // Launched in its own coroutine because the alert Flow collected at the end of this
+            // method never returns.
+            launch {
+                db.seniorOnboardingDao().observeLanguagePreference(loaded.seniorId)
+                    .collect { preference -> preference?.let { language = it } }
             }
             refreshBattery()
             loadWillAlertContacts()
