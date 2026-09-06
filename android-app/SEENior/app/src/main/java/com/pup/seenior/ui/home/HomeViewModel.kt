@@ -16,6 +16,7 @@ import com.pup.seenior.database.SeniorAppDatabase
 import com.pup.seenior.database.entities.Alert
 import com.pup.seenior.database.entities.Contact
 import com.pup.seenior.database.entities.Senior
+import com.pup.seenior.debug.DatabaseExporter // DEBUG-ONLY, see DatabaseExporter.kt's KDoc
 import com.pup.seenior.detection.AnomalySimulator
 import com.pup.seenior.detection.FallDetector
 import com.pup.seenior.detection.FallSimulator
@@ -333,6 +334,19 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     fun clearSimulationMessage() {
         simulationMessage = null
+    }
+
+    /**
+     * DEBUG-ONLY. Hands the local database to the OS share sheet via [DatabaseExporter] -- see
+     * that file's KDoc for the full removal checklist. Delete this function and its button in
+     * HomeScreen.kt's SimulationRow along with everything else DatabaseExporter.kt names.
+     */
+    fun exportDatabase() {
+        simulationMessage = if (DatabaseExporter.export(getApplication(), db)) {
+            "Database exported. Choose where to send it."
+        } else {
+            "Export failed — see logcat (DatabaseExporter)."
+        }
     }
 
     /**

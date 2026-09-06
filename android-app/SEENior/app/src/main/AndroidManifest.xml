@@ -139,6 +139,21 @@
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_icon"
             android:resource="@drawable/ic_stat_seenior" />
+
+        <!-- DEBUG-ONLY. Backs DatabaseExporter's "Export Database" button on Home. Delete this
+             entire <provider> block, res/xml/file_paths.xml, DatabaseExporter.kt, and the button
+             itself before shipping to a real senior's phone. exported=false + grantUriPermissions
+             is the standard FileProvider pairing: nothing outside this app can query it directly,
+             and the one URI handed to the share sheet's chosen app is scoped to that grant alone. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
     </application>
 
 </manifest>

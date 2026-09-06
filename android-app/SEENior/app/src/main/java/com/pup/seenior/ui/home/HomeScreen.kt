@@ -436,6 +436,20 @@ private fun SimulationRow(viewModel: HomeViewModel) {
                 )
             }
         }
+        // DEBUG-ONLY. On its own row so it can't crowd or clip the two buttons above on a
+        // narrow screen. Delete along with everything DatabaseExporter.kt's KDoc names.
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Center
+        ) {
+            TextButton(onClick = { viewModel.exportDatabase() }) {
+                Text(
+                    text = "Export Database",
+                    color = SeniorColors.TextSecondary,
+                    fontSize = 14.sp
+                )
+            }
+        }
         viewModel.simulationMessage?.let { message ->
             Text(
                 text = message,

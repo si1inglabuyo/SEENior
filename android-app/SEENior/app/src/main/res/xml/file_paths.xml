@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  DEBUG-ONLY. Backs DatabaseExporter's "Export Database" button on Home (SimulationRow) - lets
+  the app hand its own local database to the OS share sheet without a computer. Delete this file,
+  the <provider> entry in AndroidManifest.xml that references it, DatabaseExporter.kt, and the
+  "Export Database" button before shipping to a real senior's phone.
+
+  Only exposes cache-path/exports/, where DatabaseExporter copies a checkpointed database file to
+  before sharing - never the live databases/ directory itself.
+-->
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <cache-path name="exports" path="exports/" />
+</paths>
