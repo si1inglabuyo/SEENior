@@ -238,6 +238,15 @@ class Alert(Base):
     location_cluster_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     escalation_steps: Mapped[list | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    # When the phone's own detector actually fired, client-supplied and nullable (older rows,
+    # and any client that omits it, have none). Deliberately NOT what escalation deadlines are
+    # computed from -- family_deadline()/db_now() in api/escalation.py anchor to created_at
+    # (the database's own clock) on purpose, because a client clock cannot be trusted (the
+    # whole reason db_now() exists). This column exists only so the delivery-time metric
+    # (CLAUDE.md §10) and the dashboard/family view can show the real moment something went
+    # wrong instead of the moment the phone finally reached the network -- on 2026-09-06 those
+    # two moments were 47 minutes apart and only created_at was ever recorded.
+    triggered_at: Mapped[datetime | None] = mapped_column(nullable=True)
     resolved_at: Mapped[datetime | None] = mapped_column(nullable=True)
 
     senior: Mapped["Senior"] = relationship(back_populates="alerts")

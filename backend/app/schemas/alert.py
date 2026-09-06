@@ -12,6 +12,10 @@ class AlertCreate(BaseModel):
     trigger_type: TriggerType
     location_cluster_id: str | None = None
     escalation_steps: list | None = None
+    # When the phone's own detector actually fired -- see migration 0009. Optional: an older
+    # client that doesn't send it must not fail the request, it just leaves the cloud with
+    # only created_at, same as every row before this field existed.
+    triggered_at: datetime | None = None
 
 
 class AlertOut(BaseModel):
@@ -22,6 +26,7 @@ class AlertOut(BaseModel):
     location_cluster_id: str | None
     escalation_steps: list | None
     created_at: datetime
+    triggered_at: datetime | None
     resolved_at: datetime | None
 
     model_config = {"from_attributes": True}

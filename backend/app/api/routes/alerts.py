@@ -116,6 +116,16 @@ async def create_alert(
     if senior is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Senior not found")
 
+    # Naive UTC, matching every other timestamp column in this schema (TIMESTAMP WITHOUT TIME
+    # ZONE) -- see db_now()'s docstring in api/escalation.py for why comparing a tz-aware and a
+    # naive clock against each other is exactly how a deadline ends up hours off. The client is
+    # expected to send an offset (Java's Instant.toString() always does); a bare value with no
+    # offset at all is treated as already UTC rather than rejected, since that is what every
+    # other client-facing datetime in this codebase already assumes.
+    triggered_at = payload.triggered_at
+    if triggered_at is not None and triggered_at.tzinfo is not None:
+        triggered_at = triggered_at.astimezone(timezone.utc).replace(tzinfo=None)
+
     alert = Alert(
         senior_id=senior.id,
         risk_level=payload.risk_level,
@@ -123,6 +133,7 @@ async def create_alert(
         status=AlertStatus.PENDING,
         location_cluster_id=payload.location_cluster_id,
         escalation_steps=payload.escalation_steps,
+        triggered_at=triggered_at,
     )
     db.add(alert)
     await db.commit()
