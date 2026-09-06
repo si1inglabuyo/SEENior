@@ -23,7 +23,6 @@ import com.pup.seenior.network.RetrofitClient
 import com.pup.seenior.network.SeniorCloudSync
 import com.pup.seenior.ui.onboarding.OnboardingOptions
 import com.pup.seenior.ui.wellness.WellnessMessages
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
@@ -97,15 +96,6 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private var answeredThisSession by mutableStateOf(emptySet<Int>())
 
     /**
-     * Ticks so [helpDelivery] can retire a delivery confirmation on time.
-     *
-     * Everything else on this screen changes only when the database does, and Room re-emits for
-     * free. "Delivered twenty minutes ago" becoming "delivered thirty-one minutes ago" is the one
-     * transition no write accompanies, so it needs a clock of its own.
-     */
-    private var now by mutableStateOf(System.currentTimeMillis())
-
-    /**
      * The alert the prompt is currently showing.
      *
      * Latched rather than recomputed from [openAlerts] on every emission. "I'm safe" sets the
@@ -130,11 +120,14 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
      * Undelivered outranks delivered, always: if anything at all is still stuck on this phone,
      * that is the fact the senior needs, even when a later alert did get through.
      *
-     * [HelpDelivery.Waiting] is never retired on age. It is an unkept promise, and it stays on
-     * screen until it becomes true. [HelpDelivery.Delivered] is retired after
-     * [DELIVERED_DISPLAY_MILLIS] — long enough to be read and believed, short enough that Home
-     * does not permanently advertise an old incident. (It would otherwise never clear at all:
-     * the family resolving in the cloud is not synced back to this device yet.)
+     * Neither state retires on its own. A previous version hid [HelpDelivery.Delivered] after
+     * half an hour so Home would not permanently advertise an old incident — but the family
+     * resolving an alert in the cloud is not synced back to this device, so there was no signal
+     * to retire *on*, and the timeout fired just as readily on an alert nobody had actually
+     * resolved. That let Home show the green "You're Safe" status card over a HIGH-risk alert
+     * still genuinely open. The only honest way to clear this now is the senior's own
+     * "I'm Fine Now" (see [standDown]) — this stays on screen, and Home's status card stays
+     * amber (HomeScreen.kt), until they use it or the alert is otherwise resolved.
      */
     val helpDelivery: HelpDelivery?
         get() {
@@ -142,10 +135,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             escalated.filterNot { it.isSynced }.maxByOrNull { it.triggeredAt }
                 ?.let { return HelpDelivery.Waiting(it) }
             return escalated
-                .filter { alert ->
-                    AlertEscalator.deliveredAt(alert)
-                        ?.let { now - it <= DELIVERED_DISPLAY_MILLIS } == true
-                }
+                .filter { AlertEscalator.deliveredAt(it) != null }
                 .maxByOrNull { it.triggeredAt }
                 ?.let { HelpDelivery.Delivered(it) }
         }
@@ -196,12 +186,6 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             refreshBattery()
             loadWillAlertContacts()
             restoreFamilyTabsIfPaired()
-            launch {
-                while (true) {
-                    delay(DELIVERY_TICK_MILLIS)
-                    now = System.currentTimeMillis()
-                }
-            }
             db.alertDao().getUnacknowledgedAlerts(loaded.seniorId).collectLatest { alerts ->
                 openAlerts = alerts
                 if (handling == null) handling = nextUnanswered()
@@ -411,19 +395,5 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     private companion object {
         const val LOW_BATTERY_PERCENT = 20
-
-        /**
-         * How long the delivery confirmation stays on Home.
-         *
-         * Half an hour: long enough that a senior who put the phone down after pressing SOS
-         * still finds the answer when they pick it up, short enough that Home is not permanently
-         * reporting an incident that is over. There is no better signal to end on yet -- the
-         * family resolving the alert in the cloud is never synced back to this device.
-         */
-        const val DELIVERED_DISPLAY_MILLIS = 30L * 60 * 1000
-
-        /** Coarse on purpose. It only has to retire a half-hour banner, and this wakes the
-         *  main thread for as long as the Home tab is open. */
-        const val DELIVERY_TICK_MILLIS = 30_000L
     }
 }

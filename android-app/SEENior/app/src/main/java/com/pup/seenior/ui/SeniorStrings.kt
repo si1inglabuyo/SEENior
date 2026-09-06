@@ -33,6 +33,11 @@ object SeniorStrings {
         val monitoringAtRisk: String,
         val monitoringActive: String,
         val chargeToContinue: String,
+        /* Shown on the same status card, in the same amber, when there is a HIGH-risk alert
+         * still open and unresolved -- outranks the battery message below, and specifically
+         * does not say "you're safe", which was the bug this pair of strings fixes. */
+        val helpPendingTitle: String,
+        val helpPendingBody: String,
         val batteryLow: String,
         val batteryGood: String,
         val emergencyAlert: String,
@@ -66,6 +71,8 @@ object SeniorStrings {
         monitoringAtRisk = "Monitoring At Risk",
         monitoringActive = "Monitoring is active",
         chargeToContinue = "Charge your phone to continue\nemergency monitoring",
+        helpPendingTitle = "Help Request Still Open",
+        helpPendingBody = "Your family hasn't confirmed yet. Tap below if you're okay now.",
         batteryLow = "Battery - Low",
         batteryGood = "Battery - Good",
         emergencyAlert = "EMERGENCY ALERT",
@@ -89,6 +96,8 @@ object SeniorStrings {
         monitoringAtRisk = "May Problema sa Pagbantay",
         monitoringActive = "Aktibo po ang pagbantay",
         chargeToContinue = "I-charge po ang inyong telepono\nupang magpatuloy ang pagbantay",
+        helpPendingTitle = "Bukas Pa ang Kahilingan ng Tulong",
+        helpPendingBody = "Hindi pa po kumpirmado ng inyong pamilya. Pindutin sa ibaba kung ayos na po kayo.",
         batteryLow = "Baterya - Mababa",
         batteryGood = "Baterya - Maayos",
         emergencyAlert = "ALERTONG EMERGENCY",

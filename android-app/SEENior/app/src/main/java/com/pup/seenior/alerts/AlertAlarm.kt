@@ -46,15 +46,20 @@ object AlertAlarm {
     private var player: MediaPlayer? = null
     private var vibrator: Vibrator? = null
 
+    /** Which open alerts are currently claiming the alarm. Silencing must wait until this is
+     *  empty -- answering one alert must never silence a different, still-open one. */
+    private val activeAlertIds = mutableSetOf<Int>()
+
     private val handler = Handler(Looper.getMainLooper())
     private val autoStop = Runnable {
         Log.w(TAG, "stopped on the safety ceiling — a caller failed to stop it")
-        stop()
+        forceStopAll()
     }
 
     /** Idempotent: a second alert arriving mid-alarm joins the one already sounding. */
     @Synchronized
-    fun start(context: Context) {
+    fun start(context: Context, alertId: Int) {
+        activeAlertIds += alertId
         if (player != null || vibrator != null) return
         val app = context.applicationContext
 
@@ -94,9 +99,29 @@ object AlertAlarm {
         handler.postDelayed(autoStop, MAX_DURATION_MS)
     }
 
-    /** Safe to call when nothing is sounding, and safe to call twice. */
+    /**
+     * Safe to call when nothing is sounding, and safe to call twice.
+     *
+     * Only silences once every alert claiming the alarm has been stopped -- a second, different
+     * alert can arrive while the first is still being answered, and closing that first one must
+     * not silence the one still genuinely waiting.
+     */
     @Synchronized
-    fun stop() {
+    fun stop(alertId: Int) {
+        activeAlertIds -= alertId
+        if (activeAlertIds.isEmpty()) stopSound()
+    }
+
+    /** The safety ceiling's hard stop: independent of every caller and every alert this alarm
+     *  was ever asked to track, per [MAX_DURATION_MS]'s KDoc. Whatever is left in
+     *  [activeAlertIds] at that point is presumed stale rather than trusted. */
+    @Synchronized
+    private fun forceStopAll() {
+        activeAlertIds.clear()
+        stopSound()
+    }
+
+    private fun stopSound() {
         handler.removeCallbacks(autoStop)
         player?.let { p -> runCatching { p.stop(); p.release() } }
         player = null

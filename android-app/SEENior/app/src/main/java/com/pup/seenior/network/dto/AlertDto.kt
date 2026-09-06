@@ -10,6 +10,7 @@ data class AlertDto(
     val locationClusterId: String?,
     val escalationSteps: List<Map<String, String>>?,
     val createdAt: String,
+    val triggeredAt: String?,
     val resolvedAt: String?
 )
 
@@ -28,7 +29,14 @@ data class CreateAlertRequest(
     val riskLevel: String,
     val triggerType: String,
     val locationClusterId: String? = null,
-    val escalationSteps: List<Map<String, String>>? = null
+    val escalationSteps: List<Map<String, String>>? = null,
+    // The moment this device's own detector fired -- Alert.triggeredAt, converted to an
+    // Instant so it always carries an explicit UTC offset (java.time.Instant.toString()
+    // always ends in "Z"). Distinct from created_at, which the server stamps itself when
+    // this request arrives; on 2026-09-06 those were 47 minutes apart with nothing on the
+    // cloud side able to say so. Null only for the retry path, where the original alert
+    // predates this field and no local record of the true moment survives to resend.
+    val triggeredAt: String? = null
 )
 
 /** Mirrors backend AlertDispatchRequest (family requesting a barangay welfare check). */

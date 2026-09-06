@@ -48,6 +48,9 @@ object WellnessMessages {
         val sosCancel: String,
         val sosAutoFooter: String,
         val sosBarangayRole: String,
+        /* Also shown on the non-SOS AlertSentBody screen when willAlertContacts is known-empty —
+         * the wording doesn't mention SOS, so it reads fine there too. Kept as one field rather
+         * than duplicated so the two screens can't drift apart on this claim. */
         val sosNoContacts: String,
         /* The Home tab's standing report on an alert the senior has already raised. Separate
          * from alertSentBody, which is a one-off confirmation shown for five seconds on the way

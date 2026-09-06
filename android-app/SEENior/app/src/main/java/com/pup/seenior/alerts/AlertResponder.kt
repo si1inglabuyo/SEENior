@@ -88,7 +88,7 @@ object AlertResponder {
         // function at all — MedianMadDetector.recordLowRisk writes those straight to the table
         // and tells nobody — so anything arriving here is owed an answer and may make noise
         // asking for one.
-        AlertAlarm.start(context)
+        AlertAlarm.start(context, alert.alertId)
 
         // With the app open the wellness prompt takes over the screen by itself; a notification
         // on top of it would only be noise.

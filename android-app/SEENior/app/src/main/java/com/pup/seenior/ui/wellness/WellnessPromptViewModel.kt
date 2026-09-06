@@ -113,11 +113,13 @@ class WellnessPromptViewModel(application: Application) : AndroidViewModel(appli
 
     /** "I'm safe" / SOS "Cancel" — closes the alert without notifying anyone. */
     fun markSafe(onFinished: () -> Unit) {
-        // First statement, and outside the coroutine on purpose: the senior has just
-        // pressed a button, so the noise stops on that press rather than when a database
-        // write and a network call have finished.
-        AlertAlarm.stop()
         val current = alert ?: return
+        // Still the first meaningful action, outside the coroutine on purpose: the senior has
+        // just pressed a button, so the noise for THIS alert stops on that press rather than
+        // when a database write and a network call have finished. Reading `current` above costs
+        // nothing -- it's already-held state, not a DB or network read -- and AlertAlarm needs
+        // the id so a different, still-open alert is not silenced by this one being answered.
+        AlertAlarm.stop(current.alertId)
         if (stage != PromptStage.PROMPT) return
         stage = PromptStage.ACKNOWLEDGED
 
@@ -157,11 +159,12 @@ class WellnessPromptViewModel(application: Application) : AndroidViewModel(appli
      * would leave a relative looking at an emergency the senior has personally called off.
      */
     fun standDown(onFinished: () -> Unit) {
-        // First statement, and outside the coroutine on purpose: the senior has just
-        // pressed a button, so the noise stops on that press rather than when a database
-        // write and a network call have finished.
-        AlertAlarm.stop()
         val current = alert ?: return
+        // Still the first meaningful action, outside the coroutine on purpose: the senior has
+        // just pressed a button, so the noise for THIS alert stops on that press rather than
+        // when a database write and a network call have finished. See markSafe's comment for
+        // why reading `current` first costs nothing and why AlertAlarm needs the id.
+        AlertAlarm.stop(current.alertId)
         if (stage != PromptStage.SENT) return
         stage = PromptStage.ACKNOWLEDGED
 
@@ -184,12 +187,13 @@ class WellnessPromptViewModel(application: Application) : AndroidViewModel(appli
 
     /** "I need help", or the response window expiring. */
     fun escalate(onFinished: () -> Unit) {
-        // First statement, and outside the coroutine on purpose. Unlike the two above this is
-        // also the timeout path, so the alarm must stop whether the senior pressed something or
-        // simply never answered — either way the question has been asked and the chain has moved
-        // on to the family.
-        AlertAlarm.stop()
         val current = alert ?: return
+        // Still the first meaningful action. Unlike the two functions above this is also the
+        // timeout path, so the alarm must stop whether the senior pressed something or simply
+        // never answered — either way the question has been asked for THIS alert and the chain
+        // has moved on to the family. A different, still-open alert must keep sounding, hence
+        // the id (see markSafe's comment for why reading `current` first costs nothing).
+        AlertAlarm.stop(current.alertId)
         if (isSending) return
         isSending = true
 

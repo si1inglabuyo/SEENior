@@ -88,7 +88,7 @@ fun WellnessPromptScreen(
             }
         PromptStage.ACKNOWLEDGED ->
             AcknowledgedBody(if (viewModel.stoodDown) copy.standDownDone else copy.acknowledged)
-        PromptStage.SENT -> AlertSentBody(copy, viewModel, onFinished)
+        PromptStage.SENT -> AlertSentBody(copy, viewModel, willAlertContacts, willAlertContactsKnown, onFinished)
     }
 }
 
@@ -290,6 +290,8 @@ private fun AcknowledgedBody(message: String) {
 private fun AlertSentBody(
     copy: WellnessMessages.Copy,
     viewModel: WellnessPromptViewModel,
+    willAlertContacts: List<Contact>,
+    willAlertContactsKnown: Boolean,
     onFinished: () -> Unit
 ) {
     Surface(modifier = Modifier.fillMaxSize(), color = AlertRed) {
@@ -325,10 +327,15 @@ private fun AlertSentBody(
             Text(
                 // The delivery warning replaces the reassuring copy rather than sitting beside
                 // it: telling the senior their contacts were notified when the push failed
-                // would be a lie at the worst possible moment.
+                // would be a lie at the worst possible moment. Same reasoning for an empty,
+                // known contact list — this senior has none to notify, only the barangay tier
+                // fires (CLAUDE.md §7's no_family_contact path), so claiming "your contacts
+                // have been notified" would be false even though delivery itself succeeded.
                 text = when {
                     viewModel.isDelivering -> copy.delivering
-                    else -> viewModel.deliveryWarning ?: copy.alertSentBody
+                    else -> viewModel.deliveryWarning
+                        ?: if (willAlertContacts.isEmpty() && willAlertContactsKnown) copy.sosNoContacts
+                        else copy.alertSentBody
                 },
                 color = Color.White,
                 fontSize = 16.sp,

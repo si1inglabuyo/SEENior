@@ -102,7 +102,14 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                 )
 
                 Spacer(Modifier.height(14.dp))
-                StatusCard(atRisk = viewModel.isMonitoringAtRisk, copy = copy)
+                // helpPending outranks battery: a HIGH-risk alert still genuinely open must never
+                // read as "You're Safe" just because the phone itself is fine (see
+                // HomeViewModel.helpDelivery's KDoc for why this doesn't retire on a timer).
+                StatusCard(
+                    batteryAtRisk = viewModel.isMonitoringAtRisk,
+                    helpPending = viewModel.helpDelivery != null,
+                    copy = copy
+                )
 
                 // Directly under the status card, because it contradicts it. "You're Safe /
                 // Monitoring is active" is about passive watching; this is about help the senior
@@ -212,10 +219,24 @@ private fun HelpDeliveryCard(
 }
 
 @Composable
-private fun StatusCard(atRisk: Boolean, copy: SeniorStrings.Copy) {
+private fun StatusCard(batteryAtRisk: Boolean, helpPending: Boolean, copy: SeniorStrings.Copy) {
+    val atRisk = batteryAtRisk || helpPending
     val bg = if (atRisk) WarningAmberBg else SeniorColors.GreenLightBg
     val border = if (atRisk) WarningAmber else SeniorColors.GreenBorder
     val dot = if (atRisk) WarningAmber else SeniorColors.Green
+
+    // helpPending takes priority: an open alert is the more urgent fact, and this card must
+    // never claim "You're Safe" while one is outstanding, regardless of battery.
+    val title = when {
+        helpPending -> copy.helpPendingTitle
+        batteryAtRisk -> copy.monitoringAtRisk
+        else -> copy.youAreSafe
+    }
+    val body = when {
+        helpPending -> copy.helpPendingBody
+        batteryAtRisk -> copy.chargeToContinue
+        else -> copy.monitoringActive
+    }
 
     Row(
         modifier = Modifier
@@ -230,13 +251,13 @@ private fun StatusCard(atRisk: Boolean, copy: SeniorStrings.Copy) {
         Spacer(Modifier.size(14.dp))
         Column {
             Text(
-                text = if (atRisk) copy.monitoringAtRisk else copy.youAreSafe,
+                text = title,
                 color = if (atRisk) WarningAmber else SeniorColors.Green,
                 fontSize = 19.sp,
                 fontWeight = FontWeight.Bold
             )
             Text(
-                text = if (atRisk) copy.chargeToContinue else copy.monitoringActive,
+                text = body,
                 color = SeniorColors.TextPrimary,
                 fontSize = 14.sp,
                 lineHeight = 19.sp

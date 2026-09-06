@@ -1,5 +1,6 @@
 package com.pup.seenior.alerts
 
+import android.util.Log
 import com.pup.seenior.database.SeniorAppDatabase
 import com.pup.seenior.database.entities.Alert
 import com.pup.seenior.network.RetrofitClient
@@ -13,6 +14,7 @@ import kotlinx.coroutines.sync.withLock
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
+import java.time.Instant
 
 /**
  * The family tier of the escalation chain (CLAUDE.md §7), independent of any screen.
@@ -27,6 +29,8 @@ import java.io.IOException
  * counting to — and neither may produce a duplicate timeline entry or a second cloud alert.
  */
 object AlertEscalator {
+
+    private const val TAG = "AlertEscalator"
 
     /**
      * Serialises the whole read-post-mark sequence in [escalateToFamily].
@@ -138,8 +142,9 @@ object AlertEscalator {
         val alert = db.alertDao().getById(alertId) ?: return Outcome.Failed
 
         // The alarm existed to fetch an answer from the senior. That window has closed and the
-        // family is being told instead, so the noise has nobody left to summon.
-        AlertAlarm.stop()
+        // family is being told instead, so the noise has nobody left to summon for THIS alert --
+        // a different alert can still be open and waiting, and must keep sounding.
+        AlertAlarm.stop(alertId)
 
         // Carried forward rather than re-read from `alert` each time: appending the delivery
         // step to the stale snapshot below would silently drop the escalation step written here.
@@ -168,7 +173,11 @@ object AlertEscalator {
                         // Captured at alert-trigger time only, as a geohash cell, never
                         // coordinates (CLAUDE.md §11). Null when no fix could be had, which is a
                         // normal outcome.
-                        locationClusterId = current?.locationClusterId
+                        locationClusterId = current?.locationClusterId,
+                        // Not re-read from `current` like the two fields above: unlike risk
+                        // level and location, the trigger moment itself never changes between
+                        // the snapshot at the top of this function and now.
+                        triggeredAt = Instant.ofEpochMilli(alert.triggeredAt).toString()
                     )
                 )
             }
@@ -181,8 +190,17 @@ object AlertEscalator {
             )
             Outcome.Delivered
         } catch (e: IOException) {
+            // Expected and common (no signal, DNS not resolving, the Render free-tier instance
+            // waking up) — logged at a level that will not itself page anyone, but this is the
+            // one place the 2026-09-06 47-minute delivery lag could otherwise have left a trace
+            // and did not, because nothing here wrote one.
+            Log.w(TAG, "escalateToFamily offline for alert ${alert.alertId}", e)
             Outcome.Offline
         } catch (e: Exception) {
+            // Anything else — a malformed response, a server-side rejection, a bug in this
+            // method itself — is the case most worth a stack trace, since "Failed" alone gives
+            // EscalationWorker's retry nothing to diagnose from afterward.
+            Log.e(TAG, "escalateToFamily failed for alert ${alert.alertId}", e)
             Outcome.Failed
         }
     }

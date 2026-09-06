@@ -69,7 +69,13 @@ class EscalationWorker(
                         .setRequiredNetworkType(NetworkType.CONNECTED)
                         .build()
                 )
-                .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
+                // LINEAR, not the WorkManager default of EXPONENTIAL: doubling from a 30s base
+                // put the 7th retry ~31 minutes after the first, on the one job whose entire
+                // purpose is a 30-second delivery target (CLAUDE.md §10). Linear keeps the same
+                // 30s base but only adds it each time -- 30s, 60s, 90s, ... -- so the 7th retry
+                // lands ~10.5 minutes in instead. Exponential is the right shape for a job
+                // nobody is hurt by waiting an hour on; this is not that job.
+                .setBackoffCriteria(BackoffPolicy.LINEAR, 30, TimeUnit.SECONDS)
                 .build()
 
             WorkManager.getInstance(context).enqueueUniqueWork(
