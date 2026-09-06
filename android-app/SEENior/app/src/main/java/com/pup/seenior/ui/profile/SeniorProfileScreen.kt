@@ -290,7 +290,7 @@ private fun SeniorEditProfileScreen(
                     selected = viewModel.gender,
                     options = OnboardingOptions.genders,
                     onSelect = { viewModel.gender = it },
-                    optionLabel = { it },
+                    optionLabel = { formCopy.gender(it) },
                     placeholder = formCopy.selectPlaceholder,
                     modifier = Modifier.weight(1f)
                 )
@@ -317,7 +317,7 @@ private fun SeniorEditProfileScreen(
                 selected = viewModel.livingArrangementLabel,
                 options = OnboardingOptions.livingArrangements.map { it.first },
                 onSelect = { viewModel.livingArrangementLabel = it },
-                optionLabel = { it },
+                optionLabel = { formCopy.livingArrangement(it) },
                 placeholder = formCopy.selectPlaceholder
             )
 

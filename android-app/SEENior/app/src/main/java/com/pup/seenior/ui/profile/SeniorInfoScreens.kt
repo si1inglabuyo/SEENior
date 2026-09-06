@@ -332,8 +332,9 @@ private fun LegalBody(title: String, sections: List<OnboardingStrings.Section>) 
  */
 @Composable
 fun SeniorLanguageScreen(viewModel: SeniorProfileViewModel, onBack: () -> Unit) {
-    InfoScaffold(title = "Language / Wika", onBack = onBack) {
-        InfoCard(heading = "Choose your language") {
+    val profileCopy = LocalProfileCopy.current
+    InfoScaffold(title = profileCopy.languageRow, onBack = onBack) {
+        InfoCard(heading = profileCopy.languageChooseHeading) {
             InfoBody("Your wellness check and alerts will use this language.")
             Spacer(modifier = Modifier.height(6.dp))
             InfoBody("Ito ang wikang gagamitin sa pagsusuri ng inyong kalagayan at sa mga alerto.")

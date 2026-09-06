@@ -28,6 +28,10 @@ object ProfileStrings {
         val editProfileSubtitle: String,
         val languageRow: String,
         val languageRowSubtitle: String,
+        /* The Profile -> Language screen's own scaffold title reuses languageRow directly
+         * (same bilingual "Language / Wika" label) rather than duplicating it here. This is
+         * that screen's card heading only. */
+        val languageChooseHeading: String,
         val sectionMyContacts: String,
         val familyContacts: String,
         val familyContactsSubtitle: String,
@@ -98,6 +102,7 @@ object ProfileStrings {
         editProfileSubtitle = "First Name, Surname, Age, Gender, Mobile Number…",
         languageRow = "Language / Wika",
         languageRowSubtitle = "English, Filipino / Tagalog",
+        languageChooseHeading = "Choose your language",
         sectionMyContacts = "MY CONTACTS",
         familyContacts = "Family contacts",
         familyContactsSubtitle = "Add someone to be notified before your barangay",
@@ -155,6 +160,7 @@ object ProfileStrings {
         editProfileSubtitle = "Pangalan, Apelyido, Edad, Kasarian, Numero ng Cellphone…",
         languageRow = "Language / Wika",
         languageRowSubtitle = "English, Filipino / Tagalog",
+        languageChooseHeading = "Piliin ang Inyong Wika",
         sectionMyContacts = "AKING MGA CONTACT",
         familyContacts = "Mga contact sa pamilya",
         familyContactsSubtitle = "Magdagdag po ng aabisuhan bago ang inyong barangay",
