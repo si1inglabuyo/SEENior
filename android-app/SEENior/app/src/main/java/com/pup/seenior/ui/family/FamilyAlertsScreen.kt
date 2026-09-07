@@ -50,6 +50,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.pup.seenior.location.Geohash
 import com.pup.seenior.network.dto.AlertDto
 import com.pup.seenior.network.dto.ContactDto
 import com.pup.seenior.network.dto.SeniorDto
@@ -435,17 +436,26 @@ private fun AlertLocationContent(alert: AlertDto, senior: SeniorDto, onBack: () 
                 interactive = true
             )
             Spacer(Modifier.height(20.dp))
-            // The alert carries one geohash cell and no live coordinate stream (CLAUDE.md §11 —
-            // one fix per alert, nothing at all on an ordinary day), so there is nothing to
-            // navigate *along*. This sends the family to the senior's registered address, which
-            // is the stand-in that stays true even when no fix was captured. The map above
-            // already draws the cell itself when there is one.
+            // Routes to the location captured for THIS alert when there is one (CLAUDE.md §11 —
+            // one fix per alert, decoded here from its geohash cell), so help goes where the
+            // senior actually was. Falls back to the registered home address only when no fix
+            // was captured. The map above already draws the same cell.
+            val alertCell = alert.locationClusterId?.let(Geohash::decode)
             ColorPillButton(
-                "Navigate here",
+                if (alertCell != null) "Navigate here" else "Navigate to home address",
                 color = FamilyColors.Blue,
                 icon = Icons.Filled.Navigation,
                 onClick = {
-                    val uri = Uri.parse("geo:0,0?q=" + Uri.encode(senior.address))
+                    val uri = if (alertCell != null) {
+                        val lat = alertCell.centerLatitude
+                        val lon = alertCell.centerLongitude
+                        Uri.parse(
+                            "geo:$lat,$lon?q=$lat,$lon(" +
+                                Uri.encode("${senior.firstName}'s alert location") + ")"
+                        )
+                    } else {
+                        Uri.parse("geo:0,0?q=" + Uri.encode(senior.address))
+                    }
                     context.startActivity(Intent(Intent.ACTION_VIEW, uri))
                 }
             )
