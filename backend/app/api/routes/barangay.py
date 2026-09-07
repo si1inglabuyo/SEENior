@@ -61,6 +61,18 @@ def _assigned_barangay(responder: User) -> str:
     return responder.barangay
 
 
+def _display_gender(gender: str | None) -> str | None:
+    """Normalise the stored gender for display, or None if the senior never gave one.
+
+    `seniors.gender` is NOT NULL with a "unknown" server default, so a skipped answer
+    arrives as "unknown" (or blank) rather than NULL -- both mean "not provided" and the
+    responder screen omits the line.
+    """
+    if not gender or gender.strip().lower() in {"unknown", "unspecified", "n/a"}:
+        return None
+    return gender.strip().capitalize()
+
+
 def _alert_out(alert: Alert) -> BarangayAlertOut:
     senior = alert.senior
     return BarangayAlertOut(
@@ -74,6 +86,7 @@ def _alert_out(alert: Alert) -> BarangayAlertOut:
         senior_sync_id=senior.sync_id,
         senior_name=f"{senior.first_name} {senior.last_name}",
         senior_age=senior.age,
+        senior_gender=_display_gender(senior.gender),
         senior_address=senior.address,
         senior_mobile=senior.mobile_number,
         senior_has_family_contact=has_family_tier(senior),
@@ -388,6 +401,7 @@ async def barangay_stats(
     ]
 
     outcomes = Counter(row.status.value for row in rows)
+    alert_types = Counter(row.trigger_type.value for row in rows)
 
     # Dashboard stat-card figures, all derived from the same week window already fetched --
     # today and yesterday both sit inside it, so no extra alert query is needed.
@@ -422,6 +436,7 @@ async def barangay_stats(
         open_incidents=open_result.scalar_one(),
         alerts_this_week=days,
         outcomes=dict(outcomes),
+        alert_types=dict(alert_types),
         resolved_today=resolved_today,
         sos_today=len(sos_today_times),
         sos_last_at=sos_today_times[-1] if sos_today_times else None,

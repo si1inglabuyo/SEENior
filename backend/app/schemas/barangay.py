@@ -29,6 +29,9 @@ class BarangayAlertOut(BaseModel):
     senior_sync_id: UUID
     senior_name: str
     senior_age: int
+    # None when the senior skipped gender at onboarding (older rows carry the "unknown"
+    # server default); the responder screen simply omits the line in that case.
+    senior_gender: str | None
     senior_address: str
     senior_mobile: str
 
@@ -112,6 +115,12 @@ class BarangayStats(BaseModel):
     open_incidents: int
     alerts_this_week: list[DayCount]
     outcomes: dict[str, int]
+
+    # This week's alerts broken down by `trigger_type` (inactivity / movement / screen_idle /
+    # charging / sos / ml_flag / fall_pattern), for the dashboard's "Alerts by Type" chart.
+    # Same week window and same non-pending rows the bar chart and outcome donut use. Keyed
+    # by the raw code; the dashboard maps each to a short human label.
+    alert_types: dict[str, int] = {}
 
     # Dashboard stat-card figures. All scoped to this responder's barangay and reckoned
     # against the database clock (see db_now) so "today" means the same day the stored

@@ -60,7 +60,7 @@ h4 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase;
 }
 .sidebar-brand { display: flex; gap: 10px; align-items: center; padding: 4px 8px 18px;
   border-bottom: 1px solid var(--line); margin-bottom: 12px; }
-.logo-mark { width: 36px; height: 36px; flex: none; object-fit: contain; }
+.logo-mark { width: 60px; height: 100px; flex: none; object-fit: cover; }
 .sidebar-word { margin: 0; font-weight: 800; color: var(--brand); font-size: 18px; line-height: 1.1; }
 .sidebar-tag { margin: 2px 0 0; font-size: 11px; color: var(--muted); }
 
@@ -134,6 +134,15 @@ h4 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase;
   border-bottom: 1px solid var(--line);
 }
 .alert-row:last-child { border-bottom: 0; }
+/* Alerts Today rows open the shared Details modal on click, same as the Alerts queue. */
+.alert-row-clickable {
+  cursor: pointer; border-radius: 6px;
+  transition: background-color .12s ease, box-shadow .12s ease;
+}
+.alert-row-clickable:hover,
+.alert-row-clickable:focus-visible {
+  background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); outline: none;
+}
 .avatar {
   flex: none; width: 40px; height: 40px; border-radius: 50%;
   background: #6bbf73; color: #fff; display: grid; place-items: center;

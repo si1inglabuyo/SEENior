@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { triggerLabel } from '../labels'
 import { initials, dateTimeLabel } from '../format'
 import { canActOn } from '../alertActions'
+import { matchesStatus } from '../historyFilters'
 import Modal from './Modal'
 
 // "Last Known Location" deliberately does not plot a pin on a real map. CLAUDE.md §11 is
@@ -89,7 +90,16 @@ export default function AlertDetailsModal({ alert, onClose, onAct, actionBusy })
           <h2 id="alert-details-title" className="details-name">
             {alert.senior_name}
           </h2>
-          <p className="details-age">Age: {alert.senior_age}</p>
+          {/* Age and gender are only relevant while a responder is actively deciding how to
+              reach this senior -- hidden once the incident is closed, same as the location
+              panel below. Gender shows only when the senior gave one at onboarding (the API
+              sends null otherwise). */}
+          {matchesStatus(alert, 'active') && (
+            <p className="details-age">
+              Age: {alert.senior_age}
+              {alert.senior_gender ? ` · ${alert.senior_gender}` : ''}
+            </p>
+          )}
         </div>
       </div>
 
@@ -104,8 +114,17 @@ export default function AlertDetailsModal({ alert, onClose, onAct, actionBusy })
         </div>
       </div>
 
-      <h3 className="details-location-title">Last Known Location</h3>
-      <LocationPreview address={alert.senior_address} clusterId={alert.location_cluster_id} />
+      {/* Last Known Location is an operational aid for a responder who still has to reach
+          the senior -- it only makes sense while the incident is open. Once it's resolved or
+          marked a false positive (all of Alert History, and the closed rows on the Alerts
+          tab) there is nobody to dispatch, so the panel is hidden. "Active" is the same
+          escalated/acknowledged split the history filter uses. */}
+      {matchesStatus(alert, 'active') && (
+        <>
+          <h3 className="details-location-title">Last Known Location</h3>
+          <LocationPreview address={alert.senior_address} clusterId={alert.location_cluster_id} />
+        </>
+      )}
 
       {onAct && <IncidentActions alert={alert} onAct={onAct} busy={actionBusy} />}
     </Modal>
