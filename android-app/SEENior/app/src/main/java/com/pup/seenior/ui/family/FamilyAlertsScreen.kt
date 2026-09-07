@@ -445,22 +445,34 @@ private fun AlertLocationContent(alert: AlertDto, senior: SeniorDto, onBack: () 
                 if (alertCell != null) "Navigate here" else "Navigate to home address",
                 color = FamilyColors.Blue,
                 icon = Icons.Filled.Navigation,
-                onClick = {
-                    val uri = if (alertCell != null) {
-                        val lat = alertCell.centerLatitude
-                        val lon = alertCell.centerLongitude
-                        Uri.parse(
-                            "geo:$lat,$lon?q=$lat,$lon(" +
-                                Uri.encode("${senior.firstName}'s alert location") + ")"
-                        )
-                    } else {
-                        Uri.parse("geo:0,0?q=" + Uri.encode(senior.address))
-                    }
-                    context.startActivity(Intent(Intent.ACTION_VIEW, uri))
-                }
+                onClick = { openMaps(context, alertCell, senior.address) }
             )
         }
     }
+}
+
+/**
+ * Opens a maps app on the alert's captured location (a decoded geohash [cell]) if there is one,
+ * otherwise on the senior's registered [address].
+ *
+ * Tries a `geo:` intent first — it lets the OS offer a chooser when several maps apps are
+ * installed — then falls back to a Google Maps web URL, which a browser can always handle. Both
+ * are wrapped: a device with no maps app AND no browser must not crash the app from a tap on a
+ * button during an emergency (a bare emulator is exactly that device).
+ */
+private fun openMaps(context: android.content.Context, cell: Geohash.Cell?, address: String) {
+    val geo: Uri
+    val web: Uri
+    if (cell != null) {
+        val q = "${cell.centerLatitude},${cell.centerLongitude}"
+        geo = Uri.parse("geo:$q?q=$q")
+        web = Uri.parse("https://www.google.com/maps/search/?api=1&query=$q")
+    } else {
+        geo = Uri.parse("geo:0,0?q=" + Uri.encode(address))
+        web = Uri.parse("https://www.google.com/maps/search/?api=1&query=" + Uri.encode(address))
+    }
+    runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, geo)) }
+        .recoverCatching { context.startActivity(Intent(Intent.ACTION_VIEW, web)) }
 }
 
 @Composable

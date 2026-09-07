@@ -19,6 +19,7 @@ import com.pup.seenior.validation.PhilippinePhone
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import java.io.IOException
 import com.pup.seenior.ui.wellness.WellnessMessages
 
@@ -228,10 +229,14 @@ class SeniorProfileViewModel(application: Application) : AndroidViewModel(applic
         viewModelScope.launch {
             val app = getApplication<Application>()
 
-            // 1. Best-effort cloud soft-delete + contact unlink.
+            // 1. Best-effort cloud soft-delete + contact unlink. Capped so a hung network
+            //    cannot leave the senior staring at "Deleting…" for the full OkHttp timeout —
+            //    the wipe below is the part that matters and must not wait on this.
             runCatching {
-                cloudSync.withSyncIdOrNull()?.let { syncId ->
-                    RetrofitClient.api.deleteSenior(syncId, AccountDeletionRequest(reason, note))
+                withTimeoutOrNull(8_000) {
+                    cloudSync.withSyncIdOrNull()?.let { syncId ->
+                        RetrofitClient.api.deleteSenior(syncId, AccountDeletionRequest(reason, note))
+                    }
                 }
             }
 

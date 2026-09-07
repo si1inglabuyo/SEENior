@@ -186,7 +186,16 @@ fun AlertLocationMap(
                 )
             }
 
-            null -> Unit
+            // No cluster, and the address could not be geocoded to a point — still give the
+            // family the address in words rather than a bare placeholder.
+            null -> if (!resolving && registeredAddress.isNotBlank()) {
+                Text(
+                    text = "Home address: $registeredAddress",
+                    color = FamilyColors.TextPrimary,
+                    fontSize = 13.sp,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+            }
         }
     }
 }

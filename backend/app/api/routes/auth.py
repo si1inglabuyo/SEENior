@@ -196,8 +196,9 @@ async def delete_current_account(
         Contact.is_active() / has_family_tier() both filter on unlinked_at IS NULL;
       * their device tokens are dropped, so this handset stops receiving pushes
         that name a senior (CLAUDE.md §11);
-      * username / email / google_sub are tombstoned with a "+deletedNNN" suffix,
-        freeing those unique slots for a fresh sign-up later with no schema change.
+      * username / email / google_sub are tombstoned with a "+del<id>.<ts>" tag
+        (front-truncated to the column limit), freeing those unique slots for a
+        fresh sign-up later with no schema change.
 
     Idempotent: a repeat call on an already-deleted account is a no-op, the same
     way a repeated unlink is.
@@ -206,17 +207,20 @@ async def delete_current_account(
         return
 
     now = datetime.now(timezone.utc).replace(tzinfo=None)
-    suffix = f"+deleted{int(now.timestamp())}"
+    # The id makes the tag unique on its own, so truncating the front of a long value
+    # (username is only String(64), and for a family account it IS the email) still leaves
+    # a value that cannot collide with a fresh sign-up. Keeping the tail keeps the tag intact.
+    tag = f"+del{current_user.id}.{int(now.timestamp())}"
 
     current_user.deleted_at = now
     current_user.deletion_reason = payload.reason
     current_user.deletion_note = payload.note
     current_user.is_active = False
-    current_user.username = f"{current_user.username}{suffix}"
+    current_user.username = f"{current_user.username}{tag}"[-64:]
     if current_user.email:
-        current_user.email = f"{current_user.email}{suffix}"
+        current_user.email = f"{current_user.email}{tag}"[-255:]
     if current_user.google_sub:
-        current_user.google_sub = f"{current_user.google_sub}{suffix}"
+        current_user.google_sub = f"{current_user.google_sub}{tag}"[-255:]
 
     links = await db.execute(
         select(Contact).where(Contact.user_id == current_user.id, Contact.is_active())
