@@ -333,7 +333,11 @@ h4 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase;
 }
 .senior-row:last-child { border-bottom: 0; }
 .senior-row-name { margin: 0; font-weight: 700; }
-.senior-row-btn { margin-left: auto; }
+.senior-row .status-badge { margin-left: auto; }
+/* Whole row opens the senior's record now. Same accent hover/focus as the alert rows. */
+.senior-row-clickable { cursor: pointer; transition: background-color .12s ease; }
+.senior-row-clickable:hover,
+.senior-row-clickable:focus-visible { background: var(--accent-soft); outline: none; }
 
 /* --- senior detail --- */
 .senior-detail { display: flex; flex-direction: column; gap: 16px; }

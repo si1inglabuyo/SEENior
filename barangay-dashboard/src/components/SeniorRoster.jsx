@@ -172,7 +172,19 @@ export default function SeniorRoster({ onSessionLost }) {
             {visible.map((senior) => {
               const off = deactivated.has(senior.sync_id)
               return (
-                <li key={senior.sync_id} className="senior-row">
+                <li
+                  key={senior.sync_id}
+                  className="senior-row senior-row-clickable"
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setSelected(senior.sync_id)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      setSelected(senior.sync_id)
+                    }
+                  }}
+                >
                   <span className="avatar">
                     {initials(`${senior.first_name} ${senior.last_name}`)}
                   </span>
@@ -183,13 +195,6 @@ export default function SeniorRoster({ onSessionLost }) {
                     <span className="status-dot" />
                     {off ? 'Deactivated' : 'Active'}
                   </span>
-                  <button
-                    type="button"
-                    className="btn-outline senior-row-btn"
-                    onClick={() => setSelected(senior.sync_id)}
-                  >
-                    Details
-                  </button>
                 </li>
               )
             })}
