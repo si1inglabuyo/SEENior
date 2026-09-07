@@ -352,6 +352,12 @@ private fun AcknowledgedContent(
                 )
             }
 
+            SectionLabel("LOCATION", Modifier.fillMaxWidth().padding(top = 24.dp, bottom = 10.dp))
+            AlertLocationMap(
+                clusterId = alert.locationClusterId,
+                registeredAddress = senior.address
+            )
+
             SectionLabel("NEXT STEPS", Modifier.fillMaxWidth().padding(top = 24.dp, bottom = 12.dp))
 
             ColorPillButton("Call ${senior.firstName}", color = FamilyColors.SuccessGreen, icon = Icons.Filled.Phone, onClick = onCallSenior)
