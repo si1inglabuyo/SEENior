@@ -137,12 +137,24 @@ fun AlertLocationMap(
                         }
                     }
                     is MapTarget.RegisteredAddress ->
-                        "No location was captured for this alert. Showing " +
-                            "$registeredAddress, the senior's registered address."
+                        "No location was captured for this alert. The map shows the senior's " +
+                            "registered home address."
                 },
                 color = FamilyColors.TextSecondary,
                 fontSize = 12.sp,
                 modifier = Modifier.padding(top = 8.dp)
+            )
+        }
+
+        // The street name in words, always — a pin is not something a responder can read
+        // out over the phone, and this is the only text form of "where to go". Shown even
+        // when the map itself could not be drawn.
+        if (registeredAddress.isNotBlank()) {
+            Text(
+                text = "Home address: $registeredAddress",
+                color = FamilyColors.TextPrimary,
+                fontSize = 13.sp,
+                modifier = Modifier.padding(top = 6.dp)
             )
         }
     }
