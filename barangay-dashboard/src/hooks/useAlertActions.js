@@ -18,23 +18,28 @@ export function useAlertActions({ onReload, onSessionLost }) {
   const [toast, setToast] = useState(null) // { message }
   const [detailsAlert, setDetailsAlert] = useState(null)
 
-  function askAction(alert, actionKey) {
+  // `notes` is the optional remarks a responder can type in the Details modal before
+  // choosing an action. Blank/whitespace collapses to null so the PATCH body is exactly
+  // what it was before this field existed -- the note is purely additive.
+  function askAction(alert, actionKey, notes = null) {
     setDialogError('')
-    setPending({ alert, actionKey })
+    const trimmed = typeof notes === 'string' ? notes.trim() : ''
+    setPending({ alert, actionKey, notes: trimmed || null })
   }
 
   async function confirmAction() {
     if (!pending) return
-    const { alert, actionKey } = pending
+    const { alert, actionKey, notes } = pending
     const action = ALERT_ACTIONS[actionKey]
     setBusy(true)
     try {
       await api(`/barangay/alerts/${alert.sync_id}/${action.endpoint}`, {
         method: 'PATCH',
-        body: JSON.stringify({ notes: null }),
+        body: JSON.stringify({ notes }),
       })
       setBusy(false)
       setPending(null)
+      setDetailsAlert(null) // the action was taken from inside Details -- close it too
       setToast({ message: action.successMessage })
       await onReload() // refetch -- show the server's row, not a guessed one
     } catch (err) {

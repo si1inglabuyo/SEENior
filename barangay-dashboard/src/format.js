@@ -19,6 +19,20 @@ export function clockTime(value) {
     : '—'
 }
 
+// Masks the middle digits of a phone number for the default (un-gated) Senior Profile
+// view: "+63 0994 555 1234" -> "0994XXXX234". Keeps the leading group and last 3 digits so
+// a responder can still recognise a number they already know, while the full number is
+// only shown after an explicit "Reveal" (which is written to the access audit log — see
+// src/audit.js). RA 10173 §11(d): process and display no more than the task in front of
+// the responder actually requires.
+export function maskPhone(value) {
+  if (!value) return '—'
+  const raw = String(value).trim()
+  const digits = raw.replace(/\D/g, '')
+  if (digits.length < 8) return raw // too short to mask without hiding all of it
+  return `${digits.slice(0, 4)}${'X'.repeat(digits.length - 7)}${digits.slice(-3)}`
+}
+
 // Full date + time for the alert Details modal and the per-senior alert history, e.g.
 // "June 4, 2026 · 4:40 PM". A bare clock time ("4:40 PM") is ambiguous the moment an
 // incident is more than a day old.

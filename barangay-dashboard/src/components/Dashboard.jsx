@@ -2,10 +2,13 @@ import { useCallback, useEffect, useState } from 'react'
 import { api, POLL_MS } from '../api'
 import { clockTime } from '../format'
 import { IconPeople, IconWarning, IconCheck, IconSos } from '../icons'
+import { useAlertActions } from '../hooks/useAlertActions'
 import StatCard from './StatCard'
 import AlertsTodayPanel from './AlertsTodayPanel'
 import WeeklyBarChart from './WeeklyBarChart'
 import OutcomeDonut from './OutcomeDonut'
+import AlertTypeChart from './AlertTypeChart'
+import AlertActionModals from './AlertActionModals'
 
 // Every new stats field is read defensively (`?? 0` / `?? null`). The dashboard has to
 // render cleanly against the production API before it ships the extra fields -- the
@@ -34,7 +37,7 @@ export default function Dashboard({ onSessionLost, onNavigate }) {
   // older backend that doesn't know `scope=today` yet should still leave a working
   // dashboard, just with an empty Alerts Today panel.
   const load = useCallback(
-    (live) => {
+    (live = () => true) => {
       api('/barangay/stats')
         .then((s) => {
           if (live()) setStats(s)
@@ -54,6 +57,11 @@ export default function Dashboard({ onSessionLost, onNavigate }) {
     },
     [onSessionLost]
   )
+
+  // Clicking a row in the Alerts Today panel opens the shared Details modal (with the same
+  // Acknowledge / Resolve / False Positive actions the Alerts tab uses). A successful action
+  // reloads the whole dashboard so the stat cards and charts catch it immediately.
+  const actions = useAlertActions({ onReload: () => load(), onSessionLost })
 
   // Polled, not just fetched once: an alert acted on from the Alerts page (Acknowledge,
   // Resolve, False Positive) is a real write to the same alerts table this page reads --
@@ -127,12 +135,20 @@ export default function Dashboard({ onSessionLost, onNavigate }) {
         />
       </div>
 
-      <AlertsTodayPanel alerts={today} onViewAll={() => onNavigate('alerts')} />
+      <AlertsTodayPanel
+        alerts={today}
+        onViewAll={() => onNavigate('alerts')}
+        onShowDetails={actions.showDetails}
+      />
 
       <div className="dash-charts">
         <WeeklyBarChart days={stats.alerts_this_week} />
         <OutcomeDonut outcomes={stats.outcomes} />
       </div>
+
+      <AlertTypeChart types={stats.alert_types} />
+
+      <AlertActionModals actions={actions} />
     </div>
   )
 }

@@ -11,6 +11,18 @@ export const TRIGGER_LABEL = {
   fall_pattern: 'Possible fall detected',
 }
 
+// Short forms of the same trigger codes, for places too tight for the full sentence above
+// -- the dashboard's "Alerts by Type" chart labels. An unknown code falls back to itself.
+export const TRIGGER_SHORT = {
+  inactivity: 'No movement',
+  movement: 'Unusual movement',
+  screen_idle: 'Phone idle',
+  charging: 'Charging pattern',
+  sos: 'SOS',
+  ml_flag: 'Daily pattern',
+  fall_pattern: 'Possible fall',
+}
+
 export const STATUS_LABEL = {
   pending: 'Waiting for an answer',
   acknowledged: 'Family is handling it',
@@ -41,6 +53,7 @@ export const STEP_LABEL = {
 
 export const stepLabel = (step) => STEP_LABEL[step] || step
 export const triggerLabel = (trigger) => TRIGGER_LABEL[trigger] || trigger
+export const triggerShort = (trigger) => TRIGGER_SHORT[trigger] || trigger
 export const statusLabel = (status) => STATUS_LABEL[status] || status
 
 // The three "alert types" the Alert History filter offers. Only the first two map to a

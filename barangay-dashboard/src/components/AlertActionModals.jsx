@@ -14,14 +14,26 @@ export default function AlertActionModals({ actions }) {
     dialogError,
     toast,
     detailsAlert,
+    askAction,
     confirmAction,
     cancelDialog,
     closeToast,
     closeDetails,
   } = actions
 
+  // Details is rendered first so the confirm dialog and toast, which share its z-index,
+  // stack on top of it -- the action buttons live inside Details, so its dialog opens over
+  // it rather than behind it.
   return (
     <>
+      {detailsAlert && (
+        <AlertDetailsModal
+          alert={detailsAlert}
+          onClose={closeDetails}
+          onAct={askAction}
+          actionBusy={busy}
+        />
+      )}
       {pending && (
         <ConfirmDialog
           action={ALERT_ACTIONS[pending.actionKey]}
@@ -32,7 +44,6 @@ export default function AlertActionModals({ actions }) {
         />
       )}
       {toast && <Toast message={toast.message} onClose={closeToast} />}
-      {detailsAlert && <AlertDetailsModal alert={detailsAlert} onClose={closeDetails} />}
     </>
   )
 }

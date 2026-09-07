@@ -60,7 +60,7 @@ h4 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase;
 }
 .sidebar-brand { display: flex; gap: 10px; align-items: center; padding: 4px 8px 18px;
   border-bottom: 1px solid var(--line); margin-bottom: 12px; }
-.logo-mark { width: 36px; height: 36px; flex: none; }
+.logo-mark { width: 60px; height: 100px; flex: none; object-fit: cover; }
 .sidebar-word { margin: 0; font-weight: 800; color: var(--brand); font-size: 18px; line-height: 1.1; }
 .sidebar-tag { margin: 2px 0 0; font-size: 11px; color: var(--muted); }
 
@@ -134,6 +134,15 @@ h4 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase;
   border-bottom: 1px solid var(--line);
 }
 .alert-row:last-child { border-bottom: 0; }
+/* Alerts Today rows open the shared Details modal on click, same as the Alerts queue. */
+.alert-row-clickable {
+  cursor: pointer; border-radius: 6px;
+  transition: background-color .12s ease, box-shadow .12s ease;
+}
+.alert-row-clickable:hover,
+.alert-row-clickable:focus-visible {
+  background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); outline: none;
+}
 .avatar {
   flex: none; width: 40px; height: 40px; border-radius: 50%;
   background: #6bbf73; color: #fff; display: grid; place-items: center;
@@ -182,16 +191,29 @@ h4 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase;
   background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
   padding: 16px 20px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
 }
-.queue-row-clickable { cursor: pointer; }
-.queue-row-clickable:hover { border-color: var(--muted); }
-.history-rows .queue-row-clickable:hover { background: #fafafa; }
+/* The whole row is the click target now (opens Details). Hover/focus use the accent
+   palette so it reads as clickable without introducing a new colour. */
+.queue-row-clickable {
+  cursor: pointer;
+  transition: border-color .12s ease, box-shadow .12s ease, background-color .12s ease;
+}
+.queue-row-clickable:hover,
+.queue-row-clickable:focus-visible {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+  outline: none;
+}
+.history-rows .queue-row-clickable:hover,
+.history-rows .queue-row-clickable:focus-visible {
+  background: var(--accent-soft);
+  box-shadow: none;
+}
 .queue-row-main { flex: 1; min-width: 200px; }
 .queue-row-side {
   display: flex; flex-direction: column; align-items: flex-end; gap: 10px;
   margin-left: auto;
 }
 .queue-row-badges { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
-.queue-row-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
 
 /* Deliberately not red. Living alone is not itself an emergency and must not compete
    with the risk level for attention -- it is context the responder reads once they are
@@ -320,7 +342,11 @@ h4 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase;
 }
 .senior-row:last-child { border-bottom: 0; }
 .senior-row-name { margin: 0; font-weight: 700; }
-.senior-row-btn { margin-left: auto; }
+.senior-row .status-badge { margin-left: auto; }
+/* Whole row opens the senior's record now. Same accent hover/focus as the alert rows. */
+.senior-row-clickable { cursor: pointer; transition: background-color .12s ease; }
+.senior-row-clickable:hover,
+.senior-row-clickable:focus-visible { background: var(--accent-soft); outline: none; }
 
 /* --- senior detail --- */
 .senior-detail { display: flex; flex-direction: column; gap: 16px; }
@@ -386,6 +412,38 @@ h4 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase;
 .mini-alert-main { flex: 1; min-width: 0; }
 .mini-alert-title { margin: 0; font-weight: 700; }
 .mini-alert-when { margin: 2px 0 0; font-size: 12px; }
+.mini-alert-static { cursor: default; }
+.mini-alert-static:hover { background: transparent; }
+
+/* --- senior detail: RA 10173 field gating --- */
+.gate-banner {
+  display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px;
+  border: 1px solid #e3cfa0; background: var(--accent-soft); border-radius: 10px;
+  font-size: 13px; line-height: 1.45; color: var(--ink);
+}
+.gate-banner svg { flex: none; font-size: 16px; margin-top: 1px; color: var(--accent-ink); }
+
+.reveal-field { display: inline-flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+.reveal-btn {
+  display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; cursor: pointer;
+  font-size: 12px; font-weight: 600; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--surface); color: var(--accent-ink);
+}
+.reveal-btn:hover { border-color: var(--accent); }
+.reveal-btn svg { font-size: 13px; }
+
+.locked-dd { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-weight: 500; }
+.locked-dd svg, .locked-note svg { font-size: 13px; flex: none; }
+.locked-note { display: flex; align-items: flex-start; gap: 8px; }
+
+.history-more-btn {
+  margin-top: 12px; width: 100%; display: inline-flex; align-items: center; justify-content: center;
+  gap: 8px; padding: 10px; border-radius: 10px; cursor: pointer;
+  background: var(--surface); border: 1px solid var(--line); color: var(--accent-ink);
+  font-size: 13px; font-weight: 600;
+}
+.history-more-btn:hover { border-color: var(--accent); }
+.history-full-note { margin: 12px 0 0; font-size: 12px; }
 
 /* --- settings --- */
 .settings-page { max-width: 960px; }
@@ -461,6 +519,24 @@ h4 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase;
 .location-cluster { margin: 0 0 6px; font-size: 12px; color: var(--muted); }
 .location-note { margin: 0; font-size: 12px; }
 
+/* Acknowledge / Resolve / False Positive live here now, below the location map. */
+.details-actions { margin-top: 22px; border-top: 1px solid var(--line); padding-top: 20px; }
+.details-action-btns { display: flex; gap: 10px; flex-wrap: wrap; }
+.details-action-btns .btn-outline {
+  flex: 1; min-width: 130px; text-align: center; padding: 10px 16px;
+}
+.details-action-danger { color: var(--high); border-color: #f0c3c0; }
+.details-action-danger:hover:not(:disabled) { border-color: var(--high); background: var(--danger-soft); }
+.details-remarks { display: grid; gap: 6px; margin-top: 16px; font-size: 13px; font-weight: 700; }
+.details-remarks textarea {
+  font: inherit; font-weight: 400; font-size: 14px; padding: 10px 12px;
+  border: 1px solid var(--line); border-radius: 8px; background: #f6f7f9; color: var(--ink);
+  resize: vertical; min-height: 64px;
+}
+.details-remarks textarea:focus {
+  outline: 2px solid var(--accent-soft); border-color: var(--accent); background: var(--surface);
+}
+
 /* --- roster --- */
 .table-wrap {
   overflow-x: auto; background: var(--surface);
@@ -512,8 +588,9 @@ h4 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase;
 @media (max-width: 640px) {
   .queue-row { flex-direction: column; align-items: stretch; }
   .queue-row-side { align-items: stretch; margin-left: 0; }
-  .queue-row-badges, .queue-row-actions { justify-content: flex-start; }
+  .queue-row-badges { justify-content: flex-start; }
   .details-cards { grid-template-columns: 1fr; }
+  .details-action-btns { flex-direction: column; }
   .history-filters { align-items: stretch; }
   .history-filters .pill-group { justify-content: space-between; }
   .history-filters .filter-menu, .history-filters .filter-menu-btn { width: 100%; }

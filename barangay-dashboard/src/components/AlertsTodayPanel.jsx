@@ -4,7 +4,12 @@ import { IconWarning, IconEye } from '../icons'
 import SectionCard from './SectionCard'
 import StatusPill from './StatusPill'
 
-export default function AlertsTodayPanel({ alerts, onViewAll }) {
+// The feed arrives newest-first (Alert.created_at DESC). Only the 5 most recent are shown
+// here -- the "View All" button in the card header goes to the full Alerts tab.
+const MAX_ROWS = 5
+
+export default function AlertsTodayPanel({ alerts, onViewAll, onShowDetails }) {
+  const shown = alerts.slice(0, MAX_ROWS)
   return (
     <SectionCard
       icon={<IconWarning />}
@@ -20,8 +25,20 @@ export default function AlertsTodayPanel({ alerts, onViewAll }) {
         <p className="muted alerts-empty">No alerts today.</p>
       ) : (
         <ul className="alert-rows">
-          {alerts.map((alert) => (
-            <li className="alert-row" key={alert.sync_id}>
+          {shown.map((alert) => (
+            <li
+              className="alert-row alert-row-clickable"
+              key={alert.sync_id}
+              role="button"
+              tabIndex={0}
+              onClick={() => onShowDetails(alert)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  onShowDetails(alert)
+                }
+              }}
+            >
               <span className="avatar">{initials(alert.senior_name)}</span>
               <div className="alert-row-main">
                 <p className="alert-row-name">
