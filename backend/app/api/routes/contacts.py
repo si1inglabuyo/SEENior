@@ -8,7 +8,7 @@ from sqlalchemy.orm import selectinload
 
 from app.api.deps import get_current_user
 from app.core.security import create_access_token
-from app.db.models import Contact, ContactType, Senior, UnlinkActor, User
+from app.db.models import Contact, ContactType, DeviceToken, Senior, UnlinkActor, User
 from app.db.session import get_db
 from app.schemas.auth import Token
 from app.schemas.contact import (
@@ -208,6 +208,20 @@ async def list_family_contacts(sync_id: UUID, db: AsyncSession = Depends(get_db)
         .order_by(Contact.created_at.asc())
     )
     contacts = contacts_result.scalars().all()
+
+    # One grouped query for "when did each of these contacts last open their app",
+    # rather than a device lookup per contact. The family app re-registers its token on
+    # every launch, so MAX(last_seen_at) across a contact's devices is that timestamp.
+    user_ids = [c.user_id for c in contacts]
+    last_active: dict[int, object] = {}
+    if user_ids:
+        rows = await db.execute(
+            select(DeviceToken.user_id, func.max(DeviceToken.last_seen_at))
+            .where(DeviceToken.user_id.in_(user_ids))
+            .group_by(DeviceToken.user_id)
+        )
+        last_active = {user_id: seen for user_id, seen in rows.all()}
+
     return [
         FamilyContactOut(
             id=c.id,
@@ -216,6 +230,7 @@ async def list_family_contacts(sync_id: UUID, db: AsyncSession = Depends(get_db)
             relationship_label=c.relationship_label,
             contact_type=c.contact_type,
             created_at=c.created_at,
+            last_active_at=last_active.get(c.user_id),
         )
         for c in contacts
     ]

@@ -51,5 +51,8 @@ data class FamilyContactDto(
     val phone: String?,
     val relationshipLabel: String?,
     val contactType: String,
-    val createdAt: String
+    val createdAt: String,
+    /** When this contact's app last registered (i.e. last launched). Null if never; the
+     *  Contacts screen shows it as "Active … ago". Against an older backend it stays null. */
+    val lastActiveAt: String? = null
 )

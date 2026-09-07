@@ -83,7 +83,6 @@ object ProfileStrings {
         val familyFallbackLabel: String,
         val phone: String,
         val status: String,
-        val onlineNow: String,
         val removeContact: String,
         val thisFamilyMember: String,
         val removeBody: String,
@@ -115,6 +114,29 @@ object ProfileStrings {
 
         fun removeTitle(name: String): String =
             if (this === FILIPINO_COPY) "Alisin si " + name + "?" else "Remove " + name + "?"
+
+        /**
+         * How recently this family member last opened their app, in words. [minutesAgo] is null
+         * when they never have. Replaces the old always-green "Online Now" — this is a
+         * "recently active" signal, not live presence, and is worded so it never overclaims.
+         */
+        fun contactActive(minutesAgo: Long?): String = when {
+            minutesAgo == null ->
+                if (this === FILIPINO_COPY) "Hindi pa nabubuksan kamakailan" else "Not opened recently"
+            minutesAgo < 15L ->
+                if (this === FILIPINO_COPY) "Aktibo ngayon" else "Active now"
+            minutesAgo < 60L ->
+                if (this === FILIPINO_COPY) "Aktibo $minutesAgo min ang nakalipas"
+                else "Active $minutesAgo min ago"
+            minutesAgo < 60L * 24 ->
+                (minutesAgo / 60).let { h ->
+                    if (this === FILIPINO_COPY) "Aktibo $h oras ang nakalipas" else "Active $h hr ago"
+                }
+            else ->
+                (minutesAgo / (60L * 24)).let { d ->
+                    if (this === FILIPINO_COPY) "Aktibo $d araw ang nakalipas" else "Active $d d ago"
+                }
+        }
 
         /** code → label, in the senior's language. The code is what goes to the server. */
         fun deleteReasons(): List<Pair<String, String>> = listOf(
@@ -185,7 +207,6 @@ object ProfileStrings {
         familyFallbackLabel = "Family",
         phone = "Phone",
         status = "Status",
-        onlineNow = "Online Now",
         removeContact = "Remove Contact",
         thisFamilyMember = "this family member",
         removeBody = "They will stop receiving your alerts, and you will disappear from their " +
@@ -267,7 +288,6 @@ object ProfileStrings {
         familyFallbackLabel = "Pamilya",
         phone = "Telepono",
         status = "Kalagayan",
-        onlineNow = "Online Ngayon",
         removeContact = "Alisin ang Contact",
         thisFamilyMember = "ang kapamilyang ito",
         removeBody = "Hihinto po silang makatanggap ng inyong mga alerto, at mawawala rin po " +

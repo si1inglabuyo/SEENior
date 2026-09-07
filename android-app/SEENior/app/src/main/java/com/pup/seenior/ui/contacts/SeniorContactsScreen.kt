@@ -46,6 +46,27 @@ import com.pup.seenior.ui.theme.SeniorColors
 
 private val RemoveRed = Color(0xFFDA4A4A)
 private val OnlineGreen = Color(0xFF57B84E)
+private val ActiveAmber = Color(0xFFE0952A)
+private val InactiveGrey = Color(0xFF8A8F98)
+
+/** Minutes since [iso] (a naive-UTC server timestamp), or null when it is null/unparseable. */
+private fun minutesSince(iso: String?): Long? {
+    iso ?: return null
+    val instant = runCatching { java.time.OffsetDateTime.parse(iso).toInstant() }.getOrNull()
+        ?: runCatching {
+            java.time.LocalDateTime.parse(iso).toInstant(java.time.ZoneOffset.UTC)
+        }.getOrNull()
+        ?: return null
+    return java.time.Duration.between(instant, java.time.Instant.now()).toMinutes().coerceAtLeast(0)
+}
+
+/** Green when the family opened their app in the last 15 min, amber within a day, grey beyond. */
+private fun presenceColor(minutesAgo: Long?): Color = when {
+    minutesAgo == null -> InactiveGrey
+    minutesAgo < 15L -> OnlineGreen
+    minutesAgo < 60L * 24 -> ActiveAmber
+    else -> InactiveGrey
+}
 
 @Composable
 /**
@@ -146,9 +167,16 @@ private fun ContactCard(contact: FamilyContactDto, onRemove: () -> Unit) {
             }
             Column(modifier = Modifier.weight(1f)) {
                 Text(copy.status, color = SeniorColors.TextSecondary, fontSize = 13.sp)
+                val minutesAgo = remember(contact.lastActiveAt) { minutesSince(contact.lastActiveAt) }
+                val dot = presenceColor(minutesAgo)
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(modifier = Modifier.size(8.dp).background(OnlineGreen, CircleShape))
-                    Text(copy.onlineNow, color = OnlineGreen, fontSize = 15.sp, modifier = Modifier.padding(start = 6.dp))
+                    Box(modifier = Modifier.size(8.dp).background(dot, CircleShape))
+                    Text(
+                        copy.contactActive(minutesAgo),
+                        color = dot,
+                        fontSize = 14.sp,
+                        modifier = Modifier.padding(start = 6.dp)
+                    )
                 }
             }
         }

@@ -56,5 +56,10 @@ class FamilyContactOut(BaseModel):
     relationship_label: str | None
     contact_type: ContactType
     created_at: datetime
+    # The most recent time any of this contact's devices registered its FCM token —
+    # which the family app does on every launch. A "recently opened the app" proxy, not
+    # live presence; the senior's Contacts screen turns it into "Active … ago". Null when
+    # the contact has never registered a device.
+    last_active_at: datetime | None = None
 
     model_config = {"from_attributes": True}

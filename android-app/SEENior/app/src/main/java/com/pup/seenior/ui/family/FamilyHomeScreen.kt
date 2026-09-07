@@ -30,6 +30,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -298,6 +299,8 @@ private fun SeniorCard(contact: ContactDto, status: SeniorStatus?) {
             StatusChip(status)
         }
 
+        SeniorPresenceLine(senior.lastSeenAt)
+
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -338,9 +341,39 @@ private fun SeniorCard(contact: ContactDto, status: SeniorStatus?) {
     }
 }
 
-/** Replaces the mock's hardcoded "Online" badge. There is no presence/heartbeat channel in the
- *  system, so online-ness cannot be known; whether an alert is open can, and is what a family
- *  member actually opens this screen to find out. */
+/**
+ * How recently the senior's phone checked in — a green "Phone active" when the last heartbeat
+ * was within ~20 minutes (the sensor loop sends one every ~15), otherwise how long ago.
+ *
+ * This is the honest version of the mock's old "Online" badge: the heartbeat
+ * (`seniors.last_seen_at`) is a real signal now, unlike when [StatusChip] was written.
+ */
+@Composable
+private fun SeniorPresenceLine(lastSeenAt: String?) {
+    val minutesAgo = remember(lastSeenAt) {
+        lastSeenAt?.let(::parseServerTime)?.let {
+            java.time.Duration.between(it.toInstant(), java.time.Instant.now())
+                .toMinutes().coerceAtLeast(0)
+        }
+    }
+    val recent = minutesAgo != null && minutesAgo < 20L
+    val color = if (recent) FamilyColors.SuccessGreen else FamilyColors.TextSecondary
+    val text = when {
+        minutesAgo == null -> "No check-in yet"
+        recent -> "Phone active"
+        else -> "Last check-in ${relativeTimeAgo(lastSeenAt!!)}"
+    }
+    Row(
+        modifier = Modifier.padding(top = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(Modifier.size(7.dp).background(color, CircleShape))
+        Text(text, color = color, fontSize = 12.sp, modifier = Modifier.padding(start = 6.dp))
+    }
+}
+
+/** The alert-status chip. Whether an alert is open is what a family member opens this screen
+ *  to find out; the senior's device presence is a separate line (see [SeniorPresenceLine]). */
 @Composable
 private fun StatusChip(status: SeniorStatus?) {
     // Kept short on purpose: this chip shares its row with the senior's name, and a longer
