@@ -60,7 +60,7 @@ h4 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase;
 }
 .sidebar-brand { display: flex; gap: 10px; align-items: center; padding: 4px 8px 18px;
   border-bottom: 1px solid var(--line); margin-bottom: 12px; }
-.logo-mark { width: 36px; height: 36px; flex: none; }
+.logo-mark { width: 36px; height: 36px; flex: none; object-fit: contain; }
 .sidebar-word { margin: 0; font-weight: 800; color: var(--brand); font-size: 18px; line-height: 1.1; }
 .sidebar-tag { margin: 2px 0 0; font-size: 11px; color: var(--muted); }
 
