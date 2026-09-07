@@ -23,6 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -60,11 +61,15 @@ private sealed interface MapTarget {
 }
 
 /**
- * The alert map (CLAUDE.md §11 — cluster, never coordinates).
+ * The alert map plus a text line for where the senior actually is.
  *
- * Prefers the alert's own cluster and falls back to the senior's registered address, captioning
- * whichever it used. When neither resolves it shows [MapPlaceholder], which is why that composable
- * still exists: "we do not know" stays a state the screen can be in.
+ * Prefers the alert's own captured cell: draws it on the map and reverse-geocodes its centre to a
+ * street/area line ("Current location: …") so the family can read the position out to a responder
+ * rather than squint at a pin. This is the same precise position the pin already shows — text form
+ * of a disclosure already made, lawful during an active alert under RA 10173 §12(c) (CLAUDE.md
+ * §11). Only when no fix was captured does it fall back to placing the senior's registered home
+ * address, labelled as such. When neither resolves it shows [MapPlaceholder] — "we do not know"
+ * stays a state the screen can be in.
  *
  * @param interactive whether the map takes touch gestures. False on a preview embedded in a
  *   scrolling card — a map that swallows drags there traps the page instead of scrolling it.
@@ -83,13 +88,28 @@ fun AlertLocationMap(
     var fallback by remember(registeredAddress) { mutableStateOf<LatLon?>(null) }
     var resolving by remember(clusterId, registeredAddress) { mutableStateOf(cell == null) }
 
-    // Only geocoded when there is no cluster to draw. An alert that carried a fix never touches
-    // the network for this, so the common case costs nothing.
+    // The street/area the CAPTURED fix actually sits in — reverse-geocoded from the cell so the
+    // family reads "she is on X street" rather than her home address, which is a different place
+    // when the alert fired away from home. Null while looking up or when it cannot be resolved.
+    var capturedPlace by remember(clusterId) { mutableStateOf(clusterId?.let { reverseCache[it] }) }
+
     LaunchedEffect(clusterId, registeredAddress) {
         if (cell != null) {
             resolving = false
+            if (capturedPlace == null && clusterId != null) {
+                capturedPlace = AddressGeocoder.reverse(cell.centerLatitude, cell.centerLongitude)
+                    ?.let { place ->
+                        listOf(
+                            place.streetLine,
+                            place.barangayNames.firstOrNull().orEmpty(),
+                            place.cityNames.firstOrNull().orEmpty()
+                        ).filter { it.isNotBlank() }.joinToString(", ").takeIf { it.isNotBlank() }
+                    }
+                    ?.also { reverseCache[clusterId] = it }
+            }
             return@LaunchedEffect
         }
+        // No fix was captured — fall back to placing the senior's registered home address.
         resolving = true
         fallback = AddressGeocoder.resolve(context, registeredAddress)
         resolving = false
@@ -122,43 +142,64 @@ fun AlertLocationMap(
             else -> MapPlaceholder(Modifier.height(height))
         }
 
-        target?.let {
-            Text(
-                text = when (it) {
-                    is MapTarget.Cluster -> {
-                        val span = it.cell.approximateSpanMetres()
+        when (target) {
+            is MapTarget.Cluster -> {
+                // Primary line: where the phone actually was, in words. Falls back to a plain
+                // statement while the reverse lookup is in flight or if it comes back empty —
+                // the pin on the map above still stands either way.
+                Text(
+                    text = capturedPlace?.let { "Current location: $it" }
+                        ?: "Current location captured when the alert was raised (shown on the map).",
+                    color = FamilyColors.TextPrimary,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+                Text(
+                    text = run {
+                        val span = target.cell.approximateSpanMetres()
                         if (span <= PIN_THRESHOLD_METRES) {
-                            "Where the phone was when the alert was raised. Captured once, at " +
-                                "that moment only — SEENior does not track location at any " +
-                                "other time."
+                            "Captured once, at that moment only — SEENior does not track " +
+                                "location at any other time."
                         } else {
-                            "Approximate area when the alert was raised — about " +
-                                "${span.roundToInt()} m across."
+                            "Approximate area — about ${span.roundToInt()} m across."
                         }
-                    }
-                    is MapTarget.RegisteredAddress ->
-                        "No location was captured for this alert. The map shows the senior's " +
-                            "registered home address."
-                },
-                color = FamilyColors.TextSecondary,
-                fontSize = 12.sp,
-                modifier = Modifier.padding(top = 8.dp)
-            )
-        }
+                    },
+                    color = FamilyColors.TextSecondary,
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            }
 
-        // The street name in words, always — a pin is not something a responder can read
-        // out over the phone, and this is the only text form of "where to go". Shown even
-        // when the map itself could not be drawn.
-        if (registeredAddress.isNotBlank()) {
-            Text(
-                text = "Home address: $registeredAddress",
-                color = FamilyColors.TextPrimary,
-                fontSize = 13.sp,
-                modifier = Modifier.padding(top = 6.dp)
-            )
+            is MapTarget.RegisteredAddress -> {
+                Text(
+                    text = "No live location was captured for this alert.",
+                    color = FamilyColors.TextSecondary,
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+                Text(
+                    text = "Home address: $registeredAddress",
+                    color = FamilyColors.TextPrimary,
+                    fontSize = 13.sp,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            }
+
+            null -> Unit
         }
     }
 }
+
+/**
+ * Reverse-geocoded captured locations, keyed by geohash cell, for this process only.
+ *
+ * The three family alert screens each mount an [AlertLocationMap] for the same alert, and the
+ * alerts tab recomposes on its 20-second poll. Without this each would re-hit Nominatim; with it
+ * the network is touched once per alert per session. Not persisted: a lookup that failed on a
+ * dead network must be free to succeed later.
+ */
+private val reverseCache = java.util.concurrent.ConcurrentHashMap<String, String>()
 
 @Composable
 private fun MapSurface(target: MapTarget, height: Dp, interactive: Boolean) {

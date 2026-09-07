@@ -157,7 +157,8 @@ object AddressGeocoder {
     }
 
     /**
-     * Looks up what is at a point, for the map-drag address picker.
+     * Looks up what is at a point — used by the map-drag address picker during onboarding and by
+     * the family alert map to name a captured alert location.
      *
      * Returns OpenStreetMap's own naming, deliberately unresolved against the PSGC dataset —
      * [com.pup.seenior.address.PsgcMatcher] does that, and keeping the two apart means the
