@@ -130,7 +130,6 @@ export default function IncidentQueue({ onSessionLost }) {
               <AlertRow
                 key={alert.sync_id}
                 alert={alert}
-                onAskAction={actions.askAction}
                 onShowDetails={actions.showDetails}
               />
             ))}

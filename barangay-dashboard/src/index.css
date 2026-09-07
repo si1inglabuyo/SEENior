@@ -182,16 +182,29 @@ h4 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase;
   background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
   padding: 16px 20px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
 }
-.queue-row-clickable { cursor: pointer; }
-.queue-row-clickable:hover { border-color: var(--muted); }
-.history-rows .queue-row-clickable:hover { background: #fafafa; }
+/* The whole row is the click target now (opens Details). Hover/focus use the accent
+   palette so it reads as clickable without introducing a new colour. */
+.queue-row-clickable {
+  cursor: pointer;
+  transition: border-color .12s ease, box-shadow .12s ease, background-color .12s ease;
+}
+.queue-row-clickable:hover,
+.queue-row-clickable:focus-visible {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+  outline: none;
+}
+.history-rows .queue-row-clickable:hover,
+.history-rows .queue-row-clickable:focus-visible {
+  background: var(--accent-soft);
+  box-shadow: none;
+}
 .queue-row-main { flex: 1; min-width: 200px; }
 .queue-row-side {
   display: flex; flex-direction: column; align-items: flex-end; gap: 10px;
   margin-left: auto;
 }
 .queue-row-badges { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
-.queue-row-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
 
 /* Deliberately not red. Living alone is not itself an emergency and must not compete
    with the risk level for attention -- it is context the responder reads once they are
@@ -493,6 +506,24 @@ h4 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase;
 .location-cluster { margin: 0 0 6px; font-size: 12px; color: var(--muted); }
 .location-note { margin: 0; font-size: 12px; }
 
+/* Acknowledge / Resolve / False Positive live here now, below the location map. */
+.details-actions { margin-top: 22px; border-top: 1px solid var(--line); padding-top: 20px; }
+.details-action-btns { display: flex; gap: 10px; flex-wrap: wrap; }
+.details-action-btns .btn-outline {
+  flex: 1; min-width: 130px; text-align: center; padding: 10px 16px;
+}
+.details-action-danger { color: var(--high); border-color: #f0c3c0; }
+.details-action-danger:hover:not(:disabled) { border-color: var(--high); background: var(--danger-soft); }
+.details-remarks { display: grid; gap: 6px; margin-top: 16px; font-size: 13px; font-weight: 700; }
+.details-remarks textarea {
+  font: inherit; font-weight: 400; font-size: 14px; padding: 10px 12px;
+  border: 1px solid var(--line); border-radius: 8px; background: #f6f7f9; color: var(--ink);
+  resize: vertical; min-height: 64px;
+}
+.details-remarks textarea:focus {
+  outline: 2px solid var(--accent-soft); border-color: var(--accent); background: var(--surface);
+}
+
 /* --- roster --- */
 .table-wrap {
   overflow-x: auto; background: var(--surface);
@@ -544,8 +575,9 @@ h4 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase;
 @media (max-width: 640px) {
   .queue-row { flex-direction: column; align-items: stretch; }
   .queue-row-side { align-items: stretch; margin-left: 0; }
-  .queue-row-badges, .queue-row-actions { justify-content: flex-start; }
+  .queue-row-badges { justify-content: flex-start; }
   .details-cards { grid-template-columns: 1fr; }
+  .details-action-btns { flex-direction: column; }
   .history-filters { align-items: stretch; }
   .history-filters .pill-group { justify-content: space-between; }
   .history-filters .filter-menu, .history-filters .filter-menu-btn { width: 100%; }
