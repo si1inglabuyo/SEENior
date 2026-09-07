@@ -24,12 +24,14 @@ import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.automirrored.outlined.Chat
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -58,11 +60,22 @@ fun FamilyProfileScreen(onLoggedOut: () -> Unit) {
     val viewModel: FamilyProfileViewModel = viewModel()
     LaunchedEffect(Unit) { viewModel.refresh() }
     var editing by remember { mutableStateOf(false) }
+    var deleting by remember { mutableStateOf(false) }
 
-    if (editing) {
-        FamilyEditProfileScreen(viewModel = viewModel, onBack = { editing = false })
-    } else {
-        FamilyProfileHome(viewModel = viewModel, onEditProfile = { editing = true }, onLoggedOut = onLoggedOut)
+    when {
+        editing -> FamilyEditProfileScreen(viewModel = viewModel, onBack = { editing = false })
+        deleting -> FamilyDeleteAccountScreen(
+            viewModel = viewModel,
+            onBack = { deleting = false },
+            // Account is gone server-side; onLoggedOut already routes to the pre-auth flow.
+            onDeleted = onLoggedOut
+        )
+        else -> FamilyProfileHome(
+            viewModel = viewModel,
+            onEditProfile = { editing = true },
+            onDeleteAccount = { deleting = true },
+            onLoggedOut = onLoggedOut
+        )
     }
 }
 
@@ -70,6 +83,7 @@ fun FamilyProfileScreen(onLoggedOut: () -> Unit) {
 private fun FamilyProfileHome(
     viewModel: FamilyProfileViewModel,
     onEditProfile: () -> Unit,
+    onDeleteAccount: () -> Unit,
     onLoggedOut: () -> Unit
 ) {
     val context = LocalContext.current
@@ -128,6 +142,17 @@ private fun FamilyProfileHome(
                 iconBackground = FamilyColors.ErrorRed.copy(alpha = 0.1f),
                 showChevron = false,
                 onClick = { showLogoutConfirm = true }
+            )
+
+            Spacer(Modifier.height(10.dp))
+            ProfileRow(
+                icon = Icons.Filled.DeleteForever,
+                title = "Delete account",
+                subtitle = "Permanently remove your account and unlink your seniors",
+                titleColor = FamilyColors.ErrorRed,
+                iconTint = FamilyColors.ErrorRed,
+                iconBackground = FamilyColors.ErrorRed.copy(alpha = 0.1f),
+                onClick = onDeleteAccount
             )
 
             viewModel.error?.let {
@@ -337,6 +362,126 @@ private fun ChangePasswordDialog(viewModel: FamilyProfileViewModel, onDismiss: (
             }
         }
     )
+}
+
+/** code → label. The code is what the server stores; the label is display only. */
+private val DELETE_REASONS = listOf(
+    "senior_no_longer_needs" to "The senior I monitored no longer needs this",
+    "not_caregiver" to "I'm no longer a caregiver for this senior",
+    "duplicate" to "I made this account by mistake or it's a duplicate",
+    "privacy" to "Privacy concerns",
+    "not_useful" to "It didn't work the way I expected",
+    "other" to "Another reason",
+)
+
+@Composable
+private fun FamilyDeleteAccountScreen(
+    viewModel: FamilyProfileViewModel,
+    onBack: () -> Unit,
+    onDeleted: () -> Unit
+) {
+    var selectedReason by remember { mutableStateOf<String?>(null) }
+    var note by remember { mutableStateOf("") }
+    var showConfirm by remember { mutableStateOf(false) }
+
+    val noteRequired = selectedReason == "other"
+    val canDelete = selectedReason != null &&
+        (!noteRequired || note.isNotBlank()) &&
+        !viewModel.isDeleting
+
+    Column(modifier = Modifier.fillMaxSize().background(Color.White)) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(FamilyColors.HeaderBlue)
+                .padding(horizontal = 8.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onBack) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
+            }
+            Text("Delete account", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+        }
+
+        Column(
+            modifier = Modifier
+                .verticalScroll(rememberScrollState())
+                .padding(24.dp)
+        ) {
+            Text(
+                "This removes your account and unlinks every senior you monitor. They will no " +
+                    "longer send alerts to you, and you will need to sign up again to use the app. " +
+                    "This cannot be undone.",
+                color = FamilyColors.TextPrimary,
+                fontSize = 15.sp
+            )
+
+            Text(
+                "Please tell us why (required)",
+                color = FamilyColors.TextPrimary,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(top = 22.dp, bottom = 4.dp)
+            )
+
+            DELETE_REASONS.forEach { (code, label) ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { selectedReason = code }
+                        .padding(vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    RadioButton(selected = selectedReason == code, onClick = { selectedReason = code })
+                    Text(label, color = FamilyColors.TextPrimary, fontSize = 15.sp, modifier = Modifier.padding(start = 4.dp))
+                }
+            }
+
+            Spacer(Modifier.height(12.dp))
+            FamilyTextField(
+                "Tell us more",
+                note,
+                { note = it },
+                isError = noteRequired && note.isBlank(),
+                errorText = "Please tell us your reason"
+            )
+
+            viewModel.deleteError?.let {
+                Text(it, color = FamilyColors.ErrorRed, fontSize = 14.sp, modifier = Modifier.padding(top = 14.dp))
+            }
+
+            Spacer(Modifier.height(28.dp))
+            BluePillButton(
+                text = if (viewModel.isDeleting) "DELETING…" else "DELETE MY ACCOUNT",
+                enabled = canDelete,
+                onClick = { showConfirm = true }
+            )
+        }
+    }
+
+    if (showConfirm) {
+        AlertDialog(
+            onDismissRequest = { showConfirm = false },
+            title = { Text("Delete your account?") },
+            text = { Text("Your account is removed and every senior is unlinked. This cannot be undone.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    val reason = selectedReason
+                    if (reason != null) {
+                        showConfirm = false
+                        viewModel.deleteAccount(reason, note.trim().ifBlank { null }, onDeleted)
+                    }
+                }) {
+                    Text("Delete", color = FamilyColors.ErrorRed)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showConfirm = false }) {
+                    Text("Cancel", color = FamilyColors.TextSecondary)
+                }
+            }
+        )
+    }
 }
 
 private fun initials(name: String): String =

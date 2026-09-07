@@ -6,7 +6,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.pup.seenior.network.PushTokenRegistrar
 import com.pup.seenior.network.RetrofitClient
+import com.pup.seenior.network.dto.AccountDeletionRequest
 import com.pup.seenior.network.dto.ChangePasswordRequest
 import com.pup.seenior.network.dto.UpdateProfileRequest
 import com.pup.seenior.network.dto.UserDto
@@ -135,5 +137,49 @@ class FamilyProfileViewModel(application: Application) : AndroidViewModel(applic
         confirmPassword = ""
         passwordError = null
         passwordChanged = false
+    }
+
+    // ---- Delete account ----
+
+    var isDeleting by mutableStateOf(false)
+        private set
+    var deleteError by mutableStateOf<String?>(null)
+        private set
+
+    /**
+     * Soft-deletes this family account server-side, then clears the local session.
+     *
+     * Unlike the senior-side wipe this is NOT best-effort: there is nothing local to
+     * fall back to, so a failed server call leaves the account intact and surfaces
+     * [deleteError] rather than logging the user out of an account that still exists.
+     * On success [PushTokenRegistrar.signOutAsync] releases this device's push token
+     * (so it stops ringing for seniors this account no longer sees) and clears
+     * [FamilySession]; [onDeleted] then navigates back to the pre-auth flow.
+     *
+     * [reason] is a stable code ("duplicate", …), not the on-screen label.
+     */
+    fun deleteAccount(reason: String, note: String?, onDeleted: () -> Unit) {
+        val token = token() ?: return
+        if (isDeleting) return
+        isDeleting = true
+        deleteError = null
+        viewModelScope.launch {
+            try {
+                RetrofitClient.api.deleteMyAccount(
+                    "Bearer $token",
+                    AccountDeletionRequest(reason, note)
+                )
+                PushTokenRegistrar.signOutAsync(getApplication())
+                onDeleted()
+            } catch (e: HttpException) {
+                deleteError = if (SessionState.handleIfUnauthorized(getApplication(), e))
+                    SessionState.SESSION_EXPIRED_MESSAGE
+                else "Could not delete your account (server error ${e.code()}). Please try again."
+            } catch (e: IOException) {
+                deleteError = "Could not reach the server. Check your connection and try again."
+            } finally {
+                isDeleting = false
+            }
+        }
     }
 }

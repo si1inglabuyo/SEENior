@@ -51,6 +51,28 @@ object ProfileStrings {
         val saving: String,
         val saveChanges: String,
 
+        // Delete account
+        val sectionAccount: String,
+        val deleteAccountRow: String,
+        val deleteAccountRowSubtitle: String,
+        val deleteHeader: String,
+        val deleteIntro: String,
+        val deleteReasonHeading: String,
+        val deleteReasonNoLongerNeeded: String,
+        val deleteReasonSwitchingPhone: String,
+        val deleteReasonBattery: String,
+        val deleteReasonTooManyAlerts: String,
+        val deleteReasonPrivacy: String,
+        val deleteReasonOther: String,
+        val deleteNoteLabel: String,
+        val deleteNotePlaceholder: String,
+        val deleteNoteRequiredForOther: String,
+        val deleteButton: String,
+        val deleting: String,
+        val deleteConfirmTitle: String,
+        val deleteConfirmBody: String,
+        val deleteConfirmYes: String,
+
         // Contacts tab
         val contactsHeader: String,
         val contactsLoadFailedInline: String,
@@ -93,6 +115,16 @@ object ProfileStrings {
 
         fun removeTitle(name: String): String =
             if (this === FILIPINO_COPY) "Alisin si " + name + "?" else "Remove " + name + "?"
+
+        /** code → label, in the senior's language. The code is what goes to the server. */
+        fun deleteReasons(): List<Pair<String, String>> = listOf(
+            "no_longer_needed" to deleteReasonNoLongerNeeded,
+            "switching_phone" to deleteReasonSwitchingPhone,
+            "battery" to deleteReasonBattery,
+            "too_many_alerts" to deleteReasonTooManyAlerts,
+            "privacy" to deleteReasonPrivacy,
+            "other" to deleteReasonOther,
+        )
     }
 
     private val ENGLISH_COPY = Copy(
@@ -120,6 +152,29 @@ object ProfileStrings {
         addressPlaceholder = "House No., Street, Barangay, City",
         saving = "SAVING…",
         saveChanges = "SAVE CHANGES",
+
+        sectionAccount = "ACCOUNT",
+        deleteAccountRow = "Delete my account",
+        deleteAccountRowSubtitle = "Stop monitoring and remove your profile from this phone",
+        deleteHeader = "Delete account",
+        deleteIntro = "This stops all monitoring and erases your profile, routine, and alert " +
+            "history from this phone. Your family contacts will be unlinked. This cannot be undone.",
+        deleteReasonHeading = "Please tell us why (required)",
+        deleteReasonNoLongerNeeded = "I don't need monitoring anymore",
+        deleteReasonSwitchingPhone = "I'm switching to a new phone",
+        deleteReasonBattery = "It uses too much battery",
+        deleteReasonTooManyAlerts = "Too many check-ins or false alerts",
+        deleteReasonPrivacy = "Privacy concerns",
+        deleteReasonOther = "Another reason",
+        deleteNoteLabel = "Tell us more",
+        deleteNotePlaceholder = "Optional",
+        deleteNoteRequiredForOther = "Please tell us your reason",
+        deleteButton = "Delete my account",
+        deleting = "Deleting…",
+        deleteConfirmTitle = "Delete your account?",
+        deleteConfirmBody = "Monitoring stops now and everything on this phone is erased. " +
+            "This cannot be undone.",
+        deleteConfirmYes = "Delete",
 
         contactsHeader = "Contacts",
         contactsLoadFailedInline = "Could not load your contacts.",
@@ -178,6 +233,30 @@ object ProfileStrings {
         addressPlaceholder = "Bilang ng Bahay, Kalye, Barangay, Lungsod",
         saving = "NAGSE-SAVE…",
         saveChanges = "I-SAVE ANG MGA PAGBABAGO",
+
+        sectionAccount = "ACCOUNT",
+        deleteAccountRow = "Burahin ang aking account",
+        deleteAccountRowSubtitle = "Ihinto ang pagbantay at alisin ang inyong profile sa teleponong ito",
+        deleteHeader = "Burahin ang account",
+        deleteIntro = "Ihihinto po nito ang lahat ng pagbantay at buburahin ang inyong profile, " +
+            "routine, at kasaysayan ng alerto sa teleponong ito. Maa-unlink po ang inyong mga " +
+            "contact sa pamilya. Hindi na po ito maibabalik.",
+        deleteReasonHeading = "Pakisabi po kung bakit (kailangan)",
+        deleteReasonNoLongerNeeded = "Hindi ko na po kailangan ang pagbantay",
+        deleteReasonSwitchingPhone = "Lilipat po ako sa bagong telepono",
+        deleteReasonBattery = "Masyadong mabilis maubos ang baterya",
+        deleteReasonTooManyAlerts = "Masyadong madalas ang check-in o maling alerto",
+        deleteReasonPrivacy = "May alinlangan po ako sa privacy",
+        deleteReasonOther = "Iba pang dahilan",
+        deleteNoteLabel = "Magdagdag pa po",
+        deleteNotePlaceholder = "Opsyonal",
+        deleteNoteRequiredForOther = "Pakisabi po ang inyong dahilan",
+        deleteButton = "Burahin ang aking account",
+        deleting = "Binubura…",
+        deleteConfirmTitle = "Burahin ang inyong account?",
+        deleteConfirmBody = "Hihinto na po ngayon ang pagbantay at buburahin ang lahat sa " +
+            "teleponong ito. Hindi na po ito maibabalik.",
+        deleteConfirmYes = "Burahin",
 
         contactsHeader = "Mga Contact",
         contactsLoadFailedInline = "Hindi po ma-load ang inyong mga contact.",

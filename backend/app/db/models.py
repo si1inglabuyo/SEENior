@@ -85,6 +85,15 @@ class User(Base):
     is_active: Mapped[bool] = mapped_column(default=True)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
+    # Account deletion is soft (migration 0010). NULL deleted_at = live account.
+    # On delete: is_active goes False (login/get_current_user already reject that),
+    # every pairing is soft-unlinked, and username/email/google_sub are tombstoned
+    # with a suffix so those unique slots free up for a fresh sign-up. deletion_reason
+    # is a stable code from the app's reason picker, never the translated label.
+    deleted_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    deletion_reason: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    deletion_note: Mapped[str | None] = mapped_column(String(500), nullable=True)
+
     contacts: Mapped[list["Contact"]] = relationship(back_populates="user")
     # delete-orphan: a deactivated account's tokens must not outlive it and keep
     # receiving pushes for seniors it is no longer linked to.
@@ -166,6 +175,16 @@ class Senior(Base):
     # has not arrived yet, or FCM refused to issue one.
     push_token: Mapped[str | None] = mapped_column(String(255), nullable=True)
     last_nudge_at: Mapped[datetime | None] = mapped_column(nullable=True)
+
+    # Account deletion is soft (migration 0010). NULL deleted_at = live record. The
+    # senior has no users row, so the sync_id is the credential for POST
+    # /seniors/{sync_id}/delete; on delete the contacts are soft-unlinked, the push
+    # token and invite code are cleared, and the phone wipes its own local database
+    # (where the Routine Fingerprint and raw behaviour actually live, CLAUDE.md §11).
+    # Every barangay-dashboard query must exclude deleted_at IS NOT NULL.
+    deleted_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    deletion_reason: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    deletion_note: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
     contacts: Mapped[list["Contact"]] = relationship(back_populates="senior")
     alerts: Mapped[list["Alert"]] = relationship(back_populates="senior")

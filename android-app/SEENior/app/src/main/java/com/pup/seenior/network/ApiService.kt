@@ -1,5 +1,6 @@
 package com.pup.seenior.network
 
+import com.pup.seenior.network.dto.AccountDeletionRequest
 import com.pup.seenior.network.dto.AlertDispatchRequest
 import com.pup.seenior.network.dto.AlertDto
 import com.pup.seenior.network.dto.CancelAlertRequest
@@ -82,6 +83,15 @@ interface ApiService {
     @POST("seniors/{syncId}/invite")
     suspend fun generateInvite(@Path("syncId") syncId: String): InviteCodeDto
 
+    // Soft-deletes the senior's cloud record and soft-unlinks their contacts. No auth —
+    // the sync_id is the credential, same as every senior-side route. The phone wipes its
+    // own local database separately. Idempotent server-side.
+    @POST("seniors/{syncId}/delete")
+    suspend fun deleteSenior(
+        @Path("syncId") syncId: String,
+        @Body body: AccountDeletionRequest
+    )
+
     @GET("seniors/{syncId}/family-contacts")
     suspend fun getFamilyContacts(@Path("syncId") syncId: String): List<FamilyContactDto>
 
@@ -149,6 +159,14 @@ interface ApiService {
     suspend fun changePassword(
         @Header("Authorization") auth: String,
         @Body body: ChangePasswordRequest
+    )
+
+    // Soft-deletes the caller's own family account: deactivates it, soft-unlinks every
+    // pairing, drops device tokens, and frees the email/username for a fresh sign-up.
+    @POST("auth/me/delete")
+    suspend fun deleteMyAccount(
+        @Header("Authorization") auth: String,
+        @Body body: AccountDeletionRequest
     )
 
     // ---- Push registration (family side) ----

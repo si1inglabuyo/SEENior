@@ -35,6 +35,7 @@ async def _senior_by_valid_code(code: str, db: AsyncSession) -> Senior:
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     if (
         senior is None
+        or senior.deleted_at is not None
         or senior.invite_code_expires_at is None
         or senior.invite_code_expires_at < now
     ):

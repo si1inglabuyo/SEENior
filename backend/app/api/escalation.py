@@ -182,7 +182,15 @@ async def sweep_overdue_alerts(db: AsyncSession) -> tuple[int, int]:
     now = await db_now(db)
     result = await db.execute(
         select(Alert)
-        .where(Alert.status == AlertStatus.PENDING, Alert.risk_level != RiskLevel.LOW)
+        .join(Senior, Senior.id == Alert.senior_id)
+        .where(
+            Alert.status == AlertStatus.PENDING,
+            Alert.risk_level != RiskLevel.LOW,
+            # A senior who deleted their account has no phone sending anything, but a
+            # pending alert raised just before deletion must not be walked up the chain
+            # to a barangay for someone who is no longer in the system.
+            Senior.deleted_at.is_(None),
+        )
         .options(selectinload(Alert.senior).selectinload(Senior.contacts))
     )
 
@@ -306,6 +314,8 @@ async def nudge_quiet_devices(db: AsyncSession) -> int:
     result = await db.execute(
         select(Senior).where(
             Senior.push_token.is_not(None),
+            # A deleted senior has push_token cleared, so this is belt-and-braces.
+            Senior.deleted_at.is_(None),
             # NULL last_seen_at is a phone that has NEVER checked in -- it has no token
             # either, so it cannot match the clause above and is not a case to handle here.
             Senior.last_seen_at.is_not(None),

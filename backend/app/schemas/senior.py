@@ -24,6 +24,14 @@ class SeniorUpdate(BaseModel):
     mobile_number: str
 
 
+class SeniorDeletionRequest(BaseModel):
+    """Why a senior is deleting their account. `reason` is a stable code from the
+    app's reason picker (not the translated label); `note` is optional free text."""
+
+    reason: str = Field(min_length=1, max_length=64)
+    note: str | None = Field(default=None, max_length=500)
+
+
 class SeniorHeartbeat(BaseModel):
     """What the senior's phone reports when it checks in.
 

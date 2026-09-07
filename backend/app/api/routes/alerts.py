@@ -113,7 +113,9 @@ async def create_alert(
     # issued alongside sync_id in POST /seniors would close this if hardened later.
     result = await db.execute(select(Senior).where(Senior.sync_id == payload.senior_sync_id))
     senior = result.scalar_one_or_none()
-    if senior is None:
+    if senior is None or senior.deleted_at is not None:
+        # A deleted senior's phone is wiped and should never post again; if a stale
+        # queued alert still arrives, it belongs to no one now.
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Senior not found")
 
     # Naive UTC, matching every other timestamp column in this schema (TIMESTAMP WITHOUT TIME

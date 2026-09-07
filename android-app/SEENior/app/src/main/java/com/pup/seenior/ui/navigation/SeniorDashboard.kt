@@ -250,7 +250,7 @@ private fun RepairAlertPermissions(copy: SeniorStrings.Copy) {
 }
 
 @Composable
-fun SeniorDashboard() {
+fun SeniorDashboard(onAccountDeleted: () -> Unit) {
     var tab by remember { mutableStateOf(SeniorTab.HOME) }
     val homeViewModel: HomeViewModel = viewModel()
     val promptViewModel: WellnessPromptViewModel = viewModel()
@@ -344,7 +344,7 @@ fun SeniorDashboard() {
                     onGoToInvite = { tab = SeniorTab.INVITE },
                     inviteActionLabel = profileCopy.inviteTabLabel
                 )
-                SeniorTab.PROFILE -> SeniorProfileScreen()
+                SeniorTab.PROFILE -> SeniorProfileScreen(onAccountDeleted = onAccountDeleted)
             }
         }
     }

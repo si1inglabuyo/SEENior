@@ -1,8 +1,10 @@
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token as google_id_token
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
@@ -13,9 +15,10 @@ from app.core.security import (
     hash_password,
     verify_password,
 )
-from app.db.models import User, UserRole
+from app.db.models import Contact, DeviceToken, UnlinkActor, User, UserRole
 from app.db.session import get_db
 from app.schemas.auth import (
+    AccountDeletionRequest,
     GoogleSignInRequest,
     PasswordChangeRequest,
     RegisterRequest,
@@ -174,4 +177,57 @@ async def change_password(
     if not verify_password(payload.current_password, current_user.password_hash):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current password is incorrect")
     current_user.password_hash = hash_password(payload.new_password)
+    await db.commit()
+
+
+@router.post("/me/delete", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_current_account(
+    payload: AccountDeletionRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> None:
+    """Soft-deletes the caller's own account.
+
+    The row is kept (deleted_at / deletion_reason / deletion_note) for audit, but:
+
+      * is_active goes False, so login() and get_current_user() already reject it;
+      * every pairing this user had is soft-unlinked (unlinked_by=family), so the
+        seniors stop seeing them and the escalation sweep stops routing to them --
+        Contact.is_active() / has_family_tier() both filter on unlinked_at IS NULL;
+      * their device tokens are dropped, so this handset stops receiving pushes
+        that name a senior (CLAUDE.md §11);
+      * username / email / google_sub are tombstoned with a "+deletedNNN" suffix,
+        freeing those unique slots for a fresh sign-up later with no schema change.
+
+    Idempotent: a repeat call on an already-deleted account is a no-op, the same
+    way a repeated unlink is.
+    """
+    if current_user.deleted_at is not None:
+        return
+
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    suffix = f"+deleted{int(now.timestamp())}"
+
+    current_user.deleted_at = now
+    current_user.deletion_reason = payload.reason
+    current_user.deletion_note = payload.note
+    current_user.is_active = False
+    current_user.username = f"{current_user.username}{suffix}"
+    if current_user.email:
+        current_user.email = f"{current_user.email}{suffix}"
+    if current_user.google_sub:
+        current_user.google_sub = f"{current_user.google_sub}{suffix}"
+
+    links = await db.execute(
+        select(Contact).where(Contact.user_id == current_user.id, Contact.is_active())
+    )
+    for contact in links.scalars().all():
+        contact.unlinked_at = now
+        contact.unlinked_by = UnlinkActor.FAMILY
+
+    # Deleted outright, not lazy-loaded off current_user (that relationship is unloaded
+    # on an async session and would raise). This handset must stop receiving pushes
+    # that name a senior the moment the account is gone.
+    await db.execute(delete(DeviceToken).where(DeviceToken.user_id == current_user.id))
+
     await db.commit()

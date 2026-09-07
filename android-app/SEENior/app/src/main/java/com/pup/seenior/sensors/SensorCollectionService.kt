@@ -761,6 +761,16 @@ class SensorCollectionService : Service(), SensorEventListener
         }
 
         /**
+         * Stops passive monitoring outright. Used when the senior deletes their account:
+         * the foreground-service notification goes away and no more samples are taken.
+         * The watchdog will not restart it because the wiped database then has no
+         * onboarded senior (see [com.pup.seenior.sensors.MonitoringWatchdogJobService]).
+         */
+        fun stop(context: Context) {
+            context.stopService(Intent(context, SensorCollectionService::class.java))
+        }
+
+        /**
          * Asks for one immediate sample, starting the service first if it is not running.
          *
          * Called from [com.pup.seenior.alerts.SeeniorMessagingService] when the server says

@@ -169,4 +169,9 @@ interface AlertDao {
 
     @Query("SELECT * FROM Alerts WHERE senior_id = :seniorId AND risk_level = :riskLevel ORDER BY triggered_at DESC")
     fun getByRiskLevel(seniorId: Int, riskLevel: String): Flow<List<Alert>>
+
+    /** Every alert id on this device — used when deleting the account to cancel any
+     *  armed escalation alarm before the rows are wiped. */
+    @Query("SELECT alert_id FROM Alerts")
+    suspend fun getAllAlertIds(): List<Int>
 }

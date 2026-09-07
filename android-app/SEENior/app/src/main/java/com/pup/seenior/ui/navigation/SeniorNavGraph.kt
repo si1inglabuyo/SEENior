@@ -132,7 +132,15 @@ fun SeniorNavGraph(navController: NavHostController = rememberNavController()) {
             )
         }
         composable(SeniorRoutes.HOME) {
-            SeniorDashboard()
+            SeniorDashboard(
+                // The senior deleted their account: the local database is already wiped,
+                // so drop back to the pre-onboarding welcome screen with nothing behind it.
+                onAccountDeleted = {
+                    navController.navigate(SeniorRoutes.WELCOME) {
+                        popUpTo(SeniorRoutes.SPLASH) { inclusive = true }
+                    }
+                }
+            )
         }
 
         // ---- Family flow ----

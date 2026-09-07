@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 
 from app.db.models import UserRole
 
@@ -42,3 +42,12 @@ class RegisterRequest(BaseModel):
 
 class GoogleSignInRequest(BaseModel):
     id_token: str
+
+
+class AccountDeletionRequest(BaseModel):
+    """Why an account is being deleted — shown to the user as a required reason
+    picker (`reason` is a stable code, not the localized label) plus an optional
+    free-text note."""
+
+    reason: str = Field(min_length=1, max_length=64)
+    note: str | None = Field(default=None, max_length=500)

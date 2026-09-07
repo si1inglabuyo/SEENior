@@ -7,10 +7,16 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import Senior
+from app.db.models import Contact, Senior, UnlinkActor
 from app.db.session import get_db
 from app.schemas.contact import InviteCodeOut
-from app.schemas.senior import SeniorCreate, SeniorHeartbeat, SeniorOut, SeniorUpdate
+from app.schemas.senior import (
+    SeniorCreate,
+    SeniorDeletionRequest,
+    SeniorHeartbeat,
+    SeniorOut,
+    SeniorUpdate,
+)
 
 router = APIRouter(prefix="/seniors", tags=["seniors"])
 
@@ -92,6 +98,49 @@ async def heartbeat(
     await db.commit()
     await db.refresh(senior)
     return senior
+
+
+@router.post("/{sync_id}/delete", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_senior(
+    sync_id: UUID, payload: SeniorDeletionRequest, db: AsyncSession = Depends(get_db)
+) -> None:
+    """Soft-deletes a senior's cloud record.
+
+    No auth, same posture as every other senior-side route here: the senior has no
+    users account (CLAUDE.md §2), so the sync_id is the credential.
+
+    The row is kept (deleted_at / deletion_reason / deletion_note) for audit, but:
+
+      * its contacts are soft-unlinked (unlinked_by=senior), so linked family stop
+        seeing this senior on their next refresh;
+      * push_token / last_nudge_at / invite_code are cleared, so the quiet-device
+        nudge and any stale invite code cannot act on a deleted record;
+      * every barangay-dashboard query must exclude deleted_at IS NOT NULL.
+
+    The phone wipes its own local database separately -- that is where the Routine
+    Fingerprint and all raw behaviour live. Idempotent: a repeat call is a no-op.
+    """
+    senior = await _get_senior_or_404(sync_id, db)
+    if senior.deleted_at is not None:
+        return
+
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    senior.deleted_at = now
+    senior.deletion_reason = payload.reason
+    senior.deletion_note = payload.note
+    senior.push_token = None
+    senior.last_nudge_at = None
+    senior.invite_code = None
+    senior.invite_code_expires_at = None
+
+    links = await db.execute(
+        select(Contact).where(Contact.senior_id == senior.id, Contact.is_active())
+    )
+    for contact in links.scalars().all():
+        contact.unlinked_at = now
+        contact.unlinked_by = UnlinkActor.SENIOR
+
+    await db.commit()
 
 
 @router.post("/{sync_id}/invite", response_model=InviteCodeOut)

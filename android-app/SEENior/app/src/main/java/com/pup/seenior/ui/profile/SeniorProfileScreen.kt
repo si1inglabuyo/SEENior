@@ -22,16 +22,20 @@ import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Contacts
+import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Gavel
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PrivacyTip
 import androidx.compose.material.icons.filled.SupportAgent
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -61,7 +65,7 @@ import com.pup.seenior.validation.PhilippinePhone
 import androidx.compose.material.icons.filled.Language
 
 private enum class ProfilePage {
-    HOME, EDIT, LANGUAGE, ABOUT, HOW_TO_USE, FAQS, SUPPORT, TERMS, PRIVACY,
+    HOME, EDIT, LANGUAGE, ABOUT, HOW_TO_USE, FAQS, SUPPORT, TERMS, PRIVACY, DELETE_ACCOUNT,
     /** Only reachable for a senior living alone — for everyone else these are bottom tabs. */
     FAMILY, FAMILY_INVITE
 }
@@ -75,7 +79,7 @@ private enum class ProfilePage {
  * session on the device belongs to the family app.
  */
 @Composable
-fun SeniorProfileScreen() {
+fun SeniorProfileScreen(onAccountDeleted: () -> Unit) {
     val viewModel: SeniorProfileViewModel = viewModel()
     LaunchedEffect(Unit) { viewModel.refresh() }
     var page by remember { mutableStateOf(ProfilePage.HOME) }
@@ -89,6 +93,11 @@ fun SeniorProfileScreen() {
                 page = ProfilePage.HOME
             },
             onSaved = { page = ProfilePage.HOME }
+        )
+        ProfilePage.DELETE_ACCOUNT -> SeniorDeleteAccountScreen(
+            viewModel = viewModel,
+            onBack = { page = ProfilePage.HOME },
+            onDeleted = onAccountDeleted
         )
         ProfilePage.LANGUAGE -> SeniorLanguageScreen(viewModel) { page = ProfilePage.HOME }
         ProfilePage.ABOUT -> SeniorAboutScreen { page = ProfilePage.HOME }
@@ -222,6 +231,17 @@ private fun ProfileHome(viewModel: SeniorProfileViewModel, onNavigate: (ProfileP
                 ProfileRow(Icons.Filled.Gavel, copy.termsRow) { onNavigate(ProfilePage.TERMS) }
                 RowDivider()
                 ProfileRow(Icons.Filled.PrivacyTip, copy.privacyRow) { onNavigate(ProfilePage.PRIVACY) }
+            }
+
+            SectionLabel(copy.sectionAccount)
+            ProfileGroup {
+                ProfileRow(
+                    icon = Icons.Filled.DeleteForever,
+                    title = copy.deleteAccountRow,
+                    subtitle = copy.deleteAccountRowSubtitle,
+                    tint = ErrorRed,
+                    onClick = { onNavigate(ProfilePage.DELETE_ACCOUNT) }
+                )
             }
 
             Spacer(Modifier.height(24.dp))
@@ -359,6 +379,110 @@ private fun SeniorEditProfileScreen(
     }
 }
 
+@Composable
+private fun SeniorDeleteAccountScreen(
+    viewModel: SeniorProfileViewModel,
+    onBack: () -> Unit,
+    onDeleted: () -> Unit
+) {
+    val copy = LocalProfileCopy.current
+    var selectedReason by remember { mutableStateOf<String?>(null) }
+    var note by remember { mutableStateOf("") }
+    var showConfirm by remember { mutableStateOf(false) }
+
+    val noteRequired = selectedReason == "other"
+    val canDelete = selectedReason != null &&
+        (!noteRequired || note.isNotBlank()) &&
+        !viewModel.isDeleting
+
+    Column(modifier = Modifier.fillMaxSize().background(Color.White)) {
+        GreenBackHeader(title = copy.deleteHeader, onBack = onBack)
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp, vertical = 20.dp)
+        ) {
+            Text(
+                copy.deleteIntro,
+                color = SeniorColors.TextPrimary,
+                fontSize = 15.sp,
+                lineHeight = 21.sp
+            )
+
+            Text(
+                copy.deleteReasonHeading,
+                color = SeniorColors.TextPrimary,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(top = 22.dp, bottom = 4.dp)
+            )
+
+            copy.deleteReasons().forEach { (code, label) ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { selectedReason = code }
+                        .padding(vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    RadioButton(
+                        selected = selectedReason == code,
+                        onClick = { selectedReason = code }
+                    )
+                    Text(
+                        label,
+                        color = SeniorColors.TextPrimary,
+                        fontSize = 16.sp,
+                        modifier = Modifier.padding(start = 4.dp)
+                    )
+                }
+            }
+
+            LabeledTextField(
+                label = copy.deleteNoteLabel,
+                value = note,
+                onValueChange = { note = it },
+                placeholder = copy.deleteNotePlaceholder,
+                isError = noteRequired && note.isBlank(),
+                errorText = copy.deleteNoteRequiredForOther
+            )
+
+            PrimaryPillButton(
+                text = if (viewModel.isDeleting) copy.deleting else copy.deleteButton,
+                onClick = { showConfirm = true },
+                enabled = canDelete,
+                modifier = Modifier.padding(top = 28.dp, bottom = 32.dp)
+            )
+        }
+    }
+
+    if (showConfirm) {
+        AlertDialog(
+            onDismissRequest = { showConfirm = false },
+            title = { Text(copy.deleteConfirmTitle) },
+            text = { Text(copy.deleteConfirmBody) },
+            confirmButton = {
+                TextButton(onClick = {
+                    val reason = selectedReason
+                    if (reason != null) {
+                        showConfirm = false
+                        viewModel.deleteAccount(reason, note.trim().ifBlank { null }, onDeleted)
+                    }
+                }) {
+                    Text(copy.deleteConfirmYes, color = ErrorRed)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showConfirm = false }) {
+                    Text(copy.cancel, color = SeniorColors.TextSecondary)
+                }
+            }
+        )
+    }
+}
+
 // ---------------------------------------------------------------- shared bits
 
 /** Green header with a back arrow, used by Edit Profile and every Profile sub-screen. */
@@ -410,8 +534,10 @@ private fun ProfileRow(
     icon: ImageVector,
     title: String,
     subtitle: String? = null,
+    tint: Color = SeniorColors.Green,
     onClick: () -> Unit
 ) {
+    val isAccent = tint != SeniorColors.Green
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -420,13 +546,23 @@ private fun ProfileRow(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
-            modifier = Modifier.size(42.dp).background(SeniorColors.GreenLightBg, RoundedCornerShape(12.dp)),
+            modifier = Modifier
+                .size(42.dp)
+                .background(
+                    if (isAccent) tint.copy(alpha = 0.12f) else SeniorColors.GreenLightBg,
+                    RoundedCornerShape(12.dp)
+                ),
             contentAlignment = Alignment.Center
         ) {
-            Icon(icon, null, tint = SeniorColors.Green, modifier = Modifier.size(22.dp))
+            Icon(icon, null, tint = tint, modifier = Modifier.size(22.dp))
         }
         Column(modifier = Modifier.padding(start = 14.dp).weight(1f)) {
-            Text(title, color = SeniorColors.TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text(
+                title,
+                color = if (isAccent) tint else SeniorColors.TextPrimary,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold
+            )
             subtitle?.let {
                 Text(it, color = SeniorColors.TextSecondary, fontSize = 14.sp, maxLines = 2)
             }

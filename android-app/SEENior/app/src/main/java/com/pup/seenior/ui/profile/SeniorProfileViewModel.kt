@@ -6,14 +6,19 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.pup.seenior.alerts.EscalationScheduler
 import com.pup.seenior.database.SeniorAppDatabase
 import com.pup.seenior.database.entities.Senior
 import com.pup.seenior.network.RetrofitClient
 import com.pup.seenior.network.SeniorCloudSync
+import com.pup.seenior.network.dto.AccountDeletionRequest
 import com.pup.seenior.network.dto.UpdateSeniorRequest
+import com.pup.seenior.sensors.SensorCollectionService
 import com.pup.seenior.ui.onboarding.OnboardingOptions
 import com.pup.seenior.validation.PhilippinePhone
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.IOException
 import com.pup.seenior.ui.wellness.WellnessMessages
 
@@ -196,5 +201,53 @@ class SeniorProfileViewModel(application: Application) : AndroidViewModel(applic
 
     fun clearSyncWarning() {
         syncWarning = null
+    }
+
+    // ---- Delete account ----
+
+    var isDeleting by mutableStateOf(false)
+        private set
+
+    /**
+     * Deletes this senior's account.
+     *
+     * The cloud call is best-effort: erasing this phone is what actually protects the
+     * senior's data (CLAUDE.md §11), so a failed or offline server call must not block
+     * the wipe. Known limitation — there is no retry after the wipe, so if the phone is
+     * offline the cloud record (name + address only) lingers until it is pruned by hand;
+     * a hardened build would need a server-side TTL or an unauthenticated retry token.
+     *
+     * Order matters: monitoring is stopped and every armed escalation alarm is cancelled
+     * *before* the rows are wiped, then the whole local database goes.
+     *
+     * [reason] is a stable code ("switching_phone", …), not the on-screen label.
+     */
+    fun deleteAccount(reason: String, note: String?, onDeleted: () -> Unit) {
+        if (isDeleting) return
+        isDeleting = true
+        viewModelScope.launch {
+            val app = getApplication<Application>()
+
+            // 1. Best-effort cloud soft-delete + contact unlink.
+            runCatching {
+                cloudSync.withSyncIdOrNull()?.let { syncId ->
+                    RetrofitClient.api.deleteSenior(syncId, AccountDeletionRequest(reason, note))
+                }
+            }
+
+            // 2. Stop passive monitoring and cancel any armed escalation deadlines
+            //    while the alert rows still exist to be found.
+            SensorCollectionService.stop(app)
+            runCatching {
+                db.alertDao().getAllAlertIds().forEach { EscalationScheduler.cancel(app, it) }
+            }
+
+            // 3. Erase the local database — all ten tables, the real personal data.
+            //    clearAllTables() is a blocking call and asserts off the main thread.
+            withContext(Dispatchers.IO) { db.clearAllTables() }
+
+            isDeleting = false
+            onDeleted()
+        }
     }
 }
