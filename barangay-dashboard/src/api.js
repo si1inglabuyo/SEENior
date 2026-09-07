@@ -14,6 +14,21 @@ export const POLL_MS = 10000
 export const getToken = () => localStorage.getItem(TOKEN_KEY)
 export const clearToken = () => localStorage.removeItem(TOKEN_KEY)
 
+// The responder's own user id, read from the JWT's `sub` claim. Used only to attribute
+// entries in the access audit log (src/audit.js) -- never for an access decision, which
+// the server alone makes. Returns null on a missing or malformed token rather than
+// throwing, so a logging call can never break a render.
+export function currentUserId() {
+  const token = getToken()
+  if (!token) return null
+  try {
+    const part = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')
+    return JSON.parse(atob(part)).sub ?? null
+  } catch {
+    return null
+  }
+}
+
 export async function login(username, password) {
   // /auth/login speaks OAuth2's form encoding, not JSON. The field is named "username"
   // by that spec; family accounts put an email in it, but a barangay responder types
