@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -48,6 +49,10 @@ fun SignUpScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
+                // Shrinks the scroll viewport by the keyboard height so the focused field
+                // (last/street/mobile sit low on this form) scrolls above the IME instead of
+                // hiding behind it — enableEdgeToEdge() means adjustResize no longer does this.
+                .imePadding()
                 .padding(horizontal = 24.dp)
         ) {
             OnboardingTopBar(currentStep = 1, onBack = onBack)

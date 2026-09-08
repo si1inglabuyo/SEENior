@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -73,6 +74,9 @@ fun FamilySignUpScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 24.dp)
                 .navigationBarsPadding()
+                // Keeps the focused field (Email/Password sit at the bottom) above the keyboard —
+                // enableEdgeToEdge() stops adjustResize from shrinking the window for the IME.
+                .imePadding()
         ) {
             Text(
                 "Tell Us About Yourself",

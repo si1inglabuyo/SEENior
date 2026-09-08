@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -62,6 +63,9 @@ fun FamilyLoginScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 24.dp)
                 .navigationBarsPadding()
+                // enableEdgeToEdge() means adjustResize no longer lifts the form for the IME —
+                // shrink the scroll viewport so the focused field clears the keyboard.
+                .imePadding()
         ) {
             Text(
                 "Proceed with your setup.",

@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -48,6 +49,9 @@ fun FamilyCompletePhoneScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 24.dp)
                 .navigationBarsPadding()
+                // Keeps the number field above the keyboard — enableEdgeToEdge() means
+                // adjustResize no longer resizes the window for the IME.
+                .imePadding()
         ) {
             Spacer(Modifier.height(24.dp))
             Text(
