@@ -103,7 +103,18 @@ object ProfileStrings {
         val generateNew: String,
         val generateCode: String,
         val codesExpireNote: String,
+        val pairSuccessTitle: String,
+        val pairSuccessDismiss: String,
     ) {
+        /** Shown to the senior when a family member links with their live code. */
+        fun pairSuccessBody(name: String): String =
+            if (this === FILIPINO_COPY)
+                "Naka-konekta na si " + name + ". Aabisuhan sila kung may mapapansing hindi " +
+                    "karaniwan sa inyong routine."
+            else
+                name + " is now connected. They will be alerted if anything unusual is " +
+                    "detected in your routine."
+
         /** "Senior · 65 years old" — the age is the senior's own and reads the same either way. */
         fun seniorAge(age: Int): String =
             if (this === FILIPINO_COPY) "Senior · " + age + " taong gulang"
@@ -227,6 +238,8 @@ object ProfileStrings {
         generateNew = "Generate new",
         generateCode = "Generate code",
         codesExpireNote = "Codes expire after 5 minutes. A new code can only be generated once the current code expires.",
+        pairSuccessTitle = "Family member linked",
+        pairSuccessDismiss = "OK",
     )
 
     private val FILIPINO_COPY = Copy(
@@ -308,6 +321,8 @@ object ProfileStrings {
         generateNew = "Gumawa ng bago",
         generateCode = "Gumawa ng code",
         codesExpireNote = "Nag-e-expire po ang code pagkalipas ng 5 minuto. Makakagawa lang po ng bago kapag nag-expire na ang kasalukuyang code.",
+        pairSuccessTitle = "Naka-link na ang kapamilya",
+        pairSuccessDismiss = "OK",
     )
 
     fun forLanguage(language: String): Copy =

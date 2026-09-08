@@ -21,13 +21,16 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.PersonAddAlt1
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.Alignment
@@ -166,6 +169,20 @@ fun InviteScreen(
                 )
             }
         }
+    }
+
+    viewModel.pairedContactName?.let { name ->
+        AlertDialog(
+            onDismissRequest = viewModel::acknowledgePaired,
+            confirmButton = {
+                TextButton(onClick = viewModel::acknowledgePaired) {
+                    Text(copy.pairSuccessDismiss, color = SeniorColors.Green, fontSize = 17.sp)
+                }
+            },
+            icon = { Icon(Icons.Filled.CheckCircle, null, tint = SeniorColors.Green) },
+            title = { Text(copy.pairSuccessTitle, fontSize = 20.sp, fontWeight = FontWeight.Bold) },
+            text = { Text(copy.pairSuccessBody(name), fontSize = 16.sp) }
+        )
     }
 }
 

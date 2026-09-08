@@ -66,6 +66,18 @@ class FamilyPairingViewModel(application: Application) : AndroidViewModel(applic
     var error by mutableStateOf<String?>(null)
         private set
 
+    /**
+     * The just-linked senior's first name once [pair] has actually succeeded, or null. Drives the
+     * success dialog on the Connected screen — the pairing used to navigate straight to Home with
+     * no confirmation, so nothing told the family member the link had gone through.
+     */
+    var pairedSeniorName by mutableStateOf<String?>(null)
+        private set
+
+    /** The navigation callback that was passed to [pair], held until the family member dismisses
+     *  the success dialog so the confirmation is seen before the screen moves on. */
+    private var pendingContinuation: (() -> Unit)? = null
+
     /** Clears the per-pairing fields so the Link screen starts fresh for "Add another senior". */
     fun resetForNewLink() {
         code = ""
@@ -73,6 +85,8 @@ class FamilyPairingViewModel(application: Application) : AndroidViewModel(applic
         selectedRelationship = null
         otherRelationship = ""
         error = null
+        pairedSeniorName = null
+        pendingContinuation = null
     }
 
     fun verify(onVerified: () -> Unit) {
@@ -107,7 +121,9 @@ class FamilyPairingViewModel(application: Application) : AndroidViewModel(applic
                     PairRequest(inviteCode = code, relationshipLabel = relationship),
                     auth = "Bearer $token"
                 )
-                onPaired()
+                // Hold the navigation until the family member has seen the confirmation.
+                pendingContinuation = onPaired
+                pairedSeniorName = verifiedSenior?.firstName ?: "the senior"
             } catch (e: HttpException) {
                 error = when {
                     e.code() == 400 -> "That code just expired, or you're already at the 3-senior limit."
@@ -120,6 +136,14 @@ class FamilyPairingViewModel(application: Application) : AndroidViewModel(applic
                 isPairing = false
             }
         }
+    }
+
+    /** Family member dismissed the success dialog — run the navigation that [pair] deferred. */
+    fun confirmPairSuccess() {
+        val continuation = pendingContinuation
+        pairedSeniorName = null
+        pendingContinuation = null
+        continuation?.invoke()
     }
 
     private companion object {

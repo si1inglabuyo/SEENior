@@ -22,10 +22,13 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -183,6 +186,28 @@ fun ConnectedScreen(
                 )
             }
         }
+    }
+
+    // Shown once the pairing has actually gone through on the server — the flow otherwise
+    // navigated straight on, so nothing confirmed the link had been made.
+    viewModel.pairedSeniorName?.let { name ->
+        AlertDialog(
+            onDismissRequest = viewModel::confirmPairSuccess,
+            confirmButton = {
+                TextButton(onClick = viewModel::confirmPairSuccess) {
+                    Text("Done", color = FamilyColors.Blue, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                }
+            },
+            icon = { Icon(Icons.Filled.CheckCircle, null, tint = FamilyColors.SuccessGreen) },
+            title = { Text("Linked successfully", fontSize = 19.sp, fontWeight = FontWeight.Bold) },
+            text = {
+                Text(
+                    "You are now monitoring $name. You'll be alerted right away if anything " +
+                        "unusual is detected.",
+                    fontSize = 15.sp
+                )
+            }
+        )
     }
 }
 
