@@ -182,6 +182,9 @@ async def list_alerts(
     if senior is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Senior not found")
 
+    # A family contact only sees alerts raised on their watch; a barangay responder sees the
+    # senior's full history within their barangay.
+    linked_since: datetime | None = None
     if current_user.role == UserRole.BARANGAY_RESPONDER:
         allowed = current_user.barangay == senior.barangay
     else:
@@ -195,12 +198,20 @@ async def list_alerts(
                 Contact.is_active(),
             )
         )
-        allowed = link_result.scalar_one_or_none() is not None
+        link = link_result.scalar_one_or_none()
+        allowed = link is not None
+        if link is not None:
+            # created_at marks when THIS pairing began -- pair_contact inserts a fresh row
+            # per (re)link, so alerts from before it, or from a since-closed gap, stay the
+            # senior's private history. Same DB clock as Alert.created_at (both func.now()).
+            linked_since = link.created_at
 
     if not allowed:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized for this senior")
 
     query = select(Alert).where(Alert.senior_id == senior.id)
+    if linked_since is not None:
+        query = query.where(Alert.created_at >= linked_since)
     if status_filter is not None:
         query = query.where(Alert.status == status_filter)
     query = query.order_by(Alert.created_at.desc())
