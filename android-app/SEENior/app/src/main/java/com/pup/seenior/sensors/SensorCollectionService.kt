@@ -280,32 +280,50 @@ class SensorCollectionService : Service(), SensorEventListener
      *
      * So the refusal is caught rather than predicted. Guessing eligibility ahead of time means
      * reimplementing a rule that varies by Android version and OEM; letting the platform answer
-     * and degrading to `health` costs the alert map for that run and keeps every other thing
-     * this service does. An alert with no pin is worth enormously more than no alert, and
-     * [onStartCommand] re-asserts the type on every start, so the next start from an eligible
-     * state widens it back in place with nothing to reset.
+     * and degrading costs the alert map for that run and keeps every other thing this service
+     * does. An alert with no pin is worth enormously more than no alert, and [onStartCommand]
+     * re-asserts the type on every start, so the next start from an eligible state widens it
+     * back in place with nothing to reset.
      *
-     * The health-only fallback is deliberately left to throw. If the platform refuses that too
-     * there is no foreground service to be had, and a silent retry loop would hide it.
+     * **Why the fallback chain, and not just `location` → `health`.** From the background — a
+     * reboot, the [MonitoringWatchdogJobService] job, an FCM nudge — Android 14+ refuses a
+     * `location` foreground service outright, and on Android 15 it does so by throwing
+     * `ForegroundServiceStartNotAllowedException`, an *IllegalStateException*, not the
+     * SecurityException the old catch here expected. That unhandled throw crashed `onCreate`,
+     * the watchdog crash-looped restarting it, and the pilot handset sat with no monitoring
+     * from a 23:56 reboot until the app was opened by hand the next morning. `health` can be
+     * refused from the background for the same reason. So each type is tried in turn, any
+     * runtime refusal is caught and logged, and the last resort is a *typeless* foreground
+     * service — the most permissive start there is. Passive detection (accelerometer, steps,
+     * screen, fall) runs on any of these; only the alert-time GPS fix needs `location`, and
+     * that is restored the next time [onStartCommand] runs from an eligible state.
+     *
+     * The final typeless attempt is deliberately left to throw. If the platform refuses even
+     * that there is no foreground service to be had, and a silent failure would hide it.
      */
     @Suppress("InlinedApi")
     private fun startForegroundWithLocationIfAllowed() {
         val health = ServiceInfo.FOREGROUND_SERVICE_TYPE_HEALTH
-        if (hasLocationPermission()) {
+        val location = ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
+
+        val preferred = buildList {
+            if (hasLocationPermission()) add("health+location" to (health or location))
+            add("health" to health)
+        }
+        for ((label, type) in preferred) {
             try {
-                ServiceCompat.startForeground(
-                    this,
-                    NOTIFICATION_ID,
-                    buildNotification(),
-                    health or ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION,
-                )
+                ServiceCompat.startForeground(this, NOTIFICATION_ID, buildNotification(), type)
                 return
-            } catch (e: SecurityException) {
+            } catch (e: RuntimeException) {
+                // SecurityException (missing/limited permission) and
+                // ForegroundServiceStartNotAllowedException (an IllegalStateException — a
+                // background start of a while-in-use type) both land here.
                 // Read with: adb logcat -s SensorWake
-                Log.w(TAG_WAKE, "location service type refused; monitoring on health only", e)
+                Log.w(TAG_WAKE, "foreground service type '$label' refused; trying a plainer one", e)
             }
         }
-        ServiceCompat.startForeground(this, NOTIFICATION_ID, buildNotification(), health)
+        Log.w(TAG_WAKE, "starting monitoring as a typeless foreground service (no alert GPS until next eligible start)")
+        ServiceCompat.startForeground(this, NOTIFICATION_ID, buildNotification(), 0)
     }
 
     /**
