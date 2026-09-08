@@ -111,7 +111,11 @@ async def create_alert(
     # itself only by its own sync_id. Known simplification: nothing here verifies the
     # caller genuinely owns that sync_id. Acceptable for the demo; a per-device secret
     # issued alongside sync_id in POST /seniors would close this if hardened later.
-    result = await db.execute(select(Senior).where(Senior.sync_id == payload.senior_sync_id))
+    result = await db.execute(
+        select(Senior)
+        .where(Senior.sync_id == payload.senior_sync_id)
+        .options(selectinload(Senior.contacts))
+    )
     senior = result.scalar_one_or_none()
     if senior is None or senior.deleted_at is not None:
         # A deleted senior's phone is wiped and should never post again; if a stale
@@ -137,6 +141,31 @@ async def create_alert(
         escalation_steps=payload.escalation_steps,
         triggered_at=triggered_at,
     )
+
+    # A POST /alerts is *always* the senior's phone escalating to the family tier after an
+    # unanswered wellness prompt -- AlertEscalator.escalateToFamily() is the only caller. Record
+    # that tier-2 outcome on the timeline now, for two reasons:
+    #   1. the barangay dashboard's audit trail would otherwise show nothing before
+    #      `escalated_barangay`, and the "Lives alone" badge reads the `no_family_contact` step;
+    #   2. the server sweep (api/escalation.py) treats any of FAMILY_TIER_STEPS as "family tier
+    #      already handled" -- without a step here it re-fires `escalated_family_server` AND a
+    #      second push at family_deadline, so every escalated alert reached the family twice
+    #      (~40 s apart for SOS, ~10 min for inactivity). The push below is the one and only
+    #      family notification for this escalation.
+    # has_family_tier() in api/escalation.py is the canonical form of this check.
+    has_family = any(
+        c.contact_type == ContactType.FAMILY and c.unlinked_at is None
+        for c in senior.contacts
+    )
+    if has_family:
+        append_step(alert, "escalated_family", reason="Senior did not answer the wellness prompt")
+    else:
+        append_step(
+            alert,
+            "no_family_contact",
+            reason="No family contact is linked; escalating straight to the barangay",
+        )
+
     db.add(alert)
     await db.commit()
     await db.refresh(alert)
