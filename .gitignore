@@ -23,3 +23,6 @@ android-app/SEENior/replay_pid*.log
 
 # Local config for a secondary tool, personal to whoever set it up.
 opencode.json
+
+# Local phone-DB pulls — contain the pilot senior's PII, never commit.
+seenior-db/
