@@ -34,18 +34,8 @@ fun OnboardingQuestionnaireScreen(
             OnboardingTopBar(currentStep = 3, onBack = onBack)
             OnboardingHeading(title = copy.questionnaireTitle, subtitle = copy.questionnaireSubtitle)
 
-            // First question on the page on purpose. It is the one answer that changes what every
-            // later prompt is written in, and a senior who reads only Filipino should not have to
-            // work through an English form to reach it.
-            LabeledDropdownField(
-                label = copy.qLanguage,
-                selected = viewModel.languageLabel,
-                options = OnboardingOptions.languages.map { it.first },
-                onSelect = { viewModel.languageLabel = it },
-                optionLabel = { it },
-                placeholder = copy.optionPlaceholder,
-                questionStyle = true
-            )
+            // Language is no longer asked here — it is the senior's first onboarding choice now
+            // (SeniorRoutes.LANGUAGE), so by this screen the whole form is already in it.
 
             LabeledTimeField(
                 label = copy.qWakeTime,

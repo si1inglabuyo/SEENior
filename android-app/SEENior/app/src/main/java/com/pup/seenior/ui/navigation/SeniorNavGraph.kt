@@ -21,6 +21,7 @@ import com.pup.seenior.ui.onboarding.OnboardingQuestionnaireScreen
 import com.pup.seenior.ui.onboarding.OnboardingViewModel
 import com.pup.seenior.ui.onboarding.PermissionsScreen
 import com.pup.seenior.ui.onboarding.RoleSelectionScreen
+import com.pup.seenior.ui.onboarding.SeniorLanguageChoiceScreen
 import com.pup.seenior.ui.onboarding.SignUpScreen
 import com.pup.seenior.ui.onboarding.SplashScreen
 import com.pup.seenior.ui.onboarding.TermsConditionsScreen
@@ -30,6 +31,7 @@ object SeniorRoutes {
     const val SPLASH = "splash"
     const val WELCOME = "welcome"
     const val ROLE_SELECT = "role_select"
+    const val LANGUAGE = "senior_language"
     const val SIGN_UP = "sign_up"
     const val ADDRESS_MAP = "address_map"
     const val TERMS = "terms"
@@ -52,10 +54,10 @@ fun SeniorNavGraph(navController: NavHostController = rememberNavController()) {
     // doesn't lose anything already typed.
     val familyAuthViewModel: FamilyAuthViewModel = viewModel()
 
-    // The language answer lives on the questionnaire, in the middle of this flow, so it is
-    // resolved here — above the NavHost — and every screen inside follows it from the moment it
-    // is given. Screens the senior has already passed by then were drawn in English; going back
-    // re-renders them translated.
+    // The language answer is the senior's first onboarding choice (SeniorRoutes.LANGUAGE, right
+    // after role selection), so it is resolved here — above the NavHost — and every screen from
+    // sign-up onward is drawn in it. Welcome and role selection, which come before the choice,
+    // stay in English; going back to them after choosing re-renders them translated.
     val onboardingCopy = OnboardingStrings.forLanguage(
         OnboardingOptions.languages
             .firstOrNull { it.first == onboardingViewModel.languageLabel }
@@ -83,8 +85,15 @@ fun SeniorNavGraph(navController: NavHostController = rememberNavController()) {
         }
         composable(SeniorRoutes.ROLE_SELECT) {
             RoleSelectionScreen(
-                onSeniorSelected = { navController.navigate(SeniorRoutes.SIGN_UP) },
+                onSeniorSelected = { navController.navigate(SeniorRoutes.LANGUAGE) },
                 onFamilyMemberSelected = { navController.navigate(SeniorRoutes.FAMILY_SIGNUP) }
+            )
+        }
+        composable(SeniorRoutes.LANGUAGE) {
+            SeniorLanguageChoiceScreen(
+                viewModel = onboardingViewModel,
+                onBack = { navController.popBackStack() },
+                onNext = { navController.navigate(SeniorRoutes.SIGN_UP) }
             )
         }
         composable(SeniorRoutes.SIGN_UP) {
