@@ -101,6 +101,13 @@ class User(Base):
         back_populates="user", cascade="all, delete-orphan"
     )
 
+    @property
+    def has_password(self) -> bool:
+        """A Google-only account has no password. The family app reads this off UserOut to
+        offer "Set a password" (so email + password sign-in also works) instead of the
+        "Change password" flow, which needs a current one."""
+        return self.password_hash is not None
+
 
 class DeviceToken(Base):
     """One FCM registration token — i.e. one installed app on one device — for a user.

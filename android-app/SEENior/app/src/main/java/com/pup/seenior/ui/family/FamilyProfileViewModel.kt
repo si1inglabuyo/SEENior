@@ -10,6 +10,7 @@ import com.pup.seenior.network.PushTokenRegistrar
 import com.pup.seenior.network.RetrofitClient
 import com.pup.seenior.network.dto.AccountDeletionRequest
 import com.pup.seenior.network.dto.ChangePasswordRequest
+import com.pup.seenior.network.dto.SetPasswordRequest
 import com.pup.seenior.network.dto.UpdateProfileRequest
 import com.pup.seenior.network.dto.UserDto
 import com.pup.seenior.session.FamilySession
@@ -88,7 +89,13 @@ class FamilyProfileViewModel(application: Application) : AndroidViewModel(applic
         }
     }
 
-    // Change-password dialog state
+    /** False only for a Google-only account that has not set a password yet — drives the
+     *  "Set a password" vs "Change Password" choice on Edit Profile. Defaults to the DTO's
+     *  own safe default (true) until a profile fetch says otherwise. */
+    val hasPassword: Boolean
+        get() = user?.hasPassword ?: true
+
+    // Change-password / set-password dialog state (shared — set-password skips currentPassword)
     var currentPassword by mutableStateOf("")
     var newPassword by mutableStateOf("")
     var confirmPassword by mutableStateOf("")
@@ -101,6 +108,10 @@ class FamilyProfileViewModel(application: Application) : AndroidViewModel(applic
 
     val isPasswordFormValid: Boolean
         get() = currentPassword.isNotBlank() && newPassword.length >= 4 && newPassword == confirmPassword
+
+    /** The set-password form has no current-password field. */
+    val isSetPasswordFormValid: Boolean
+        get() = newPassword.length >= 4 && newPassword == confirmPassword
 
     fun changePassword() {
         val token = token() ?: return
@@ -122,6 +133,42 @@ class FamilyProfileViewModel(application: Application) : AndroidViewModel(applic
                     e.code() == 400 -> "Current password is incorrect."
                     SessionState.handleIfUnauthorized(getApplication(), e) -> SessionState.SESSION_EXPIRED_MESSAGE
                     else -> "Could not change password (server error ${e.code()})."
+                }
+            } catch (e: IOException) {
+                passwordError = "Could not reach the server."
+            } finally {
+                isChangingPassword = false
+            }
+        }
+    }
+
+    /**
+     * Adds a password to a Google-only account. Same dialog as [changePassword] but without a
+     * current password — there isn't one. On success the account keeps Google Sign-In and now
+     * also accepts email + password, so `user.hasPassword` flips true and Edit Profile shows
+     * "Change Password" from here on.
+     */
+    fun setPassword() {
+        val token = token() ?: return
+        if (!isSetPasswordFormValid || isChangingPassword) return
+        viewModelScope.launch {
+            isChangingPassword = true
+            passwordError = null
+            try {
+                RetrofitClient.api.setPassword(
+                    "Bearer $token",
+                    SetPasswordRequest(newPassword = newPassword)
+                )
+                currentPassword = ""
+                newPassword = ""
+                confirmPassword = ""
+                passwordChanged = true
+                user = user?.copy(hasPassword = true)
+            } catch (e: HttpException) {
+                passwordError = when {
+                    e.code() == 400 -> "This account already has a password. Use Change Password."
+                    SessionState.handleIfUnauthorized(getApplication(), e) -> SessionState.SESSION_EXPIRED_MESSAGE
+                    else -> "Could not set a password (server error ${e.code()})."
                 }
             } catch (e: IOException) {
                 passwordError = "Could not reach the server."

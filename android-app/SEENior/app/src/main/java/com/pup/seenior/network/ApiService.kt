@@ -18,6 +18,7 @@ import com.pup.seenior.network.dto.PairResponseDto
 import com.pup.seenior.network.dto.RegisterDeviceRequest
 import com.pup.seenior.network.dto.RegisterRequest
 import com.pup.seenior.network.dto.SeniorDto
+import com.pup.seenior.network.dto.SetPasswordRequest
 import com.pup.seenior.network.dto.TokenDto
 import com.pup.seenior.network.dto.UpdateLocationRequest
 import com.pup.seenior.network.dto.UpdateProfileRequest
@@ -159,6 +160,14 @@ interface ApiService {
     suspend fun changePassword(
         @Header("Authorization") auth: String,
         @Body body: ChangePasswordRequest
+    )
+
+    // Adds a password to a Google-only account so email + password sign-in also works.
+    // 400 if the account already has one.
+    @POST("auth/set-password")
+    suspend fun setPassword(
+        @Header("Authorization") auth: String,
+        @Body body: SetPasswordRequest
     )
 
     // Soft-deletes the caller's own family account: deactivates it, soft-unlinks every

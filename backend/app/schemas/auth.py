@@ -16,6 +16,9 @@ class UserOut(BaseModel):
     full_name: str | None = None
     phone: str | None = None
     email: str | None = None
+    # False for a Google-only account — the family app shows "Set a password" rather than
+    # "Change password" (read off User.has_password).
+    has_password: bool = False
 
     model_config = {"from_attributes": True}
 
@@ -29,6 +32,12 @@ class UserUpdate(BaseModel):
 class PasswordChangeRequest(BaseModel):
     current_password: str
     new_password: str
+
+
+class PasswordSetRequest(BaseModel):
+    """Add a password to a Google-only account so email + password sign-in also works.
+    No current password: there isn't one."""
+    new_password: str = Field(min_length=4)
 
 
 class RegisterRequest(BaseModel):

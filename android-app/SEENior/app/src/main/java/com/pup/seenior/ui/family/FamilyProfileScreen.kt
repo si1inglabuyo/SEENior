@@ -279,7 +279,14 @@ private fun FamilyEditProfileScreen(viewModel: FamilyProfileViewModel, onBack: (
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Change Password", color = FamilyColors.Blue, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                // A Google-only account has no password to change — it sets one instead, which
+                // then also unlocks email + password sign-in.
+                Text(
+                    if (viewModel.hasPassword) "Change Password" else "Set a Password",
+                    color = FamilyColors.Blue,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold
+                )
             }
 
             viewModel.error?.let {
@@ -305,22 +312,51 @@ private fun FamilyEditProfileScreen(viewModel: FamilyProfileViewModel, onBack: (
 
 @Composable
 private fun ChangePasswordDialog(viewModel: FamilyProfileViewModel, onDismiss: () -> Unit) {
+    // Same dialog, two modes: an account with a password *changes* it (needs the current one);
+    // a Google-only account *sets* one for the first time (no current password, and it also
+    // turns on email + password sign-in).
+    val setting = !viewModel.hasPassword
+    val formValid = if (setting) viewModel.isSetPasswordFormValid else viewModel.isPasswordFormValid
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (viewModel.passwordChanged) "Password changed" else "Change Password") },
+        title = {
+            Text(
+                when {
+                    viewModel.passwordChanged && setting -> "Password set"
+                    viewModel.passwordChanged -> "Password changed"
+                    setting -> "Set a Password"
+                    else -> "Change Password"
+                }
+            )
+        },
         text = {
             if (viewModel.passwordChanged) {
-                Text("Your password was updated successfully.")
+                Text(
+                    if (setting)
+                        "You can now sign in with your email and this password, or keep using Google."
+                    else
+                        "Your password was updated successfully."
+                )
             } else {
                 Column {
-                    FamilyTextField(
-                        "Current password",
-                        viewModel.currentPassword,
-                        { viewModel.currentPassword = it },
-                        keyboardType = KeyboardType.Password,
-                        isPassword = true
-                    )
-                    Spacer(Modifier.height(10.dp))
+                    if (setting) {
+                        Text(
+                            "You signed up with Google. Add a password to also sign in with " +
+                                (viewModel.user?.email ?: "your email") + ".",
+                            color = FamilyColors.TextSecondary,
+                            fontSize = 13.sp,
+                            modifier = Modifier.padding(bottom = 12.dp)
+                        )
+                    } else {
+                        FamilyTextField(
+                            "Current password",
+                            viewModel.currentPassword,
+                            { viewModel.currentPassword = it },
+                            keyboardType = KeyboardType.Password,
+                            isPassword = true
+                        )
+                        Spacer(Modifier.height(10.dp))
+                    }
                     FamilyTextField(
                         "New password",
                         viewModel.newPassword,
@@ -349,8 +385,8 @@ private fun ChangePasswordDialog(viewModel: FamilyProfileViewModel, onDismiss: (
                 TextButton(onClick = onDismiss) { Text("Done", color = FamilyColors.Blue) }
             } else {
                 TextButton(
-                    onClick = { viewModel.changePassword() },
-                    enabled = viewModel.isPasswordFormValid && !viewModel.isChangingPassword
+                    onClick = { if (setting) viewModel.setPassword() else viewModel.changePassword() },
+                    enabled = formValid && !viewModel.isChangingPassword
                 ) {
                     Text(if (viewModel.isChangingPassword) "Saving…" else "Save", color = FamilyColors.Blue)
                 }

@@ -21,6 +21,7 @@ from app.schemas.auth import (
     AccountDeletionRequest,
     GoogleSignInRequest,
     PasswordChangeRequest,
+    PasswordSetRequest,
     RegisterRequest,
     Token,
     UserOut,
@@ -176,6 +177,29 @@ async def change_password(
         )
     if not verify_password(payload.current_password, current_user.password_hash):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current password is incorrect")
+    current_user.password_hash = hash_password(payload.new_password)
+    await db.commit()
+
+
+@router.post("/set-password", status_code=status.HTTP_204_NO_CONTENT)
+async def set_password(
+    payload: PasswordSetRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> None:
+    """Adds a password to a Google-only account (Edit Profile → Set a password).
+
+    The user is already signed in via Google, so the JWT is the authorization; there is no
+    current password to check. Afterwards the account keeps its Google Sign-In and also
+    accepts email + password at /login (has_password flips true).
+
+    Refuses an account that already has one — that is what /change-password is for, and it
+    requires the current password."""
+    if current_user.password_hash is not None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This account already has a password. Use change password instead.",
+        )
     current_user.password_hash = hash_password(payload.new_password)
     await db.commit()
 
