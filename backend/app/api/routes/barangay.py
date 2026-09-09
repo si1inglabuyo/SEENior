@@ -113,6 +113,7 @@ async def list_barangay_alerts(
     q: str | None = Query(None, max_length=100),
     date_from: date | None = Query(None),
     date_to: date | None = Query(None),
+    full: bool = Query(False),
     db: AsyncSession = Depends(get_db),
     responder: User = Depends(responder_only),
 ) -> list[BarangayAlertOut]:
@@ -130,6 +131,14 @@ async def list_barangay_alerts(
     `q` (matches the senior's name), `date_from` and `date_to` (inclusive, on created_at)
     filter in SQL so the log's own controls are not limited to the most recent page. They
     apply to any scope but only the history / drill-down views send them.
+
+    `history` is additionally floored at the last 30 days unless `full=true` or an explicit
+    `date_from` is given. This reflects RA 10173 §11(e) (retain personal data only as long
+    as necessary): pattern review needs a recent window, not an unbounded scroll, and
+    reaching past it is a deliberate, logged action on the client. A true archive -- moving
+    resolved / false-positive rows older than the window out of the hot table -- is a
+    `main`-lane job (it owns the alerts table and the sync pipeline); this floor is the
+    query-level stand-in until then.
 
     All four deliberately exclude `pending`. An alert still inside the senior's own answer
     window, or one the family is in the middle of handling, has not reached the barangay
@@ -164,6 +173,11 @@ async def list_barangay_alerts(
         query = query.where(
             Alert.status.in_((AlertStatus.RESOLVED, AlertStatus.FALSE_POSITIVE))
         ).limit(500)
+        # RA 10173 §11(e): the default log view is the last 30 days. `full=true` (a logged
+        # action on the client) or an explicit date_from lifts the floor.
+        if not full and date_from is None:
+            now = await db_now(db)
+            query = query.where(Alert.created_at >= now - timedelta(days=30))
 
     if q:
         needle = f"%{q.strip()}%"

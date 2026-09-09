@@ -65,4 +65,5 @@ export const ACCESS_ACTION_LABEL = {
   senior_phone_reveal: 'Revealed a senior’s full phone number',
   active_alert_view: 'Opened the active-alert view (full address + family contacts)',
   full_history_view: 'Expanded a senior’s full alert history',
+  history_full_view: 'Opened the full alert history (beyond the default 30 days)',
 }
