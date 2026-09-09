@@ -10,18 +10,20 @@ export const DATE_LABELS = {
   month: 'This month',
 }
 
-// The Dashboard's stat cards navigate here carrying a { when, trigger_type, label } object
+// The Dashboard navigates here carrying a { when, trigger_type, category, label } object
 // (App.jsx's `navigate`). Translate it into this page's own filter state so the list opens
 // already narrowed to what the responder clicked:
-//   Resolved Today -> Date Range = Today
-//   SOS Triggered  -> Alert Type = SOS + Date Range = Today
+//   Resolved Today       -> Date Range = Today
+//   SOS Triggered        -> Alert Type = SOS + Date Range = Today
+//   Alerts-by-Type slice -> Alert Type = that category (and AlertHistory widens to scope=all)
 // (The "Active Alerts" card goes to the Alerts tab instead -- Alert History is closed
-// incidents only.)
+// incidents only unless a category drill-down widens it.)
 export function initialFilters(navFilter) {
   const f = { alertType: 'all', dateRange: null }
   if (!navFilter) return f
   if (navFilter.when === 'today') f.dateRange = { kind: 'today' }
   if (navFilter.trigger_type === 'sos') f.alertType = 'sos'
+  if (navFilter.category) f.alertType = navFilter.category
   return f
 }
 
@@ -63,6 +65,31 @@ export function withinRange(date, range) {
     return true
   }
   return date >= start && date < end
+}
+
+// The same windows as withinRange, but as inclusive YYYY-MM-DD bounds to hand to the API
+// so the server can filter before the row cap applies -- otherwise a barangay with a long
+// history can only ever see (and search) the most recent page. `to` is the last day to
+// include; the backend treats it as "< to + 1 day". Returns null for "no date filter".
+export function rangeBounds(range) {
+  if (!range) return null
+  const iso = (d) => d.toISOString().slice(0, 10)
+  const now = new Date()
+  const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const DAY = 86400000
+  if (range.kind === 'today') return { from: iso(midnight), to: iso(midnight) }
+  if (range.kind === 'yesterday') {
+    const y = new Date(midnight.getTime() - DAY)
+    return { from: iso(y), to: iso(y) }
+  }
+  if (range.kind === 'week') return { from: iso(new Date(midnight.getTime() - 6 * DAY)), to: iso(midnight) }
+  if (range.kind === 'month') {
+    return { from: iso(new Date(now.getFullYear(), now.getMonth(), 1)), to: iso(midnight) }
+  }
+  if (range.kind === 'custom' && range.start && range.end) {
+    return { from: range.start, to: range.end }
+  }
+  return null
 }
 
 export function matchesSearch(alert, query) {

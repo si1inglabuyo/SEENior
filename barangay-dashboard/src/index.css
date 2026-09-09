@@ -343,8 +343,23 @@ h4 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase;
   border-bottom: 1px solid var(--line);
 }
 .senior-row:last-child { border-bottom: 0; }
+.senior-row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .senior-row-name { margin: 0; font-weight: 700; }
 .senior-row .status-badge { margin-left: auto; }
+
+/* Device health -- phone-as-monitor status. Tones deliberately distinct from the risk
+   reds and the account-status greens: this is about the equipment, not the person. */
+.device-badge {
+  display: inline-flex; align-items: center; gap: 5px; align-self: flex-start;
+  font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px;
+  border: 1px solid transparent; white-space: nowrap;
+}
+.device-badge::before {
+  content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor;
+}
+.device-badge-ok { color: #5a6b7a; background: #eef1f4; }
+.device-badge-warn { color: var(--accent-ink); background: var(--accent-soft); border-color: #f0d5ae; }
+.device-badge-stale { color: var(--high); background: var(--danger-soft); border-color: #f0c3c0; }
 /* Whole row opens the senior's record now. Same accent hover/focus as the alert rows. */
 .senior-row-clickable { cursor: pointer; transition: background-color .12s ease; }
 .senior-row-clickable:hover,
@@ -448,7 +463,17 @@ h4 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase;
 .history-full-note { margin: 12px 0 0; font-size: 12px; }
 
 /* --- settings --- */
-.settings-page { max-width: 960px; }
+.settings-page { max-width: 960px; display: flex; flex-direction: column; gap: 20px; }
+.settings-note { font-size: 13px; margin: 0 0 12px; }
+.access-log { list-style: none; margin: 0; padding: 0; }
+.access-log-row {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px;
+  padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 13px;
+}
+.access-log-row:last-child { border-bottom: 0; }
+.access-log-when { font-weight: 600; min-width: 170px; }
+.access-log-what { flex: 1; min-width: 220px; }
+.access-log-who { font-size: 12px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 .settings-form {
   display: grid; grid-template-columns: 1fr 1fr; gap: 18px 24px; align-items: end;
 }
@@ -515,10 +540,11 @@ h4 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase;
 .location-preview {
   border: 1px solid var(--line); border-radius: 10px; overflow: hidden;
 }
-.location-art { width: 100%; height: 110px; display: block; }
+.location-map { width: 100%; height: 220px; display: block; border: 0; background: #eef2f0; }
 .location-text { padding: 12px 16px; }
 .location-address { margin: 0 0 4px; font-weight: 600; }
-.location-cluster { margin: 0 0 6px; font-size: 12px; color: var(--muted); }
+.location-coords { margin: 0 0 6px; font-size: 12px; color: var(--muted); }
+.location-coords a { color: var(--accent-ink); }
 .location-note { margin: 0; font-size: 12px; }
 
 /* Escalation timeline -- the audit trail of who did what, from escalation_steps. */
@@ -591,6 +617,17 @@ h4 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase;
 }
 .donut-legend li { display: flex; align-items: center; }
 .dot { display: inline-block; width: 14px; height: 14px; border-radius: 50%; margin-right: 10px; }
+
+/* "Alerts by Type" is a drill-down: slices and legend rows open Alert History for that
+   category. */
+.donut-slice { cursor: pointer; transition: opacity .12s ease; }
+.donut-slice:hover { opacity: .82; }
+.donut-legend-btn {
+  display: flex; align-items: center; width: 100%; background: none; border: 0;
+  font: inherit; font-size: 14px; font-weight: 600; color: inherit; cursor: pointer;
+  padding: 4px 6px; margin: -4px -6px; border-radius: 6px; text-align: left;
+}
+.donut-legend-btn:hover { background: var(--accent-soft); color: var(--accent-ink); }
 
 @media (max-width: 900px) {
   .shell { grid-template-columns: 1fr; }

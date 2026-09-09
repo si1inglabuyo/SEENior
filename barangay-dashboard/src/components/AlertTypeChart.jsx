@@ -1,39 +1,26 @@
 import { IconChart } from '../icons'
-import { triggerShort, TRIGGER_SHORT } from '../labels'
+import { CATEGORY_LABEL } from '../labels'
 import SectionCard from './SectionCard'
 
-// Same shape as "Alerts Outcome": a donut plus a legend, showing this week's alerts
-// (stats.alert_types, keyed by trigger_type) split by what triggered them. Where the
-// outcome donut has two slices, this one has up to seven -- one per trigger type that
-// actually occurred this week.
-//
-// Slices are drawn in TRIGGER_ORDER so the ring and legend don't reshuffle between polls;
-// any code the API sends that isn't in the map is appended in a neutral grey so nothing is
-// silently dropped.
-const TRIGGER_ORDER = Object.keys(TRIGGER_SHORT)
-
-const TRIGGER_COLOR = {
+// Same shape as "Alerts Outcome" -- a donut plus a legend -- showing this week's alerts
+// grouped into the three responder-facing categories (stats.alert_categories). Every slice
+// and legend row is a button: clicking one opens Alert History filtered to that category,
+// across the whole active / attending / closed split (scope=all).
+const CATEGORY_ORDER = ['anomaly', 'sos', 'dispatch_family']
+const CATEGORY_COLOR = {
+  anomaly: '#e08a3c',
   sos: '#a33329',
-  fall_pattern: '#c4453c',
-  inactivity: '#e08a3c',
-  ml_flag: '#b58b2a',
-  charging: '#5aa666',
-  movement: '#4f6b8a',
-  screen_idle: '#7d6ca3',
+  dispatch_family: '#4f6b8a',
 }
-const UNKNOWN_COLOR = '#9aa4b2'
 
-export default function AlertTypeChart({ types }) {
-  const counts = types || {}
-  const extra = Object.keys(counts).filter((k) => !TRIGGER_ORDER.includes(k))
-  const slices = [...TRIGGER_ORDER, ...extra]
-    .map((key) => ({
-      key,
-      label: triggerShort(key),
-      count: counts[key] || 0,
-      color: TRIGGER_COLOR[key] || UNKNOWN_COLOR,
-    }))
-    .filter((slice) => slice.count > 0)
+export default function AlertTypeChart({ categories, onSelect }) {
+  const counts = categories || {}
+  const slices = CATEGORY_ORDER.map((key) => ({
+    key,
+    label: CATEGORY_LABEL[key],
+    count: counts[key] || 0,
+    color: CATEGORY_COLOR[key],
+  })).filter((slice) => slice.count > 0)
 
   const total = slices.reduce((sum, slice) => sum + slice.count, 0)
 
@@ -43,12 +30,18 @@ export default function AlertTypeChart({ types }) {
         <p className="muted">No alerts recorded this week.</p>
       ) : (
         <div className="donut-row">
-          <Ring slices={slices} total={total} />
+          <Ring slices={slices} total={total} onSelect={onSelect} />
           <ul className="donut-legend">
             {slices.map((slice) => (
               <li key={slice.key}>
-                <span className="dot" style={{ background: slice.color }} />
-                {Math.round((slice.count / total) * 100)}% {slice.label} ({slice.count})
+                <button
+                  type="button"
+                  className="donut-legend-btn"
+                  onClick={() => onSelect(slice.key, slice.label)}
+                >
+                  <span className="dot" style={{ background: slice.color }} />
+                  {Math.round((slice.count / total) * 100)}% {slice.label} ({slice.count})
+                </button>
               </li>
             ))}
           </ul>
@@ -58,15 +51,9 @@ export default function AlertTypeChart({ types }) {
   )
 }
 
-function Ring({ slices, total }) {
-  // One circle per slice, exactly as OutcomeDonut does it: each takes its share of the
-  // circumference via stroke-dasharray, and strokeDashoffset rotates it past every slice
-  // already drawn.
+function Ring({ slices, total, onSelect }) {
   const radius = 60
   const circumference = 2 * Math.PI * radius
-
-  // Arc length per slice, plus the summed length of every slice before it as the rotation
-  // offset. Prefix-summed with slice() so nothing is mutated mid-render (slices is <= 7).
   const lengths = slices.map((slice) => (slice.count / total) * circumference)
   const offsets = lengths.map((_, i) => lengths.slice(0, i).reduce((a, b) => a + b, 0))
 
@@ -75,6 +62,7 @@ function Ring({ slices, total }) {
       {slices.map((slice, i) => (
         <circle
           key={slice.key}
+          className="donut-slice"
           cx="80"
           cy="80"
           r={radius}
@@ -84,7 +72,10 @@ function Ring({ slices, total }) {
           strokeDasharray={`${lengths[i]} ${circumference - lengths[i]}`}
           strokeDashoffset={-offsets[i]}
           transform="rotate(-90 80 80)"
-        />
+          onClick={() => onSelect(slice.key, slice.label)}
+        >
+          <title>{`${slice.label}: ${slice.count}`}</title>
+        </circle>
       ))}
     </svg>
   )

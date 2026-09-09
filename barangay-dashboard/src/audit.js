@@ -58,3 +58,11 @@ export function readAccessLog() {
     return []
   }
 }
+
+// Human wording for the Settings "Access log" panel -- the "reviewable" half of §23(a):
+// recording access is only half the requirement, someone has to be able to read it back.
+export const ACCESS_ACTION_LABEL = {
+  senior_phone_reveal: 'Revealed a senior’s full phone number',
+  active_alert_view: 'Opened the active-alert view (full address + family contacts)',
+  full_history_view: 'Expanded a senior’s full alert history',
+}

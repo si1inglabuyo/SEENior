@@ -17,6 +17,7 @@ import SectionCard from './SectionCard'
 import ConfirmDialog from './ConfirmDialog'
 import Toast from './Toast'
 import AlertDetailsModal from './AlertDetailsModal'
+import DeviceBadge from './DeviceBadge'
 
 // ---------------------------------------------------------------------------------------
 // RA 10173 (Data Privacy Act of 2012) — why fields on this screen are gated
@@ -145,6 +146,9 @@ export default function SeniorDetail({
         address: fallbackSenior.address,
         mobile_number: fallbackSenior.mobile_number,
         living_arrangement: null,
+        last_seen_at: fallbackSenior.last_seen_at,
+        battery_percent: fallbackSenior.battery_percent,
+        is_charging: fallbackSenior.is_charging,
         contacts: [],
         alerts: fallbackAlerts || [],
       }),
@@ -245,6 +249,10 @@ export default function SeniorDetail({
                   <div>
                     <dt>Open Alerts</dt>
                     <dd>{openAlerts.length === 0 ? 'None' : openAlerts.length}</dd>
+                  </div>
+                  <div>
+                    <dt>Monitoring device</dt>
+                    <dd><DeviceBadge senior={profile} /></dd>
                   </div>
 
                   {activeAlert ? (

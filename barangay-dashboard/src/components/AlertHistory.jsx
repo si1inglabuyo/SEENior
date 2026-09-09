@@ -8,6 +8,7 @@ import {
   withinRange,
   matchesSearch,
   dateRangeLabel,
+  rangeBounds,
 } from '../historyFilters'
 import { useAlertActions } from '../hooks/useAlertActions'
 import { IconHistory, IconSearch } from '../icons'
@@ -77,14 +78,37 @@ export default function AlertHistory({ onSessionLost, navFilter, onClearFilter }
   const [error, setError] = useState('')
   const [filters, setFilters] = useState(() => initialFilters(navFilter))
   const [search, setSearch] = useState('')
+  // The search box updates on every keystroke for the instant client-side filter, but the
+  // server query only follows once typing pauses.
+  const [debouncedSearch, setDebouncedSearch] = useState('')
 
   const { alertType, dateRange } = filters
   const setAlertType = (v) => setFilters((f) => ({ ...f, alertType: v }))
   const setDateRange = (v) => setFilters((f) => ({ ...f, dateRange: v }))
 
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 350)
+    return () => clearTimeout(t)
+  }, [search])
+
+  // Normally the log is closed incidents only. A category drill-down from the dashboard's
+  // "Alerts by Type" donut wants that whole category across every status, so it widens the
+  // fetch to scope=all. The page remounts when navFilter changes (App.jsx key), so reading
+  // it here is enough.
+  const scope = navFilter && navFilter.category ? 'all' : 'history'
+  // Name and date filters go to the server so the log's own controls aren't limited to the
+  // most recent page (the row cap). Bounds is null when no date filter is set.
+  const bounds = rangeBounds(dateRange)
+  const dateFrom = bounds ? bounds.from : ''
+  const dateTo = bounds ? bounds.to : ''
+
   const load = useCallback(async () => {
     try {
-      const data = await api('/barangay/alerts?scope=history')
+      const params = new URLSearchParams({ scope })
+      if (debouncedSearch) params.set('q', debouncedSearch)
+      if (dateFrom) params.set('date_from', dateFrom)
+      if (dateTo) params.set('date_to', dateTo)
+      const data = await api(`/barangay/alerts?${params.toString()}`)
       setAlerts(data)
       setError('')
     } catch (err) {
@@ -92,7 +116,7 @@ export default function AlertHistory({ onSessionLost, navFilter, onClearFilter }
       setAlerts((current) => current ?? [])
       if (err.message.includes('expired')) onSessionLost()
     }
-  }, [onSessionLost])
+  }, [onSessionLost, scope, debouncedSearch, dateFrom, dateTo])
 
   // Same poll as the Alerts page and the Dashboard: an action taken here (or on either of
   // those screens) is a real write to the shared alerts table, and the poll is what makes
@@ -210,7 +234,10 @@ export default function AlertHistory({ onSessionLost, navFilter, onClearFilter }
 
       {error && <p className="error">{error}</p>}
 
-      <SectionCard icon={<IconHistory />} title="History">
+      <SectionCard
+        icon={<IconHistory />}
+        title={scope === 'all' ? `All ${navFilter.label || 'alerts'}` : 'History'}
+      >
         {loading ? (
           <p className="muted alerts-empty">Loading&hellip;</p>
         ) : visibleRows.length === 0 ? (

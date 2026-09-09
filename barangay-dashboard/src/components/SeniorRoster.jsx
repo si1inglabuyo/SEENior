@@ -11,6 +11,7 @@ import { IconSeniors, IconSearch } from '../icons'
 import SectionCard from './SectionCard'
 import FilterMenu from './FilterMenu'
 import SeniorDetail from './SeniorDetail'
+import DeviceBadge from './DeviceBadge'
 
 // Client-only deactivation store. The cloud `seniors` table has no active/deactivated
 // column, and adding one is a schema migration owned by the Android/backend lane
@@ -188,9 +189,12 @@ export default function SeniorRoster({ onSessionLost }) {
                   <span className="avatar">
                     {initials(`${senior.first_name} ${senior.last_name}`)}
                   </span>
-                  <p className="senior-row-name">
-                    {senior.first_name} {senior.last_name}
-                  </p>
+                  <div className="senior-row-main">
+                    <p className="senior-row-name">
+                      {senior.first_name} {senior.last_name}
+                    </p>
+                    <DeviceBadge senior={senior} className="senior-row-device" />
+                  </div>
                   <span className={`status-badge ${off ? 'status-off' : 'status-on'}`}>
                     <span className="status-dot" />
                     {off ? 'Deactivated' : 'Active'}

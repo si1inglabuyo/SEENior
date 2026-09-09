@@ -146,7 +146,10 @@ export default function Dashboard({ onSessionLost, onNavigate }) {
         <OutcomeDonut outcomes={stats.outcomes} />
       </div>
 
-      <AlertTypeChart types={stats.alert_types} />
+      <AlertTypeChart
+        categories={stats.alert_categories}
+        onSelect={(key, label) => onNavigate('history', { category: key, label: `${label} alerts` })}
+      />
 
       <AlertActionModals actions={actions} />
     </div>
