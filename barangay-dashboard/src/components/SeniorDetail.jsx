@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { api, parseServerTime } from '../api'
 import { initials, dateTimeLabel, maskPhone } from '../format'
 import { triggerLabel, alertCategory, CATEGORY_LABEL } from '../labels'
-import { DEACTIVATE_ACTION } from '../seniorActions'
+import { DEACTIVATE_ACTION, REACTIVATE_ACTION } from '../seniorActions'
 import { recordAccess } from '../audit'
 import {
   IconArrowLeft,
@@ -72,6 +72,7 @@ export default function SeniorDetail({
   fallbackSenior,
   isDeactivated,
   onDeactivate,
+  onReactivate,
   onBack,
   onSessionLost,
 }) {
@@ -81,8 +82,10 @@ export default function SeniorDetail({
   const [error, setError] = useState('')
 
   const [confirming, setConfirming] = useState(false)
-  const [toastOpen, setToastOpen] = useState(false)
+  const [toastMsg, setToastMsg] = useState(null)
   const [detailsAlert, setDetailsAlert] = useState(null)
+
+  const accountAction = isDeactivated ? REACTIVATE_ACTION : DEACTIVATE_ACTION
 
   // Disclosures beyond the default view. Each flips on via an explicit click that also
   // writes an access-audit entry (RA 10173 §23(a)).
@@ -126,13 +129,15 @@ export default function SeniorDetail({
     }
   }, [syncId, fallbackSenior, onSessionLost])
 
-  function confirmDeactivate() {
+  function confirmAccountToggle() {
     // The write that persists this is a backend endpoint that doesn't exist yet (needs a
-    // `seniors.status` column -- see SeniorRoster). Until then onDeactivate() updates the
-    // client store so the List and this page reflect it immediately, as the mockup shows.
-    onDeactivate()
+    // `seniors.status` column -- see SeniorRoster). Until then the on(De)activate callbacks
+    // update the client store so the List and this page reflect it immediately.
+    const message = accountAction.successMessage
+    if (isDeactivated) onReactivate()
+    else onDeactivate()
     setConfirming(false)
-    setToastOpen(true)
+    setToastMsg(message)
   }
 
   const profile = useMemo(
@@ -279,11 +284,10 @@ export default function SeniorDetail({
 
               <button
                 type="button"
-                className="deactivate-btn"
-                disabled={isDeactivated}
+                className={isDeactivated ? 'deactivate-btn reactivate-btn' : 'deactivate-btn'}
                 onClick={() => setConfirming(true)}
               >
-                <IconSeniors /> {isDeactivated ? 'Account Deactivated' : 'Deactivate Account'}
+                <IconSeniors /> {isDeactivated ? 'Reactivate Account' : 'Deactivate Account'}
               </button>
             </SectionCard>
 
@@ -392,15 +396,13 @@ export default function SeniorDetail({
 
       {confirming && (
         <ConfirmDialog
-          action={DEACTIVATE_ACTION}
+          action={accountAction}
           busy={false}
           onCancel={() => setConfirming(false)}
-          onConfirm={confirmDeactivate}
+          onConfirm={confirmAccountToggle}
         />
       )}
-      {toastOpen && (
-        <Toast message={DEACTIVATE_ACTION.successMessage} onClose={() => setToastOpen(false)} />
-      )}
+      {toastMsg && <Toast message={toastMsg} onClose={() => setToastMsg(null)} />}
       {detailsAlert && (
         <AlertDetailsModal alert={detailsAlert} onClose={() => setDetailsAlert(null)} />
       )}

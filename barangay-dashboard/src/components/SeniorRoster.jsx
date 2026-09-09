@@ -86,6 +86,7 @@ export default function SeniorRoster({ onSessionLost }) {
         fallbackSenior={rows.find((s) => s.sync_id === selected) || null}
         isDeactivated={deactivated.has(selected)}
         onDeactivate={() => setDeactivatedFor(selected, true)}
+        onReactivate={() => setDeactivatedFor(selected, false)}
         onBack={() => {
           setSelected(null)
           load()
