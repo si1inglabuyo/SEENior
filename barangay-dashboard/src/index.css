@@ -60,7 +60,7 @@ h4 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase;
 }
 .sidebar-brand { display: flex; gap: 10px; align-items: center; padding: 4px 8px 18px;
   border-bottom: 1px solid var(--line); margin-bottom: 12px; }
-.logo-mark { width: 60px; height: 100px; flex: none; object-fit: cover; }
+.logo-mark { width: 55px; height: 80px; flex: none; object-fit: cover; }
 .sidebar-word { margin: 0; font-weight: 800; color: var(--brand); font-size: 18px; line-height: 1.1; }
 .sidebar-tag { margin: 2px 0 0; font-size: 11px; color: var(--muted); }
 
@@ -400,6 +400,9 @@ h4 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase;
 .deactivate-btn svg { font-size: 16px; }
 .deactivate-btn:hover:not(:disabled) { background: var(--danger-soft); }
 .deactivate-btn:disabled { opacity: .5; cursor: not-allowed; border-color: var(--line); color: var(--muted); }
+/* Reactivating is a restore, not a destructive action -- green, not red. */
+.reactivate-btn { border-color: var(--ok); color: var(--ok); }
+.reactivate-btn:hover:not(:disabled) { background: var(--ok-soft); }
 
 .contact-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
 .contact-card {

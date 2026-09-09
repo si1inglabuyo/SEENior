@@ -325,7 +325,7 @@ export default function SeniorDetail({
                   <p className="muted alerts-empty locked-note">
                     <IconLock />{' '}
                     {contacts.length} family contact{contacts.length === 1 ? '' : 's'} on record.
-                    Names and numbers unlock during an active alert (RA 10173 §13(c)).
+                    Names and numbers unlock during an active alert.
                   </p>
                 )}
               </SectionCard>
