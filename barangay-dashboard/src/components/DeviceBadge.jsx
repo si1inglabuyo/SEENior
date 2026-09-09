@@ -11,6 +11,13 @@ const SIX_HOURS = 6 * 60 * 60 * 1000
 const ONE_DAY = 24 * 60 * 60 * 1000
 
 function deviceHealth(senior) {
+  // Old backend that doesn't send any device field yet -- say nothing rather than claim the
+  // phone is dead.
+  const hasTelemetry =
+    senior &&
+    ('last_seen_at' in senior || 'battery_percent' in senior || 'is_charging' in senior)
+  if (!hasTelemetry) return null
+
   const seen = parseServerTime(senior?.last_seen_at)
   const battery = typeof senior?.battery_percent === 'number' ? senior.battery_percent : null
   const charging = senior?.is_charging === true
@@ -30,10 +37,14 @@ function deviceHealth(senior) {
 }
 
 export default function DeviceBadge({ senior, className = '' }) {
-  const { tone, label } = deviceHealth(senior)
+  const health = deviceHealth(senior)
+  if (!health) return null
   return (
-    <span className={`device-badge device-badge-${tone} ${className}`.trim()} title="Monitoring device status">
-      {label}
+    <span
+      className={`device-badge device-badge-${health.tone} ${className}`.trim()}
+      title="Monitoring device status"
+    >
+      {health.label}
     </span>
   )
 }
