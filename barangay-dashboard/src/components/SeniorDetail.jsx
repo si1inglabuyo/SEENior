@@ -31,7 +31,7 @@ import AlertDetailsModal from './AlertDetailsModal'
 //
 //   §13 sensitive personal information — kept off the default view for the same reason.
 //
-//   §13(c) vital-interests exception — full home address, and the emergency contact's
+//   §13(c) vital-interests exception — full home address, and the family contact's
 //   name / relationship / phone, unlock ONLY while this senior has an open (escalated)
 //   alert, i.e. an active emergency. This is an exception, not a standing default: when
 //   the alert closes, the extra fields lock again.
@@ -205,9 +205,8 @@ export default function SeniorDetail({
             <div className="gate-banner" role="status">
               <IconEye />
               <span>
-                <strong>Active alert.</strong> Full home address and emergency-contact
-                details are unlocked for the duration of this emergency under RA 10173
-                §13(c) (vital interests). This access is being logged.
+                <strong>Active alert.</strong> Full home address and family-contact
+                details are unlocked for the duration of this emergency. This access is being logged.
               </span>
             </div>
           )}
@@ -237,7 +236,7 @@ export default function SeniorDetail({
                         <span className="reveal-field">
                           {maskPhone(profile.mobile_number)}
                           <button type="button" className="reveal-btn" onClick={revealPhone}>
-                            <IconEye /> Reveal &amp; call
+                            <IconEye /> View
                           </button>
                         </span>
                       )}
@@ -283,7 +282,7 @@ export default function SeniorDetail({
             <div className="senior-detail-side">
               <SectionCard
                 icon={<IconContacts />}
-                title="Emergency Contacts"
+                title="Family Contacts"
                 className="contacts-card"
               >
                 {phase === 'fallback' ? (

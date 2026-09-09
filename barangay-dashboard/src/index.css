@@ -223,6 +223,8 @@ h4 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase;
   color: var(--warn); border: 1px solid var(--warn); border-radius: 999px;
   padding: 3px 8px; white-space: nowrap;
 }
+/* When it sits inline after the senior's name (dashboard Alerts Today panel). */
+.alert-row-name .badge-alone { margin-left: 8px; display: inline-block; vertical-align: middle; }
 .type-badge {
   background: var(--high); color: #fff; font-size: 12px; font-weight: 700;
   border-radius: 999px; padding: 3px 12px; white-space: nowrap;
@@ -518,6 +520,25 @@ h4 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase;
 .location-address { margin: 0 0 4px; font-weight: 600; }
 .location-cluster { margin: 0 0 6px; font-size: 12px; color: var(--muted); }
 .location-note { margin: 0; font-size: 12px; }
+
+/* Escalation timeline -- the audit trail of who did what, from escalation_steps. */
+.timeline { list-style: none; margin: 0 0 4px; padding: 0; }
+.timeline-item { display: flex; gap: 12px; padding-bottom: 14px; position: relative; }
+.timeline-item:not(:last-child)::before {
+  content: ''; position: absolute; left: 4px; top: 14px; bottom: 0; width: 2px;
+  background: var(--line);
+}
+.timeline-dot {
+  flex: none; width: 10px; height: 10px; margin-top: 3px; border-radius: 50%;
+  background: var(--accent); z-index: 1;
+}
+.timeline-body { min-width: 0; }
+.timeline-step { margin: 0; font-weight: 600; font-size: 14px; }
+.timeline-meta { margin: 2px 0 0; font-size: 12px; color: var(--muted); }
+.timeline-note {
+  margin: 6px 0 0; font-size: 13px; font-style: italic; color: var(--ink);
+  border-left: 3px solid var(--line); padding-left: 10px;
+}
 
 /* Acknowledge / Resolve / False Positive live here now, below the location map. */
 .details-actions { margin-top: 22px; border-top: 1px solid var(--line); padding-top: 20px; }

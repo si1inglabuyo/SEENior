@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { triggerLabel } from '../labels'
+import { triggerLabel, stepLabel } from '../labels'
 import { initials, dateTimeLabel } from '../format'
 import { canActOn } from '../alertActions'
 import { isActiveAlert } from '../historyFilters'
@@ -33,6 +33,37 @@ function LocationPreview({ address, clusterId }) {
         </p>
       </div>
     </div>
+  )
+}
+
+// The full escalation history for this incident: every tier the alert passed through, who
+// acted, and any note they left. Built from `escalation_steps`, the JSON audit trail the
+// phone, the family app and the server-side clock all append to (CLAUDE.md §8). `STEP_LABEL`
+// (labels.js) turns each code into a sentence; an unknown code prints as itself rather than
+// vanishing. This is where a responder sees *why* an alert reached them -- and, once closed,
+// how it was resolved and by whom.
+function EscalationTimeline({ steps }) {
+  const entries = Array.isArray(steps) ? steps : []
+  if (entries.length === 0) return null
+  return (
+    <>
+      <h3 className="details-location-title">Escalation timeline</h3>
+      <ol className="timeline">
+        {entries.map((entry, i) => (
+          <li key={i} className="timeline-item">
+            <span className="timeline-dot" aria-hidden="true" />
+            <div className="timeline-body">
+              <p className="timeline-step">{stepLabel(entry.step)}</p>
+              <p className="timeline-meta">
+                {dateTimeLabel(entry.at)}
+                {entry.by ? ` · ${entry.by}` : ''}
+              </p>
+              {entry.notes && <p className="timeline-note">“{entry.notes}”</p>}
+            </div>
+          </li>
+        ))}
+      </ol>
+    </>
   )
 }
 
@@ -124,6 +155,8 @@ export default function AlertDetailsModal({ alert, onClose, onAct, actionBusy })
           <LocationPreview address={alert.senior_address} clusterId={alert.location_cluster_id} />
         </>
       )}
+
+      <EscalationTimeline steps={alert.escalation_steps} />
 
       {onAct && <IncidentActions alert={alert} onAct={onAct} busy={actionBusy} />}
     </Modal>

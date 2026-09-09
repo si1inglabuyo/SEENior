@@ -43,6 +43,17 @@ export default function AlertsTodayPanel({ alerts, onViewAll, onShowDetails }) {
               <div className="alert-row-main">
                 <p className="alert-row-name">
                   {alert.senior_name}, {alert.senior_age}
+                  {/* Not a risk level -- amber, never red (CLAUDE.md dashboard §6). It tells
+                      the responder nobody else was notified for this senior. Same badge the
+                      Alerts-tab rows carry. */}
+                  {!alert.senior_has_family_contact && (
+                    <span
+                      className="badge-alone"
+                      title="This senior has no family contact linked"
+                    >
+                      Lives alone
+                    </span>
+                  )}
                 </p>
                 <p className="alert-row-reason">{triggerLabel(alert.trigger_type)}</p>
               </div>

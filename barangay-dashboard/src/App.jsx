@@ -1,7 +1,9 @@
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { clearToken, getToken } from './api'
+import { useIdleLogout } from './hooks/useIdleLogout'
 import Login from './components/Login'
 import AppShell from './components/AppShell'
+import AlertWatcher from './components/AlertWatcher'
 import Dashboard from './components/Dashboard'
 import IncidentQueue from './components/IncidentQueue'
 import AlertHistory from './components/AlertHistory'
@@ -26,12 +28,16 @@ export default function App() {
   // filter.
   const [navFilter, setNavFilter] = useState(null)
 
-  if (!token) return <Login onSignedIn={() => setToken(getToken())} />
-
-  const signOut = () => {
+  const signOut = useCallback(() => {
     clearToken()
     setToken(null)
-  }
+  }, [])
+
+  // Sign out after a stretch of no interaction -- a shared barangay PC should not hold an
+  // open session (and its senior PII) indefinitely. No-op until signed in.
+  useIdleLogout(signOut, !!token)
+
+  if (!token) return <Login onSignedIn={() => setToken(getToken())} />
 
   // Sidebar clicks navigate with no filter (an explicit "show me everything"); the
   // dashboard's stat cards pass one. Both go through this single function so `view` and
@@ -43,6 +49,7 @@ export default function App() {
 
   return (
     <AppShell title={TITLES[view]} view={view} onNavigate={navigate} onSignOut={signOut}>
+      <AlertWatcher onSessionLost={signOut} onGoToAlerts={() => navigate('alerts')} />
       {view === 'dashboard' && <Dashboard onSessionLost={signOut} onNavigate={navigate} />}
       {view === 'alerts' && <IncidentQueue onSessionLost={signOut} />}
       {view === 'history' && (
