@@ -139,11 +139,13 @@ export default function AlertHistory({ onSessionLost, navFilter, onClearFilter }
     return () => clearTimeout(t)
   }, [search])
 
-  // Normally the log is closed incidents only. A category drill-down from the dashboard's
-  // "Alerts by Type" donut wants that whole category across every status, so it widens the
-  // fetch to scope=all. The page remounts when navFilter changes (App.jsx key), so reading
-  // it here is enough.
-  const scope = navFilter && navFilter.category ? 'all' : 'history'
+  // The deployed API only knows scope=active|history|today (no `all`), so every drill-down
+  // into this page fetches `history` and narrows client-side: a category (Alerts by Type),
+  // a single day (Alerts This Week), or a status (an Alerts Outcome slice -- resolved /
+  // false_positive). The page remounts when navFilter changes (App.jsx key), so reading it
+  // here is enough.
+  const scope = 'history'
+  const navStatus = (navFilter && navFilter.status) || null
   // Name and date filters go to the server so the log's own controls aren't limited to the
   // most recent page (the row cap). Bounds is null when no date filter is set.
   const bounds = rangeBounds(dateRange)
@@ -189,11 +191,12 @@ export default function AlertHistory({ onSessionLost, navFilter, onClearFilter }
         .filter(
           (a) =>
             (alertType === 'all' || alertCategory(a) === alertType) &&
+            (!navStatus || a.status === navStatus) &&
             withinRange(parseServerTime(a.created_at), dateRange) &&
             matchesSearch(a, search)
         )
         .sort((a, b) => ts(b.created_at) - ts(a.created_at)),
-    [rows, alertType, dateRange, search]
+    [rows, alertType, navStatus, dateRange, search]
   )
 
   // Grouped by senior, each group sorted newest-first and the groups themselves ordered by
@@ -217,7 +220,11 @@ export default function AlertHistory({ onSessionLost, navFilter, onClearFilter }
   }, [visibleRows])
 
   const filtersActive =
-    alertType !== 'all' || dateRange != null || search.trim() !== '' || fullHistory
+    alertType !== 'all' ||
+    dateRange != null ||
+    search.trim() !== '' ||
+    fullHistory ||
+    !!navStatus
 
   function clearAll() {
     setFilters({ alertType: 'all', dateRange: null })
@@ -345,7 +352,7 @@ export default function AlertHistory({ onSessionLost, navFilter, onClearFilter }
 
       <SectionCard
         icon={<IconHistory />}
-        title={scope === 'all' ? `All ${navFilter.label || 'alerts'}` : 'History'}
+        title={navFilter && navFilter.label ? navFilter.label : 'History'}
       >
         {windowed && (
           <p className="history-window-note muted">

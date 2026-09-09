@@ -10,18 +10,20 @@ export const DATE_LABELS = {
   month: 'This month',
 }
 
-// The Dashboard navigates here carrying a { when, trigger_type, category, label } object
-// (App.jsx's `navigate`). Translate it into this page's own filter state so the list opens
-// already narrowed to what the responder clicked:
-//   Resolved Today       -> Date Range = Today
-//   SOS Triggered        -> Alert Type = SOS + Date Range = Today
-//   Alerts-by-Type slice -> Alert Type = that category (and AlertHistory widens to scope=all)
-// (The "Active Alerts" card goes to the Alerts tab instead -- Alert History is closed
-// incidents only unless a category drill-down widens it.)
+// The Dashboard navigates here carrying a { when, date, status, trigger_type, category,
+// label } object (App.jsx's `navigate`). Translate it into this page's own filter state so
+// the list opens already narrowed to what the responder clicked:
+//   Resolved Today        -> Date Range = Today
+//   SOS Triggered         -> Alert Type = SOS + Date Range = Today
+//   Alerts-by-Type slice  -> Alert Type = that category
+//   Alerts-This-Week bar  -> Date Range = that one day
+//   Alerts-Outcome slice  -> status filter (resolved / false_positive); "active" goes to
+//                            the Alerts tab instead, since it isn't in the log
 export function initialFilters(navFilter) {
   const f = { alertType: 'all', dateRange: null }
   if (!navFilter) return f
   if (navFilter.when === 'today') f.dateRange = { kind: 'today' }
+  if (navFilter.date) f.dateRange = { kind: 'custom', start: navFilter.date, end: navFilter.date }
   if (navFilter.trigger_type === 'sos') f.alertType = 'sos'
   if (navFilter.category) f.alertType = navFilter.category
   return f

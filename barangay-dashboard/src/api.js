@@ -58,8 +58,21 @@ export async function api(path, options = {}) {
     throw new Error('Your session has expired. Please sign in again.')
   }
   const data = res.status === 204 ? null : await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error((data && data.detail) || `Request failed (${res.status})`)
+  if (!res.ok) throw new Error(errorMessage(data, res.status))
   return data
+}
+
+// FastAPI reports a 422 with `detail` as an array of { loc, msg, type } objects, not a
+// string -- passing that straight to `new Error()` renders as "[object Object]". Flatten
+// it to something a person can read; fall back to the status code.
+function errorMessage(data, status) {
+  const detail = data && data.detail
+  if (typeof detail === 'string') return detail
+  if (Array.isArray(detail)) {
+    const msg = detail.map((d) => d && d.msg).filter(Boolean).join('; ')
+    if (msg) return msg
+  }
+  return `Request failed (${status})`
 }
 
 export function parseServerTime(value) {

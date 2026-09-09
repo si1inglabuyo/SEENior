@@ -1,14 +1,23 @@
 import { useCallback, useEffect, useState } from 'react'
 import { api, POLL_MS } from '../api'
 import { clockTime } from '../format'
-import { IconPeople, IconWarning, IconCheck, IconSos } from '../icons'
+import { IconPeople, IconCheck, IconSos } from '../icons'
 import { useAlertActions } from '../hooks/useAlertActions'
 import StatCard from './StatCard'
-import AlertsTodayPanel from './AlertsTodayPanel'
+import ActiveAlertsPanel from './ActiveAlertsPanel'
 import WeeklyBarChart from './WeeklyBarChart'
 import OutcomeDonut from './OutcomeDonut'
 import AlertTypeChart from './AlertTypeChart'
 import AlertActionModals from './AlertActionModals'
+
+// "2026-09-08" -> "Mon, Sep 8", for the Alerts-This-Week bar drill-down label.
+function dayLabel(iso) {
+  return new Date(`${iso}T00:00:00`).toLocaleDateString(undefined, {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+  })
+}
 
 // Every new stats field is read defensively (`?? 0` / `?? null`). The dashboard has to
 // render cleanly against the production API before it ships the extra fields -- the
@@ -20,22 +29,29 @@ function resolutionRate(outcomes) {
   return total === 0 ? null : Math.round((resolved / total) * 100)
 }
 
-function yesterdayDelta(stats) {
-  if (stats.alerts_today_total == null || stats.alerts_yesterday_total == null) return null
-  const diff = stats.alerts_today_total - stats.alerts_yesterday_total
-  const tone = diff > 0 ? 'down' : diff < 0 ? 'up' : 'neutral'
-  const arrow = diff > 0 ? '↑' : diff < 0 ? '↓' : ''
-  return { text: `${arrow} ${Math.abs(diff)} from yesterday`.trim(), tone }
+// The dashboard's "Alerts by Type" donut wants the three responder-facing categories
+// (anomaly / sos / dispatch_family). The deployed /barangay/stats still returns
+// `alert_types`, keyed by raw trigger_type, so fold those into the categories that can be
+// derived from a trigger alone: sos -> sos, everything else -> anomaly. (dispatch_family
+// needs the escalation timeline, which stats doesn't carry, so it only appears once the
+// API returns `alert_categories` directly.)
+function categoriesFromTypes(types) {
+  if (!types) return null
+  const out = {}
+  for (const [trigger, n] of Object.entries(types)) {
+    const key = trigger === 'sos' ? 'sos' : 'anomaly'
+    out[key] = (out[key] || 0) + n
+  }
+  return out
 }
 
 export default function Dashboard({ onSessionLost, onNavigate }) {
   const [stats, setStats] = useState(null)
-  const [today, setToday] = useState(null)
+  const [activeAlerts, setActiveAlerts] = useState(null)
   const [error, setError] = useState('')
 
-  // Stats drives the whole page and must succeed. The "today" feed is a nice-to-have: an
-  // older backend that doesn't know `scope=today` yet should still leave a working
-  // dashboard, just with an empty Alerts Today panel.
+  // Stats drives the whole page and must succeed. The active-alerts feed is a nice-to-have
+  // -- a transient failure just leaves that one panel empty.
   const load = useCallback(
     (live = () => true) => {
       api('/barangay/stats')
@@ -47,18 +63,18 @@ export default function Dashboard({ onSessionLost, onNavigate }) {
           setError(err.message)
           if (err.message.includes('expired')) onSessionLost()
         })
-      api('/barangay/alerts?scope=today')
+      api('/barangay/alerts?scope=active')
         .then((t) => {
-          if (live()) setToday(t)
+          if (live()) setActiveAlerts(t)
         })
         .catch(() => {
-          if (live()) setToday([])
+          if (live()) setActiveAlerts([])
         })
     },
     [onSessionLost]
   )
 
-  // Clicking a row in the Alerts Today panel opens the shared Details modal (with the same
+  // Clicking a row in the Active Alerts panel opens the shared Details modal (with the same
   // Acknowledge / Resolve / False Positive actions the Alerts tab uses). A successful action
   // reloads the whole dashboard so the stat cards and charts catch it immediately.
   const actions = useAlertActions({ onReload: () => load(), onSessionLost })
@@ -82,10 +98,9 @@ export default function Dashboard({ onSessionLost, onNavigate }) {
   // blank a dashboard that already has good data on screen -- only the first load blocks
   // on success, same as IncidentQueue's own load/poll split.
   if (error && !stats) return <p className="error">{error}</p>
-  if (!stats || !today) return <p className="muted">Loading…</p>
+  if (!stats || !activeAlerts) return <p className="muted">Loading…</p>
 
   const rate = resolutionRate(stats.outcomes || {})
-  const delta = yesterdayDelta(stats)
   const monthAdded = stats.seniors_added_this_month
   const monthSub =
     monthAdded == null
@@ -104,14 +119,6 @@ export default function Dashboard({ onSessionLost, onNavigate }) {
           tone={monthAdded ? 'up' : 'neutral'}
           sub={monthSub}
           onClick={() => onNavigate('seniors')}
-        />
-        <StatCard
-          label="Active Alerts"
-          value={stats.open_incidents}
-          icon={<IconWarning />}
-          tone={delta ? delta.tone : 'neutral'}
-          sub={delta ? delta.text : '—'}
-          onClick={() => onNavigate('alerts')}
         />
         <StatCard
           label="Resolved Today"
@@ -135,21 +142,26 @@ export default function Dashboard({ onSessionLost, onNavigate }) {
         />
       </div>
 
-      <AlertsTodayPanel
-        alerts={today}
+      <ActiveAlertsPanel
+        alerts={activeAlerts}
         onViewAll={() => onNavigate('alerts')}
         onShowDetails={actions.showDetails}
       />
 
-      <div className="dash-charts">
-        <WeeklyBarChart days={stats.alerts_this_week} />
-        <OutcomeDonut outcomes={stats.outcomes} />
-      </div>
-
-      <AlertTypeChart
-        categories={stats.alert_categories}
-        onSelect={(key, label) => onNavigate('history', { category: key, label: `${label} alerts` })}
+      <WeeklyBarChart
+        days={stats.alerts_this_week}
+        onSelectDay={(day) => onNavigate('history', { date: day, label: dayLabel(day) })}
       />
+
+      <div className="dash-charts">
+        <OutcomeDonut outcomes={stats.outcomes} onNavigate={onNavigate} />
+        <AlertTypeChart
+          categories={stats.alert_categories || categoriesFromTypes(stats.alert_types)}
+          onSelect={(key, label) =>
+            onNavigate('history', { category: key, label: `${label} alerts` })
+          }
+        />
+      </div>
 
       <AlertActionModals actions={actions} />
     </div>

@@ -91,7 +91,7 @@ h4 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase;
 
 /* --- dashboard --- */
 .dashboard { display: flex; flex-direction: column; gap: 20px; }
-.stat-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
+.stat-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
 .stat-card {
   background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
   padding: 18px 20px; display: flex; flex-direction: column; gap: 6px;
@@ -647,16 +647,20 @@ h4 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase;
 
 /* --- charts (dashboard) --- */
 .bars { display: flex; gap: 14px; align-items: end; height: 180px; padding-top: 8px; }
+/* Each column is clickable (opens Alert History for that day). */
 .bar-col {
   flex: 1; display: flex; flex-direction: column; align-items: center;
-  justify-content: end; height: 100%; gap: 8px;
+  justify-content: end; height: 100%; gap: 8px; cursor: pointer;
 }
 .bar-track { flex: 1; width: 100%; display: flex; align-items: flex-end; }
 .bar {
   width: 100%; background: var(--accent-soft); border: 1px solid #f2d3b6;
-  border-radius: 6px 6px 0 0; min-height: 4px;
+  border-radius: 6px 6px 0 0; min-height: 4px; transition: background-color .12s ease;
 }
+.bar-col:hover .bar, .bar-col:focus-visible .bar { background: var(--accent); border-color: var(--accent); }
+.bar-col:focus-visible { outline: none; }
 .bar-label { font-size: 11px; color: var(--muted); font-weight: 600; letter-spacing: .3px; }
+.bar-col:hover .bar-label { color: var(--accent-ink); }
 
 .donut-row { display: flex; gap: 32px; align-items: center; flex-wrap: wrap; }
 .donut { width: 160px; height: 160px; flex: none; }
@@ -667,16 +671,18 @@ h4 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase;
 .donut-legend li { display: flex; align-items: center; }
 .dot { display: inline-block; width: 14px; height: 14px; border-radius: 50%; margin-right: 10px; }
 
-/* "Alerts by Type" is a drill-down: slices and legend rows open Alert History for that
-   category. */
-.donut-slice { cursor: pointer; transition: opacity .12s ease; }
-.donut-slice:hover { opacity: .82; }
+/* Both dashboard donuts are drill-downs: slices and legend rows navigate to a filtered
+   list. */
+.donut-slice { transition: opacity .12s ease; }
+.donut-slice-link { cursor: pointer; }
+.donut-slice-link:hover { opacity: .82; }
 .donut-legend-btn {
   display: flex; align-items: center; width: 100%; background: none; border: 0;
   font: inherit; font-size: 14px; font-weight: 600; color: inherit; cursor: pointer;
   padding: 4px 6px; margin: -4px -6px; border-radius: 6px; text-align: left;
 }
 .donut-legend-btn:hover { background: var(--accent-soft); color: var(--accent-ink); }
+.donut-legend-static { display: flex; align-items: center; padding: 4px 6px; margin: -4px -6px; }
 
 @media (max-width: 900px) {
   .shell { grid-template-columns: 1fr; }

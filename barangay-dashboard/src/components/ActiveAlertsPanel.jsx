@@ -4,16 +4,17 @@ import { IconWarning, IconEye } from '../icons'
 import SectionCard from './SectionCard'
 import StatusPill from './StatusPill'
 
-// The feed arrives newest-first (Alert.created_at DESC). Only the 5 most recent are shown
-// here -- the "View All" button in the card header goes to the full Alerts tab.
+// A preview of the open incidents -- every alert not resolved or marked a false positive.
+// Newest-first; only the 5 most recent are shown, with "View All" going to the full Alerts
+// tab. The header carries the total count.
 const MAX_ROWS = 5
 
-export default function AlertsTodayPanel({ alerts, onViewAll, onShowDetails }) {
+export default function ActiveAlertsPanel({ alerts, onViewAll, onShowDetails }) {
   const shown = alerts.slice(0, MAX_ROWS)
   return (
     <SectionCard
       icon={<IconWarning />}
-      title="Alerts Today"
+      title={alerts.length ? `Active Alerts (${alerts.length})` : 'Active Alerts'}
       action={
         <button type="button" className="link-btn" onClick={onViewAll}>
           View All <IconEye />
@@ -22,7 +23,7 @@ export default function AlertsTodayPanel({ alerts, onViewAll, onShowDetails }) {
       className="alerts-today"
     >
       {alerts.length === 0 ? (
-        <p className="muted alerts-empty">No alerts today.</p>
+        <p className="muted alerts-empty">No active alerts.</p>
       ) : (
         <ul className="alert-rows">
           {shown.map((alert) => (
