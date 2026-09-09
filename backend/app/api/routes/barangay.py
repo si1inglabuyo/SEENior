@@ -102,9 +102,10 @@ async def list_barangay_alerts(
     """The incident queue (`active`), the incident log (`history`), and today's feed (`today`).
 
     `active` is the work queue: incidents that have reached this barangay and are not
-    closed. `history` is everything already acted on, for the log view. `today` is every
-    non-pending alert raised since local midnight, open or closed, for the dashboard's
-    "Alerts Today" panel.
+    closed. `history` is closed incidents only (resolved or false positive), for the log
+    view -- a still-open alert is live work and belongs on the Alerts tab, not the log.
+    `today` is every non-pending alert raised since local midnight, open or closed, for
+    the dashboard's "Alerts Today" panel.
 
     All three deliberately exclude `pending`. An alert still inside the senior's own answer
     window, or one the family is in the middle of handling, has not reached the barangay
@@ -133,8 +134,10 @@ async def list_barangay_alerts(
         now = await db_now(db)
         start_of_today = now.replace(hour=0, minute=0, second=0, microsecond=0)
         query = query.where(Alert.created_at >= start_of_today).limit(50)
-    else:
-        query = query.limit(100)
+    else:  # history
+        query = query.where(
+            Alert.status.in_((AlertStatus.RESOLVED, AlertStatus.FALSE_POSITIVE))
+        ).limit(100)
 
     result = await db.execute(query)
     return [_alert_out(alert) for alert in result.scalars().all()]

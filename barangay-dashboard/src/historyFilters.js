@@ -2,11 +2,6 @@
 // withinRange, not a raw server string) so the combining rules can be reasoned about and
 // tested on their own, away from React and the API client.
 
-export const STATUS_PILLS = [
-  ['all', 'All'],
-  ['active', 'Active'],
-  ['resolved', 'Resolved'],
-]
 export const TYPE_OPTIONS = ['anomaly', 'sos', 'dispatch_family']
 export const DATE_LABELS = {
   today: 'Today',
@@ -15,31 +10,26 @@ export const DATE_LABELS = {
   month: 'This month',
 }
 
-// The Dashboard's stat cards navigate here carrying a { status, when, trigger_type, label }
-// object (App.jsx's `navigate`). Translate it into this page's own filter state so the
-// list opens already narrowed to what the responder clicked:
-//   Active Alerts  -> Active pill
-//   Resolved Today -> Resolved pill + Date Range = Today
-//   SOS Triggered  -> Alert Type = SOS
+// The Dashboard's stat cards navigate here carrying a { when, trigger_type, label } object
+// (App.jsx's `navigate`). Translate it into this page's own filter state so the list opens
+// already narrowed to what the responder clicked:
+//   Resolved Today -> Date Range = Today
+//   SOS Triggered  -> Alert Type = SOS + Date Range = Today
+// (The "Active Alerts" card goes to the Alerts tab instead -- Alert History is closed
+// incidents only.)
 export function initialFilters(navFilter) {
-  const f = { statusPill: 'all', alertType: 'all', dateRange: null }
+  const f = { alertType: 'all', dateRange: null }
   if (!navFilter) return f
-  if (navFilter.status === 'escalated' || navFilter.status === 'acknowledged') {
-    f.statusPill = 'active'
-  } else if (navFilter.status === 'resolved' || navFilter.status === 'false_positive') {
-    f.statusPill = 'resolved'
-    if (navFilter.when === 'today') f.dateRange = { kind: 'today' }
-  }
+  if (navFilter.when === 'today') f.dateRange = { kind: 'today' }
   if (navFilter.trigger_type === 'sos') f.alertType = 'sos'
   return f
 }
 
-// "Active" and "Resolved" each cover two underlying statuses -- the same open/closed split
-// the Dashboard's outcome donut uses, so the pill and the donut always agree.
-export function matchesStatus(alert, pill) {
-  if (pill === 'active') return alert.status === 'escalated' || alert.status === 'acknowledged'
-  if (pill === 'resolved') return alert.status === 'resolved' || alert.status === 'false_positive'
-  return true
+// An alert still open at the barangay tier vs. one that's been closed. Alert History (and
+// the `history` API scope) shows only the closed ones; the Details modal uses this to
+// decide whether to show operational fields like Last Known Location.
+export function isActiveAlert(alert) {
+  return alert.status === 'escalated' || alert.status === 'acknowledged'
 }
 
 // `date` is the alert's created_at already parsed to a real instant. Bounds are reckoned

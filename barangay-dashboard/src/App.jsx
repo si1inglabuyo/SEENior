@@ -20,10 +20,10 @@ const TITLES = {
 export default function App() {
   const [token, setToken] = useState(getToken())
   const [view, setView] = useState('dashboard')
-  // What a dashboard stat card was clicked for -- e.g. { status: 'resolved', when: 'today',
-  // label: 'Resolved Today' }. With no router this rides along as in-memory navigation
-  // state (the job a query param would do); AlertHistory reads it on mount and pre-applies
-  // the matching filter.
+  // What a dashboard stat card was clicked for -- e.g. { when: 'today', label: 'Resolved
+  // Today' }. With no router this rides along as in-memory navigation state (the job a
+  // query param would do); AlertHistory reads it on mount and pre-applies the matching
+  // filter.
   const [navFilter, setNavFilter] = useState(null)
 
   if (!token) return <Login onSignedIn={() => setToken(getToken())} />

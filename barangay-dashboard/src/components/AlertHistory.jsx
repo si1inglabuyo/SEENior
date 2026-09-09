@@ -2,11 +2,9 @@ import { useCallback, useEffect, useState } from 'react'
 import { api, parseServerTime, POLL_MS } from '../api'
 import { CATEGORY_LABEL, alertCategory } from '../labels'
 import {
-  STATUS_PILLS,
   TYPE_OPTIONS,
   DATE_LABELS,
   initialFilters,
-  matchesStatus,
   withinRange,
   matchesSearch,
   dateRangeLabel,
@@ -80,8 +78,7 @@ export default function AlertHistory({ onSessionLost, navFilter, onClearFilter }
   const [filters, setFilters] = useState(() => initialFilters(navFilter))
   const [search, setSearch] = useState('')
 
-  const { statusPill, alertType, dateRange } = filters
-  const setStatusPill = (v) => setFilters((f) => ({ ...f, statusPill: v }))
+  const { alertType, dateRange } = filters
   const setAlertType = (v) => setFilters((f) => ({ ...f, alertType: v }))
   const setDateRange = (v) => setFilters((f) => ({ ...f, dateRange: v }))
 
@@ -113,17 +110,16 @@ export default function AlertHistory({ onSessionLost, navFilter, onClearFilter }
   const rows = alerts ?? []
   const visibleRows = rows.filter(
     (a) =>
-      matchesStatus(a, statusPill) &&
       (alertType === 'all' || alertCategory(a) === alertType) &&
       withinRange(parseServerTime(a.created_at), dateRange) &&
       matchesSearch(a, search)
   )
 
   const filtersActive =
-    statusPill !== 'all' || alertType !== 'all' || dateRange != null || search.trim() !== ''
+    alertType !== 'all' || dateRange != null || search.trim() !== ''
 
   function clearAll() {
-    setFilters({ statusPill: 'all', alertType: 'all', dateRange: null })
+    setFilters({ alertType: 'all', dateRange: null })
     setSearch('')
     if (onClearFilter) onClearFilter()
   }
@@ -131,19 +127,6 @@ export default function AlertHistory({ onSessionLost, navFilter, onClearFilter }
   return (
     <div className="queue-page">
       <div className="history-filters">
-        <div className="pill-group">
-          {STATUS_PILLS.map(([key, label]) => (
-            <button
-              key={key}
-              type="button"
-              className={statusPill === key ? 'active' : ''}
-              onClick={() => setStatusPill(key)}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-
         <FilterMenu
           label={alertType === 'all' ? 'Alert Type' : CATEGORY_LABEL[alertType]}
           active={alertType !== 'all'}

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { triggerLabel } from '../labels'
 import { initials, dateTimeLabel } from '../format'
 import { canActOn } from '../alertActions'
-import { matchesStatus } from '../historyFilters'
+import { isActiveAlert } from '../historyFilters'
 import Modal from './Modal'
 
 // "Last Known Location" deliberately does not plot a pin on a real map. CLAUDE.md §11 is
@@ -94,7 +94,7 @@ export default function AlertDetailsModal({ alert, onClose, onAct, actionBusy })
               reach this senior -- hidden once the incident is closed, same as the location
               panel below. Gender shows only when the senior gave one at onboarding (the API
               sends null otherwise). */}
-          {matchesStatus(alert, 'active') && (
+          {isActiveAlert(alert) && (
             <p className="details-age">
               Age: {alert.senior_age}
               {alert.senior_gender ? ` · ${alert.senior_gender}` : ''}
@@ -117,9 +117,8 @@ export default function AlertDetailsModal({ alert, onClose, onAct, actionBusy })
       {/* Last Known Location is an operational aid for a responder who still has to reach
           the senior -- it only makes sense while the incident is open. Once it's resolved or
           marked a false positive (all of Alert History, and the closed rows on the Alerts
-          tab) there is nobody to dispatch, so the panel is hidden. "Active" is the same
-          escalated/acknowledged split the history filter uses. */}
-      {matchesStatus(alert, 'active') && (
+          tab) there is nobody to dispatch, so the panel is hidden. */}
+      {isActiveAlert(alert) && (
         <>
           <h3 className="details-location-title">Last Known Location</h3>
           <LocationPreview address={alert.senior_address} clusterId={alert.location_cluster_id} />

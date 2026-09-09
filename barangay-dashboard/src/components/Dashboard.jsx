@@ -111,7 +111,7 @@ export default function Dashboard({ onSessionLost, onNavigate }) {
           icon={<IconWarning />}
           tone={delta ? delta.tone : 'neutral'}
           sub={delta ? delta.text : '—'}
-          onClick={() => onNavigate('history', { status: 'escalated', label: 'Active' })}
+          onClick={() => onNavigate('alerts')}
         />
         <StatCard
           label="Resolved Today"
@@ -120,7 +120,7 @@ export default function Dashboard({ onSessionLost, onNavigate }) {
           tone="up"
           sub={rate != null ? `↑ ${rate}% resolution rate` : '—'}
           onClick={() =>
-            onNavigate('history', { status: 'resolved', when: 'today', label: 'Resolved Today' })
+            onNavigate('history', { when: 'today', label: 'Resolved Today' })
           }
         />
         <StatCard
