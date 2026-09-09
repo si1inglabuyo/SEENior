@@ -7,8 +7,6 @@
   --brand: #1f6f5c;
   --high: #c4453c;
   --warn: #b58b2a;
-  /* Dashboard redesign: the design's primary accent is orange (section bars, active nav,
-     stat numbers, logout). Teal stays the logo colour only. */
   --accent: #e08a3c;
   --accent-soft: #fde7d6;
   --accent-ink: #b5671f;
@@ -560,34 +558,48 @@ h4 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase;
 .success-message { font-size: 22px; font-weight: 700; color: var(--ink); margin: 0; }
 
 /* --- alert details modal --- */
-.details-modal { max-width: 620px; }
-.details-head { display: flex; align-items: center; gap: 16px; margin-bottom: 20px; }
-.avatar-lg { width: 64px; height: 64px; font-size: 22px; }
-.details-name { margin: 0; font-size: 22px; }
-.details-age { margin: 2px 0 0; color: var(--muted); }
-.details-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
-.details-card {
-  border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px;
+/* Capped at the viewport and compact. The senior identity and the what/when cards stay
+   pinned in .details-sticky; the map, timeline and actions scroll under them in
+   .details-body. The close button sits outside both so it never scrolls away. */
+.details-modal {
+  max-width: 550px; padding: 0; display: flex; flex-direction: column;
+  max-height: calc(100vh - 48px);
 }
-.details-card h3 { color: var(--accent); font-size: 14px; margin: 0 0 6px; }
-.details-card p { margin: 0; font-size: 18px; font-weight: 600; }
-.details-location-title { font-size: 15px; margin: 0 0 10px; }
+.details-modal .modal-close {
+  z-index: 2; background: var(--surface); box-shadow: 0 0 0 6px var(--surface);
+}
+.details-sticky {
+  flex: none; padding: 24px 30px 14px; border-bottom: 1px solid var(--line);
+}
+.details-body { flex: 1; min-height: 0; overflow-y: auto; padding: 16px 30px 22px; }
+
+.details-head { display: flex; align-items: center; gap: 14px; margin-bottom: 12px; }
+.avatar-lg { width: 46px; height: 46px; font-size: 17px; }
+.details-name { margin: 0; font-size: 19px; }
+.details-age { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+.details-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.details-card {
+  border: 1px solid var(--line); border-radius: 8px; padding: 9px 12px;
+}
+.details-card h3 { color: var(--accent); font-size: 12px; margin: 0 0 3px; }
+.details-card p { margin: 0; font-size: 14px; font-weight: 600; }
+.details-location-title { font-size: 14px; margin: 4px 0 8px; }
 
 .location-preview {
   border: 1px solid var(--line); border-radius: 10px; overflow: hidden;
 }
-.location-map { width: 100%; height: 220px; display: block; border: 0; background: #eef2f0; }
-.location-text { padding: 12px 16px; }
+.location-map { width: 100%; height: 160px; display: block; border: 0; background: #eef2f0; }
+.location-text { padding: 10px 12px; }
 .location-address { margin: 0 0 4px; font-weight: 600; }
 .location-coords { margin: 0 0 6px; font-size: 12px; color: var(--muted); }
 .location-coords a { color: var(--accent-ink); }
 .location-note { margin: 0; font-size: 12px; }
 
 /* Escalation timeline -- the audit trail of who did what, from escalation_steps. */
-.timeline { list-style: none; margin: 0 0 4px; padding: 0; }
-.timeline-item { display: flex; gap: 12px; padding-bottom: 14px; position: relative; }
+.timeline { list-style: none; margin: 0 0 2px; padding: 0; }
+.timeline-item { display: flex; gap: 12px; padding-bottom: 9px; position: relative; }
 .timeline-item:not(:last-child)::before {
-  content: ''; position: absolute; left: 4px; top: 14px; bottom: 0; width: 2px;
+  content: ''; position: absolute; left: 4px; top: 12px; bottom: 0; width: 2px;
   background: var(--line);
 }
 .timeline-dot {
@@ -598,23 +610,24 @@ h4 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase;
 .timeline-step { margin: 0; font-weight: 600; font-size: 14px; }
 .timeline-meta { margin: 2px 0 0; font-size: 12px; color: var(--muted); }
 .timeline-note {
-  margin: 6px 0 0; font-size: 13px; font-style: italic; color: var(--ink);
+  margin: 5px 0 0; font-size: 13px; font-style: italic; color: var(--ink);
   border-left: 3px solid var(--line); padding-left: 10px;
 }
 
-/* Acknowledge / Resolve / False Positive live here now, below the location map. */
-.details-actions { margin-top: 22px; border-top: 1px solid var(--line); padding-top: 20px; }
+.details-actions { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 14px; }
 .details-action-btns { display: flex; gap: 10px; flex-wrap: wrap; }
 .details-action-btns .btn-outline {
-  flex: 1; min-width: 130px; text-align: center; padding: 10px 16px;
+  flex: 1; min-width: 130px; text-align: center; padding: 9px 16px;
 }
 .details-action-danger { color: var(--high); border-color: #f0c3c0; }
 .details-action-danger:hover:not(:disabled) { border-color: var(--high); background: var(--danger-soft); }
-.details-remarks { display: grid; gap: 6px; margin-top: 16px; font-size: 13px; font-weight: 700; }
+.details-action-ok { color: var(--ok); border-color: #bfe3cd; }
+.details-action-ok:hover:not(:disabled) { border-color: var(--ok); background: var(--ok-soft); }
+.details-remarks { display: grid; gap: 6px; margin-top: 10px; font-size: 13px; font-weight: 700; }
 .details-remarks textarea {
-  font: inherit; font-weight: 400; font-size: 14px; padding: 10px 12px;
+  font: inherit; font-weight: 400; font-size: 14px; padding: 9px 12px;
   border: 1px solid var(--line); border-radius: 8px; background: #f6f7f9; color: var(--ink);
-  resize: vertical; min-height: 64px;
+  resize: vertical; min-height: 52px;
 }
 .details-remarks textarea:focus {
   outline: 2px solid var(--accent-soft); border-color: var(--accent); background: var(--surface);

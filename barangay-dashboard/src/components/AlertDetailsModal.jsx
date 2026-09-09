@@ -109,7 +109,7 @@ function IncidentActions({ alert, onAct, busy }) {
 
   const BUTTONS = [
     { key: 'acknowledge', label: 'Acknowledge', cls: '' },
-    { key: 'resolve', label: 'Resolved', cls: '' },
+    { key: 'resolve', label: 'Resolved', cls: 'details-action-ok' },
     { key: 'falsePositive', label: 'False Positive', cls: 'details-action-danger' },
   ]
 
@@ -148,50 +148,58 @@ export default function AlertDetailsModal({ alert, onClose, onAct, actionBusy })
         ✕
       </button>
 
-      <div className="details-head">
-        <span className="avatar avatar-lg">{initials(alert.senior_name)}</span>
-        <div>
-          <h2 id="alert-details-title" className="details-name">
-            {alert.senior_name}
-          </h2>
-          {/* Age and gender are only relevant while a responder is actively deciding how to
-              reach this senior -- hidden once the incident is closed, same as the location
-              panel below. Gender shows only when the senior gave one at onboarding (the API
-              sends null otherwise). */}
-          {isActiveAlert(alert) && (
-            <p className="details-age">
-              Age: {alert.senior_age}
-              {alert.senior_gender ? ` · ${alert.senior_gender}` : ''}
-            </p>
-          )}
+      {/* Senior identity + what/when stay pinned; everything below scrolls under them. */}
+      <div className="details-sticky">
+        <div className="details-head">
+          <span className="avatar avatar-lg">{initials(alert.senior_name)}</span>
+          <div>
+            <h2 id="alert-details-title" className="details-name">
+              {alert.senior_name}
+            </h2>
+            {/* Age and gender are only relevant while a responder is actively deciding how
+                to reach this senior -- hidden once the incident is closed, same as the
+                location panel below. Gender shows only when the senior gave one at
+                onboarding (the API sends null otherwise). */}
+            {isActiveAlert(alert) && (
+              <p className="details-age">
+                Age: {alert.senior_age}
+                {alert.senior_gender ? ` · ${alert.senior_gender}` : ''}
+              </p>
+            )}
+          </div>
+        </div>
+
+        <div className="details-cards">
+          <div className="details-card">
+            <h3>Description</h3>
+            <p>{triggerLabel(alert.trigger_type)}</p>
+          </div>
+          <div className="details-card">
+            <h3>Last Detected</h3>
+            <p>{dateTimeLabel(alert.created_at)}</p>
+          </div>
         </div>
       </div>
 
-      <div className="details-cards">
-        <div className="details-card">
-          <h3>Description</h3>
-          <p>{triggerLabel(alert.trigger_type)}</p>
-        </div>
-        <div className="details-card">
-          <h3>Last Detected</h3>
-          <p>{dateTimeLabel(alert.created_at)}</p>
-        </div>
+      <div className="details-body">
+        {/* Last Known Location is an operational aid for a responder who still has to reach
+            the senior -- it only makes sense while the incident is open. Once it's resolved
+            or marked a false positive (all of Alert History, and the closed rows on the
+            Alerts tab) there is nobody to dispatch, so the panel is hidden. */}
+        {isActiveAlert(alert) && (
+          <>
+            <h3 className="details-location-title">Last Known Location</h3>
+            <LocationPreview
+              address={alert.senior_address}
+              clusterId={alert.location_cluster_id}
+            />
+          </>
+        )}
+
+        <EscalationTimeline steps={alert.escalation_steps} />
+
+        {onAct && <IncidentActions alert={alert} onAct={onAct} busy={actionBusy} />}
       </div>
-
-      {/* Last Known Location is an operational aid for a responder who still has to reach
-          the senior -- it only makes sense while the incident is open. Once it's resolved or
-          marked a false positive (all of Alert History, and the closed rows on the Alerts
-          tab) there is nobody to dispatch, so the panel is hidden. */}
-      {isActiveAlert(alert) && (
-        <>
-          <h3 className="details-location-title">Last Known Location</h3>
-          <LocationPreview address={alert.senior_address} clusterId={alert.location_cluster_id} />
-        </>
-      )}
-
-      <EscalationTimeline steps={alert.escalation_steps} />
-
-      {onAct && <IncidentActions alert={alert} onAct={onAct} busy={actionBusy} />}
     </Modal>
   )
 }
