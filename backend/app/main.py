@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.escalation import escalation_sweep_loop
 from app.api.routes import alerts, auth, barangay, contacts, devices, seniors
-from app.core import push
+from app.core import push, sms
 from app.core.config import settings
 
 logging.basicConfig(level=logging.INFO)
@@ -51,7 +51,12 @@ app.include_router(barangay.router)
 
 @app.get("/health")
 async def health() -> dict:
-    # push_enabled is reported because a deployment with no FCM credentials looks
-    # identical to a healthy one from the outside — right up until an emergency fails
-    # to reach anybody. This makes that state visible without reading the logs.
-    return {"status": "ok", "push_enabled": push.is_configured()}
+    # push_enabled / sms_enabled are reported because a deployment with no FCM
+    # credentials or no Semaphore key looks identical to a healthy one from the
+    # outside — right up until an emergency fails to reach anybody. This makes that
+    # state visible without reading the logs.
+    return {
+        "status": "ok",
+        "push_enabled": push.is_configured(),
+        "sms_enabled": sms.is_configured(),
+    }

@@ -33,6 +33,18 @@ class Settings:
     # over a notification channel. push.py logs loudly instead.
     firebase_credentials: str | None = os.environ.get("FIREBASE_CREDENTIALS")
 
+    # Semaphore PH SMS fallback (CLAUDE.md §7/§9) -- the channel that reaches a family
+    # contact or barangay responder with poor data but a live cellular signal, and
+    # currently the ONLY channel a barangay responder gets at all beyond the dashboard.
+    #
+    # Same posture as FIREBASE_CREDENTIALS: not fatal when unset. A missing SMS
+    # credential degrades the chain to push-only for family and dashboard-only for
+    # barangay, not down entirely. app/core/sms.py logs loudly instead.
+    semaphore_api_key: str | None = os.environ.get("SEMAPHORE_API_KEY")
+    # Optional. Semaphore falls back to its own default sender name if this is unset;
+    # a custom one has to be registered and approved with Semaphore first.
+    semaphore_sender_name: str | None = os.environ.get("SEMAPHORE_SENDER_NAME")
+
     # --- Escalation clock (CLAUDE.md 7) ----------------------------------------
     # These run the server-side countdown that moves an unanswered alert up the
     # chain. They exist because no on-device timer can be trusted on this handset:

@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.api.deps import get_current_user
-from app.core import push
+from app.core import push, sms
 from app.db.models import (
     Alert,
     AlertStatus,
@@ -60,6 +60,66 @@ async def family_device_tokens(db: AsyncSession, senior_id: int) -> list[str]:
         .distinct()
     )
     return list(result.scalars().all())
+
+
+async def family_phone_numbers(db: AsyncSession, senior_id: int) -> list[str]:
+    """Every phone number belonging to a currently-linked, active family contact.
+
+    Same filters as family_device_tokens for the same reasons — an unlinked contact
+    must stop receiving anything about the senior immediately, including a text.
+    `User.phone` is nullable (a Google-only account can arrive without one, filled in
+    by FamilyCompletePhoneScreen), so accounts that never completed that step are
+    silently skipped rather than crashing the whole send over one missing number.
+    """
+    result = await db.execute(
+        select(User.phone)
+        .join(Contact, Contact.user_id == User.id)
+        .where(
+            Contact.senior_id == senior_id,
+            Contact.contact_type == ContactType.FAMILY,
+            Contact.is_active(),
+            User.is_active,
+            User.phone.is_not(None),
+        )
+        .distinct()
+    )
+    return list(result.scalars().all())
+
+
+async def barangay_phone_numbers(db: AsyncSession, barangay: str) -> list[str]:
+    """Every phone number belonging to an active barangay-responder account assigned
+    to this barangay.
+
+    Scoped by `User.barangay` directly, the same field `_assigned_barangay()` in
+    barangay.py checks — there is no Contact row per senior for this role (CLAUDE.md
+    §2: responders are assigned to a barangay, not paired to individual seniors), so
+    every active responder covering that barangay is texted, not just one.
+    """
+    result = await db.execute(
+        select(User.phone).where(
+            User.role == UserRole.BARANGAY_RESPONDER,
+            User.barangay == barangay,
+            User.is_active,
+            User.deleted_at.is_(None),
+            User.phone.is_not(None),
+        )
+    )
+    return list(result.scalars().all())
+
+
+async def deliver_alert_sms(numbers: list[str], message: str, *, context: str) -> None:
+    """Sends the SMS fallback as a background task. Same posture as deliver_alert_push:
+    failures are logged, never raised — the alert this covers is already committed."""
+    try:
+        result = await sms.send_sms(numbers, message)
+    except Exception:
+        logger.exception("Alert SMS task crashed (%s)", context)
+        return
+
+    if result.attempted:
+        logger.info(
+            "Alert SMS (%s) sent to %d/%d number(s)", context, result.sent, result.attempted
+        )
 
 
 async def deliver_alert_push(tokens: list[str], payload: push.AlertPush) -> None:
@@ -194,6 +254,21 @@ async def create_alert(
             "Alert %s raised for senior %s with no registered family devices",
             alert.sync_id,
             senior.sync_id,
+        )
+
+    # SMS fallback, alongside push rather than only after it fails — a family member
+    # with a weak data connection but a live cellular signal gets the text before FCM
+    # would ever have timed out (CLAUDE.md §1's offline-first promise, applied to the
+    # family tier). Nothing to send for a senior with no family tier: that case has no
+    # phone numbers to text, and the barangay tier this alert falls straight through to
+    # is texted separately, by the sweep, the moment its own deadline is reached.
+    phone_numbers = await family_phone_numbers(db, senior.id)
+    if phone_numbers:
+        background_tasks.add_task(
+            deliver_alert_sms,
+            phone_numbers,
+            sms.family_alert_message(senior.first_name, alert.risk_level.value, alert.trigger_type.value),
+            context=f"family/{alert.sync_id}",
         )
 
     return alert

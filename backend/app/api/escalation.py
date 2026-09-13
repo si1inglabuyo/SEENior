@@ -26,10 +26,13 @@ from sqlalchemy.orm import selectinload
 
 from app.api.routes.alerts import (
     append_step,
+    barangay_phone_numbers,
     deliver_alert_push,
+    deliver_alert_sms,
     family_device_tokens,
+    family_phone_numbers,
 )
-from app.core import push
+from app.core import push, sms
 from app.core.config import settings
 from app.db.models import (
     Alert,
@@ -197,6 +200,11 @@ async def sweep_overdue_alerts(db: AsyncSession) -> tuple[int, int]:
     notified_family = 0
     escalated_barangay = 0
     pushes: list[tuple[list[str], push.AlertPush]] = []
+    # (numbers, message, context) rather than reusing the pushes tuple shape: SMS has
+    # no per-recipient payload object, just a rendered string, and the context string
+    # is for the log line inside deliver_alert_sms since `alert` is out of scope by
+    # the time these are sent below.
+    smses: list[tuple[list[str], str, str]] = []
 
     for alert in result.scalars().all():
         if alert.senior is None:
@@ -254,31 +262,54 @@ async def sweep_overdue_alerts(db: AsyncSession) -> tuple[int, int]:
                             trigger_type=alert.trigger_type.value,
                         ),
                     ))
+                phone_numbers = await family_phone_numbers(db, alert.senior_id)
+                if phone_numbers:
+                    smses.append((
+                        phone_numbers,
+                        sms.family_alert_message(
+                            alert.senior.first_name, alert.risk_level.value, alert.trigger_type.value
+                        ),
+                        f"family/{alert.sync_id}",
+                    ))
 
         # Tier 3.
         if now >= barangay_deadline(alert, has_family):
             alert.status = AlertStatus.ESCALATED
-            append_step(
-                alert,
-                "escalated_barangay_auto",
-                reason=(
-                    "SOS pressed by the senior"
-                    if alert.trigger_type == TriggerType.SOS
-                    else "No family contact is linked to this senior"
-                    if not has_family
-                    else "No response from the senior or any family contact"
-                ),
+            reason = (
+                "SOS pressed by the senior"
+                if alert.trigger_type == TriggerType.SOS
+                else "No family contact is linked to this senior"
+                if not has_family
+                else "No response from the senior or any family contact"
             )
+            append_step(alert, "escalated_barangay_auto", reason=reason)
             escalated_barangay += 1
             logger.info("Auto-escalated alert %s to barangay", alert.sync_id)
+
+            barangay_numbers = await barangay_phone_numbers(db, alert.senior.barangay)
+            if barangay_numbers:
+                smses.append((
+                    barangay_numbers,
+                    sms.barangay_alert_message(
+                        alert.senior.first_name,
+                        alert.senior.barangay,
+                        alert.senior.address,
+                        alert.risk_level.value,
+                        reason,
+                    ),
+                    f"barangay/{alert.sync_id}",
+                ))
 
     if notified_family or escalated_barangay:
         await db.commit()
 
-    # Pushes go out only after the commit, so a notification can never announce a state
-    # change that failed to save. Same rule create_alert already follows.
+    # Pushes and texts go out only after the commit, so a notification can never
+    # announce a state change that failed to save. Same rule create_alert already
+    # follows.
     for tokens, payload in pushes:
         await deliver_alert_push(tokens, payload)
+    for numbers, message, context in smses:
+        await deliver_alert_sms(numbers, message, context=context)
 
     return notified_family, escalated_barangay
 
