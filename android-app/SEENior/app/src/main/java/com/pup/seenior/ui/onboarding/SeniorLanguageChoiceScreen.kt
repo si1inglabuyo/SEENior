@@ -81,7 +81,8 @@ fun SeniorLanguageChoiceScreen(
             )
             Text(
                 "This is the language every screen and safety check will use. / " +
-                    "Ito ang wikang gagamitin sa lahat ng screen at sa bawat pagsusuri ng kalagayan.",
+                    "Ito ang wikang gagamitin sa lahat ng bahagi ng app at sa mga mensaheng may " +
+                    "kinalaman sa iyong kalagayan.",
                 color = SeniorColors.TextSecondary,
                 fontSize = 15.sp,
                 modifier = Modifier.padding(top = 8.dp)

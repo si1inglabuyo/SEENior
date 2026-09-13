@@ -125,6 +125,10 @@ object OnboardingStrings {
         val close: String,
         val deniedTitle: String,
         val deniedBody: String,
+        val manufacturerDialogTitle: String,
+        val manufacturerDialogBody: String,
+        val manufacturerDialogOpenSettings: String,
+        val manufacturerDialogSkip: String,
 
         // All set
         val allSetBody: String,
@@ -138,6 +142,14 @@ object OnboardingStrings {
         val mapPinDescription: String,
         val welcomeLead: String,
         val welcomeMid: String,
+
+        /**
+         * Lets [com.pup.seenior.ui.onboarding.TermsConditionsScreen] fetch the full Privacy
+         * Policy from [com.pup.seenior.ui.InfoStrings] in the same language, when the senior taps
+         * that consent checkbox's link — rather than duplicating the legal text a second time in
+         * this file just to avoid a language lookup.
+         */
+        val languageCode: String,
 
         // Option labels — display only, see the file KDoc
         private val genderLabels: Map<String, String>,
@@ -167,7 +179,7 @@ object OnboardingStrings {
             val name = listOf(firstName, lastName).filter { it.isNotBlank() }.joinToString(" ")
             val honorific = gender?.let { honorifics[it] }
             val who = if (honorific.isNullOrBlank()) name else honorific + " " + name
-            return if (this === FILIPINO_COPY) "Handa na po kayo, " + who + "!" else "You're All Set, " + who + "!"
+            return if (this === FILIPINO_COPY) "Handa na ang lahat, " + who + "!" else "You're All Set, " + who + "!"
         }
     }
 
@@ -273,7 +285,7 @@ object OnboardingStrings {
             // captured, and only at the moment an alert fires (CLAUDE.md §11). The protection is
             // that it is never continuous — say that, rather than claim a vagueness we do not add.
             "Location (Alerts)" to "Only when an alert triggers — one exact location, never continuous tracking",
-            "Notifications" to "Check-in prompts & SOS alerts",
+            "Notifications" to "Safety confirmation prompts & SOS alert",
             "Battery & screen" to "Tracks charging & screen use",
             "Run in background" to "So alerts still go out while the phone rests",
             "Wake your screen" to "So a check-in appears even while the phone is locked",
@@ -287,8 +299,12 @@ object OnboardingStrings {
         close = "CLOSE",
         deniedTitle = "App was denied access",
         deniedBody = "It is possible the app won't work properly without this restricted permission.",
+        manufacturerDialogTitle = "One More Thing For Your Phone",
+        manufacturerDialogBody = "Your phone's maker limits which apps can run in the background more than most. The next two screens are from your phone's own settings app — find SEENior in each list and turn off any restriction, so check-ins and alerts are never delayed.",
+        manufacturerDialogOpenSettings = "OPEN SETTINGS",
+        manufacturerDialogSkip = "SKIP FOR NOW",
 
-        allSetBody = "SEENior is now watching over you quietly. Your family will be notified if anything seems unusual.",
+        allSetBody = "SEENior is now quietly monitoring your usual activity. Your family will be notified if anything seems unusual.",
         allSetMonitoringStarted = "Passive monitoring started",
         allSetLearningRoutine = "Learning your routine - Day 1 of 14",
         continueLabel = "CONTINUE",
@@ -299,6 +315,7 @@ object OnboardingStrings {
         mapPinDescription = "Map pin",
         welcomeLead = "Welcome ",
         welcomeMid = "To ",
+        languageCode = WellnessMessages.ENGLISH,
 
         genderLabels = emptyMap(),
         yesNoLabels = emptyMap(),
@@ -311,8 +328,8 @@ object OnboardingStrings {
 
     private val FILIPINO_COPY = Copy(
         getStarted = "MAGSIMULA",
-        chooseRole = "Pumili po ng inyong papel",
-        roleSeniorTitle = "Ako po ay Senior",
+        chooseRole = "Pumili ng iyong papel",
+        roleSeniorTitle = "Ako ay Senior",
         roleSeniorBullets = listOf(
             "Nangangailangan ng tulong sa kaligtasan at kalusugan.",
             "Kailangan ng araw-araw na pagbantay sa kalusugan.",
@@ -327,8 +344,8 @@ object OnboardingStrings {
             "Nananatiling konektado at nakakaalaga kahit malayo."
         ),
 
-        signUpTitle = "Ikuwento po ang Inyong Sarili",
-        signUpSubtitle = "Ipagpatuloy po ang inyong setup.",
+        signUpTitle = "Ipakilala ang Iyong Sarili",
+        signUpSubtitle = "Ipagpatuloy ang iyong setup.",
         firstNameLabel = "PANGALAN",
         firstNamePlaceholder = "Pangalan",
         lastNameLabel = "APELYIDO",
@@ -337,7 +354,7 @@ object OnboardingStrings {
         genderLabel = "KASARIAN",
         selectPlaceholder = "Pumili",
         mobileLabel = "NUMERO NG CELLPHONE",
-        mobileError = "Maglagay po ng tamang numero sa Pilipinas (09XXXXXXXXX o +639XXXXXXXXX)",
+        mobileError = "Maglagay ng tamang numero sa Pilipinas (09XXXXXXXXX o +639XXXXXXXXX)",
         livingArrangementLabel = "KASAMA SA BAHAY",
         regionLabel = "REHIYON",
         provinceLabel = "PROBINSYA",
@@ -346,86 +363,90 @@ object OnboardingStrings {
         streetLabel = "TIRAHAN",
         streetPlaceholder = "Bilang ng Bahay, Kalye, Subdivision",
         findOnMapTitle = "Hanapin ang aking tirahan sa mapa",
-        findOnMapBody = "I-drag po ang pin papunta sa inyong bahay sa halip na punan ang mga kahon sa ibaba.",
+        findOnMapBody = "I-drag ang pin sa lokasyon ng iyong bahay sa halip na punan ang mga kahon sa ibaba.",
 
-        mapTitle = "Ituro po ang Inyong Bahay",
-        mapSubtitle = "I-drag po ang mapa hanggang tumapat ang pin sa inyong bahay.",
+        mapTitle = "Ituro ang Iyong Bahay",
+        mapSubtitle = "I-drag ang mapa hanggang tumapat ang pin sa iyong bahay.",
         mapFindMe = "Hanapin ako",
         mapUseAddress = "GAMITIN ANG TIRAHANG ITO",
-        mapLookingUp = "Hinahanap po ang lugar na ito...",
-        mapNoName = "Hindi po namin makilala ang lugar na ito. Subukan pong igalaw ang pin, o " +
-            "bumalik at i-type na lang ang inyong tirahan.",
-        mapNoBarangay = "Hindi po namin matukoy kung aling barangay ito — piliin po ninyo ito sa " +
+        mapLookingUp = "Hinahanap ang lugar na ito...",
+        mapNoName = "Hindi namin makilala ang lugar na ito. Subukang igalaw ang pin, o " +
+            "bumalik at i-type na lang ang iyong tirahan.",
+        mapNoBarangay = "Hindi namin matukoy kung aling barangay ito — piliin ninyo ito sa " +
             "susunod na screen.",
-        mapCheckThis = "Tingnan po kung tama ito. Mababago pa po ninyo ito sa susunod na screen.",
+        mapCheckThis = "Tingnan kung tama ito. Mababago pa ninyo ito sa susunod na screen.",
 
         termsTitle = "Mga Tuntunin at Kondisyon",
-        termsSubtitle = "Basahin po ang aming Mga Tuntunin at Kondisyon upang magpatuloy sa paggamit ng app.",
+        termsSubtitle = "Basahin ang Mga Tuntunin at Kondisyon upang magpatuloy sa paggamit ng app.",
         termsSections = listOf(
             Section(
                 "1. Pagtanggap sa mga Tuntunin",
-                body = "Sa paggawa po ng account at paggamit ng SEENior, sumasang-ayon kayo sa mga Tuntunin ng Paggamit na ito. Kung hindi po kayo sang-ayon, huwag pong gamitin ang aming serbisyo."
+                body = "Sa paggawa ng account at paggamit ng SEENior, sumasang-ayon kayo sa mga Tuntunin ng Paggamit na ito. Kung hindi kayo sang-ayon, huwag gamitin ang aming serbisyo."
             ),
             Section(
                 "2. Paglalarawan ng Serbisyo",
-                body = "Ang SEENior po ay isang tahimik na aplikasyon sa pagbantay ng gawi. Ginagamit nito ang mga sensor na nasa loob na ng inyong telepono upang matutunan ang inyong pang-araw-araw na rutina at matukoy ang malalaking pagbabago na maaaring senyales ng emergency."
+                body = "Ang SEENior ay isang tahimik na aplikasyon sa pagbantay ng gawi. Ginagamit nito ang mga sensor na nasa loob na ng iyong cellphone upang matutunan ang iyong pang-araw-araw na rutina at matukoy ang malalaking pagbabago na maaaring senyales ng emergency."
             ),
             Section(
                 "3. Sino ang Maaaring Gumamit",
-                body = "Ang senior app po ng SEENior ay para sa mga senior citizen (60 taong gulang pataas) na naninirahan sa Pilipinas, ayon sa RA 9994 (Expanded Senior Citizens Act of 2010). Ang paggamit ng mas bata rito ay pinapayagan lamang para sa pagsubok ng development team."
+                body = "Ang senior app ng SEENior ay para sa mga senior citizen (60 taong gulang pataas) na naninirahan sa Pilipinas, ayon sa RA 9994 (Expanded Senior Citizens Act of 2010). Ang paggamit ng mas bata rito ay pinapayagan lamang para sa pagsubok ng development team."
             ),
             Section(
                 "4. Mga Tungkulin ng Gumagamit",
                 bullets = listOf(
-                    "Panatilihin pong may baterya ang inyong telepono at dala ito, upang maayos na gumana ang pagbantay.",
-                    "Magbigay po ng tama at totoong impormasyon sa pag-setup ng account."
+                    "Panatilihing may baterya ang iyong cellphone at dala ito, upang maayos na gumana ang pagbantay.",
+                    "Magbigay ng tama at totoong impormasyon sa pag-setup ng account."
                 )
             )
         ),
-        termsConsentPrefix = "Kinikilala ko pong maingat kong nabasa at tinanggap ang ",
+        termsConsentPrefix = "Nabasa at tinanggap ko ang ",
         termsConsentLink = "Mga Tuntunin at Kondisyon",
         termsConsentSuffix = " ng SEENior.",
-        privacyConsentPrefix = "Nabasa ko na po at sumasang-ayon ako sa ",
-        privacyConsentLink = "Patakaran sa Pagkapribado",
-        privacyConsentSuffix = " at pumapayag po ako sa pangongolekta ng aking datos ayon sa nakasaad, sa ilalim ng RA 10173.",
+        privacyConsentPrefix = "Nabasa ko at sumasang-ayon ako sa ",
+        privacyConsentLink = "Privacy Policy",
+        privacyConsentSuffix = " at payag ako sa pagkolekta ng aking datos ayon sa nakasaad, sa ilalim ng RA 10173.",
 
-        questionnaireTitle = "Pagsisimula",
-        questionnaireSubtitle = "Simulan na po natin",
-        qLanguage = "What language do you prefer? / Anong wika ang gusto ninyo?",
-        qWakeTime = "Anong oras po kayo karaniwang gumigising?",
-        qSleepTime = "Anong oras po kayo karaniwang natutulog?",
-        qHasNap = "Umiidlip po ba kayo sa maghapon?",
-        qNapTime = "Anong oras po kayo karaniwang umiidlip?",
-        qNapDuration = "Gaano po katagal ang inyong idlip?",
-        qActivityLevel = "Gaano po kayo kaaktibo sa maghapon?",
-        qGoesOutside = "Madalas po ba kayong lumabas ng bahay?",
-        qOutsideTime = "Anong oras po kayo karaniwang lumalabas?",
-        qChargesOvernight = "Nagcha-charge po ba kayo ng telepono kapag gabi?",
-        optionPlaceholder = "-Pumili po-",
+        questionnaireTitle = "Panimula",
+        questionnaireSubtitle = "Simulan na natin",
+        qLanguage = "What language do you prefer? / Anong wika ang gusto ninyong gamitin?",
+        qWakeTime = "Anong oras kayo karaniwang gumigising?",
+        qSleepTime = "Anong oras kayo karaniwang natutulog?",
+        qHasNap = "Umiidlip ba kayo sa maghapon?",
+        qNapTime = "Anong oras kayo karaniwang umiidlip?",
+        qNapDuration = "Gaano katagal ang iyong idlip?",
+        qActivityLevel = "Gaano kayo kaaktibo sa maghapon?",
+        qGoesOutside = "Madalas ba kayong lumabas ng bahay?",
+        qOutsideTime = "Anong oras kayo karaniwang lumalabas?",
+        qChargesOvernight = "Nagcha-charge ba kayo ng cellphone magdamag?",
+        optionPlaceholder = "-Pumili-",
 
-        permissionsTitle = "Payagan po ang mga Pahintulot",
-        permissionsSubtitle = "Kailangan po ito ng SEENior upang tahimik na makapagbantay sa background. Ang lahat ng datos ay nananatili sa inyong telepono.",
+        permissionsTitle = "Payagan ang mga kinakailangang Pahintulot",
+        permissionsSubtitle = "Kailangan ng SEENior ang mga ito sa background upang patuloy na masubaybayan ang iyong karaniwang gawain. Mananatili po sa iyong cellphone ang lahat ng iyong datos.",
         permissionRows = listOf(
-            "Galaw at Aktibidad" to "Tinutukoy ang galaw upang masundan ang rutina",
-            "Lokasyon (Alerto)" to "Kapag lang po may alerto — isang tumpak na lokasyon, hindi tuloy-tuloy na pagsubaybay",
-            "Mga Abiso" to "Mga check-in at alertong SOS",
+            "Galaw at Aktibidad" to "Tinutukoy ang galaw upang masundan ang pangkaraniwang gawain",
+            "Lokasyon (Alerto)" to "Kapag may alerto lamang ibabahagi ang iyong lokasyon (Hindi ito patuloy na nagsusubaybay)",
+            "Mga Abiso" to "Mga Safety Confirmation Prompts at SOS alert",
             "Baterya at screen" to "Sinusubaybayan ang pag-charge at paggamit ng screen",
-            "Tumakbo sa background" to "Upang makapagpadala pa rin ng alerto habang nagpapahinga ang telepono",
-            "Buksan ang inyong screen" to "Upang lumitaw ang check-in kahit naka-lock ang telepono",
-            "Ipakita sa ibabaw ng ibang app" to "Upang hindi matabunan ang check-in ng app na ginagamit ninyo"
+            "Tumakbo sa background" to "Upang makapagpadala pa rin ng alerto habang nagpapahinga ang cellphone",
+            "Buksan ang iyong screen" to "Upang lumitaw ang Safety Confirmation Prompt kahit naka-lock ang cellphone",
+            "Ipakita sa ibabaw ng ibang app" to "Upang hindi matabunan ang Safety Confirmation Prompt ng app na ginagamit ninyo"
         ),
         permissionsPrivacyNote = "Protektado sa ilalim ng RA 10173 · Data Privacy Act",
-        permissionsCta = "PAYAGAN NA PO ANG MGA PAHINTULOT",
-        permissionsDialogBody = "Payagan po ba ang SEENior na gamitin ang aktibidad, mga abiso, baterya at lokasyon ng inyong telepono kapag may alertong emergency, upang masubaybayan ang rutina at makatulong sa oras ng emergency?",
+        permissionsCta = "PAYAGAN ANG MGA PAHINTULOT",
+        permissionsDialogBody = "Payagan ang SEENior na gamitin ang aktibidad, mga abiso, baterya, at lokasyon ng iyong cellphone kapag may emergency alerts upang masuportahan ang routine monitoring at emergency assistance?",
         allow = "PAYAGAN",
         deny = "TANGGIHAN",
         close = "ISARA",
         deniedTitle = "Hindi pinayagan ang app",
-        deniedBody = "Maaari pong hindi gumana nang maayos ang app kung wala ang pahintulot na ito.",
+        deniedBody = "Maaaring hindi gumana nang maayos ang app kung wala ang pahintulot na ito.",
+        manufacturerDialogTitle = "Isa Pang Hakbang Para sa Cellphone Ninyo",
+        manufacturerDialogBody = "Mas mahigpit ang paghihigpit ng gumawa ng iyong cellphone sa mga app na tumatakbo sa background. Mula sa settings mismo ng iyong cellphone ang susunod na dalawang screen — hanapin ang SEENior sa bawat listahan at alisin ang anumang paghihigpit, upang hindi maantala ang mga Safety Confirmation Prompts at alerto.",
+        manufacturerDialogOpenSettings = "BUKSAN ANG SETTINGS",
+        manufacturerDialogSkip = "LAKTAWAN MUNA",
 
-        allSetBody = "Tahimik na pong nagbabantay ang SEENior. Aabisuhan po ang inyong pamilya kung may mapansing hindi pangkaraniwan.",
+        allSetBody = "Tahimik na pong sinusubaybayan ng SEENior ang iyong pangkaraniwang gawain. Aabisuhan po ang iyong pamilya kung may mapansing hindi pangkaraniwan.",
         allSetMonitoringStarted = "Nagsimula na ang tahimik na pagbantay",
-        allSetLearningRoutine = "Inaaral ang inyong rutina - Araw 1 ng 14",
+        allSetLearningRoutine = "Inaaral ang iyong gawain - Unang araw sa loob ng 14 na araw",
         continueLabel = "MAGPATULOY",
 
         next = "SUSUNOD",
@@ -434,6 +455,7 @@ object OnboardingStrings {
         mapPinDescription = "Pin sa mapa",
         welcomeLead = "Maligayang ",
         welcomeMid = "Pagdating sa ",
+        languageCode = WellnessMessages.FILIPINO,
 
         genderLabels = mapOf("Male" to "Lalaki", "Female" to "Babae", "Other" to "Iba"),
         yesNoLabels = mapOf("Yes" to "Oo", "No" to "Hindi"),

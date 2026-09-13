@@ -110,7 +110,7 @@ object ProfileStrings {
         fun pairSuccessBody(name: String): String =
             if (this === FILIPINO_COPY)
                 "Naka-konekta na si " + name + ". Aabisuhan sila kung may mapapansing hindi " +
-                    "karaniwan sa inyong routine."
+                    "karaniwan sa iyong routine."
             else
                 name + " is now connected. They will be alerted if anything unusual is " +
                     "detected in your routine."
@@ -249,18 +249,18 @@ object ProfileStrings {
         editProfileSubtitle = "Pangalan, Apelyido, Edad, Kasarian, Numero ng Cellphone…",
         languageRow = "Language / Wika",
         languageRowSubtitle = "English, Filipino / Tagalog",
-        languageChooseHeading = "Piliin ang Inyong Wika",
+        languageChooseHeading = "Piliin ang Iyong Wika",
         sectionMyContacts = "AKING MGA CONTACT",
         familyContacts = "Mga contact sa pamilya",
-        familyContactsSubtitle = "Magdagdag po ng aabisuhan bago ang inyong barangay",
+        familyContactsSubtitle = "Magdagdag ng aabisuhan bago ang iyong barangay",
         sectionHelp = "TULONG AT IMPORMASYON",
         aboutApp = "Tungkol sa app na ito",
         howToUse = "Paano gamitin",
         faqs = "Mga Madalas Itanong",
-        contactSupport = "Makipag-ugnayan sa suporta",
+        contactSupport = "Makipag-ugnayan sa support",
         sectionAboutApp = "TUNGKOL SA SEENIOR",
         termsRow = "Mga tuntunin at kondisyon",
-        privacyRow = "Patakaran sa pagkapribado",
+        privacyRow = "Privacy Policy",
         getInviteCode = "Kumuha ng invite code",
 
         addressLabel = "TIRAHAN",
@@ -270,57 +270,57 @@ object ProfileStrings {
 
         sectionAccount = "ACCOUNT",
         deleteAccountRow = "Burahin ang aking account",
-        deleteAccountRowSubtitle = "Ihinto ang pagbantay at alisin ang inyong profile sa teleponong ito",
+        deleteAccountRowSubtitle = "Ihinto ang pagbantay at alisin ang iyong profile sa cellphone na ito",
         deleteHeader = "Burahin ang account",
-        deleteIntro = "Ihihinto po nito ang lahat ng pagbantay at buburahin ang inyong profile, " +
-            "routine, at kasaysayan ng alerto sa teleponong ito. Maa-unlink po ang inyong mga " +
-            "contact sa pamilya. Hindi na po ito maibabalik.",
-        deleteReasonHeading = "Pakisabi po kung bakit (kailangan)",
-        deleteReasonNoLongerNeeded = "Hindi ko na po kailangan ang pagbantay",
-        deleteReasonSwitchingPhone = "Lilipat po ako sa bagong telepono",
+        deleteIntro = "Ihihinto nito ang lahat ng pagbantay at buburahin ang iyong profile, " +
+            "routine, at kasaysayan ng alerto sa cellphone na ito. Maa-unlink ang iyong mga " +
+            "contact sa pamilya. Hindi na ito maibabalik.",
+        deleteReasonHeading = "Pakisabi kung bakit (kailangan)",
+        deleteReasonNoLongerNeeded = "Hindi ko na kailangan ang pagbantay",
+        deleteReasonSwitchingPhone = "Lilipat ako sa bagong cellphone",
         deleteReasonBattery = "Masyadong mabilis maubos ang baterya",
-        deleteReasonTooManyAlerts = "Masyadong madalas ang check-in o maling alerto",
-        deleteReasonPrivacy = "May alinlangan po ako sa privacy",
+        deleteReasonTooManyAlerts = "Masyadong madalas ang Safety Confirmation Prompt o maling alerto",
+        deleteReasonPrivacy = "May alinlangan ako sa privacy",
         deleteReasonOther = "Iba pang dahilan",
-        deleteNoteLabel = "Magdagdag pa po",
+        deleteNoteLabel = "Magdagdag pa",
         deleteNotePlaceholder = "Opsyonal",
-        deleteNoteRequiredForOther = "Pakisabi po ang inyong dahilan",
+        deleteNoteRequiredForOther = "Pakisabi ang iyong dahilan",
         deleteButton = "Burahin ang aking account",
         deleting = "Binubura…",
-        deleteConfirmTitle = "Burahin ang inyong account?",
-        deleteConfirmBody = "Hihinto na po ngayon ang pagbantay at buburahin ang lahat sa " +
-            "teleponong ito. Hindi na po ito maibabalik.",
+        deleteConfirmTitle = "Burahin ang iyong account?",
+        deleteConfirmBody = "Hihinto na ngayon ang pagbantay at buburahin ang lahat sa " +
+            "cellphone na ito. Hindi na ito maibabalik.",
         deleteConfirmYes = "Burahin",
 
-        contactsHeader = "Mga Contact",
-        contactsLoadFailedInline = "Hindi po ma-load ang inyong mga contact.",
-        contactsLoadFailedTitle = "Hindi po ma-load ang inyong mga contact",
-        contactsStillConnected = "Nakakonekta pa rin po ang inyong mga kapamilya.",
+        contactsHeader = "Contacts",
+        contactsLoadFailedInline = "Hindi ma-load ang iyong mga contact.",
+        contactsLoadFailedTitle = "Hindi ma-load ang iyong mga contact",
+        contactsStillConnected = "Nakakonekta pa rin ang iyong mga kapamilya.",
         tryAgain = "Subukan muli",
         familyMemberFallback = "Kapamilya",
         familyFallbackLabel = "Pamilya",
-        phone = "Telepono",
+        phone = "Cellphone",
         status = "Kalagayan",
         removeContact = "Alisin ang Contact",
         thisFamilyMember = "ang kapamilyang ito",
-        removeBody = "Hihinto po silang makatanggap ng inyong mga alerto, at mawawala rin po " +
-            "kayo sa kanilang app. Maaari po kayong magkonekta muli gamit ang bagong invite code.",
+        removeBody = "Hihinto silang makatanggap ng iyong mga alerto, at mawawala rin " +
+            "kayo sa kanilang app. Maaari kayong magkonekta muli gamit ang bagong invite code.",
         remove = "Alisin",
         cancel = "Kanselahin",
-        noFamilyTitle = "Wala pa pong nakakonektang pamilya",
-        noFamilyBody = "Ibahagi po ang inyong code sa isang mapagkakatiwalaang kapamilya upang makatanggap sila ng mga alerto at update.",
-        noFamilyBarangayNote = "Hanggang doon po, kung may mapapansin kaming hindi maayos, direktang aabisuhan namin ang inyong barangay.",
-        inviteTabLabel = "tab na Imbitasyon",
+        noFamilyTitle = "Wala pang nakakonektang pamilya",
+        noFamilyBody = "Ibahagi ang iyong code sa isang mapagkakatiwalaang kapamilya upang makatanggap sila ng mga alerto at update.",
+        noFamilyBarangayNote = "Kung wala pang family contact at may mapansing problema, direkta naming aabisuhan ang iyong barangay.",
+        inviteTabLabel = "Imbitasyon",
 
         inviteHeader = "Imbitasyon",
         shareWithFamily = "Ibahagi sa Pamilya",
-        shareWithFamilyBody = "Ibigay po ang code na ito sa inyong pamilya upang mailagay nila ito sa kanilang app at kayo ay mabantayan.",
-        yourInviteCode = "Ang inyong invite code:",
+        shareWithFamilyBody = "Ibigay ang code na ito sa iyong pamilya upang mailagay nila ito sa kanilang app at kayo ay mabantayan.",
+        yourInviteCode = "Ang iyong invite code:",
         copyCode = "Kopyahin ang code",
         generating = "Ginagawa...",
         generateNew = "Gumawa ng bago",
         generateCode = "Gumawa ng code",
-        codesExpireNote = "Nag-e-expire po ang code pagkalipas ng 5 minuto. Makakagawa lang po ng bago kapag nag-expire na ang kasalukuyang code.",
+        codesExpireNote = "Nag-e-expire ang code pagkalipas ng 5 minuto. Makakagawa lang ng bago kapag nag-expire na ang kasalukuyang code.",
         pairSuccessTitle = "Naka-link na ang kapamilya",
         pairSuccessDismiss = "OK",
     )

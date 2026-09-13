@@ -168,14 +168,64 @@ fun PermissionsScreen(
             .onFailure { requestOverlayThenContinue() }
     }
 
-    val batteryLauncher = rememberLauncherForActivityResult(
+    /**
+     * Transsion's own background-app killer ("Hiber") ignores the stock exemption above —
+     * measured on the pilot handset 2026-09-02, where 5-minute sampling only held once the
+     * *per-app* "No restrictions" toggle in Phone Master's app-power screen was set by hand.
+     * There is no public API for that toggle, so the best this screen can do is hand the senior
+     * straight to the two Phone Master pages that matter and explain what to look for — same
+     * "ask, never gate" rule as the rest of this chain: skip silently on a phone that is not
+     * Transsion-based, and continue to the next step regardless of what they choose there.
+     *
+     * The second page (Auto-start) is a separate toggle from the app-power one above, and is the
+     * more likely reason `BootReceiver` never fires after a reboot on this handset — see
+     * [[seenior-reboot-recovery]] in the project notes. Both activities confirmed launchable via
+     * `dumpsys package com.transsion.phonemaster` on the pilot device.
+     */
+    var showManufacturerDialog by remember { mutableStateOf(false) }
+
+    fun isPhoneMasterInstalled(): Boolean =
+        runCatching { context.packageManager.getPackageInfo("com.transsion.phonemaster", 0) }.isSuccess
+
+    val autoStartLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { requestFullScreenThenContinue() }
+
+    val appAccelerateLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) {
+        val autoStartIntent = Intent(Intent.ACTION_VIEW).setClassName(
+            "com.transsion.phonemaster", "com.cyin.himgr.autostart.AutoStartActivity"
+        )
+        runCatching { autoStartLauncher.launch(autoStartIntent) }
+            .onFailure { requestFullScreenThenContinue() }
+    }
+
+    fun requestManufacturerExemptionThenContinue() {
+        if (!isPhoneMasterInstalled()) {
+            requestFullScreenThenContinue()
+            return
+        }
+        showManufacturerDialog = true
+    }
+
+    fun openPhoneMasterAppPower() {
+        showManufacturerDialog = false
+        val intent = Intent(Intent.ACTION_VIEW).setClassName(
+            "com.transsion.phonemaster",
+            "com.transsion.phonemaster.appaccelerate.view.AppAccelerateActivity"
+        )
+        runCatching { appAccelerateLauncher.launch(intent) }.onFailure { requestFullScreenThenContinue() }
+    }
+
+    val batteryLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { requestManufacturerExemptionThenContinue() }
 
     fun requestBatteryExemptionThenContinue() {
         val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
         if (powerManager.isIgnoringBatteryOptimizations(context.packageName)) {
-            requestFullScreenThenContinue()
+            requestManufacturerExemptionThenContinue()
             return
         }
         val intent = Intent(
@@ -273,6 +323,16 @@ fun PermissionsScreen(
     if (showDenied) {
         PermissionDeniedDialog(onClose = { showDenied = false })
     }
+
+    if (showManufacturerDialog) {
+        ManufacturerExemptionDialog(
+            onSkip = {
+                showManufacturerDialog = false
+                requestFullScreenThenContinue()
+            },
+            onOpenSettings = { openPhoneMasterAppPower() }
+        )
+    }
 }
 
 @Composable
@@ -320,6 +380,45 @@ private fun PermissionRationaleDialog(onDeny: () -> Unit, onAllow: () -> Unit) {
         },
         dismissButton = {
             TextButton(onClick = onDeny) { Text(copy.deny, color = SeniorColors.Green, fontWeight = FontWeight.Bold) }
+        }
+    )
+}
+
+@Composable
+private fun ManufacturerExemptionDialog(onSkip: () -> Unit, onOpenSettings: () -> Unit) {
+    val copy = LocalOnboardingCopy.current
+    AlertDialog(
+        onDismissRequest = onSkip,
+        shape = RoundedCornerShape(24.dp),
+        containerColor = Color.White,
+        icon = { Icon(Icons.Filled.BatteryChargingFull, contentDescription = null, tint = SeniorColors.Green, modifier = Modifier.size(40.dp)) },
+        title = {
+            Text(
+                copy.manufacturerDialogTitle,
+                textAlign = TextAlign.Center,
+                fontWeight = FontWeight.Bold,
+                fontSize = 20.sp,
+                color = SeniorColors.TextPrimary,
+                modifier = Modifier.fillMaxWidth()
+            )
+        },
+        text = {
+            Text(
+                copy.manufacturerDialogBody,
+                textAlign = TextAlign.Center,
+                fontSize = 15.sp,
+                color = SeniorColors.TextPrimary
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onOpenSettings) {
+                Text(copy.manufacturerDialogOpenSettings, color = SeniorColors.Green, fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onSkip) {
+                Text(copy.manufacturerDialogSkip, color = SeniorColors.Green, fontWeight = FontWeight.Bold)
+            }
         }
     )
 }

@@ -335,9 +335,9 @@ fun SeniorLanguageScreen(viewModel: SeniorProfileViewModel, onBack: () -> Unit) 
     val profileCopy = LocalProfileCopy.current
     InfoScaffold(title = profileCopy.languageRow, onBack = onBack) {
         InfoCard(heading = profileCopy.languageChooseHeading) {
-            InfoBody("Your wellness check and alerts will use this language.")
+            InfoBody("Your safety confirmation prompts and alerts will use this language.")
             Spacer(modifier = Modifier.height(6.dp))
-            InfoBody("Ito ang wikang gagamitin sa pagsusuri ng inyong kalagayan at sa mga alerto.")
+            InfoBody("Ito ang wikang gagamitin sa mga safety confirmation prompts at mga alerto.")
             Spacer(modifier = Modifier.height(8.dp))
             OnboardingOptions.languages.forEach { (label, code) ->
                 LanguageOption(

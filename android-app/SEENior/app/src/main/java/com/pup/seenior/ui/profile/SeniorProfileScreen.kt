@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -266,6 +267,10 @@ private fun SeniorEditProfileScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
+                // Shrinks the scroll viewport by the keyboard height so a focused field (address
+                // sits low on this form) scrolls above the IME instead of hiding behind it — same
+                // fix as SignUpScreen, this screen's onboarding twin.
+                .imePadding()
                 .padding(horizontal = 20.dp, vertical = 20.dp)
         ) {
             Box(

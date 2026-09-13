@@ -16,9 +16,12 @@ import com.pup.seenior.ui.wellness.WellnessMessages
  *
  * **Two warnings before this text is shown to a panel or a real senior.**
  *
- * 1. **The Filipino is an agent-written draft.** It has not been reviewed by a native speaker, and
- *    the panel has already rejected one phrasing in this app as too informal. The legal sections
- *    matter most: a translated privacy notice is the notice the senior is relying on.
+ * 1. **The Filipino got a first native-speaker pass on 2026-09-14** — "po"/"pong" removed
+ *    throughout (except inside the two places this file quotes the wellness prompt itself
+ *    verbatim, which CLAUDE.md §14 pins and this file does not touch), "telepono" changed to
+ *    "cellphone". It has not been read end-to-end by a native speaker since, and the panel has
+ *    already rejected one phrasing in this app as too informal. The legal sections matter most: a
+ *    translated privacy notice is the notice the senior is relying on.
  * 2. **One English claim is already false, and is translated here faithfully rather than quietly
  *    reworded.** The offline FAQ promises "SEENior will try to send an SMS instead". SMS fallback
  *    is not built (CLAUDE.md §9 lists Semaphore PH; nothing calls it). A senior with no signal is
@@ -234,91 +237,91 @@ object InfoStrings {
         aboutTitle = "Tungkol sa App",
         versionPrefix = "Bersyon",
         missionHeading = "Ang aming misyon",
-        missionBody = "Ang magbigay po ng ligtas, madaling gamitin, at tahimik na sistema ng " +
+        missionBody = "Ang magbigay ng ligtas, madaling gamitin, at tahimik na sistema ng " +
             "pagbantay na sumusuporta sa kapakanan ng mga senior sa pamamagitan ng matalinong " +
             "teknolohiyang hindi nakakaabala, para sa maagang pagtuklas at agarang tulong.",
-        whoWeAreHeading = "Sino po kami",
-        whoWeAreBody1 = "Kami po ay isang maliit na pangkat ng mga developer at mananaliksik sa " +
+        whoWeAreHeading = "Sino kami",
+        whoWeAreBody1 = "Kami ay isang maliit na pangkat ng mga developer at mananaliksik sa " +
             "larangan ng kalusugan na bumuo ng SEENior upang tugunan ang lumalaking " +
             "pangangailangan ng suporta para sa mga nakatatandang nag-iisa o pansamantalang " +
             "naiiwang mag-isa sa bahay dito sa Pilipinas.",
-        whoWeAreBody2 = "Bumubuo po kami ng mga sistemang nakabatay sa cellphone, hindi " +
+        whoWeAreBody2 = "Bumubuo kami ng mga sistemang nakabatay sa cellphone, hindi " +
             "nakakaabala, na gumagamit ng tahimik na pagbantay at simpleng disenyo upang " +
             "matukoy ang hindi pangkaraniwang gawi at makapagbigay ng agarang tulong kung " +
             "kinakailangan.",
         valuesHeading = "Ang aming mga pinahahalagahan",
         valuesList = "Pagkapribado. Pagiging simple. Dangal. Maaasahan.",
-        valuesBody = "Ginawa po ang SEENior upang igalang ang datos ng gumagamit, gawing simple " +
+        valuesBody = "Ginawa ang SEENior upang igalang ang datos ng gumagamit, gawing simple " +
             "ang lahat para sa mga senior, at magbigay ng maaasahang tulong sa oras ng " +
             "pangangailangan.",
 
         howToTitle = "Paano gamitin",
         howToSteps = listOf(
-            "Ihanda ang inyong profile" to
-                "Ilagay po ang inyong mga pangunahing detalye at kung sino ang inyong kasama sa bahay " +
-                "habang nagse-setup. Isang beses lang po ito gagawin, at magpapatuloy agad ang app " +
+            "Ihanda ang iyong profile" to
+                "Ilagay ang iyong mga pangunahing detalye at kung sino ang iyong kasama sa bahay " +
+                "habang nagse-setup. Isang beses lang ito gagawin, at magpapatuloy agad ang app " +
                 "pagkatapos.",
             "Payagan ang mga pahintulot at buksan ang mga alerto (kailangan)" to
-                "Habang nagse-setup, kailangan pong buksan ang mga abiso at ang mga hinihinging " +
-                "pahintulot upang gumana nang maayos ang SEENior. Hindi po makakatuloy ang app kung " +
+                "Habang nagse-setup, kailangan buksan ang mga abiso at ang mga hinihinging " +
+                "pahintulot upang gumana nang maayos ang SEENior. Hindi makakatuloy ang app kung " +
                 "wala ito.",
             "Sagutin ang mga tanong sa pagsisimula (14 na araw na baseline)" to
-                "Pagkatapos ng setup, sasagot po kayo ng ilang maikling tanong. Ginagamit ng SEENior " +
-                "ang mga sagot na ito upang matutunan ang inyong karaniwang gawi sa loob ng 14 na " +
-                "araw, at ito po ang magiging batayan ninyong sariling rutina.",
+                "Pagkatapos ng setup, sasagot kayo ng ilang maikling tanong. Ginagamit ng SEENior " +
+                "ang mga sagot na ito upang matutunan ang iyong karaniwang gawi sa loob ng 14 na " +
+                "araw, at ito ang magiging batayan ninyong sariling rutina.",
             "Mag-imbita ng mapagkakatiwalaang contact" to
-                "Pumunta po sa tab na Imbitasyon upang gumawa ng natatanging code. Nag-e-expire po " +
-                "ang code tuwing 5 minuto para sa seguridad, at makakagawa po kayo ng bago kapag " +
+                "Pumunta sa Imbitasyon upang gumawa ng natatanging code. Nag-e-expire " +
+                "ang code tuwing 5 minuto para sa seguridad, at makakagawa kayo ng bago kapag " +
                 "nag-expire ito. Ibahagi ang code na ito upang makakonekta sa taong pinagkakatiwalaan " +
                 "ninyo.",
-            "Pamahalaan ang inyong mga contact" to
-                "Sa tab na Mga Contact, makikita po ninyo ang mga nakakonektang contact, ang kanilang " +
-                "kalagayan, at maaari po ninyo silang alisin kung kinakailangan.",
+            "Pamahalaan ang iyong mga contact" to
+                "Sa Contacts, makikita ninyo ang mga nakakonektang contact, ang kanilang " +
+                "kalagayan, at maaari ninyo silang alisin kung kinakailangan.",
             "Sagutin ang wellness check kapag lumitaw ito" to
-                "Kung may mapansing hindi pangkaraniwan ang SEENior, itatanong po nito ang \"Ligtas po " +
+                "Kung may mapansing hindi pangkaraniwan ang SEENior, itatanong nito ang \"Ligtas po " +
                 "ba kayo? Maayos po ba kayo?\" at sasabihin kung bakit ito nagtatanong. Ang pagpindot " +
-                "sa \"Maayos po ako\" ay agad na hihinto sa alerto. Kung hindi po kayo sasagot, " +
-                "aabisuhan ang inyong contact sa pamilya, at pagkatapos ay ang inyong barangay " +
+                "sa \"Maayos po ako\" ay agad na hihinto sa alerto. Kung hindi kayo sasagot, " +
+                "aabisuhan ang iyong contact sa pamilya, at pagkatapos ay ang iyong barangay " +
                 "responder."
         ),
 
         faqsTitle = "Mga Madalas Itanong",
         faqs = listOf(
             Faq(
-                "Libre po ba ang app na ito?",
-                "Opo. Libre pong i-download at gamitin ang SEENior."
+                "Libre ba ang app na ito?",
+                "Oo. Libre i-download at gamitin ang SEENior."
             ),
             Faq(
-                "Palagi po bang ibinabahagi ang aking lokasyon?",
-                "Hindi po. Kinukuha lang po ang inyong lokasyon sa mismong sandaling may alerto, " +
+                "Palagi bang ibinabahagi ang aking lokasyon?",
+                "Hindi. Kinukuha lang ang iyong lokasyon sa mismong sandaling may alerto, " +
                     "hindi tuloy-tuloy. Ang huling lokasyong iyon lamang ang ibinabahagi sa mga taong " +
                     "pinagkakatiwalaan ninyo."
             ),
             Faq(
-                "Magagamit po ba ang SEENior kahit walang internet?",
-                "Opo. Patuloy pong nagbabantay ang SEENior at maipapakita pa rin ang inyong mga " +
-                    "naka-save na contact kahit walang internet. Ang pagpapadala po ng alerto at " +
-                    "update sa inyong pamilya ay nangangailangan ng internet o signal.",
-                note = "Kung wala pong signal, susubukan ng SEENior na magpadala ng SMS. Panatilihin " +
-                    "pong may baterya ang inyong telepono at dala ito upang may maabot para sa inyo."
+                "Magagamit ba ang SEENior kahit walang internet?",
+                "Oo. Patuloy nagbabantay ang SEENior at maipapakita pa rin ang iyong mga " +
+                    "naka-save na contact kahit walang internet. Ang pagpapadala ng alerto at " +
+                    "update sa iyong pamilya ay nangangailangan ng internet o signal.",
+                note = "Kung wala pang signal, susubukan ng SEENior na magpadala ng SMS. Panatilihing " +
+                    "may baterya ang iyong cellphone at dala ito upang may maabot para sa inyo."
             ),
             Faq(
-                "Paano ko po aalisin ang isang nakakonektang contact?",
-                "Pumunta po sa tab na Mga Contact, piliin ang contact, mag-scroll pababa, at pindutin " +
-                    "ang Alisin ang Contact. May lilitaw pong tanong upang kumpirmahin bago ito alisin."
+                "Paano ko aalisin ang isang nakakonektang contact?",
+                "Pumunta sa Contacts, piliin ang contact, mag-scroll pababa, at pindutin " +
+                    "ang Alisin ang Contact. May lilitaw na tanong upang kumpirmahin bago ito alisin."
             ),
             Faq(
-                "Kailangan ko po bang buksan ang app araw-araw?",
-                "Hindi po. Tahimik pong tumatakbo ang SEENior sa background. Kailangan lang po ninyong " +
+                "Kailangan ko bang buksan ang app araw-araw?",
+                "Hindi. Tahimik tumatakbo ang SEENior sa background. Kailangan lang ninyong " +
                     "sumagot kapag tinanong kayo ng \"Ligtas po ba kayo? Maayos po ba kayo?\""
             )
         ),
 
         importantNote = "Mahalagang Paalala:",
 
-        supportTitle = "Makipag-ugnayan sa suporta",
-        callUs = "Tawagan po kami",
-        sendMessage = "Magpadala po ng mensahe",
+        supportTitle = "Makipag-ugnayan sa support",
+        callUs = "Tawagan kami",
+        sendMessage = "Magpadala ng mensahe",
         messageLabel = "MENSAHE",
         messagePlaceholder = "Magmungkahi ng bagong feature…",
         send = "IPADALA",
@@ -328,20 +331,20 @@ object InfoStrings {
         termsSections = listOf(
             OnboardingStrings.Section(
                 "1. Pagtanggap sa mga Tuntunin",
-                "Sa paggawa po ng account at paggamit ng SEENior, sumasang-ayon kayo sa mga Tuntunin " +
-                    "ng Paggamit na ito. Kung hindi po kayo sang-ayon, huwag pong gamitin ang aming " +
+                "Sa paggawa ng account at paggamit ng SEENior, sumasang-ayon kayo sa mga Tuntunin " +
+                    "ng Paggamit na ito. Kung hindi kayo sang-ayon, huwag gamitin ang aming " +
                     "serbisyo."
             ),
             OnboardingStrings.Section(
                 "2. Paglalarawan ng Serbisyo",
-                "Ang SEENior po ay isang tahimik na aplikasyon sa pagbantay ng gawi. Ginagamit nito " +
-                    "ang mga sensor na nasa loob na ng inyong telepono upang matutunan ang inyong " +
+                "Ang SEENior ay isang tahimik na aplikasyon sa pagbantay ng gawi. Ginagamit nito " +
+                    "ang mga sensor na nasa loob na ng iyong cellphone upang matutunan ang iyong " +
                     "pang-araw-araw na rutina at matukoy ang malalaking pagbabago na maaaring " +
                     "senyales ng emergency."
             ),
             OnboardingStrings.Section(
                 "3. Sino ang Maaaring Gumamit",
-                "Ang senior app po ng SEENior ay para sa mga senior citizen (60 taong gulang pataas) " +
+                "Ang senior app ng SEENior ay para sa mga senior citizen (60 taong gulang pataas) " +
                     "na naninirahan sa Pilipinas, ayon sa RA 9994 (Expanded Senior Citizens Act of " +
                     "2010). Ang paggamit ng mas bata rito ay pinapayagan lamang para sa pagsubok ng " +
                     "development team."
@@ -349,52 +352,52 @@ object InfoStrings {
             OnboardingStrings.Section(
                 "4. Mga Tungkulin ng Gumagamit",
                 bullets = listOf(
-                    "Panatilihin pong may baterya ang inyong telepono at dala ito, upang maayos na gumana ang pagbantay.",
-                    "Magbigay po ng tama at totoong impormasyon sa pag-setup ng account.",
-                    "Payagan po ang mga kinakailangang pahintulot (galaw, mga abiso, pagtakbo sa background) upang gumana ang sistema.",
-                    "Magdagdag po ng kahit isang emergency contact upang may makatanggap ng alerto kapag may napansing hindi pangkaraniwan.",
-                    "Ipaalam po sa inyong mga emergency contact na sila ay makakatanggap ng mga alerto mula sa SEENior para sa inyo."
+                    "Panatilihing may baterya ang iyong cellphone at dala ito, upang maayos na gumana ang pagbantay.",
+                    "Magbigay ng tama at totoong impormasyon sa pag-setup ng account.",
+                    "Payagan ang mga kinakailangang pahintulot (galaw, mga abiso, pagtakbo sa background) upang gumana ang sistema.",
+                    "Magdagdag ng kahit isang emergency contact upang may makatanggap ng alerto kapag may napansing hindi pangkaraniwan.",
+                    "Ipaalam sa iyong mga emergency contact na sila ay makakatanggap ng mga alerto mula sa SEENior para sa inyo."
                 )
             ),
             OnboardingStrings.Section(
                 "5. Hangganan ng Pananagutan",
-                "Ang SEENior po ay ibinibigay \"as is\" at isa lamang pantulong na kasangkapan. Hindi " +
-                    "po ito kapalit ng propesyonal na pangangalagang medikal, ng mga serbisyong " +
-                    "pang-emergency, o ng tunay na pagbabantay ng tao. Hindi po mananagot ang mga " +
+                "Ang SEENior ay ibinibigay \"as is\" at isa lamang pantulong na kasangkapan. Hindi " +
+                    "ito kapalit ng propesyonal na pangangalagang medikal, ng mga serbisyong " +
+                    "pang-emergency, o ng tunay na pagbabantay ng tao. Hindi mananagot ang mga " +
                     "developer sa mga alertong hindi naipadala o naantala dahil sa problema sa " +
-                    "telepono, sa network, o sa serbisyo ng ibang kompanya."
+                    "cellphone, sa network, o sa serbisyo ng ibang kompanya."
             )
         ),
-        privacyScaffoldTitle = "Patakaran sa pagkapribado",
-        privacyBodyTitle = "Patakaran sa Pagkapribado",
+        privacyScaffoldTitle = "Privacy Policy",
+        privacyBodyTitle = "Privacy Policy",
         privacySections = listOf(
             OnboardingStrings.Section(
-                "1. Sino ang kumukuha ng inyong datos",
-                "Ang SEENior po ay binuo ng mga mag-aaral ng Polytechnic University of the " +
-                    "Philippines. Kami po ang personal information controller ng datos na nakukuha sa " +
+                "1. Sino ang kumukuha ng iyong datos",
+                "Ang SEENior ay binuo ng mga mag-aaral ng Polytechnic University of the " +
+                    "Philippines. Kami ang personal information controller ng datos na nakukuha sa " +
                     "aplikasyong ito, alinsunod sa RA 10173 at sa mga panuntunan ng NPC."
             ),
             OnboardingStrings.Section(
                 "2. Anong datos ang aming kinukuha",
-                body = "Ito po ang mga datos na kinukuha namin sa mga senior na gumagamit:",
+                body = "Ito ang mga datos na kinukuha namin sa mga senior na gumagamit:",
                 bullets = listOf(
-                    "Personal na profile — buong pangalan, edad, kasarian, kasama sa bahay, tirahan, numero ng telepono, at kaugnayan sa mga emergency contact.",
-                    "Datos ng gawi mula sa sensor — mga pagbasa ng accelerometer, oras ng pagbukas at pagsara ng screen, at kalagayan ng baterya o pag-charge. Ginagamit lamang upang mabuo ang batayan ng inyong aktibidad.",
+                    "Personal na profile — buong pangalan, edad, kasarian, kasama sa bahay, tirahan, numero ng cellphone, at kaugnayan sa mga emergency contact.",
+                    "Datos ng gawi mula sa sensor — mga pagbasa ng accelerometer, oras ng pagbukas at pagsara ng screen, at kalagayan ng baterya o pag-charge. Ginagamit lamang upang mabuo ang batayan ng iyong aktibidad.",
                     "Lokasyon (GPS) — kinukuha lamang kapag may alerto. Hindi tuloy-tuloy na sinusubaybayan. Humihinto agad kapag natapos na ang alerto."
                 )
             ),
             OnboardingStrings.Section(
                 "3. Paano iniimbak ang datos",
-                "Ang datos ng gawi mula sa sensor ay iniimbak po sa loob mismo ng inyong telepono. " +
-                    "Hindi po ito ipinapadala sa anumang panlabas na server sa karaniwang pagbantay. " +
+                "Ang datos ng gawi mula sa sensor ay iniimbak sa loob mismo ng iyong cellphone. " +
+                    "Hindi ito ipinapadala sa anumang panlabas na server sa karaniwang pagbantay. " +
                     "Ang mga tala ng alerto lamang ang ipinapadala sa ligtas na cloud, at kapag may " +
-                    "alerto lamang, upang maabisuhan ang inyong mga emergency contact."
+                    "alerto lamang, upang maabisuhan ang iyong mga emergency contact."
             ),
             OnboardingStrings.Section(
-                "4. Sino ang nakakakita ng inyong datos",
+                "4. Sino ang nakakakita ng iyong datos",
                 bullets = listOf(
-                    "Ang inyong mga emergency contact — tumatanggap ng abiso at ng inyong lokasyon tuwing may aktibong alerto lamang.",
-                    "Ang mga barangay responder — tumatanggap ng alerto kapag hindi sumagot ang inyong mga contact sa loob ng takdang panahon.",
+                    "Ang iyong mga emergency contact — tumatanggap ng abiso at ng iyong lokasyon tuwing may aktibong alerto lamang.",
+                    "Ang mga barangay responder — tumatanggap ng alerto kapag hindi sumagot ang iyong mga contact sa loob ng takdang panahon.",
                     "Ang development team — maaaring makakita ng datos na walang pangalan at pinagsama-sama, para lamang sa pananaliksik na pang-akademiko, na hindi matutukoy ang sinuman."
                 )
             )
