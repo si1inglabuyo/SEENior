@@ -33,11 +33,20 @@ object SeedBaselineGenerator {
     )
 
     // Conservative per-block expectations by self-reported activity level (waking blocks only).
+    //
+    // movementScore was originally 0.15/0.30/0.50/0.70 -- authored without a real reading to
+    // check it against. Measured on the pilot handset 2026-09-13: 17 real samples across a
+    // waking block, median movement_score 0.025 (max 0.214, a brief phone pickup), for a senior
+    // who had self-reported "moderate". The old "resting" seed alone was already ~6x that real
+    // median, so every activity level was starting the 14-day blend from a number no real
+    // accelerometer reading was near -- see [[seenior-seed-movement-miscalibration]]. Rescaled
+    // here, keeping the same relative spacing between levels. Anchored to one senior's data;
+    // revisit once more seniors have real numbers to check it against.
     private val ACTIVITY_PROFILES = mapOf(
-        "resting" to ActivityProfile(0.15, 100.0, 45.0, 40.0, 3.0),
-        "light" to ActivityProfile(0.30, 400.0, 30.0, 30.0, 5.0),
-        "moderate" to ActivityProfile(0.50, 900.0, 20.0, 20.0, 7.0),
-        "active" to ActivityProfile(0.70, 1600.0, 12.0, 15.0, 9.0),
+        "resting" to ActivityProfile(0.02, 100.0, 45.0, 40.0, 3.0),
+        "light" to ActivityProfile(0.04, 400.0, 30.0, 30.0, 5.0),
+        "moderate" to ActivityProfile(0.07, 900.0, 20.0, 20.0, 7.0),
+        "active" to ActivityProfile(0.12, 1600.0, 12.0, 15.0, 9.0),
     )
 
     // Night is sleep, not a point on the activity scale -- same profile regardless of activity level.
