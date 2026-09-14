@@ -64,15 +64,17 @@ class FamilyAuthViewModel(application: Application) : AndroidViewModel(applicati
         viewModelScope.launch {
             isSigningUp = true
             signUpError = null
+            var createdFirebaseUser: com.google.firebase.auth.FirebaseUser? = null
             try {
                 val email = signUpEmail.trim()
                 val result = FirebaseAuth.getInstance()
                     .createUserWithEmailAndPassword(email, signUpPassword)
                     .awaitResult()
                 val firebaseUser = result.user ?: error("Firebase did not return a user")
+                createdFirebaseUser = firebaseUser
                 val idToken = firebaseUser.getIdToken(false).awaitResult().token
                     ?: error("Firebase did not return an ID token")
-                val response = RetrofitClient.api.firebaseSignIn(FirebaseSignInRequest(idToken))
+                val response = RetrofitClient.api.firebaseSignIn(FirebaseSignInRequest(idToken, isSignUp = true))
                 FamilySession.saveToken(getApplication(), response.accessToken)
                 // Firebase's own token carries no phone number, and no reliable display
                 // name either for a brand-new account — send the two fields this screen
@@ -93,7 +95,20 @@ class FamilyAuthViewModel(application: Application) : AndroidViewModel(applicati
             } catch (e: FirebaseAuthInvalidCredentialsException) {
                 signUpError = "That email address doesn't look valid."
             } catch (e: HttpException) {
-                signUpError = "Could not sign up (server error ${e.code()})."
+                if (e.code() == 400) {
+                    // The email already belongs to an existing account (e.g. one made
+                    // via Google Sign-In) that Firebase itself had never heard of, so
+                    // the collision only surfaced once the backend checked. Roll back
+                    // the Firebase-side account just created — otherwise this email is
+                    // stuck: known to Firebase, unknown to our backend, unusable by
+                    // either a future sign-up or the account it actually belongs to.
+                    createdFirebaseUser?.let { user ->
+                        try { user.delete().awaitResult() } catch (_: Exception) {}
+                    }
+                    signUpError = "An account with this email already exists. Please log in instead."
+                } else {
+                    signUpError = "Could not sign up (server error ${e.code()})."
+                }
             } catch (e: IOException) {
                 signUpError = "Could not reach the server."
             } catch (e: Exception) {
@@ -184,6 +199,25 @@ class FamilyAuthViewModel(application: Application) : AndroidViewModel(applicati
         forgotPasswordEmail = ""
         resetSent = false
         resetError = null
+    }
+
+    /** Called on logout. This ViewModel is created once and shared across the whole
+     *  family flow (SeniorNavGraph.kt), so it otherwise survives a logout — leaving
+     *  the next person to sign in on this device staring at the previous account's
+     *  typed-in name/phone/email/password still sitting in the Sign Up and Log In
+     *  fields. */
+    fun clearAuthFields() {
+        signUpFirstName = ""
+        signUpLastName = ""
+        signUpPhone = ""
+        signUpEmail = ""
+        signUpPassword = ""
+        signUpError = null
+        loginEmail = ""
+        loginPassword = ""
+        loginError = null
+        googleError = null
+        resetForgotPasswordState()
     }
 
     // Google Sign-In (Sign Up screen only, per the design)

@@ -209,6 +209,10 @@ fun SeniorNavGraph(navController: NavHostController = rememberNavController()) {
         composable(SeniorRoutes.FAMILY_HOME) {
             FamilyDashboard(
                 onLoggedOut = {
+                    // familyAuthViewModel is shared across the whole family flow and
+                    // otherwise survives a logout, leaving the next sign-in on this
+                    // device staring at whatever the previous account had typed in.
+                    familyAuthViewModel.clearAuthFields()
                     navController.navigate(SeniorRoutes.WELCOME) {
                         popUpTo(SeniorRoutes.SPLASH) { inclusive = true }
                     }

@@ -55,6 +55,10 @@ class GoogleSignInRequest(BaseModel):
 
 class FirebaseSignInRequest(BaseModel):
     id_token: str
+    # True only from the dedicated Sign Up screen. Default False (log in, or the
+    # Google-linking use case /auth/google already relies on) keeps the existing
+    # "same email, different sign-in method -> same account" merge behavior.
+    is_sign_up: bool = False
 
 
 class AccountDeletionRequest(BaseModel):

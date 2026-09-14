@@ -19,5 +19,6 @@ data class GoogleSignInRequest(
  *  sign-up/sign-in call returns an ID token, which the backend verifies against
  *  Firebase before issuing our own JWT. */
 data class FirebaseSignInRequest(
-    val idToken: String
+    val idToken: String,
+    val isSignUp: Boolean = false
 )

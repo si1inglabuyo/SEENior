@@ -174,11 +174,23 @@ async def firebase_sign_in(payload: FirebaseSignInRequest, db: AsyncSession = De
     user = result.scalar_one_or_none()
 
     if user is None and email:
-        # Same email already exists (e.g. an old password-based account) - link
-        # this Firebase identity to it instead of creating a duplicate.
         existing_result = await db.execute(select(User).where(User.email == email))
         existing = existing_result.scalar_one_or_none()
         if existing is not None:
+            if payload.is_sign_up:
+                # A dedicated Sign Up must create a new, distinct identity - silently
+                # attaching to whoever already owns this email (e.g. an existing
+                # Google-linked account) would hand over that account, and the
+                # profile PATCH the app sends right after this would overwrite its
+                # real name/phone. Refuse instead, same as the old /register did.
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="An account with this email already exists. Please log in instead.",
+                )
+            # Same email already exists (e.g. an old password-based or Google-linked
+            # account) - link this Firebase identity to it instead of creating a
+            # duplicate. Correct here because this path is reached only via a
+            # returning sign-in, never a fresh Sign Up.
             existing.firebase_uid = firebase_uid
             user = existing
 
