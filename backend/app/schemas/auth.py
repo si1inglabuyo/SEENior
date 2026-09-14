@@ -53,6 +53,10 @@ class GoogleSignInRequest(BaseModel):
     id_token: str
 
 
+class FirebaseSignInRequest(BaseModel):
+    id_token: str
+
+
 class AccountDeletionRequest(BaseModel):
     """Why an account is being deleted — shown to the user as a required reason
     picker (`reason` is a stable code, not the localized label) plus an optional

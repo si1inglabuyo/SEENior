@@ -80,6 +80,10 @@ class User(Base):
     # Google's stable per-account subject ID - set only for Google-linked accounts,
     # used to recognize a returning Google sign-in independent of email changes.
     google_sub: Mapped[str | None] = mapped_column(String(255), unique=True, index=True, nullable=True)
+    # Firebase Auth's stable per-account ID (family accounts only) - set once a
+    # family account signs up/in through Firebase email+password, mirrors how
+    # google_sub identifies a Google-linked account.
+    firebase_uid: Mapped[str | None] = mapped_column(String(255), unique=True, index=True, nullable=True)
     # Scopes a barangay_responder's dashboard queries; unused for family contacts.
     barangay: Mapped[str | None] = mapped_column(String(128), nullable=True)
     is_active: Mapped[bool] = mapped_column(default=True)

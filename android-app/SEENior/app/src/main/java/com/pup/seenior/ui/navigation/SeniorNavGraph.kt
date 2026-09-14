@@ -13,6 +13,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.pup.seenior.ui.family.FamilyAuthViewModel
 import com.pup.seenior.ui.family.FamilyCompletePhoneScreen
+import com.pup.seenior.ui.family.FamilyForgotPasswordScreen
 import com.pup.seenior.ui.family.FamilyLoginScreen
 import com.pup.seenior.ui.family.FamilySignUpScreen
 import com.pup.seenior.ui.onboarding.AllSetScreen
@@ -43,6 +44,7 @@ object SeniorRoutes {
     // Family flow (linking a senior happens later, inside the dashboard's Link tab)
     const val FAMILY_SIGNUP = "family_signup"
     const val FAMILY_LOGIN = "family_login"
+    const val FAMILY_FORGOT_PASSWORD = "family_forgot_password"
     const val FAMILY_COMPLETE_PHONE = "family_complete_phone"
     const val FAMILY_HOME = "family_home"
 }
@@ -194,7 +196,14 @@ fun SeniorNavGraph(navController: NavHostController = rememberNavController()) {
                         popUpTo(SeniorRoutes.ROLE_SELECT) { inclusive = true }
                     }
                 },
-                onGoToSignUp = { navController.navigate(SeniorRoutes.FAMILY_SIGNUP) }
+                onGoToSignUp = { navController.navigate(SeniorRoutes.FAMILY_SIGNUP) },
+                onForgotPassword = { navController.navigate(SeniorRoutes.FAMILY_FORGOT_PASSWORD) }
+            )
+        }
+        composable(SeniorRoutes.FAMILY_FORGOT_PASSWORD) {
+            FamilyForgotPasswordScreen(
+                viewModel = familyAuthViewModel,
+                onBack = { navController.popBackStack() }
             )
         }
         composable(SeniorRoutes.FAMILY_HOME) {

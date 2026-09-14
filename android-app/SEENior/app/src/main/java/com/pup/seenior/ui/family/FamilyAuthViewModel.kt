@@ -6,15 +6,33 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.google.android.gms.tasks.Task
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
+import com.google.firebase.auth.FirebaseAuthInvalidUserException
+import com.google.firebase.auth.FirebaseAuthUserCollisionException
+import com.google.firebase.auth.FirebaseAuthWeakPasswordException
 import com.pup.seenior.network.RetrofitClient
+import com.pup.seenior.network.dto.FirebaseSignInRequest
 import com.pup.seenior.network.dto.GoogleSignInRequest
-import com.pup.seenior.network.dto.RegisterRequest
 import com.pup.seenior.network.dto.UpdateProfileRequest
 import com.pup.seenior.session.FamilySession
 import com.pup.seenior.validation.PhilippinePhone
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
 import retrofit2.HttpException
 import java.io.IOException
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
+
+/** Bridges a Firebase/Play-services Task into a suspend call, without pulling in the
+ *  separate kotlinx-coroutines-play-services artifact just for this one call site. */
+private suspend fun <T> Task<T>.awaitResult(): T = suspendCancellableCoroutine { cont ->
+    addOnCompleteListener { task ->
+        val exception = task.exception
+        if (exception != null) cont.resumeWithException(exception) else cont.resume(task.result)
+    }
+}
 
 private val EMAIL_PATTERN = Regex("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$")
 
@@ -47,22 +65,39 @@ class FamilyAuthViewModel(application: Application) : AndroidViewModel(applicati
             isSigningUp = true
             signUpError = null
             try {
-                val fullName = "${signUpFirstName.trim()} ${signUpLastName.trim()}"
-                val response = RetrofitClient.api.register(
-                    RegisterRequest(
-                        fullName = fullName,
-                        phone = PhilippinePhone.normalize(signUpPhone)!!,
-                        email = signUpEmail.trim(),
-                        password = signUpPassword
+                val email = signUpEmail.trim()
+                val result = FirebaseAuth.getInstance()
+                    .createUserWithEmailAndPassword(email, signUpPassword)
+                    .awaitResult()
+                val firebaseUser = result.user ?: error("Firebase did not return a user")
+                val idToken = firebaseUser.getIdToken(false).awaitResult().token
+                    ?: error("Firebase did not return an ID token")
+                val response = RetrofitClient.api.firebaseSignIn(FirebaseSignInRequest(idToken))
+                FamilySession.saveToken(getApplication(), response.accessToken)
+                // Firebase's own token carries no phone number, and no reliable display
+                // name either for a brand-new account — send the two fields this screen
+                // already collected straight to the profile /auth/firebase just created,
+                // the same PATCH used by Edit Profile.
+                RetrofitClient.api.updateProfile(
+                    "Bearer ${response.accessToken}",
+                    UpdateProfileRequest(
+                        fullName = "${signUpFirstName.trim()} ${signUpLastName.trim()}",
+                        phone = PhilippinePhone.normalize(signUpPhone)!!
                     )
                 )
-                FamilySession.saveToken(getApplication(), response.accessToken)
                 onSuccess()
+            } catch (e: FirebaseAuthUserCollisionException) {
+                signUpError = "An account with this email already exists."
+            } catch (e: FirebaseAuthWeakPasswordException) {
+                signUpError = "Please choose a stronger password."
+            } catch (e: FirebaseAuthInvalidCredentialsException) {
+                signUpError = "That email address doesn't look valid."
             } catch (e: HttpException) {
-                signUpError = if (e.code() == 400) "An account with this email already exists."
-                    else "Could not sign up (server error ${e.code()})."
+                signUpError = "Could not sign up (server error ${e.code()})."
             } catch (e: IOException) {
                 signUpError = "Could not reach the server."
+            } catch (e: Exception) {
+                signUpError = "Could not sign up. Please try again."
             } finally {
                 isSigningUp = false
             }
@@ -86,18 +121,69 @@ class FamilyAuthViewModel(application: Application) : AndroidViewModel(applicati
             isLoggingIn = true
             loginError = null
             try {
-                val response = RetrofitClient.api.login(loginEmail.trim(), loginPassword)
+                val result = FirebaseAuth.getInstance()
+                    .signInWithEmailAndPassword(loginEmail.trim(), loginPassword)
+                    .awaitResult()
+                val firebaseUser = result.user ?: error("Firebase did not return a user")
+                val idToken = firebaseUser.getIdToken(false).awaitResult().token
+                    ?: error("Firebase did not return an ID token")
+                val response = RetrofitClient.api.firebaseSignIn(FirebaseSignInRequest(idToken))
                 FamilySession.saveToken(getApplication(), response.accessToken)
                 onSuccess()
+            } catch (e: FirebaseAuthInvalidUserException) {
+                loginError = "Incorrect email or password."
+            } catch (e: FirebaseAuthInvalidCredentialsException) {
+                loginError = "Incorrect email or password."
             } catch (e: HttpException) {
-                loginError = if (e.code() == 401) "Incorrect username or password."
-                    else "Could not log in (server error ${e.code()})."
+                loginError = "Could not log in (server error ${e.code()})."
             } catch (e: IOException) {
                 loginError = "Could not reach the server."
+            } catch (e: Exception) {
+                loginError = "Could not log in. Please try again."
             } finally {
                 isLoggingIn = false
             }
         }
+    }
+
+    // Forgot Password (Log In screen's "Forget Password" link)
+    var forgotPasswordEmail by mutableStateOf("")
+    var isSendingReset by mutableStateOf(false)
+        private set
+    var resetSent by mutableStateOf(false)
+        private set
+    var resetError by mutableStateOf<String?>(null)
+        private set
+
+    val isForgotPasswordValid: Boolean
+        get() = EMAIL_PATTERN.matches(forgotPasswordEmail.trim())
+
+    fun sendPasswordReset() {
+        if (!isForgotPasswordValid || isSendingReset) return
+        viewModelScope.launch {
+            isSendingReset = true
+            resetError = null
+            try {
+                FirebaseAuth.getInstance().sendPasswordResetEmail(forgotPasswordEmail.trim()).awaitResult()
+                resetSent = true
+            } catch (e: FirebaseAuthInvalidUserException) {
+                // Same success state as a real account on purpose: telling the caller
+                // "no account exists for that email" is an account-enumeration leak.
+                resetSent = true
+            } catch (e: Exception) {
+                resetError = "Could not send the reset email. Check your connection and try again."
+            } finally {
+                isSendingReset = false
+            }
+        }
+    }
+
+    /** Called when leaving the Forgot Password screen, so a stale success/error state
+     *  doesn't reappear if the user comes back to it later in the same session. */
+    fun resetForgotPasswordState() {
+        forgotPasswordEmail = ""
+        resetSent = false
+        resetError = null
     }
 
     // Google Sign-In (Sign Up screen only, per the design)

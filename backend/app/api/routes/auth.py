@@ -8,6 +8,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
+from app.core import push
 from app.core.config import settings
 from app.core.security import (
     _DUMMY_PASSWORD_HASH,
@@ -19,6 +20,7 @@ from app.db.models import Contact, DeviceToken, UnlinkActor, User, UserRole
 from app.db.session import get_db
 from app.schemas.auth import (
     AccountDeletionRequest,
+    FirebaseSignInRequest,
     GoogleSignInRequest,
     PasswordChangeRequest,
     PasswordSetRequest,
@@ -129,6 +131,62 @@ async def google_sign_in(payload: GoogleSignInRequest, db: AsyncSession = Depend
             username=email or f"google_{google_sub}",
             email=email,
             google_sub=google_sub,
+            password_hash=None,
+            role=UserRole.FAMILY_CONTACT,
+            full_name=name,
+            phone=None,
+        )
+        db.add(user)
+
+    await db.commit()
+    await db.refresh(user)
+
+    if not user.is_active:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Account is disabled")
+
+    token = create_access_token(subject=user.username, role=user.role.value)
+    return Token(access_token=token)
+
+
+@router.post("/firebase", response_model=Token)
+async def firebase_sign_in(payload: FirebaseSignInRequest, db: AsyncSession = Depends(get_db)) -> Token:
+    # Reuses the same Firebase Admin SDK connection push.py already sets up for
+    # FCM - Firebase Auth verification needs the same service-account credentials,
+    # so there is nothing separate to configure.
+    if not push.is_configured():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Firebase Auth is not configured on the server",
+        )
+
+    from firebase_admin import auth as firebase_auth
+
+    try:
+        decoded = firebase_auth.verify_id_token(payload.id_token)
+    except Exception:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid Firebase token")
+
+    firebase_uid = decoded["uid"]
+    email = decoded.get("email")
+    name = decoded.get("name", "")
+
+    result = await db.execute(select(User).where(User.firebase_uid == firebase_uid))
+    user = result.scalar_one_or_none()
+
+    if user is None and email:
+        # Same email already exists (e.g. an old password-based account) - link
+        # this Firebase identity to it instead of creating a duplicate.
+        existing_result = await db.execute(select(User).where(User.email == email))
+        existing = existing_result.scalar_one_or_none()
+        if existing is not None:
+            existing.firebase_uid = firebase_uid
+            user = existing
+
+    if user is None:
+        user = User(
+            username=email or f"firebase_{firebase_uid}",
+            email=email,
+            firebase_uid=firebase_uid,
             password_hash=None,
             role=UserRole.FAMILY_CONTACT,
             full_name=name,

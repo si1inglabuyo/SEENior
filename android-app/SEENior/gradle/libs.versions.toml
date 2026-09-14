@@ -51,6 +51,7 @@ play-services-auth = { group = "com.google.android.gms", name = "play-services-a
 # below deliberately carries no version of its own.
 firebase-bom = { group = "com.google.firebase", name = "firebase-bom", version.ref = "firebaseBom" }
 firebase-messaging = { group = "com.google.firebase", name = "firebase-messaging-ktx" }
+firebase-auth = { group = "com.google.firebase", name = "firebase-auth-ktx" }
 # OpenStreetMap tiles, chosen over the Google Maps SDK so the alert map needs no API key
 # and no second Google Cloud billing dependency alongside Sign-In.
 osmdroid-android = { group = "org.osmdroid", name = "osmdroid-android", version.ref = "osmdroid" }

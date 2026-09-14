@@ -14,3 +14,10 @@ data class RegisterRequest(
 data class GoogleSignInRequest(
     val idToken: String
 )
+
+/** Mirrors backend FirebaseSignInRequest — sent after the Firebase Auth SDK's own
+ *  sign-up/sign-in call returns an ID token, which the backend verifies against
+ *  Firebase before issuing our own JWT. */
+data class FirebaseSignInRequest(
+    val idToken: String
+)

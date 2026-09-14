@@ -11,6 +11,7 @@ import com.pup.seenior.network.dto.CreateAlertRequest
 import com.pup.seenior.network.dto.CreateSeniorRequest
 import com.pup.seenior.network.dto.DeviceDto
 import com.pup.seenior.network.dto.FamilyContactDto
+import com.pup.seenior.network.dto.FirebaseSignInRequest
 import com.pup.seenior.network.dto.GoogleSignInRequest
 import com.pup.seenior.network.dto.InviteCodeDto
 import com.pup.seenior.network.dto.PairRequest
@@ -146,6 +147,9 @@ interface ApiService {
 
     @POST("auth/google")
     suspend fun googleSignIn(@Body body: GoogleSignInRequest): TokenDto
+
+    @POST("auth/firebase")
+    suspend fun firebaseSignIn(@Body body: FirebaseSignInRequest): TokenDto
 
     @GET("auth/me")
     suspend fun getMe(@Header("Authorization") auth: String): UserDto

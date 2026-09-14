@@ -34,7 +34,8 @@ fun FamilyLoginScreen(
     viewModel: FamilyAuthViewModel,
     onBack: () -> Unit,
     onLoggedIn: () -> Unit,
-    onGoToSignUp: () -> Unit
+    onGoToSignUp: () -> Unit,
+    onForgotPassword: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -82,13 +83,15 @@ fun FamilyLoginScreen(
                 Text(it, color = FamilyColors.ErrorRed, fontSize = 14.sp, modifier = Modifier.padding(top = 12.dp))
             }
 
-            // Not wired to a real reset flow — no email-sending infra exists in this system.
             Text(
                 "Forget Password",
                 color = FamilyColors.Blue,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Bold,
-                modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 10.dp)
+                    .clickable(onClick = onForgotPassword),
                 textAlign = TextAlign.End
             )
 
