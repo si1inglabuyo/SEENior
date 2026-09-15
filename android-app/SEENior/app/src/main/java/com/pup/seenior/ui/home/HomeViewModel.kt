@@ -16,11 +16,6 @@ import com.pup.seenior.database.SeniorAppDatabase
 import com.pup.seenior.database.entities.Alert
 import com.pup.seenior.database.entities.Contact
 import com.pup.seenior.database.entities.Senior
-import com.pup.seenior.debug.DatabaseExporter // DEBUG-ONLY, see DatabaseExporter.kt's KDoc
-import com.pup.seenior.detection.AnomalySimulator
-import com.pup.seenior.detection.FallDetector
-import com.pup.seenior.detection.FallSimulator
-import com.pup.seenior.detection.IsolationForestDetector // DEBUG-ONLY, see DatabaseExporter.kt's KDoc
 import com.pup.seenior.network.RetrofitClient
 import com.pup.seenior.network.SeniorCloudSync
 import com.pup.seenior.ui.onboarding.OnboardingOptions
@@ -61,8 +56,6 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     var language by mutableStateOf(WellnessMessages.ENGLISH)
         private set
     var batteryPercent by mutableStateOf(100)
-        private set
-    var simulationMessage by mutableStateOf<String?>(null)
         private set
 
     /** Who the SOS screen says it will alert. Read from the device's own Contacts table, not
@@ -286,122 +279,6 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun nextUnanswered(): Alert? =
         openAlerts.firstOrNull { it.alertId !in answeredThisSession }
-
-    /**
-     * Demo trigger. Feeds one synthetic reading through the real Median-MAD detector — see
-     * [AnomalySimulator] for why this is injection rather than a fabricated alert.
-     */
-    fun simulateAnomaly() {
-        viewModelScope.launch {
-            simulationMessage = when (val result = AnomalySimulator.simulateProlongedInactivity(db)) {
-                is AnomalySimulator.Result.Triggered -> {
-                    result.alert?.let { AlertResponder.onAlertCreated(getApplication(), db, it) }
-                    "Detector flagged an anomaly (z = %.1f).".format(result.zScore)
-                }
-                AnomalySimulator.Result.AlreadyActive ->
-                    "An alert is already open — answer it first."
-                AnomalySimulator.Result.NoBaseline ->
-                    "No baseline for this time block yet, so there is nothing to compare against."
-                AnomalySimulator.Result.NoSenior ->
-                    "No senior profile found on this phone."
-                is AnomalySimulator.Result.LoggedOnly ->
-                    "Deviation found (z = %.1f), judged normal for this hour — logged, nobody notified."
-                        .format(result.zScore)
-                AnomalySimulator.Result.SuppressedByNap ->
-                    "Inside the declared nap window, so detection is suppressed — stillness is expected here."
-            }
-        }
-    }
-
-    /**
-     * Demo trigger for Layer 0. Replays a synthetic fall through the real [FallDetector] with
-     * production thresholds — nothing here can produce an alert the live sensor stream would not
-     * have produced from the same motion.
-     */
-    fun simulateFall() {
-        viewModelScope.launch {
-            simulationMessage = when (FallSimulator.simulate(getApplication(), db)) {
-                is FallSimulator.Result.Raised ->
-                    "Fall signature confirmed: free fall, impact, then no movement."
-                FallSimulator.Result.NotConfirmed ->
-                    "The detector did not confirm a fall from that motion."
-                FallSimulator.Result.AlreadyActive ->
-                    "A fall alert is already open — answer it first."
-                FallSimulator.Result.NoSenior ->
-                    "No senior profile found on this phone."
-            }
-        }
-    }
-
-    fun clearSimulationMessage() {
-        simulationMessage = null
-    }
-
-    /**
-     * DEBUG-ONLY. Hands the local database to the OS share sheet via [DatabaseExporter] -- see
-     * that file's KDoc for the full removal checklist. Delete this function and its button in
-     * HomeScreen.kt's SimulationRow along with everything else DatabaseExporter.kt names.
-     */
-    fun exportDatabase() {
-        simulationMessage = if (DatabaseExporter.export(getApplication(), db)) {
-            "Database exported. Choose where to send it."
-        } else {
-            "Export failed — see logcat (DatabaseExporter)."
-        }
-    }
-
-    /**
-     * DEBUG-ONLY. Runs Layer 2's once-a-day pass on demand, instead of waiting up to twelve hours
-     * for [com.pup.seenior.aggregation.NightlyAggregationWorker] to reach it.
-     *
-     * Unlike [simulateAnomaly] this fabricates **nothing**. It is the real
-     * [IsolationForestDetector] over the real `Daily_Aggregates` and `Baseline` rows already on
-     * this phone, with the real threshold — the same call the worker makes, at a moment somebody
-     * is watching. Which also means it can raise a real alert, exactly as the worker could.
-     *
-     * Delete along with everything DatabaseExporter.kt's KDoc names.
-     */
-    fun runIsolationForest() {
-        viewModelScope.launch {
-            val senior = db.seniorDao().getOnboardedSenior()
-            val onboarding = senior?.let { db.seniorOnboardingDao().getBySeniorId(it.seniorId) }
-            if (senior == null || onboarding == null) {
-                simulationMessage = "No senior profile on this phone."
-                return@launch
-            }
-
-            val outcome = IsolationForestDetector.run(
-                senior.seniorId,
-                onboarding,
-                db.dailyAggregateDao(),
-                db.baselineDao(),
-                db.alertDao(),
-                db.mlModelMetadataDao()
-            )
-            // The on-screen message clears itself after four seconds; this does not, and is the
-            // copy worth reading when the run is being checked from a laptop.
-            android.util.Log.i("IsolationForest", "Manual run outcome: $outcome")
-
-            simulationMessage = when (outcome) {
-                is IsolationForestDetector.Outcome.Raised -> {
-                    AlertResponder.onAlertCreated(getApplication(), db, outcome.alert)
-                    "Layer 2 flagged %s (score %.3f) — alert raised."
-                        .format(outcome.alert.timeBlock, outcome.score)
-                }
-                is IsolationForestDetector.Outcome.Logged ->
-                    "Flagged (score %.3f), judged quiet for this hour — logged, nobody notified."
-                        .format(outcome.score)
-                is IsolationForestDetector.Outcome.NothingFlagged ->
-                    "Scored ${outcome.scored} block-day(s); none crossed ${IsolationForestDetector.THRESHOLD}."
-                is IsolationForestDetector.Outcome.NotEnoughData ->
-                    "Only ${outcome.usableRows} usable block-days — needs ${IsolationForestDetector.MIN_TRAINING_ROWS}."
-                IsolationForestDetector.Outcome.SuppressedByNap ->
-                    "Inside the declared nap window — suppressed."
-                IsolationForestDetector.Outcome.AlreadyActive ->
-                    "An ml_flag alert is already open."
-            }
-        }
-    }
 
     /**
      * SOS. Raised directly instead of going through a detector: this is a conscious request for

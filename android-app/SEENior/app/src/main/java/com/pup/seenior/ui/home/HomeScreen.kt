@@ -133,8 +133,6 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
 
                 EmergencyCard(barangay = viewModel.barangay, onSosConfirmed = { viewModel.sendSos() }, copy = copy)
 
-                Spacer(Modifier.height(10.dp))
-                SimulationRow(viewModel)
                 Spacer(Modifier.height(20.dp))
             }
         }
@@ -401,76 +399,6 @@ private fun SosSwipe(onConfirmed: () -> Unit, copy: SeniorStrings.Copy) {
             contentAlignment = Alignment.Center
         ) {
             Text("SOS", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-        }
-    }
-}
-
-/**
- * Not in the mockups, and deliberately styled as a plain text row rather than a real control:
- * this is a demo affordance, not a feature of the product. CLAUDE.md §10 endorses validating
- * detection by injecting known sensor values instead of waiting for a real emergency.
- */
-@Composable
-private fun SimulationRow(viewModel: HomeViewModel) {
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            TextButton(onClick = { viewModel.simulateAnomaly() }) {
-                Text(
-                    text = "Simulate Anomaly",
-                    color = SeniorColors.TextSecondary,
-                    fontSize = 14.sp
-                )
-            }
-            TextButton(onClick = { viewModel.simulateFall() }) {
-                Text(
-                    text = "Simulate Fall",
-                    color = SeniorColors.TextSecondary,
-                    fontSize = 14.sp
-                )
-            }
-        }
-        // DEBUG-ONLY. On its own row so it can't crowd or clip the two buttons above on a
-        // narrow screen. Delete along with everything DatabaseExporter.kt's KDoc names.
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.Center
-        ) {
-            TextButton(onClick = { viewModel.exportDatabase() }) {
-                Text(
-                    text = "Export Database",
-                    color = SeniorColors.TextSecondary,
-                    fontSize = 14.sp
-                )
-            }
-            TextButton(onClick = { viewModel.runIsolationForest() }) {
-                Text(
-                    text = "Run Isolation Forest",
-                    color = SeniorColors.TextSecondary,
-                    fontSize = 14.sp
-                )
-            }
-        }
-        viewModel.simulationMessage?.let { message ->
-            Text(
-                text = message,
-                color = SeniorColors.TextSecondary,
-                fontSize = 12.sp,
-                textAlign = TextAlign.Center,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp)
-            )
-            LaunchedEffect(message) {
-                kotlinx.coroutines.delay(4000)
-                viewModel.clearSimulationMessage()
-            }
         }
     }
 }
