@@ -265,7 +265,7 @@ object OnboardingStrings {
 
         questionnaireTitle = "Onboarding",
         questionnaireSubtitle = "Let's get started",
-        qLanguage = "What language do you prefer? / Anong wika ang gusto ninyo?",
+        qLanguage = "Anong wika ang gusto ninyong gamitin?",
         qWakeTime = "What time do you usually wake up?",
         qSleepTime = "What time do you usually go to sleep?",
         qHasNap = "Do you take naps during the day?",
@@ -377,7 +377,7 @@ object OnboardingStrings {
         mapCheckThis = "Tingnan kung tama ito. Mababago pa ninyo ito sa susunod na screen.",
 
         termsTitle = "Mga Tuntunin at Kondisyon",
-        termsSubtitle = "Basahin ang Mga Tuntunin at Kondisyon upang magpatuloy sa paggamit ng app.",
+        termsSubtitle = "Basahin ang mga Tuntunin at Kondisyon upang magpatuloy sa paggamit ng app.",
         termsSections = listOf(
             Section(
                 "1. Pagtanggap sa mga Tuntunin",
@@ -399,7 +399,7 @@ object OnboardingStrings {
                 )
             )
         ),
-        termsConsentPrefix = "Nabasa at tinanggap ko ang ",
+        termsConsentPrefix = "Nabasa at tinatanggap ko ang ",
         termsConsentLink = "Mga Tuntunin at Kondisyon",
         termsConsentSuffix = " ng SEENior.",
         privacyConsentPrefix = "Nabasa ko at sumasang-ayon ako sa ",
@@ -408,7 +408,7 @@ object OnboardingStrings {
 
         questionnaireTitle = "Panimula",
         questionnaireSubtitle = "Simulan na natin",
-        qLanguage = "What language do you prefer? / Anong wika ang gusto ninyong gamitin?",
+        qLanguage = "Anong wika ang gusto ninyong gamitin?",
         qWakeTime = "Anong oras kayo karaniwang gumigising?",
         qSleepTime = "Anong oras kayo karaniwang natutulog?",
         qHasNap = "Umiidlip ba kayo sa maghapon?",
@@ -420,7 +420,7 @@ object OnboardingStrings {
         qChargesOvernight = "Nagcha-charge ba kayo ng cellphone magdamag?",
         optionPlaceholder = "-Pumili-",
 
-        permissionsTitle = "Payagan ang mga kinakailangang Pahintulot",
+        permissionsTitle = "Payagan ang mga kinakailangang pahintulot",
         permissionsSubtitle = "Kailangan ng SEENior ang mga ito sa background upang patuloy na masubaybayan ang iyong karaniwang gawain. Mananatili po sa iyong cellphone ang lahat ng iyong datos.",
         permissionRows = listOf(
             "Galaw at Aktibidad" to "Tinutukoy ang galaw upang masundan ang pangkaraniwang gawain",
@@ -445,7 +445,7 @@ object OnboardingStrings {
         manufacturerDialogSkip = "LAKTAWAN MUNA",
 
         allSetBody = "Tahimik na pong sinusubaybayan ng SEENior ang iyong pangkaraniwang gawain. Aabisuhan po ang iyong pamilya kung may mapansing hindi pangkaraniwan.",
-        allSetMonitoringStarted = "Nagsimula na ang tahimik na pagbantay",
+        allSetMonitoringStarted = "Passive monitoring started",
         allSetLearningRoutine = "Inaaral ang iyong gawain - Unang araw sa loob ng 14 na araw",
         continueLabel = "MAGPATULOY",
 
