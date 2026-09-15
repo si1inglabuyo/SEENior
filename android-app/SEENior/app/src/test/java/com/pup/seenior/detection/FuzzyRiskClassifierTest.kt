@@ -193,4 +193,112 @@ class FuzzyRiskClassifierTest {
         assertFalse(FuzzyRiskClassifier.isWithinNapWindow(16 * 60, "14:00", 120))
         assertFalse(FuzzyRiskClassifier.isWithinNapWindow(13 * 60 + 59, "14:00", 120))
     }
+
+    // ------------------------------------------- Layer 2 as the third antecedent (Phase 6)
+
+    private fun classify(z: Double, rest: Double, ml: Double) =
+        FuzzyRiskClassifier.classify(FuzzyRiskClassifier.Inputs(z, rest, ml))
+
+    @Test
+    fun `a Layer 1 alert is unchanged by the widened table`() {
+        // The nine original rules are the ml_flag-absent slice, and every Layer 1 caller still
+        // uses the two-argument form. Stating it as an equality means a future edit to the
+        // twenty-seven cannot quietly move Layer 1's answers.
+        var z = 2.5
+        while (z <= 8.0) {
+            for (restStep in 0..10) {
+                val rest = restStep / 10.0
+                assertEquals(
+                    "z=$z rest=$rest drifted when ml_flag was absent",
+                    classify(z, rest),
+                    classify(z, rest, 0.0)
+                )
+            }
+            z += 0.25
+        }
+    }
+
+    @Test
+    fun `Layer 2 alone asks the senior but never summons the barangay`() {
+        // A finding about a block that has already closed is not a fall in progress. Its ceiling
+        // is the wellness prompt — Medium — however isolated the day was, right up to a score of
+        // 1.0. Reaching High needs a Layer 1 deviation to corroborate.
+        var ml = IsolationForestDetector.THRESHOLD
+        while (ml <= 1.0) {
+            assertEquals(
+                "ml=$ml alone should stay MEDIUM",
+                FuzzyRiskClassifier.Risk.MEDIUM,
+                classify(z = 0.0, rest = 0.0, ml = ml)
+            )
+            ml += 0.02
+        }
+    }
+
+    @Test
+    fun `Layer 2 alone is logged rather than waking a sleeping senior`() {
+        // The nightly pass can land at any hour. Asking a senior at 3am whether yesterday morning
+        // was alright is no use to her and teaches her to ignore the prompt.
+        assertEquals(FuzzyRiskClassifier.Risk.LOW, classify(z = 0.0, rest = 1.0, ml = 0.95))
+    }
+
+    @Test
+    fun `Layer 2 corroborating a moderate deviation escalates it`() {
+        // The pair that justifies having a second layer at all: identical z, identical hour, and
+        // the only difference is that Isolation Forest independently found the whole block odd.
+        val z = 3.6
+        val rest = 0.5
+        assertEquals(FuzzyRiskClassifier.Risk.MEDIUM, classify(z, rest, ml = 0.0))
+        assertEquals(FuzzyRiskClassifier.Risk.HIGH, classify(z, rest, ml = 0.62))
+    }
+
+    @Test
+    fun `a strong Layer 2 score lifts an otherwise silent finding near bedtime`() {
+        // Without it this row is Low, which means the finding is never mentioned at all.
+        assertEquals(FuzzyRiskClassifier.Risk.LOW, classify(z = 0.0, rest = 0.5, ml = 0.0))
+        assertEquals(FuzzyRiskClassifier.Risk.MEDIUM, classify(z = 0.0, rest = 0.5, ml = 0.95))
+    }
+
+    @Test
+    fun `nothing at full rest is ever high, at any ml_flag score`() {
+        // The original ceiling, re-proven across the new dimension — this is the invariant most
+        // likely to be broken by a careless edit to the twenty-seven rows.
+        var z = 0.0
+        while (z <= 12.0) {
+            var ml = 0.0
+            while (ml <= 1.0) {
+                assertFalse(
+                    "z=$z ml=$ml at full rest should not be HIGH",
+                    classify(z, rest = 1.0, ml = ml) == FuzzyRiskClassifier.Risk.HIGH
+                )
+                ml += 0.05
+            }
+            z += 0.25
+        }
+    }
+
+    @Test
+    fun `risk never decreases as the ml_flag score grows`() {
+        // Monotonic in the third input too. A day the forest found *more* unusual must never
+        // produce a calmer answer than one it found less so.
+        val order = listOf(
+            FuzzyRiskClassifier.Risk.LOW,
+            FuzzyRiskClassifier.Risk.MEDIUM,
+            FuzzyRiskClassifier.Risk.HIGH
+        )
+        var z = 0.0
+        while (z <= 8.0) {
+            for (restStep in 0..10) {
+                val rest = restStep / 10.0
+                var previous = -1
+                var ml = 0.0
+                while (ml <= 1.0) {
+                    val rank = order.indexOf(classify(z, rest, ml))
+                    assertTrue("risk fell at z=$z rest=$rest ml=$ml", rank >= previous)
+                    previous = rank
+                    ml += 0.02
+                }
+            }
+            z += 0.5
+        }
+    }
 }

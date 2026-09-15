@@ -125,6 +125,8 @@ class BaselineUpdaterTest {
 
         override fun getAllBySenior(seniorId: Int): Flow<List<Baseline>> = flowOf(rows.values.toList())
 
+        override suspend fun getAllBySeniorOnce(seniorId: Int): List<Baseline> = rows.values.toList()
+
         override suspend fun getById(baselineId: Int): Baseline? = null
 
         override suspend fun getBaselineByFeatureAndTimeBlock(

@@ -24,10 +24,17 @@ import kotlin.math.min
  * No Android imports, so JUnit can drive it directly — the same reason [FallDetector] has none, and
  * what makes CLAUDE.md §10's simulated-data validation possible for this layer.
  *
- * **Layer 2 is not wired in yet.** When Isolation Forest lands (build-order step 7) it enters as a
- * third antecedent — an `ml_flag` membership alongside [deviation] and [rest] — which widens
- * [RULES] to a three-input table. It is left out rather than stubbed because an input that is
- * always null cannot be tested and would only have to be re-derived later.
+ * **Layer 2 is wired in** (build-order step 7, Phase 6). Isolation Forest's path-length score
+ * enters as a third antecedent — an `ml_flag` membership alongside [deviation] and [rest] — which
+ * widens [RULES] from nine rows to twenty-seven. The original nine are unchanged and still fire
+ * exactly as they did: a Layer 1 alert carries no ml_flag score, [Inputs.mlFlagScore] defaults to
+ * 0.0, and [MlFlag.NONE] then has full membership while the other two have none.
+ *
+ * **A Layer 2 finding cannot reach High on its own.** It is retrospective — a judgement about a
+ * block that has already closed, produced by a job that runs once a day — so it is not the same
+ * class of claim as a fall happening now. Alone (deviation 0, so [Deviation.MILD]) its ceiling is
+ * Medium, which is the wellness prompt: the senior is asked, and answers, and that is the whole
+ * intent. It reaches High only by *corroborating* a Layer 1 deviation that was already serious.
  *
  * **There is deliberately no baseline-confidence input.** The obvious idea — damp risk while the
  * seed baseline is still being replaced (days 1–14) — double-counts caution that is already
@@ -53,34 +60,97 @@ object FuzzyRiskClassifier {
      */
     data class Inputs(
         val deviationScore: Double,
-        val restExpectation: Double
+        val restExpectation: Double,
+        /**
+         * Isolation Forest's path-length anomaly score for this block, 0.0–1.0, or 0.0 when there
+         * isn't one. Layer 1 alerts leave it at the default, which puts [MlFlag.NONE] at full
+         * membership and reproduces the original nine rules exactly.
+         *
+         * Deliberately a *separate* input from [deviationScore] and never blended into it: they
+         * are different measurements of different things (a z-score against a median, versus how
+         * few random splits isolated the day), and CLAUDE.md §14 requires the three layers to
+         * keep three distinct outputs.
+         */
+        val mlFlagScore: Double = 0.0
+    )
+
+    private data class Rule(
+        val deviation: Deviation,
+        val rest: Rest,
+        val mlFlag: MlFlag,
+        val risk: Risk
     )
 
     /**
-     * The rule base, read as `deviation × rest → risk`.
+     * The rule base, read as `deviation × rest × ml_flag → risk`.
      *
-     * The diagonal is the argument the layer exists to make: the same deviation is High during
-     * waking hours and Medium while the senior is expected to be asleep, because someone deeply
-     * asleep is not an emergency — and a mild deviation at rest is not worth waking anyone for at
-     * all, which is where Low comes from. Nothing at rest reaches High: if a genuine emergency
-     * begins during sleep, the deviation keeps growing and the waking hours that follow escalate
-     * it. Silence is bounded, not permanent.
+     * The rest diagonal is the argument this layer exists to make: the same deviation is High
+     * during waking hours and Medium while the senior is expected to be asleep, because someone
+     * deeply asleep is not an emergency — and a mild deviation at rest is not worth waking anyone
+     * for at all, which is where Low comes from.
+     *
+     * **Two invariants hold across all twenty-seven rows, and both are load-bearing:**
+     *
+     * 1. *Nothing at full rest reaches High.* If a genuine emergency begins during sleep, the
+     *    deviation keeps growing and the waking hours that follow escalate it. Silence is bounded,
+     *    not permanent.
+     * 2. *ml_flag alone never reaches High.* A Layer 2 finding arrives with deviation 0 — hence
+     *    [Deviation.MILD] — so its whole row group tops out at Medium however strong the score is.
+     *    Medium is the wellness prompt, which is the proportionate answer to "yesterday looked
+     *    unusual": ask her. It raises High only where a Layer 1 deviation was *already* moderate or
+     *    extreme and Layer 2 independently agrees, which is corroboration rather than a new claim.
+     *
+     * The nine [MlFlag.NONE] rows are the original table, unchanged, and must stay that way — they
+     * are what every Layer 1 alert still runs through.
      */
-    private val RULES: List<Triple<Deviation, Rest, Risk>> = listOf(
-        Triple(Deviation.MILD, Rest.ACTIVE, Risk.MEDIUM),
-        Triple(Deviation.MILD, Rest.TRANSITIONAL, Risk.LOW),
-        Triple(Deviation.MILD, Rest.RESTING, Risk.LOW),
-        Triple(Deviation.MODERATE, Rest.ACTIVE, Risk.HIGH),
-        Triple(Deviation.MODERATE, Rest.TRANSITIONAL, Risk.MEDIUM),
-        Triple(Deviation.MODERATE, Rest.RESTING, Risk.LOW),
-        Triple(Deviation.EXTREME, Rest.ACTIVE, Risk.HIGH),
-        Triple(Deviation.EXTREME, Rest.TRANSITIONAL, Risk.HIGH),
-        Triple(Deviation.EXTREME, Rest.RESTING, Risk.MEDIUM)
+    private val RULES: List<Rule> = listOf(
+        // --- no Layer 2 score: the original nine, untouched ---
+        Rule(Deviation.MILD, Rest.ACTIVE, MlFlag.NONE, Risk.MEDIUM),
+        Rule(Deviation.MILD, Rest.TRANSITIONAL, MlFlag.NONE, Risk.LOW),
+        Rule(Deviation.MILD, Rest.RESTING, MlFlag.NONE, Risk.LOW),
+        Rule(Deviation.MODERATE, Rest.ACTIVE, MlFlag.NONE, Risk.HIGH),
+        Rule(Deviation.MODERATE, Rest.TRANSITIONAL, MlFlag.NONE, Risk.MEDIUM),
+        Rule(Deviation.MODERATE, Rest.RESTING, MlFlag.NONE, Risk.LOW),
+        Rule(Deviation.EXTREME, Rest.ACTIVE, MlFlag.NONE, Risk.HIGH),
+        Rule(Deviation.EXTREME, Rest.TRANSITIONAL, MlFlag.NONE, Risk.HIGH),
+        Rule(Deviation.EXTREME, Rest.RESTING, MlFlag.NONE, Risk.MEDIUM),
+
+        // --- Layer 2 flagged the block ---
+        // The MILD group is the pure-Layer-2 alert: capped at Medium by invariant 2, and dropped
+        // to Low at rest, so the nightly job cannot wake a sleeping senior to ask about a block
+        // that closed hours ago. The score is still written to the aggregate row either way.
+        Rule(Deviation.MILD, Rest.ACTIVE, MlFlag.PRESENT, Risk.MEDIUM),
+        Rule(Deviation.MILD, Rest.TRANSITIONAL, MlFlag.PRESENT, Risk.LOW),
+        Rule(Deviation.MILD, Rest.RESTING, MlFlag.PRESENT, Risk.LOW),
+        Rule(Deviation.MODERATE, Rest.ACTIVE, MlFlag.PRESENT, Risk.HIGH),
+        // Layer 1 called it moderate and Layer 2 independently agrees the whole block was off.
+        // Two different measurements concurring is worth more than either alone, which is the
+        // entire reason for having a second layer.
+        Rule(Deviation.MODERATE, Rest.TRANSITIONAL, MlFlag.PRESENT, Risk.HIGH),
+        Rule(Deviation.MODERATE, Rest.RESTING, MlFlag.PRESENT, Risk.MEDIUM),
+        Rule(Deviation.EXTREME, Rest.ACTIVE, MlFlag.PRESENT, Risk.HIGH),
+        Rule(Deviation.EXTREME, Rest.TRANSITIONAL, MlFlag.PRESENT, Risk.HIGH),
+        Rule(Deviation.EXTREME, Rest.RESTING, MlFlag.PRESENT, Risk.MEDIUM),
+
+        // --- Layer 2 flagged it hard ---
+        Rule(Deviation.MILD, Rest.ACTIVE, MlFlag.STRONG, Risk.MEDIUM),
+        // The one place a strong Layer 2 score lifts an otherwise-quiet reading: on the edge of
+        // the sleep window, where Low would mean the finding is never mentioned at all.
+        Rule(Deviation.MILD, Rest.TRANSITIONAL, MlFlag.STRONG, Risk.MEDIUM),
+        Rule(Deviation.MILD, Rest.RESTING, MlFlag.STRONG, Risk.LOW),
+        Rule(Deviation.MODERATE, Rest.ACTIVE, MlFlag.STRONG, Risk.HIGH),
+        Rule(Deviation.MODERATE, Rest.TRANSITIONAL, MlFlag.STRONG, Risk.HIGH),
+        Rule(Deviation.MODERATE, Rest.RESTING, MlFlag.STRONG, Risk.MEDIUM),
+        Rule(Deviation.EXTREME, Rest.ACTIVE, MlFlag.STRONG, Risk.HIGH),
+        Rule(Deviation.EXTREME, Rest.TRANSITIONAL, MlFlag.STRONG, Risk.HIGH),
+        Rule(Deviation.EXTREME, Rest.RESTING, MlFlag.STRONG, Risk.MEDIUM)
     )
 
     private enum class Deviation { MILD, MODERATE, EXTREME }
 
     private enum class Rest { ACTIVE, TRANSITIONAL, RESTING }
+
+    private enum class MlFlag { NONE, PRESENT, STRONG }
 
     /**
      * Runs the inference and returns the level to store on the alert.
@@ -91,9 +161,15 @@ object FuzzyRiskClassifier {
     fun classify(inputs: Inputs): Risk {
         val deviation = Deviation.entries.associateWith { membership(it, inputs.deviationScore) }
         val rest = Rest.entries.associateWith { membership(it, inputs.restExpectation) }
+        val mlFlag = MlFlag.entries.associateWith { membership(it, inputs.mlFlagScore) }
 
-        val strengths = RULES.map { (d, r, risk) ->
-            risk to min(deviation.getValue(d), rest.getValue(r))
+        val strengths = RULES.map { rule ->
+            // min for AND, across all three antecedents now — the same Mamdani inference, one
+            // dimension wider.
+            rule.risk to min(
+                min(deviation.getValue(rule.deviation), rest.getValue(rule.rest)),
+                mlFlag.getValue(rule.mlFlag)
+            )
         }
 
         val centroid = defuzzify(strengths) ?: return Risk.MEDIUM
@@ -142,6 +218,29 @@ object FuzzyRiskClassifier {
         Rest.ACTIVE -> ramp(rest, 0.35, 0.0)
         Rest.TRANSITIONAL -> triangle(rest, 0.15, 0.5, 0.85)
         Rest.RESTING -> ramp(rest, 0.65, 1.0)
+    }
+
+    /**
+     * Where the sets sit relative to [com.pup.seenior.detection.IsolationForestDetector.THRESHOLD]
+     * (0.58), the value tuned against the nine cases in `IsolationForestTest`.
+     *
+     * [MlFlag.NONE] is shouldered at the bottom so an absent score — 0.0, which is every Layer 1
+     * alert — has full membership and the original nine rules fire untouched. [MlFlag.STRONG] is
+     * shouldered at the top because the score is bounded at 1.0 and anything past ~0.78 is as
+     * isolated as the forest can report.
+     *
+     * **These three must sum to 1.0 at every score, and the edges are chosen for that and nothing
+     * else** — NONE hands over to PRESENT across exactly 0.50–0.62, PRESENT to STRONG across
+     * exactly 0.62–0.78. An earlier version left a gap between where NONE finished falling and
+     * where PRESENT began rising; total firing strength collapsed inside it, and because the Low
+     * and Medium rules shrank at different rates the defuzzified answer *fell* as the score rose.
+     * A senior's day scoring more anomalous produced a calmer verdict. `risk never decreases as
+     * the ml_flag score grows` in the test suite is what caught it and is what keeps it caught.
+     */
+    private fun membership(set: MlFlag, score: Double): Double = when (set) {
+        MlFlag.NONE -> ramp(score, 0.62, 0.50)
+        MlFlag.PRESENT -> triangle(score, 0.50, 0.62, 0.78)
+        MlFlag.STRONG -> ramp(score, 0.62, 0.78)
     }
 
     private fun outputMembership(risk: Risk, y: Double): Double = when (risk) {

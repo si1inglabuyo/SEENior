@@ -28,6 +28,16 @@ interface BaselineDao {
     @Query("SELECT * FROM Baseline WHERE senior_id = :seniorId")
     fun getAllBySenior(seniorId: Int): Flow<List<Baseline>>
 
+    /**
+     * One-shot read of the whole Routine Fingerprint — all 5 features across all 4 blocks.
+     *
+     * Separate from [getAllBySenior] because that returns a Flow for screens to observe.
+     * [com.pup.seenior.detection.IsolationForestDetector] needs the 20 rows exactly once per
+     * nightly run, to score every block against, and a subscription would be the wrong shape.
+     */
+    @Query("SELECT * FROM Baseline WHERE senior_id = :seniorId")
+    suspend fun getAllBySeniorOnce(seniorId: Int): List<Baseline>
+
     @Query("SELECT * FROM Baseline WHERE baseline_id = :baselineId")
     suspend fun getById(baselineId: Int): Baseline?
 

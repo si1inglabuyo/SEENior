@@ -449,6 +449,13 @@ private fun SimulationRow(viewModel: HomeViewModel) {
                     fontSize = 14.sp
                 )
             }
+            TextButton(onClick = { viewModel.runIsolationForest() }) {
+                Text(
+                    text = "Run Isolation Forest",
+                    color = SeniorColors.TextSecondary,
+                    fontSize = 14.sp
+                )
+            }
         }
         viewModel.simulationMessage?.let { message ->
             Text(

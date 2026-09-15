@@ -20,6 +20,7 @@ import com.pup.seenior.debug.DatabaseExporter // DEBUG-ONLY, see DatabaseExporte
 import com.pup.seenior.detection.AnomalySimulator
 import com.pup.seenior.detection.FallDetector
 import com.pup.seenior.detection.FallSimulator
+import com.pup.seenior.detection.IsolationForestDetector // DEBUG-ONLY, see DatabaseExporter.kt's KDoc
 import com.pup.seenior.network.RetrofitClient
 import com.pup.seenior.network.SeniorCloudSync
 import com.pup.seenior.ui.onboarding.OnboardingOptions
@@ -346,6 +347,59 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             "Database exported. Choose where to send it."
         } else {
             "Export failed — see logcat (DatabaseExporter)."
+        }
+    }
+
+    /**
+     * DEBUG-ONLY. Runs Layer 2's once-a-day pass on demand, instead of waiting up to twelve hours
+     * for [com.pup.seenior.aggregation.NightlyAggregationWorker] to reach it.
+     *
+     * Unlike [simulateAnomaly] this fabricates **nothing**. It is the real
+     * [IsolationForestDetector] over the real `Daily_Aggregates` and `Baseline` rows already on
+     * this phone, with the real threshold — the same call the worker makes, at a moment somebody
+     * is watching. Which also means it can raise a real alert, exactly as the worker could.
+     *
+     * Delete along with everything DatabaseExporter.kt's KDoc names.
+     */
+    fun runIsolationForest() {
+        viewModelScope.launch {
+            val senior = db.seniorDao().getOnboardedSenior()
+            val onboarding = senior?.let { db.seniorOnboardingDao().getBySeniorId(it.seniorId) }
+            if (senior == null || onboarding == null) {
+                simulationMessage = "No senior profile on this phone."
+                return@launch
+            }
+
+            val outcome = IsolationForestDetector.run(
+                senior.seniorId,
+                onboarding,
+                db.dailyAggregateDao(),
+                db.baselineDao(),
+                db.alertDao(),
+                db.mlModelMetadataDao()
+            )
+            // The on-screen message clears itself after four seconds; this does not, and is the
+            // copy worth reading when the run is being checked from a laptop.
+            android.util.Log.i("IsolationForest", "Manual run outcome: $outcome")
+
+            simulationMessage = when (outcome) {
+                is IsolationForestDetector.Outcome.Raised -> {
+                    AlertResponder.onAlertCreated(getApplication(), db, outcome.alert)
+                    "Layer 2 flagged %s (score %.3f) — alert raised."
+                        .format(outcome.alert.timeBlock, outcome.score)
+                }
+                is IsolationForestDetector.Outcome.Logged ->
+                    "Flagged (score %.3f), judged quiet for this hour — logged, nobody notified."
+                        .format(outcome.score)
+                is IsolationForestDetector.Outcome.NothingFlagged ->
+                    "Scored ${outcome.scored} block-day(s); none crossed ${IsolationForestDetector.THRESHOLD}."
+                is IsolationForestDetector.Outcome.NotEnoughData ->
+                    "Only ${outcome.usableRows} usable block-days — needs ${IsolationForestDetector.MIN_TRAINING_ROWS}."
+                IsolationForestDetector.Outcome.SuppressedByNap ->
+                    "Inside the declared nap window — suppressed."
+                IsolationForestDetector.Outcome.AlreadyActive ->
+                    "An ml_flag alert is already open."
+            }
         }
     }
 

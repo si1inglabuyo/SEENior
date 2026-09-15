@@ -4,11 +4,13 @@ package com.pup.seenior.aggregation
 import android.content.Context
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
+import com.pup.seenior.alerts.AlertResponder
 import com.pup.seenior.database.SeniorAppDatabase
 import com.pup.seenior.database.entities.DailyAggregate
 import com.pup.seenior.database.entities.SensorData
 import com.pup.seenior.database.entities.SeniorOnboarding
 import com.pup.seenior.baseline.SeedBaselineGenerator
+import com.pup.seenior.detection.IsolationForestDetector
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -113,9 +115,49 @@ class NightlyAggregationWorker(
                 database.baselineDao(),
                 dailyAggregateDao
             )
+
+            runIsolationForest(database, senior.seniorId, onboarding)
         }
 
         return Result.success()
+    }
+
+    /**
+     * Layer 2's once-a-day pass (CLAUDE.md §5), run here because the aggregates were just written
+     * and the baseline it scores against was just refreshed one statement ago.
+     *
+     * **Wrapped, and deliberately never fatal.** Everything above this line is load-bearing: the
+     * roll-up, the raw-row purge, the Routine Fingerprint that Layer 1 depends on every five
+     * minutes. Layer 2 is an addition on top of all of it. If it throws — a baseline row missing
+     * for a block, something unforeseen in a senior's data — the right outcome is a logged
+     * complaint and a successful worker, not a failed run that takes the nightly aggregation down
+     * with it and leaves Layer 1 scoring against a stale fingerprint tomorrow.
+     */
+    private suspend fun runIsolationForest(
+        database: SeniorAppDatabase,
+        seniorId: Int,
+        onboarding: SeniorOnboarding
+    ) {
+        try {
+            val outcome = IsolationForestDetector.run(
+                seniorId,
+                onboarding,
+                database.dailyAggregateDao(),
+                database.baselineDao(),
+                database.alertDao(),
+                database.mlModelMetadataDao()
+            )
+            android.util.Log.i("NightlyAggregation", "Isolation Forest: $outcome")
+
+            // Only a raised alert is owed a response chain. Everything else the detector can
+            // return — a logged low-risk note, a cold-start bail-out, a nap — is deliberately
+            // silent, and must not arm an alarm on the way past.
+            if (outcome is IsolationForestDetector.Outcome.Raised) {
+                AlertResponder.onAlertCreated(applicationContext, database, outcome.alert)
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("NightlyAggregation", "Isolation Forest pass failed", e)
+        }
     }
 
     private fun buildAggregate(
