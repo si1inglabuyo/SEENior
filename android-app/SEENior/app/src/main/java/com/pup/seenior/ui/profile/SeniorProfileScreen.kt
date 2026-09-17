@@ -224,7 +224,12 @@ private fun ProfileHome(viewModel: SeniorProfileViewModel, onNavigate: (ProfileP
                 RowDivider()
                 ProfileRow(Icons.AutoMirrored.Filled.HelpOutline, copy.faqs) { onNavigate(ProfilePage.FAQS) }
                 RowDivider()
-                ProfileRow(Icons.Filled.SupportAgent, copy.contactSupport) { onNavigate(ProfilePage.SUPPORT) }
+                // Hidden while no support phone or address is configured, so the app never
+                // offers a senior a way to ask for help that quietly goes nowhere. Set either
+                // constant in SeniorInfoScreens.kt to bring the row back.
+                if (SUPPORT_CONTACT_CONFIGURED) {
+                    ProfileRow(Icons.Filled.SupportAgent, copy.contactSupport) { onNavigate(ProfilePage.SUPPORT) }
+                }
             }
 
             SectionLabel(copy.sectionAboutApp)

@@ -26,6 +26,16 @@ _DUMMY_PASSWORD_HASH = hash_password("not-a-real-password-used-only-for-timing")
 
 
 def create_access_token(subject: str, role: str) -> str:
+    """Mints a bearer token for `subject`.
+
+    **`subject` must be the user's immutable database id, never their username or email.**
+    Those are recyclable: `POST /auth/me/delete` tombstones a departing account's username
+    with a `+del<id>.<ts>` tag specifically to free the original value for a fresh sign-up,
+    and a barangay responder's username is issued by the OSCA officer and reassigned when
+    staff change. A token that names an account by a recyclable string keeps resolving
+    after the string changes hands, so the departing holder's still-valid token would
+    authenticate as whoever claimed it next -- with their role. An id is never reissued.
+    """
     expire = datetime.now(timezone.utc) + timedelta(
         minutes=settings.access_token_expire_minutes
     )

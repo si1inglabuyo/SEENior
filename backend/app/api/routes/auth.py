@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token as google_id_token
@@ -8,7 +8,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
-from app.core import push
+from app.core import push, ratelimit
 from app.core.config import settings
 from app.core.security import (
     _DUMMY_PASSWORD_HASH,
@@ -35,9 +35,25 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 @router.post("/login", response_model=Token)
 async def login(
+    request: Request,
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: AsyncSession = Depends(get_db),
 ) -> Token:
+    """Password sign-in for both roles.
+
+    Throttled on two keys, because either one alone leaves a usable attack. Per-IP stops one
+    host working through a password list; per-identifier stops the same list being spread
+    across a pool of addresses at a single account, which is the shape that matters when the
+    account is a barangay responder whose username is public within the barangay.
+
+    The identifier key is the string as submitted, so it also covers a caller trying the same
+    account by email and by username. bcrypt's cost was the only brake here before, and a cost
+    factor is a speed limit, not an attempt limit.
+    """
+    submitted = form_data.username.strip().lower()
+    await ratelimit.check("login-ip", ratelimit.client_ip(request), limit=10, window_seconds=300)
+    await ratelimit.check("login-id", submitted, limit=5, window_seconds=300)
+
     # OAuth2PasswordRequestForm's field is always named "username" by spec, but family
     # accounts log in by email (matching the Log In screen) while barangay responders
     # still log in by their pre-assigned username (CLAUDE.md §2) - so this checks both.
@@ -68,7 +84,7 @@ async def login(
             detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    token = create_access_token(subject=user.username, role=user.role.value)
+    token = create_access_token(subject=str(user.id), role=user.role.value)
     return Token(access_token=token)
 
 
@@ -92,7 +108,7 @@ async def register(payload: RegisterRequest, db: AsyncSession = Depends(get_db))
     await db.commit()
     await db.refresh(user)
 
-    token = create_access_token(subject=user.username, role=user.role.value)
+    token = create_access_token(subject=str(user.id), role=user.role.value)
     return Token(access_token=token)
 
 
@@ -144,7 +160,7 @@ async def google_sign_in(payload: GoogleSignInRequest, db: AsyncSession = Depend
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Account is disabled")
 
-    token = create_access_token(subject=user.username, role=user.role.value)
+    token = create_access_token(subject=str(user.id), role=user.role.value)
     return Token(access_token=token)
 
 
@@ -212,7 +228,7 @@ async def firebase_sign_in(payload: FirebaseSignInRequest, db: AsyncSession = De
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Account is disabled")
 
-    token = create_access_token(subject=user.username, role=user.role.value)
+    token = create_access_token(subject=str(user.id), role=user.role.value)
     return Token(access_token=token)
 
 

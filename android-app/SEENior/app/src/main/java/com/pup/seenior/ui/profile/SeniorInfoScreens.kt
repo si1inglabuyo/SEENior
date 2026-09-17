@@ -52,10 +52,25 @@ import com.pup.seenior.ui.theme.SeniorColors
 import com.pup.seenior.ui.onboarding.OnboardingOptions
 import androidx.compose.material3.RadioButton
 
-// TODO: replace both with the real support details before the demo — these are the
-// placeholders straight out of designs/senior/profile.
-private const val SUPPORT_PHONE = "+63 000 000 0000"
-private const val SUPPORT_EMAIL = "seenior.support@example.com"
+/*
+ * Unset on purpose, and the Profile menu hides its "Contact support" row while they stay
+ * that way (see SUPPORT_CONTACT_CONFIGURED).
+ *
+ * These used to ship as "+63 000 000 0000" and "seenior.support@example.com", straight out
+ * of designs/senior/profile. A senior in difficulty tapping Call us and reaching a dead
+ * number is worse than not offering the button: the offer itself is the harm, because it
+ * spends the moment they decided to ask for help.
+ *
+ * To turn the feature back on, put a real value in either one -- the screen renders the
+ * call row only when there is a number and the message form only when there is an address,
+ * so a phone line alone or an inbox alone both work.
+ */
+private val SUPPORT_PHONE: String? = null
+private val SUPPORT_EMAIL: String? = null
+
+/** Whether there is anything behind the Profile menu's "Contact support" row. */
+internal val SUPPORT_CONTACT_CONFIGURED: Boolean
+    get() = SUPPORT_PHONE != null || SUPPORT_EMAIL != null
 
 internal val ErrorRed = Color(0xFFCC3333)
 
@@ -191,14 +206,22 @@ fun SeniorContactSupportScreen(onBack: () -> Unit) {
     var message by remember { mutableStateOf("") }
 
     InfoScaffold(title = copy.supportTitle, onBack = onBack) {
+        // Both halves are conditional so this screen degrades to whatever is actually
+        // configured, rather than offering a route that goes nowhere. With neither set the
+        // Profile row is hidden and this is unreachable; it is still written to survive
+        // being reached, because an unreachable screen that would crash is a trap for
+        // whoever next edits the menu.
+        val supportPhone = SUPPORT_PHONE
+        val supportEmail = SUPPORT_EMAIL
+
         // ACTION_DIAL, not ACTION_CALL: no CALL_PHONE permission needed, and the senior
         // still confirms the call themselves.
-        Row(
+        if (supportPhone != null) Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .border(1.dp, SeniorColors.FieldBorder, RoundedCornerShape(20.dp))
                 .clickable {
-                    val dialable = SUPPORT_PHONE.filter { it.isDigit() || it == '+' }
+                    val dialable = supportPhone.filter { it.isDigit() || it == '+' }
                     runCatching {
                         context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$dialable")))
                     }
@@ -216,11 +239,11 @@ fun SeniorContactSupportScreen(onBack: () -> Unit) {
             }
             Column(modifier = Modifier.padding(start = 14.dp)) {
                 Text(copy.callUs, color = SeniorColors.TextPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                Text(SUPPORT_PHONE, color = SeniorColors.TextSecondary, fontSize = 16.sp)
+                Text(supportPhone, color = SeniorColors.TextSecondary, fontSize = 16.sp)
             }
         }
 
-        Column(
+        if (supportEmail != null) Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .border(1.dp, SeniorColors.FieldBorder, RoundedCornerShape(20.dp))
@@ -259,7 +282,7 @@ fun SeniorContactSupportScreen(onBack: () -> Unit) {
                 enabled = message.isNotBlank(),
                 onClick = {
                     val intent = Intent(Intent.ACTION_SENDTO).apply {
-                        data = Uri.parse("mailto:$SUPPORT_EMAIL")
+                        data = Uri.parse("mailto:$supportEmail")
                         putExtra(Intent.EXTRA_SUBJECT, "SEENior support request")
                         putExtra(Intent.EXTRA_TEXT, message)
                     }

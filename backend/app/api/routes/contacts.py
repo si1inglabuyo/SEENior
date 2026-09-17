@@ -1,12 +1,13 @@
 from datetime import datetime, timezone
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.api.deps import get_current_user
+from app.core import ratelimit
 from app.core.security import create_access_token
 from app.db.models import Contact, ContactType, DeviceToken, Senior, UnlinkActor, User
 from app.db.session import get_db
@@ -17,6 +18,7 @@ from app.schemas.contact import (
     PairRequest,
     PairResponse,
     VerifyCodeRequest,
+    InviteSeniorOut,
     VerifyCodeResponse,
 )
 from app.schemas.senior import SeniorOut
@@ -44,12 +46,33 @@ async def _senior_by_valid_code(code: str, db: AsyncSession) -> Senior:
 
 
 @router.post("/contacts/verify", response_model=VerifyCodeResponse)
-async def verify_code(payload: VerifyCodeRequest, db: AsyncSession = Depends(get_db)) -> VerifyCodeResponse:
-    # Look-up only: the family's Link screen calls this to show the senior on the
-    # Connected screen before committing. Nothing is created and the code is NOT
-    # consumed here — it's consumed by POST /contacts/pair.
+async def verify_code(
+    payload: VerifyCodeRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> VerifyCodeResponse:
+    """Look-up only: the family's Link screen calls this to show the senior on the
+    Connected screen before committing. Nothing is created and the code is NOT
+    consumed here — it's consumed by POST /contacts/pair.
+
+    Unauthenticated by design (the code is the credential), which makes the six-digit
+    keyspace the whole of the security here: a million codes, live for five minutes, and
+    before this an unthrottled caller could simply enumerate them.
+
+    Both limits are load-bearing and neither is sufficient alone. The per-IP one stops a
+    single host guessing; the global one bounds the endpoint's total throughput, which is
+    what actually caps a search an attacker could otherwise spread over many addresses. At
+    120/min a five-minute window admits ~600 of a million codes -- odds of roughly one in
+    1,700 per window -- while sitting far above any real rate, since pairing is something a
+    family does once and a barangay's worth of them never coincide.
+    """
+    await ratelimit.check("verify-ip", ratelimit.client_ip(request), limit=10, window_seconds=60)
+    await ratelimit.check("verify-all", ratelimit.GLOBAL, limit=120, window_seconds=60)
+
     senior = await _senior_by_valid_code(payload.invite_code, db)
-    return VerifyCodeResponse(senior=SeniorOut.model_validate(senior))
+    # Redacted, not the full record — see InviteSeniorOut. A correct guess must not hand a
+    # stranger a senior's home address.
+    return VerifyCodeResponse(senior=InviteSeniorOut.redacted(senior))
 
 
 @router.post("/contacts/pair", response_model=PairResponse, status_code=status.HTTP_201_CREATED)
@@ -131,7 +154,7 @@ async def pair_contact(
         attribute_names=["id", "contact_type", "relationship_label", "created_at", "senior"],
     )
 
-    token = create_access_token(subject=user.username, role=user.role.value)
+    token = create_access_token(subject=str(user.id), role=user.role.value)
     return PairResponse(contact=ContactOut.model_validate(contact), token=Token(access_token=token))
 
 

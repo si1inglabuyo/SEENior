@@ -1,5 +1,6 @@
 package com.pup.seenior.network
 
+import com.pup.seenior.BuildConfig
 import com.google.gson.FieldNamingPolicy
 import com.google.gson.GsonBuilder
 import okhttp3.OkHttpClient
@@ -23,7 +24,21 @@ object RetrofitClient {
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(60, TimeUnit.SECONDS)
         .writeTimeout(30, TimeUnit.SECONDS)
-        .addInterceptor(HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BODY })
+        // BODY only in a debug build. This interceptor writes every request and response in
+        // full to logcat, which on this API means bearer tokens, the password posted to
+        // /auth/login, senior names and addresses, and an alert's precise geohash -- exactly
+        // the material CLAUDE.md §11 keeps off the wire and out of logs. A debug build is
+        // already readable over adb by anyone holding the handset, so it changes nothing
+        // there; a release build must never carry it.
+        .addInterceptor(
+            HttpLoggingInterceptor().apply {
+                level = if (BuildConfig.DEBUG) {
+                    HttpLoggingInterceptor.Level.BODY
+                } else {
+                    HttpLoggingInterceptor.Level.NONE
+                }
+            }
+        )
         .build()
 
     val api: ApiService = Retrofit.Builder()

@@ -1,0 +1,14 @@
+# Test-only dependencies. Deliberately NOT in requirements.txt, which is what Render
+# installs on every deploy -- a test runner has no business in the image that serves
+# alerts. Install locally with:
+#
+#     venv/Scripts/python.exe -m pip install -r requirements-dev.txt
+#
+# then run the suite from backend/ with:
+#
+#     SEENIOR_ALLOW_DEV_SECRET=1 venv/Scripts/python.exe -m pytest tests/ -q
+#
+# The env var is needed because app/core/config.py refuses to start on the default dev
+# SECRET_KEY unless you opt in, which is exactly what it should do.
+-r requirements.txt
+pytest==9.1.1

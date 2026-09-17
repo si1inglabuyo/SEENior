@@ -1,4 +1,5 @@
 from datetime import datetime
+from uuid import UUID
 
 from pydantic import BaseModel
 
@@ -16,11 +17,56 @@ class VerifyCodeRequest(BaseModel):
     invite_code: str
 
 
+class InviteSeniorOut(BaseModel):
+    """The redacted view of a senior handed back by the *unauthenticated* code check.
+
+    `POST /contacts/verify` needs no credentials by design -- the code is the credential --
+    so whatever it returns is readable by anyone who guesses a live six-digit code. It used
+    to return the full `SeniorOut`, which meant a correct guess disclosed a senior's home
+    address and mobile number to a stranger.
+
+    The fields kept here are exactly the five the Connected screen renders (first name, last
+    name, age, gender, barangay) -- enough for a family member to recognise their own
+    relative and no more. `address` and `mobile_number` keep their names and types so the
+    installed Android DTO still parses, but carry a redacted value: the screen never reads
+    either, and the pairing that follows is authenticated, after which the full record is
+    available through the normal contact endpoints.
+    """
+
+    sync_id: UUID
+    first_name: str
+    last_name: str
+    age: int
+    gender: str
+    barangay: str
+    address: str
+    mobile_number: str
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+    @classmethod
+    def redacted(cls, senior) -> "InviteSeniorOut":
+        return cls(
+            sync_id=senior.sync_id,
+            first_name=senior.first_name,
+            last_name=senior.last_name,
+            age=senior.age,
+            gender=senior.gender,
+            barangay=senior.barangay,
+            # Barangay only -- the same granularity the caller already sees in `barangay`,
+            # so this adds nothing and leaks nothing.
+            address=senior.barangay,
+            mobile_number="•••••••••••",
+            created_at=senior.created_at,
+        )
+
+
 class VerifyCodeResponse(BaseModel):
     """Returned when a family member checks a code on the Link screen — shows the
     senior on the Connected screen BEFORE anything is committed. No account is
     created here; that happens on POST /contacts/pair after they pick a relationship."""
-    senior: SeniorOut
+    senior: InviteSeniorOut
 
 
 class PairRequest(BaseModel):

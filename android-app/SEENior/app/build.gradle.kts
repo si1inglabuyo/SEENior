@@ -33,6 +33,9 @@ android {
     }
     buildFeatures {
         compose = true
+        // Needed for BuildConfig.DEBUG, which gates the OkHttp body logger in
+        // RetrofitClient. AGP 8 stopped generating BuildConfig unless asked.
+        buildConfig = true
     }
 }
 
