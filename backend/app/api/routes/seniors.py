@@ -7,7 +7,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import Contact, Senior, UnlinkActor
+from app.api.deps import require_role
+from app.db.models import Contact, Senior, SeniorStatus, UnlinkActor, User, UserRole
 from app.db.session import get_db
 from app.schemas.contact import InviteCodeOut
 from app.schemas.senior import (
@@ -15,6 +16,8 @@ from app.schemas.senior import (
     SeniorDeletionRequest,
     SeniorHeartbeat,
     SeniorOut,
+    SeniorStatusOut,
+    SeniorStatusUpdate,
     SeniorUpdate,
 )
 
@@ -141,6 +144,58 @@ async def delete_senior(
         contact.unlinked_by = UnlinkActor.SENIOR
 
     await db.commit()
+
+
+# Built once at import time, like barangay.py's own; FastAPI runs the check per request.
+_responder_only = require_role(UserRole.BARANGAY_RESPONDER)
+
+
+@router.patch("/{sync_id}/status", response_model=SeniorStatusOut)
+async def set_senior_status(
+    sync_id: UUID,
+    payload: SeniorStatusUpdate,
+    db: AsyncSession = Depends(get_db),
+    responder: User = Depends(_responder_only),
+) -> Senior:
+    """Flips a senior between the barangay's active roster and its inactive list.
+
+    Lives here rather than in `barangay.py` purely for ownership: that file belongs to the
+    dashboard lane (CLAUDE.md §15) and this one does not, so putting it here is what keeps
+    the two lanes from colliding on the same file. The gating is the same as every route
+    over there -- a barangay_responder JWT, scoped to that responder's own barangay.
+
+    **What this does not do.** It does not stop monitoring, and it does not stop this
+    senior's alerts reaching the barangay. The server cannot switch off a handset, and the
+    barangay is the last tier in the escalation chain -- dropping it on a roster flag would
+    produce an alert with nowhere left to go, silently, for a senior whose family contacts
+    may also be unlinked. The dashboard's confirm copy currently says "Monitoring stops",
+    which this deliberately does not make true; see docs/handoff-senior-status.md.
+
+    Idempotent: setting the status it already has returns the current row untouched, rather
+    than rewriting the audit fields and claiming a change nobody made.
+    """
+    senior = await _get_senior_or_404(sync_id, db)
+
+    # A senior who deleted their own account is not a roster entry to be tidied -- their
+    # record is gone by their own decision, and a responder flipping its status would be
+    # writing to something that should not be on any list at all.
+    if senior.deleted_at is not None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Senior not found")
+
+    # Same barangay scoping as every route in barangay.py, and the same 404-not-403: which
+    # seniors exist outside a responder's own barangay is not theirs to learn.
+    if not responder.barangay or senior.barangay != responder.barangay:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Senior not found")
+
+    if senior.status == payload.status:
+        return senior
+
+    senior.status = payload.status
+    senior.status_changed_at = datetime.now(timezone.utc).replace(tzinfo=None)
+    senior.status_changed_by = responder.id
+    await db.commit()
+    await db.refresh(senior)
+    return senior
 
 
 @router.post("/{sync_id}/invite", response_model=InviteCodeOut)

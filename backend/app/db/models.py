@@ -33,6 +33,29 @@ class UnlinkActor(str, enum.Enum):
     FAMILY = "family"
 
 
+class SeniorStatus(str, enum.Enum):
+    """Whether a barangay still carries this senior on its active roster.
+
+    **Not a deletion, and not the same axis as `deleted_at`.** The two answer different
+    questions and either can be true without the other:
+
+    * `deleted_at` is the *senior's own* decision, made in their app, which wipes the
+      handset's local database and ends monitoring for real (§11a).
+    * `status` is the *responder's* bookkeeping about their own roster — this person moved
+      away, passed away, or left the programme — and touches nothing on the handset,
+      because the server cannot reach into a phone and switch its monitoring off.
+
+    **Marking a senior INACTIVE does not stop their alerts reaching the barangay, and must
+    not be made to.** A phone that is still running still detects, and the barangay tier is
+    the last one in the chain: if the family contacts are also unlinked, silently dropping
+    tier 3 would mean an alert with nowhere left to go and nobody told it went nowhere.
+    Roster hygiene is worth having; it is not worth a silent hole in the escalation chain.
+    """
+
+    ACTIVE = "active"
+    INACTIVE = "inactive"
+
+
 class RiskLevel(str, enum.Enum):
     LOW = "low"
     MEDIUM = "medium"
@@ -196,6 +219,26 @@ class Senior(Base):
     deleted_at: Mapped[datetime | None] = mapped_column(nullable=True)
     deletion_reason: Mapped[str | None] = mapped_column(String(64), nullable=True)
     deletion_note: Mapped[str | None] = mapped_column(String(500), nullable=True)
+
+    # Barangay roster state (migration 0012). See SeniorStatus for what this is and, more
+    # importantly, what it deliberately is not: it governs whether a responder still counts
+    # this senior among the people they watch, and never whether an alert reaches them.
+    #
+    # Server default "active" rather than nullable, so every existing row and every future
+    # one has an answer. A tri-state where NULL meant "probably active" would put the
+    # guessing in every query that reads it.
+    status: Mapped[SeniorStatus] = mapped_column(
+        Enum(SeniorStatus, name="senior_status", values_callable=_enum_values),
+        server_default=SeniorStatus.ACTIVE.value,
+        nullable=False,
+    )
+    # Who last flipped it and when. Unlike deleted_at, this is one person acting on another
+    # person's record, so "a responder did this" is not enough -- it has to be answerable
+    # which one. Nullable because rows predating the column were never flipped by anybody.
+    status_changed_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    status_changed_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id"), nullable=True
+    )
 
     contacts: Mapped[list["Contact"]] = relationship(back_populates="senior")
     alerts: Mapped[list["Alert"]] = relationship(back_populates="senior")
