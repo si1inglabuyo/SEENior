@@ -3,6 +3,7 @@ package com.pup.seenior.detection
 import com.pup.seenior.baseline.SeedBaselineGenerator
 import com.pup.seenior.database.entities.Baseline
 import com.pup.seenior.database.entities.DailyAggregate
+import com.pup.seenior.database.entities.SeniorOnboarding
 
 /**
  * Phase 2 of the Isolation Forest build (CLAUDE.md §5, Layer 2) — turns one real block-day into
@@ -113,4 +114,45 @@ object AggregateFeatures {
         val count = aggregate.sampleCount ?: return false
         return count >= expectedSampleCount * minimumFraction
     }
+
+    /**
+     * The same judgement as the overload above, but working out the expected count from
+     * [onboarding] instead of being handed it.
+     *
+     * This overload is the one both detection layers call, and that is the whole point of it
+     * existing. The rule lived here for Layer 2 and nowhere for Layer 1, so a block the Isolation
+     * Forest refused to score was still folded into the Routine Fingerprint that Layer 1 compares
+     * every five-minute reading against. Measured on the pilot handset 2026-09-17: five nights
+     * between 09-06 and 09-12 were summarised from as few as 10 readings out of 60 while the
+     * handset was frozen, and because `inactivity_duration` is a running counter that keeps
+     * climbing through a freeze, each one reported enormous stillness nobody had actually
+     * observed. They dragged the night inactivity median to 6,039 s against the 3,717 s the
+     * fully-sampled nights alone give -- a 62% inflation of what "normal" means at night, in the
+     * direction that makes a genuine emergency harder to trip.
+     *
+     * A block either is or is not trustworthy; which layer is asking does not change the answer.
+     *
+     * @return false for a block whose `time_block` matches none of this senior's windows, since
+     *   there is no length to measure its sample count against.
+     */
+    fun isUsable(aggregate: DailyAggregate, onboarding: SeniorOnboarding): Boolean {
+        val expected = expectedSampleCount(onboarding, aggregate.timeBlock) ?: return false
+        return isUsable(aggregate, expected)
+    }
+
+    /**
+     * How many 5-minute readings a *full* block of this name should hold, for this senior.
+     *
+     * Deliberately derived from her own declared hours rather than being a constant: the four
+     * windows are carved out of her waking day by [SeedBaselineGenerator.computeTimeBlocks], so a
+     * "night" is five hours for one senior and eleven for another, and judging one against the
+     * other's expected count would throw away good data for the wrong reason.
+     */
+    fun expectedSampleCount(onboarding: SeniorOnboarding, timeBlock: String): Int? =
+        SeedBaselineGenerator.computeTimeBlocks(onboarding.wakeTime, onboarding.sleepTime)
+            .firstOrNull { it.block.name.lowercase() == timeBlock }
+            ?.let { it.durationMinutes / POLL_INTERVAL_MINUTES }
+
+    /** CLAUDE.md §4's sampling cadence, used to turn a block's length into an expected row count. */
+    private const val POLL_INTERVAL_MINUTES = 5
 }

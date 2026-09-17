@@ -1,6 +1,5 @@
 package com.pup.seenior.detection
 
-import com.pup.seenior.baseline.SeedBaselineGenerator
 import com.pup.seenior.database.dao.AlertDao
 import com.pup.seenior.database.dao.BaselineDao
 import com.pup.seenior.database.dao.DailyAggregateDao
@@ -62,9 +61,6 @@ object IsolationForestDetector {
     private const val TRIGGER_TYPE = "ml_flag"
 
     private const val STATUS_LOGGED = "logged"
-
-    /** CLAUDE.md §4's sampling cadence, used to turn a block's length into an expected row count. */
-    private const val POLL_INTERVAL_MINUTES = 5
 
     /**
      * How recently a block must have been rolled up for a flag on it to be worth raising.
@@ -129,7 +125,7 @@ object IsolationForestDetector {
 
         val trainingRows = dailyAggregateDao
             .getRecentDays(seniorId, TRAINING_WINDOW_DAYS)
-            .filter { usable(it, onboarding) }
+            .filter { AggregateFeatures.isUsable(it, onboarding) }
 
         if (trainingRows.size < MIN_TRAINING_ROWS) return Outcome.NotEnoughData(trainingRows.size)
 
@@ -148,7 +144,7 @@ object IsolationForestDetector {
             // A thin block keeps its null score rather than being given a number nobody should
             // trust. Null is the honest record of "never judged", and it costs one skipped row
             // per run to leave it that way.
-            if (!usable(aggregate, onboarding)) continue
+            if (!AggregateFeatures.isUsable(aggregate, onboarding)) continue
 
             val score = forest.score(AggregateFeatures.vector(aggregate, baselines))
             dailyAggregateDao.updateIsolationForestScore(aggregate.aggregateId, score)
@@ -260,13 +256,4 @@ object IsolationForestDetector {
      * from a constant: a five-hour night and an eleven-hour night are both perfectly normal
      * depending on whose they are, and one senior's full night is another's thin one.
      */
-    private fun usable(aggregate: DailyAggregate, onboarding: SeniorOnboarding): Boolean {
-        val expected = expectedSampleCount(onboarding, aggregate.timeBlock) ?: return false
-        return AggregateFeatures.isUsable(aggregate, expected)
-    }
-
-    private fun expectedSampleCount(onboarding: SeniorOnboarding, timeBlock: String): Int? =
-        SeedBaselineGenerator.computeTimeBlocks(onboarding.wakeTime, onboarding.sleepTime)
-            .firstOrNull { it.block.name.lowercase() == timeBlock }
-            ?.let { it.durationMinutes / POLL_INTERVAL_MINUTES }
 }
