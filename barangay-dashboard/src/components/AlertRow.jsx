@@ -1,13 +1,12 @@
 import { alertCategory, CATEGORY_LABEL } from '../labels'
-import { initials } from '../format'
+import { initials, dateTimeLabel } from '../format'
 import StatusPill from './StatusPill'
 
-// One incident row, shared by the Alerts queue and Alert History -- identical markup on
-// both screens (the only difference is which alerts each hands in). The row itself carries
-// no controls: it shows who the alert is about plus the type and status badges, and the
-// whole row is a button that opens the Details modal. Acknowledge / Resolve / False
-// Positive now live inside that modal (see AlertDetailsModal), so a responder always sees
-// the full context -- description, time, last known location -- before acting.
+// One incident row, shared by the Alerts queue and Alert History's chronological view --
+// identical markup on both screens (the only difference is which alerts each hands in). The
+// row itself carries no controls: it shows who the alert is about, when it fired, and the
+// type/status badges, and the whole row is a button that opens the Details modal.
+// Acknowledge / Resolve / False Positive live inside that modal.
 const CATEGORY_CLASS = {
   sos: 'type-badge-sos',
   dispatch_family: 'type-badge-dispatch',
@@ -33,6 +32,9 @@ export default function AlertRow({ alert, onShowDetails }) {
       <span className="avatar">{initials(alert.senior_name)}</span>
       <div className="queue-row-main">
         <p className="alert-row-name">{alert.senior_name}</p>
+        <p className="queue-row-meta">
+          <span className="queue-row-time">{dateTimeLabel(alert.created_at)}</span>
+        </p>
       </div>
 
       <div className="queue-row-side">

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { api, parseServerTime } from '../api'
 import { initials, dateTimeLabel, maskPhone } from '../format'
 import { triggerLabel, alertCategory, CATEGORY_LABEL } from '../labels'
-import { DEACTIVATE_ACTION } from '../seniorActions'
+import { DEACTIVATE_ACTION, REACTIVATE_ACTION } from '../seniorActions'
 import { recordAccess } from '../audit'
 import {
   IconArrowLeft,
@@ -17,6 +17,7 @@ import SectionCard from './SectionCard'
 import ConfirmDialog from './ConfirmDialog'
 import Toast from './Toast'
 import AlertDetailsModal from './AlertDetailsModal'
+import DeviceBadge from './DeviceBadge'
 
 // ---------------------------------------------------------------------------------------
 // RA 10173 (Data Privacy Act of 2012) — why fields on this screen are gated
@@ -31,7 +32,7 @@ import AlertDetailsModal from './AlertDetailsModal'
 //
 //   §13 sensitive personal information — kept off the default view for the same reason.
 //
-//   §13(c) vital-interests exception — full home address, and the emergency contact's
+//   §13(c) vital-interests exception — full home address, and the family contact's
 //   name / relationship / phone, unlock ONLY while this senior has an open (escalated)
 //   alert, i.e. an active emergency. This is an exception, not a standing default: when
 //   the alert closes, the extra fields lock again.
@@ -71,6 +72,7 @@ export default function SeniorDetail({
   fallbackSenior,
   isDeactivated,
   onDeactivate,
+  onReactivate,
   onBack,
   onSessionLost,
 }) {
@@ -80,8 +82,10 @@ export default function SeniorDetail({
   const [error, setError] = useState('')
 
   const [confirming, setConfirming] = useState(false)
-  const [toastOpen, setToastOpen] = useState(false)
+  const [toastMsg, setToastMsg] = useState(null)
   const [detailsAlert, setDetailsAlert] = useState(null)
+
+  const accountAction = isDeactivated ? REACTIVATE_ACTION : DEACTIVATE_ACTION
 
   // Disclosures beyond the default view. Each flips on via an explicit click that also
   // writes an access-audit entry (RA 10173 §23(a)).
@@ -125,13 +129,15 @@ export default function SeniorDetail({
     }
   }, [syncId, fallbackSenior, onSessionLost])
 
-  function confirmDeactivate() {
+  function confirmAccountToggle() {
     // The write that persists this is a backend endpoint that doesn't exist yet (needs a
-    // `seniors.status` column -- see SeniorRoster). Until then onDeactivate() updates the
-    // client store so the List and this page reflect it immediately, as the mockup shows.
-    onDeactivate()
+    // `seniors.status` column -- see SeniorRoster). Until then the on(De)activate callbacks
+    // update the client store so the List and this page reflect it immediately.
+    const message = accountAction.successMessage
+    if (isDeactivated) onReactivate()
+    else onDeactivate()
     setConfirming(false)
-    setToastOpen(true)
+    setToastMsg(message)
   }
 
   const profile = useMemo(
@@ -145,6 +151,9 @@ export default function SeniorDetail({
         address: fallbackSenior.address,
         mobile_number: fallbackSenior.mobile_number,
         living_arrangement: null,
+        last_seen_at: fallbackSenior.last_seen_at,
+        battery_percent: fallbackSenior.battery_percent,
+        is_charging: fallbackSenior.is_charging,
         contacts: [],
         alerts: fallbackAlerts || [],
       }),
@@ -205,9 +214,8 @@ export default function SeniorDetail({
             <div className="gate-banner" role="status">
               <IconEye />
               <span>
-                <strong>Active alert.</strong> Full home address and emergency-contact
-                details are unlocked for the duration of this emergency under RA 10173
-                §13(c) (vital interests). This access is being logged.
+                <strong>Active alert.</strong> Full home address and family-contact
+                details are unlocked for the duration of this emergency. This access is being logged.
               </span>
             </div>
           )}
@@ -237,7 +245,7 @@ export default function SeniorDetail({
                         <span className="reveal-field">
                           {maskPhone(profile.mobile_number)}
                           <button type="button" className="reveal-btn" onClick={revealPhone}>
-                            <IconEye /> Reveal &amp; call
+                            <IconEye /> View
                           </button>
                         </span>
                       )}
@@ -246,6 +254,10 @@ export default function SeniorDetail({
                   <div>
                     <dt>Open Alerts</dt>
                     <dd>{openAlerts.length === 0 ? 'None' : openAlerts.length}</dd>
+                  </div>
+                  <div>
+                    <dt>Monitoring device</dt>
+                    <dd><DeviceBadge senior={profile} /></dd>
                   </div>
 
                   {activeAlert ? (
@@ -272,18 +284,17 @@ export default function SeniorDetail({
 
               <button
                 type="button"
-                className="deactivate-btn"
-                disabled={isDeactivated}
+                className={isDeactivated ? 'deactivate-btn reactivate-btn' : 'deactivate-btn'}
                 onClick={() => setConfirming(true)}
               >
-                <IconSeniors /> {isDeactivated ? 'Account Deactivated' : 'Deactivate Account'}
+                <IconSeniors /> {isDeactivated ? 'Reactivate Account' : 'Deactivate Account'}
               </button>
             </SectionCard>
 
             <div className="senior-detail-side">
               <SectionCard
                 icon={<IconContacts />}
-                title="Emergency Contacts"
+                title="Family Contacts"
                 className="contacts-card"
               >
                 {phase === 'fallback' ? (
@@ -314,7 +325,7 @@ export default function SeniorDetail({
                   <p className="muted alerts-empty locked-note">
                     <IconLock />{' '}
                     {contacts.length} family contact{contacts.length === 1 ? '' : 's'} on record.
-                    Names and numbers unlock during an active alert (RA 10173 §13(c)).
+                    Names and numbers unlock during an active alert.
                   </p>
                 )}
               </SectionCard>
@@ -385,15 +396,13 @@ export default function SeniorDetail({
 
       {confirming && (
         <ConfirmDialog
-          action={DEACTIVATE_ACTION}
+          action={accountAction}
           busy={false}
           onCancel={() => setConfirming(false)}
-          onConfirm={confirmDeactivate}
+          onConfirm={confirmAccountToggle}
         />
       )}
-      {toastOpen && (
-        <Toast message={DEACTIVATE_ACTION.successMessage} onClose={() => setToastOpen(false)} />
-      )}
+      {toastMsg && <Toast message={toastMsg} onClose={() => setToastMsg(null)} />}
       {detailsAlert && (
         <AlertDetailsModal alert={detailsAlert} onClose={() => setDetailsAlert(null)} />
       )}

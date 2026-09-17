@@ -2,11 +2,6 @@
 // withinRange, not a raw server string) so the combining rules can be reasoned about and
 // tested on their own, away from React and the API client.
 
-export const STATUS_PILLS = [
-  ['all', 'All'],
-  ['active', 'Active'],
-  ['resolved', 'Resolved'],
-]
 export const TYPE_OPTIONS = ['anomaly', 'sos', 'dispatch_family']
 export const DATE_LABELS = {
   today: 'Today',
@@ -15,31 +10,30 @@ export const DATE_LABELS = {
   month: 'This month',
 }
 
-// The Dashboard's stat cards navigate here carrying a { status, when, trigger_type, label }
-// object (App.jsx's `navigate`). Translate it into this page's own filter state so the
-// list opens already narrowed to what the responder clicked:
-//   Active Alerts  -> Active pill
-//   Resolved Today -> Resolved pill + Date Range = Today
-//   SOS Triggered  -> Alert Type = SOS
+// The Dashboard navigates here carrying a { when, date, status, trigger_type, category,
+// label } object (App.jsx's `navigate`). Translate it into this page's own filter state so
+// the list opens already narrowed to what the responder clicked:
+//   Resolved Today        -> Date Range = Today
+//   SOS Triggered         -> Alert Type = SOS + Date Range = Today
+//   Alerts-by-Type slice  -> Alert Type = that category
+//   Alerts-This-Week bar  -> Date Range = that one day
+//   Alerts-Outcome slice  -> status filter (resolved / false_positive); "active" goes to
+//                            the Alerts tab instead, since it isn't in the log
 export function initialFilters(navFilter) {
-  const f = { statusPill: 'all', alertType: 'all', dateRange: null }
+  const f = { alertType: 'all', dateRange: null }
   if (!navFilter) return f
-  if (navFilter.status === 'escalated' || navFilter.status === 'acknowledged') {
-    f.statusPill = 'active'
-  } else if (navFilter.status === 'resolved' || navFilter.status === 'false_positive') {
-    f.statusPill = 'resolved'
-    if (navFilter.when === 'today') f.dateRange = { kind: 'today' }
-  }
+  if (navFilter.when === 'today') f.dateRange = { kind: 'today' }
+  if (navFilter.date) f.dateRange = { kind: 'custom', start: navFilter.date, end: navFilter.date }
   if (navFilter.trigger_type === 'sos') f.alertType = 'sos'
+  if (navFilter.category) f.alertType = navFilter.category
   return f
 }
 
-// "Active" and "Resolved" each cover two underlying statuses -- the same open/closed split
-// the Dashboard's outcome donut uses, so the pill and the donut always agree.
-export function matchesStatus(alert, pill) {
-  if (pill === 'active') return alert.status === 'escalated' || alert.status === 'acknowledged'
-  if (pill === 'resolved') return alert.status === 'resolved' || alert.status === 'false_positive'
-  return true
+// An alert still open at the barangay tier vs. one that's been closed. Alert History (and
+// the `history` API scope) shows only the closed ones; the Details modal uses this to
+// decide whether to show operational fields like Last Known Location.
+export function isActiveAlert(alert) {
+  return alert.status === 'escalated' || alert.status === 'acknowledged'
 }
 
 // `date` is the alert's created_at already parsed to a real instant. Bounds are reckoned
@@ -73,6 +67,31 @@ export function withinRange(date, range) {
     return true
   }
   return date >= start && date < end
+}
+
+// The same windows as withinRange, but as inclusive YYYY-MM-DD bounds to hand to the API
+// so the server can filter before the row cap applies -- otherwise a barangay with a long
+// history can only ever see (and search) the most recent page. `to` is the last day to
+// include; the backend treats it as "< to + 1 day". Returns null for "no date filter".
+export function rangeBounds(range) {
+  if (!range) return null
+  const iso = (d) => d.toISOString().slice(0, 10)
+  const now = new Date()
+  const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const DAY = 86400000
+  if (range.kind === 'today') return { from: iso(midnight), to: iso(midnight) }
+  if (range.kind === 'yesterday') {
+    const y = new Date(midnight.getTime() - DAY)
+    return { from: iso(y), to: iso(y) }
+  }
+  if (range.kind === 'week') return { from: iso(new Date(midnight.getTime() - 6 * DAY)), to: iso(midnight) }
+  if (range.kind === 'month') {
+    return { from: iso(new Date(now.getFullYear(), now.getMonth(), 1)), to: iso(midnight) }
+  }
+  if (range.kind === 'custom' && range.start && range.end) {
+    return { from: range.start, to: range.end }
+  }
+  return null
 }
 
 export function matchesSearch(alert, query) {

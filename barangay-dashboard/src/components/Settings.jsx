@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
-import { api } from '../api'
-import { IconBuilding } from '../icons'
+import { api, formatTime } from '../api'
+import { readAccessLog, ACCESS_ACTION_LABEL } from '../audit'
+import { IconBuilding, IconLock } from '../icons'
 import SectionCard from './SectionCard'
 import Toast from './Toast'
 
@@ -28,6 +29,9 @@ export default function Settings({ onSessionLost }) {
   const [saved, setSaved] = useState(loadSaved)
   const [form, setForm] = useState(loadSaved)
   const [toastOpen, setToastOpen] = useState(false)
+  // Newest first. Read once on mount -- the log only grows from this same browser, and a
+  // responder isn't watching it change live.
+  const [accessLog] = useState(() => [...readAccessLog()].reverse())
 
   useEffect(() => {
     let live = true
@@ -85,6 +89,34 @@ export default function Settings({ onSessionLost }) {
             </button>
           </div>
         </div>
+      </SectionCard>
+
+      <SectionCard icon={<IconLock />} title="Access Log">
+        <p className="settings-note muted">
+          Every time a responder reveals a phone number, opens an active-alert view, or
+          expands a senior’s full history, it is recorded here (RA 10173 §23(a)). This copy
+          is held in this browser; a central, tamper-evident trail is a backend change still
+          to come.
+        </p>
+        {accessLog.length === 0 ? (
+          <p className="muted alerts-empty">No access events recorded on this device yet.</p>
+        ) : (
+          <ul className="access-log">
+            {accessLog.slice(0, 100).map((entry, i) => (
+              <li key={i} className="access-log-row">
+                <span className="access-log-when">{formatTime(entry.at)}</span>
+                <span className="access-log-what">
+                  {ACCESS_ACTION_LABEL[entry.action] || entry.action}
+                </span>
+                {entry.target?.sync_id && (
+                  <span className="access-log-who muted">
+                    senior {String(entry.target.sync_id).slice(0, 8)}
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
       </SectionCard>
 
       {toastOpen && (

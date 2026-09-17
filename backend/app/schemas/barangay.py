@@ -12,10 +12,11 @@ class BarangayAlertOut(BaseModel):
     Wider than AlertOut on purpose. A family member already knows who their senior is and
     where they live; a responder is being asked to go to a house and has to be told.
 
-    Sharing the senior's name and address with the barangay during an active alert is
-    permitted under RA 10173 §12(c), the vital-interests provision (CLAUDE.md §11) -- an
-    explicit exception, not a privacy hole. Note what is still absent: no sensor readings,
-    no coordinates, no behavioural history. Only who, where, and what happened.
+    Sharing the senior's name, address and alert-time location with the barangay during an
+    active alert is permitted under RA 10173 §12(c), the vital-interests provision
+    (CLAUDE.md §11) -- an explicit exception, not a privacy hole. Note what is still absent:
+    no sensor readings, no behavioural history, and no location on an ordinary day -- only
+    who, where, and what happened, for this one incident.
     """
 
     sync_id: UUID
@@ -25,6 +26,11 @@ class BarangayAlertOut(BaseModel):
     escalation_steps: list | None
     created_at: datetime
     resolved_at: datetime | None
+    # The senior's position when the alert fired -- a geohash (precise since 2026-08-31;
+    # older rows ~150 m). Captured once at trigger time, never continuously; null if no fix
+    # was obtained. The dashboard decodes it to a point on a map. Despite the column name
+    # this is NOT anonymised -- it is held under §12(c) (CLAUDE.md §11).
+    location_cluster_id: str | None
 
     senior_sync_id: UUID
     senior_name: str
@@ -94,6 +100,12 @@ class BarangaySeniorDetail(BaseModel):
     mobile_number: str
     living_arrangement: str
     has_family_contact: bool
+    # Device health, same three fields the roster carries -- so the record can tell the
+    # responder whether the phone that is supposed to be watching this senior is still
+    # checking in. Not behaviour, not location (CLAUDE.md §11 / BarangaySeniorOut).
+    last_seen_at: datetime | None
+    battery_percent: int | None
+    is_charging: bool | None
     contacts: list[BarangayContactOut]
     alerts: list[BarangayAlertOut]
 
@@ -116,11 +128,11 @@ class BarangayStats(BaseModel):
     alerts_this_week: list[DayCount]
     outcomes: dict[str, int]
 
-    # This week's alerts broken down by `trigger_type` (inactivity / movement / screen_idle /
-    # charging / sos / ml_flag / fall_pattern), for the dashboard's "Alerts by Type" chart.
-    # Same week window and same non-pending rows the bar chart and outcome donut use. Keyed
-    # by the raw code; the dashboard maps each to a short human label.
-    alert_types: dict[str, int] = {}
+    # This week's alerts grouped into the three responder-facing categories -- `anomaly`
+    # (passive detection), `sos` (senior pressed the button), `dispatch_family` (a relative
+    # asked for a welfare check). Same week window and same non-pending rows the bar chart
+    # and outcome donut use. Backs the dashboard's clickable "Alerts by Type" donut.
+    alert_categories: dict[str, int] = {}
 
     # Dashboard stat-card figures. All scoped to this responder's barangay and reckoned
     # against the database clock (see db_now) so "today" means the same day the stored

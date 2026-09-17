@@ -7,11 +7,11 @@ both -- one responder must never see another barangay's seniors.
 
 import logging
 from collections import Counter
-from datetime import timedelta
+from datetime import date, timedelta
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -73,6 +73,19 @@ def _display_gender(gender: str | None) -> str | None:
     return gender.strip().capitalize()
 
 
+def _alert_category(trigger_type: TriggerType, escalation_steps: list | None) -> str:
+    """The responder-facing category the dashboard groups alerts by. Mirrors the frontend's
+    alertCategory() (labels.js): SOS if the senior pressed the button, dispatch_family if a
+    relative asked for the welfare check (an `escalated_barangay` step, as opposed to the
+    server's `escalated_barangay_auto`), otherwise a passive-detection anomaly."""
+    if trigger_type == TriggerType.SOS:
+        return "sos"
+    for step in escalation_steps or []:
+        if isinstance(step, dict) and step.get("step") == "escalated_barangay":
+            return "dispatch_family"
+    return "anomaly"
+
+
 def _alert_out(alert: Alert) -> BarangayAlertOut:
     senior = alert.senior
     return BarangayAlertOut(
@@ -83,6 +96,7 @@ def _alert_out(alert: Alert) -> BarangayAlertOut:
         escalation_steps=alert.escalation_steps,
         created_at=alert.created_at,
         resolved_at=alert.resolved_at,
+        location_cluster_id=alert.location_cluster_id,
         senior_sync_id=senior.sync_id,
         senior_name=f"{senior.first_name} {senior.last_name}",
         senior_age=senior.age,
@@ -95,18 +109,38 @@ def _alert_out(alert: Alert) -> BarangayAlertOut:
 
 @router.get("/alerts", response_model=list[BarangayAlertOut])
 async def list_barangay_alerts(
-    scope: str = Query("active", pattern="^(active|history|today)$"),
+    scope: str = Query("active", pattern="^(active|history|today|all)$"),
+    q: str | None = Query(None, max_length=100),
+    date_from: date | None = Query(None),
+    date_to: date | None = Query(None),
+    full: bool = Query(False),
     db: AsyncSession = Depends(get_db),
     responder: User = Depends(responder_only),
 ) -> list[BarangayAlertOut]:
-    """The incident queue (`active`), the incident log (`history`), and today's feed (`today`).
+    """The incident queue (`active`), the incident log (`history`), today's feed (`today`),
+    and every non-pending alert (`all`).
 
     `active` is the work queue: incidents that have reached this barangay and are not
-    closed. `history` is everything already acted on, for the log view. `today` is every
-    non-pending alert raised since local midnight, open or closed, for the dashboard's
-    "Alerts Today" panel.
+    closed. `history` is closed incidents only (resolved or false positive), for the log
+    view -- a still-open alert is live work and belongs on the Alerts tab, not the log.
+    `today` is every non-pending alert raised since local midnight, open or closed, for
+    the dashboard's "Alerts Today" panel. `all` is every non-pending alert regardless of
+    status, for a drill-down that wants one category across the active / attending / closed
+    split (the dashboard's "Alerts by Type" chart links here).
 
-    All three deliberately exclude `pending`. An alert still inside the senior's own answer
+    `q` (matches the senior's name), `date_from` and `date_to` (inclusive, on created_at)
+    filter in SQL so the log's own controls are not limited to the most recent page. They
+    apply to any scope but only the history / drill-down views send them.
+
+    `history` is additionally floored at the last 30 days unless `full=true` or an explicit
+    `date_from` is given. This reflects RA 10173 §11(e) (retain personal data only as long
+    as necessary): pattern review needs a recent window, not an unbounded scroll, and
+    reaching past it is a deliberate, logged action on the client. A true archive -- moving
+    resolved / false-positive rows older than the window out of the hot table -- is a
+    `main`-lane job (it owns the alerts table and the sync pipeline); this floor is the
+    query-level stand-in until then.
+
+    All four deliberately exclude `pending`. An alert still inside the senior's own answer
     window, or one the family is in the middle of handling, has not reached the barangay
     yet -- showing it early would both leak an incident that is not theirs and train
     responders to react to alerts that resolve themselves a minute later.
@@ -133,8 +167,31 @@ async def list_barangay_alerts(
         now = await db_now(db)
         start_of_today = now.replace(hour=0, minute=0, second=0, microsecond=0)
         query = query.where(Alert.created_at >= start_of_today).limit(50)
-    else:
-        query = query.limit(100)
+    elif scope == "all":
+        query = query.limit(500)
+    else:  # history
+        query = query.where(
+            Alert.status.in_((AlertStatus.RESOLVED, AlertStatus.FALSE_POSITIVE))
+        ).limit(500)
+        # RA 10173 §11(e): the default log view is the last 30 days. `full=true` (a logged
+        # action on the client) or an explicit date_from lifts the floor.
+        if not full and date_from is None:
+            now = await db_now(db)
+            query = query.where(Alert.created_at >= now - timedelta(days=30))
+
+    if q:
+        needle = f"%{q.strip()}%"
+        query = query.where(
+            or_(
+                Senior.first_name.ilike(needle),
+                Senior.last_name.ilike(needle),
+                (Senior.first_name + " " + Senior.last_name).ilike(needle),
+            )
+        )
+    if date_from is not None:
+        query = query.where(Alert.created_at >= date_from)
+    if date_to is not None:
+        query = query.where(Alert.created_at < date_to + timedelta(days=1))
 
     result = await db.execute(query)
     return [_alert_out(alert) for alert in result.scalars().all()]
@@ -346,6 +403,9 @@ async def barangay_senior_detail(
         mobile_number=senior.mobile_number,
         living_arrangement="With Family" if family else "Lives alone",
         has_family_contact=bool(family),
+        last_seen_at=senior.last_seen_at,
+        battery_percent=senior.battery_percent,
+        is_charging=senior.is_charging,
         contacts=contacts_out,
         alerts=alerts_out,
     )
@@ -381,6 +441,7 @@ async def barangay_stats(
             Alert.status,
             Alert.trigger_type,
             Alert.resolved_at,
+            Alert.escalation_steps,
         ).where(
             Alert.senior_id.in_(senior_ids),
             Alert.status != AlertStatus.PENDING,
@@ -401,7 +462,9 @@ async def barangay_stats(
     ]
 
     outcomes = Counter(row.status.value for row in rows)
-    alert_types = Counter(row.trigger_type.value for row in rows)
+    alert_categories = Counter(
+        _alert_category(row.trigger_type, row.escalation_steps) for row in rows
+    )
 
     # Dashboard stat-card figures, all derived from the same week window already fetched --
     # today and yesterday both sit inside it, so no extra alert query is needed.
@@ -436,7 +499,7 @@ async def barangay_stats(
         open_incidents=open_result.scalar_one(),
         alerts_this_week=days,
         outcomes=dict(outcomes),
-        alert_types=dict(alert_types),
+        alert_categories=dict(alert_categories),
         resolved_today=resolved_today,
         sos_today=len(sos_today_times),
         sos_last_at=sos_today_times[-1] if sos_today_times else None,

@@ -28,7 +28,7 @@ export const STATUS_LABEL = {
   acknowledged: 'Family is handling it',
   escalated: 'Needs a welfare check',
   resolved: 'Closed',
-  false_positive: 'False alarm',
+  false_positive: 'False Positive',
 }
 
 // Every step name written by any tier: the phone (AlertEscalator), the family app, and
@@ -48,7 +48,7 @@ export const STEP_LABEL = {
   resolved_family: 'Closed by family',
   acknowledged_barangay: 'Responder is attending',
   resolved_barangay: 'Closed by responder',
-  false_positive_barangay: 'Marked a false alarm by responder',
+  false_positive_barangay: 'Marked a false positive by responder',
 }
 
 export const stepLabel = (step) => STEP_LABEL[step] || step
