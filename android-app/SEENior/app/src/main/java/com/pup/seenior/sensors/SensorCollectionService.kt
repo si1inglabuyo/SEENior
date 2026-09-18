@@ -72,6 +72,16 @@ class SensorCollectionService : Service(), SensorEventListener
     private var movementSampleCount = 0
     private var lastSignificantMovementAt = System.currentTimeMillis()
     private var latestStepCount = 0
+
+    /**
+     * Whether TYPE_STEP_COUNTER has delivered anything at all this run.
+     *
+     * Not the same question as `stepCounter != null`. The sensor can be present and still never
+     * report, most commonly because ACTIVITY_RECOGNITION was denied at onboarding -- one tap, and
+     * the witness [reconcileInactivity] depends on goes silent for the life of the install with
+     * nothing in the logs to say so.
+     */
+    private var stepCounterReported = false
     private var screenUnlockCount = 0
     private var screenOffSince: Long? = null
 
@@ -114,6 +124,15 @@ class SensorCollectionService : Service(), SensorEventListener
          * registered rate -- so no callbacks means nobody was listening, not that nobody moved.
          */
         val movementMeasured: Boolean,
+        /**
+         * Whether the step counter has ever reported, as opposed to [stepCount] sitting at zero
+         * because nothing is feeding it.
+         *
+         * Same distinction [movementMeasured] draws, for the sensor [reconcileInactivity] leans
+         * on as its witness. A silent counter is not a senior who took no steps, and the two must
+         * not be allowed to look alike -- see [reconcileInactivity] for what happens when they do.
+         */
+        val stepCountObserved: Boolean,
     )
 
     private val screenReceiver = object : BroadcastReceiver() {
@@ -414,6 +433,7 @@ class SensorCollectionService : Service(), SensorEventListener
             }
             Sensor.TYPE_STEP_COUNTER -> synchronized(stateLock) {
                 latestStepCount = event.values[0].toInt()
+                stepCounterReported = true
             }
         }
     }
@@ -529,6 +549,7 @@ class SensorCollectionService : Service(), SensorEventListener
             screenUnlockCount = screenUnlockCount,
             stepCount = latestStepCount,
             movementMeasured = movementMeasured,
+            stepCountObserved = stepCounterReported,
         )
         movementSampleSum = 0.0
         movementSampleCount = 0
@@ -631,29 +652,39 @@ class SensorCollectionService : Service(), SensorEventListener
      * nudge interval, since the next sample finds the steps flat and the clock running
      * again from here. The opposite error is an alarm about a senior who was walking
      * around, and this system has already been measured doing that.
+     *
+     * **When there is no witness at all, the gap is capped rather than believed.** A flat step
+     * count means one of two opposite things -- the counter was awake and saw no steps, or nothing
+     * was ever feeding it -- and only the first is evidence. Without [SensorSnapshot.stepCountObserved]
+     * the two were indistinguishable, so on a handset with no TYPE_STEP_COUNTER, or one where
+     * ACTIVITY_RECOGNITION was denied at onboarding, `stepsDuringGap` was permanently 0 and *every*
+     * slept gap was recorded as stillness that was never observed. That is the contamination that
+     * dragged the pilot's night baseline from 3,717 s to 6,039 s over five frozen nights
+     * (see BaselineUpdater's thin-block filter) arriving by a different road, on a device that is
+     * not misbehaving at all -- it simply lacks the sensor, or was never granted it.
+     *
+     * The rule is the one the whole function already follows: time nobody could measure is not
+     * counted as stillness. A missing witness is the strongest case for it, not an exception.
      */
     private fun reconcileInactivity(
         now: Long,
         previous: SensorData?,
         snapshot: SensorSnapshot,
     ): Long {
-        if (previous == null) return snapshot.inactivityDurationSeconds
+        // A reboot restarts the counter from zero, so a decrease is a reboot boundary and not a
+        // negative number of steps. Same rule the nightly aggregation applies to the same sensor.
+        val stepsDuringGap = previous?.let { snapshot.stepCount - it.stepCount } ?: 0
 
-        val gapMillis = now - previous.timestamp
-        if (gapMillis <= POLL_INTERVAL_MS * 2) return snapshot.inactivityDurationSeconds
-
-        // A reboot restarts the counter from zero, so a decrease is a reboot boundary and
-        // not a negative number of steps. Same rule the nightly aggregation applies to the
-        // same sensor.
-        val stepsDuringGap = snapshot.stepCount - previous.stepCount
-        if (stepsDuringGap <= 0) return snapshot.inactivityDurationSeconds
-
-        Log.i(
-            TAG_WAKE,
-            "Slept " + (gapMillis / 1000) + "s with " + stepsDuringGap + " step(s); " +
-                "capping inactivity at " + (LISTEN_WINDOW_MS / 1000) + "s"
+        val verdict = InactivityReconciler.reconcile(
+            rawSeconds = snapshot.inactivityDurationSeconds,
+            gapMillis = previous?.let { now - it.timestamp },
+            pollIntervalMs = POLL_INTERVAL_MS,
+            listenWindowMs = LISTEN_WINDOW_MS,
+            stepCountObserved = snapshot.stepCountObserved,
+            stepsDuringGap = stepsDuringGap,
         )
-        return minOf(snapshot.inactivityDurationSeconds, LISTEN_WINDOW_MS / 1000)
+        if (verdict is InactivityReconciler.Verdict.Capped) Log.i(TAG_WAKE, verdict.reason)
+        return verdict.seconds
     }
 
     /**
