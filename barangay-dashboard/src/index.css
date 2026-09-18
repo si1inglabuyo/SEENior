@@ -593,6 +593,7 @@ h4 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase;
 .location-address { margin: 0 0 4px; font-weight: 600; }
 .location-coords { margin: 0 0 6px; font-size: 12px; color: var(--muted); }
 .location-coords a { color: var(--accent-ink); }
+.location-home { margin: 0 0 6px; font-size: 13px; }
 .location-note { margin: 0; font-size: 12px; }
 
 /* Escalation timeline -- the audit trail of who did what, from escalation_steps. */

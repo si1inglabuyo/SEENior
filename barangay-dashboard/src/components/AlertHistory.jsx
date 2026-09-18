@@ -139,12 +139,20 @@ export default function AlertHistory({ onSessionLost, navFilter, onClearFilter }
     return () => clearTimeout(t)
   }, [search])
 
-  // The deployed API only knows scope=active|history|today (no `all`), so every drill-down
-  // into this page fetches `history` and narrows client-side: a category (Alerts by Type),
-  // a single day (Alerts This Week), or a status (an Alerts Outcome slice -- resolved /
-  // false_positive). The page remounts when navFilter changes (App.jsx key), so reading it
-  // here is enough.
-  const scope = 'history'
+  // Which scope to fetch depends on what the stat/chart being drilled into actually counts.
+  // "Resolved Today" and an Alerts-Outcome slice (status: resolved / false_positive) only
+  // ever mean closed alerts, so `history` (resolved/false_positive, per barangay.py) is
+  // correct for those. But the Alerts-This-Week bar, "SOS Triggered" and Alerts-by-Type all
+  // come from /barangay/stats counts that include every alert not still `pending` --
+  // escalated and acknowledged included. Routing those through `history` silently drops any
+  // still-open alert, so a bar/slice can show a count with nothing underneath when clicked.
+  // `scope=all` (narrowed client-side, and by date_from/date_to below when a day was
+  // clicked) fixes that by including every status. The page remounts when navFilter changes
+  // (App.jsx key), so reading it here is enough.
+  const scope =
+    navFilter && (navFilter.date || navFilter.trigger_type || navFilter.category)
+      ? 'all'
+      : 'history'
   const navStatus = (navFilter && navFilter.status) || null
   // Name and date filters go to the server so the log's own controls aren't limited to the
   // most recent page (the row cap). Bounds is null when no date filter is set.

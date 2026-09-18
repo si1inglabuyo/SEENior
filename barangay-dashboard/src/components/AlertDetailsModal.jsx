@@ -1,20 +1,38 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { triggerLabel, stepLabel } from '../labels'
 import { initials, dateTimeLabel } from '../format'
 import { canActOn } from '../alertActions'
 import { isActiveAlert } from '../historyFilters'
 import { decodeGeohash, cellSizeMeters } from '../geohash'
+import { reverseGeocode } from '../reverseGeocode'
 import Modal from './Modal'
 
 // "Last Known Location" -- the senior's actual position at the moment the alert fired,
 // captured once (never continuously) and stored as a precision geohash. Since 2026-08-31
 // this is a precise fix, held lawfully under RA 10173 §12(c) during an active emergency,
 // NOT an anonymised cluster (root CLAUDE.md §11 -- do not call it anonymous). We decode the
-// geohash to coordinates and show the real spot on an OpenStreetMap tile, with the
-// registered street address kept alongside because the responder still needs a name to
-// read out. Older alerts carry a ~150 m cell; we say "approximate area" for those.
+// geohash to coordinates, show the real spot on an OpenStreetMap tile, and reverse-geocode
+// it to a short place name (e.g. "Central Village, Pasig") so the responder isn't reading
+// raw lat/lon off the screen. The registered home address is shown too, underneath -- it's
+// where the senior lives, not necessarily where the phone is right now, so the two are
+// labelled separately rather than presented as one address. When no fix exists for this
+// alert at all, the home address is the only thing we have and becomes the whole panel.
+// Older alerts carry a ~150 m cell; we say "approximate area" for those.
 function LocationPreview({ address, clusterId }) {
   const cell = decodeGeohash(clusterId)
+  const [placeName, setPlaceName] = useState(null)
+
+  useEffect(() => {
+    if (!cell) return undefined
+    let cancelled = false
+    reverseGeocode(cell.lat, cell.lon).then((label) => {
+      if (!cancelled) setPlaceName(label)
+    })
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cell?.lat, cell?.lon])
 
   if (!cell) {
     // No usable fix on this alert -- show the address the barangay already holds, nothing more.
@@ -52,7 +70,7 @@ function LocationPreview({ address, clusterId }) {
         src={embedSrc}
       />
       <div className="location-text">
-        <p className="location-address">{address || 'Address not on file'}</p>
+        <p className="location-address">{placeName || `${lat.toFixed(5)}, ${lon.toFixed(5)}`}</p>
         <p className="location-coords">
           {precise ? 'Fix' : 'Approximate area'}: {lat.toFixed(5)}, {lon.toFixed(5)}
           {' · '}
@@ -60,6 +78,7 @@ function LocationPreview({ address, clusterId }) {
             Open in OpenStreetMap
           </a>
         </p>
+        <p className="location-home">Home address: {address || 'not on file'}</p>
         <p className="location-note muted">
           The senior’s position when the alert fired, captured once. Shared with the barangay
           for this emergency under RA 10173 §12(c){precise ? '' : ` (~${Math.round(metres)} m cell)`}.
