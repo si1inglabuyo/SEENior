@@ -305,6 +305,44 @@ object FuzzyRiskClassifier {
     }
 
     /**
+     * Seconds since the senior's declared nap ended, or null if they declared no nap.
+     *
+     * The companion to [isWithinNapWindow], and the reason it is not enough on its own.
+     * [isWithinNapWindow] gates on the *reading's own* timestamp, which is the right test for a
+     * per-sample measurement. But `inactivity_duration` and `screen_idle_duration` are running
+     * counters — "seconds since the last time X happened" — and they keep climbing all through the
+     * nap. The minute the window closes, the counter already holds the whole nap, and
+     * [MedianMadDetector] scores it in full against a block median that expects nothing of the
+     * kind.
+     *
+     * Measured on the pilot handset on 2026-09-16: her nap is declared 14:00 for 60 minutes and
+     * her afternoon block starts 14:20, so alerts 100 and 101 fired at 15:23 and 15:28 at z = 7.26
+     * and z = 8.20 — both `high`, both escalated, both self-cancelled — on a counter reading of
+     * roughly 3,593 s that had been accumulating since about 14:28. Half of that stretch was the
+     * nap she had told us about. Clipped to this value the same reading scores z = 2.13, under the
+     * 2.5 threshold, and neither alert is raised.
+     *
+     * This is the same shape as the wake-time bug that [SeedBaselineGenerator.secondsSinceBlockStart]
+     * exists to fix — a counter judged against a window that did not accumulate it — arriving at
+     * the other end of the nap instead of at the start of the morning.
+     *
+     * Away from the nap the answer is naturally large (it climbs to a full day just before the next
+     * one begins), so a caller taking `min` of this and the block elapsed time is unaffected on
+     * every reading except the ones just after the senior gets up. Inside the nap the question does
+     * not arise: [MedianMadDetector] has already returned by then.
+     */
+    fun secondsSinceNapEnd(timestampMillis: Long, napTime: String?, napDurationMinutes: Int?): Long? {
+        val start = napTime?.let { SeedBaselineGenerator.parseToMinuteOfDay(it) } ?: return null
+        val duration = napDurationMinutes ?: return null
+        if (duration <= 0) return null
+        val end = (start + duration) % MINUTES_PER_DAY
+        val minutesSince = ((minuteOfDay(timestampMillis) - end) + MINUTES_PER_DAY) % MINUTES_PER_DAY
+        // Plus the seconds inside the current minute, matching [secondsSinceBlockStart] so the two
+        // clips rise at the same rate and neither steps ahead of the other by up to a minute.
+        return minutesSince * 60L + secondOfMinute(timestampMillis)
+    }
+
+    /**
      * Minute of the day a timestamp falls on, in the device's own time zone.
      *
      * The senior's wake, sleep and nap times are local wall-clock strings they typed during
@@ -313,6 +351,12 @@ object FuzzyRiskClassifier {
     fun minuteOfDay(timestampMillis: Long): Int {
         val calendar = Calendar.getInstance().apply { timeInMillis = timestampMillis }
         return calendar.get(Calendar.HOUR_OF_DAY) * 60 + calendar.get(Calendar.MINUTE)
+    }
+
+    /** Seconds elapsed inside the current minute, on the same clock as [minuteOfDay]. */
+    private fun secondOfMinute(timestampMillis: Long): Int {
+        val calendar = Calendar.getInstance().apply { timeInMillis = timestampMillis }
+        return calendar.get(Calendar.SECOND)
     }
 
     /** Rises 0→1 from [from] to [to], or falls 1→0 when [from] is the larger. */

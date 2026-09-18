@@ -70,6 +70,10 @@ object MedianMadDetector {
      * time-block boundary while the Baseline they are scored against changes at it. See
      * [SeedBaselineGenerator.secondsSinceBlockStart] for what that did in production and why the
      * reading is clipped to the part of the streak that belongs to the current block.
+     *
+     * They climb straight across the end of the senior's declared nap for the same reason, which
+     * the nap window alone does not cover — see [FuzzyRiskClassifier.secondsSinceNapEnd] and the
+     * two alerts it was written for.
      */
     private val RUNNING_COUNTER_FEATURES = setOf("inactivity_duration", "screen_idle_duration")
 
@@ -121,6 +125,27 @@ object MedianMadDetector {
         val restExpectation =
             FuzzyRiskClassifier.restExpectation(minuteOfDay, onboarding.wakeTime, onboarding.sleepTime)
 
+        /*
+         * How much of a running counter this reading is allowed to be scored on: the part of the
+         * streak that belongs to this block AND happened after the senior's declared nap.
+         *
+         * Two separate stretches of excused stillness, and a counter can be carrying either. The
+         * block clip alone let the whole nap through the moment the window closed; the nap clip
+         * alone would let a streak from an earlier block through. Whichever excuses more of the
+         * reading is the one that applies, so it is `min` and not a choice between them.
+         *
+         * Null when the caller passed null — [AnomalySimulator]'s injected reading is not clipped
+         * at all, and adding a second clip must not quietly start clipping it.
+         */
+        val clipCeilingSeconds = blockElapsedSeconds?.let { elapsed ->
+            val sinceNapEnd = FuzzyRiskClassifier.secondsSinceNapEnd(
+                sensorData.timestamp,
+                onboarding.napTime.takeIf { onboarding.hasNap },
+                onboarding.napDurationMinutes
+            )
+            if (sinceNapEnd == null) elapsed else minOf(elapsed, sinceNapEnd)
+        }
+
         val created = mutableListOf<Alert>()
         val upgraded = mutableListOf<Int>()
         val readings = mapOf(
@@ -128,11 +153,11 @@ object MedianMadDetector {
             "movement_score" to sensorData.movementScore,
             "screen_idle_duration" to sensorData.screenIdleDuration.toDouble()
         ).mapValues { (featureName, value) ->
-            // A streak that began in an earlier block is not evidence about this one. Only the
-            // running counters are clipped; movement_score is measured fresh every sample and
-            // means the same thing wherever it is read.
-            if (blockElapsedSeconds != null && featureName in RUNNING_COUNTER_FEATURES) {
-                minOf(value, blockElapsedSeconds.toDouble())
+            // A streak that began in an earlier block, or inside the declared nap, is not
+            // evidence about this one. Only the running counters are clipped; movement_score is
+            // measured fresh every sample and means the same thing wherever it is read.
+            if (clipCeilingSeconds != null && featureName in RUNNING_COUNTER_FEATURES) {
+                minOf(value, clipCeilingSeconds.toDouble())
             } else {
                 value
             }

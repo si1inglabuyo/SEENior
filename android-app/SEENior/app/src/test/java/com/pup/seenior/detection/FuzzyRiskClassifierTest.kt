@@ -1,9 +1,12 @@
 package com.pup.seenior.detection
 
+import com.pup.seenior.baseline.SeedBaselineGenerator
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.util.Calendar
 
 /**
  * Validates Layer 3 by driving it with known inputs, per CLAUDE.md §10.
@@ -192,6 +195,79 @@ class FuzzyRiskClassifierTest {
         assertTrue(FuzzyRiskClassifier.isWithinNapWindow(15 * 60 + 59, "14:00", 120))
         assertFalse(FuzzyRiskClassifier.isWithinNapWindow(16 * 60, "14:00", 120))
         assertFalse(FuzzyRiskClassifier.isWithinNapWindow(13 * 60 + 59, "14:00", 120))
+    }
+
+    // ------------------------------------------------------------- the nap tail
+
+    /** A local-time instant today, on the same clock the production code reads. */
+    private fun at(hour: Int, minute: Int, second: Int = 0): Long =
+        Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, hour)
+            set(Calendar.MINUTE, minute)
+            set(Calendar.SECOND, second)
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+
+    private fun secondsSinceNapEnd(hour: Int, minute: Int, second: Int = 0) =
+        FuzzyRiskClassifier.secondsSinceNapEnd(at(hour, minute, second), "14:00", 60)
+
+    @Test
+    fun `seconds since nap end starts at zero the moment the window closes`() {
+        // The minute isWithinNapWindow stops suppressing is the minute this starts counting from,
+        // so no stretch of the day is excused by both and no stretch by neither.
+        assertFalse(FuzzyRiskClassifier.isWithinNapWindow(15 * 60, "14:00", 60))
+        assertEquals(0L, secondsSinceNapEnd(15, 0))
+        assertEquals(30L, secondsSinceNapEnd(15, 0, 30))
+        assertEquals(1680L, secondsSinceNapEnd(15, 28))
+    }
+
+    @Test
+    fun `seconds since nap end is null when no nap was declared`() {
+        val noon = at(12, 0)
+        assertNull(FuzzyRiskClassifier.secondsSinceNapEnd(noon, null, 60))
+        assertNull(FuzzyRiskClassifier.secondsSinceNapEnd(noon, "14:00", null))
+        assertNull(FuzzyRiskClassifier.secondsSinceNapEnd(noon, "14:00", 0))
+    }
+
+    @Test
+    fun `a nap crossing midnight counts forward from the far side`() {
+        // 23:30 + 60 min ends at 00:30. Half an hour later is half an hour, not twenty-three and a
+        // half — the modular arithmetic has to survive the wrap or the clip would excuse a whole
+        // day of stillness every morning.
+        assertEquals(1800L, FuzzyRiskClassifier.secondsSinceNapEnd(at(1, 0), "23:30", 60))
+    }
+
+    @Test
+    fun `away from the nap the tail clip yields to the block clip`() {
+        // Ten in the morning is nowhere near her nap, so this number is large and a caller taking
+        // `min` of it and the block elapsed time is left with the block elapsed time. The new clip
+        // must change nothing on the readings it was not written for.
+        val blockElapsed = 3600L
+        val sinceNapEnd = secondsSinceNapEnd(10, 0)!!
+        assertTrue(sinceNapEnd > blockElapsed)
+        assertEquals(blockElapsed, minOf(blockElapsed, sinceNapEnd))
+    }
+
+    @Test
+    fun `the pilot's two false alerts of 2026-09-16 no longer clear the threshold`() {
+        // Her real fingerprint for the afternoon block as the 2026-09-18 baseline pass wrote it.
+        val median = 1007.1
+        val mad = 315.4
+        val madFloor = SeedBaselineGenerator.MIN_MAD_FLOOR.getValue("inactivity_duration")
+
+        // Alert 101, 15:28. Her afternoon block starts 14:20, so the block clip alone allowed
+        // 4,080 s and the counter's own 3,593 s stood — thirty-two minutes of which were the nap
+        // she had declared.
+        val counterReading = 3593.0
+        val blockElapsed = 4080L
+        assertEquals(8.2, MedianMad.deviationsScore(
+            minOf(counterReading, blockElapsed.toDouble()), median, mad, madFloor), 0.05)
+
+        // With the nap tail clipped off, the same reading is twenty-eight minutes of stillness.
+        val napClipped = minOf(counterReading, secondsSinceNapEnd(15, 28)!!.toDouble())
+        assertEquals(1680.0, napClipped, 0.001)
+        assertEquals(2.13, MedianMad.deviationsScore(napClipped, median, mad, madFloor), 0.01)
+        assertTrue(MedianMad.deviationsScore(napClipped, median, mad, madFloor) < 2.5)
     }
 
     // ------------------------------------------- Layer 2 as the third antecedent (Phase 6)
