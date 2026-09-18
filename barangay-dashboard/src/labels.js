@@ -40,7 +40,6 @@ export const STEP_LABEL = {
   delivered_family: 'Alert reached the cloud',
   acknowledged_family: 'Family acknowledged',
   escalated_barangay: 'Family requested a barangay welfare check',
-  escalated_barangay_auto: 'No answer from family — escalated to barangay',
   no_family_contact: 'No family contact linked — skipped straight to barangay',
   self_cancelled: 'Senior answered: safe',
   self_cancelled_senior: 'Senior answered: safe',
@@ -51,7 +50,30 @@ export const STEP_LABEL = {
   false_positive_barangay: 'Marked a false positive by responder',
 }
 
-export const stepLabel = (step) => STEP_LABEL[step] || step
+// `escalated_barangay_auto` is one step code covering three different reasons the server's
+// sweep (backend/app/api/escalation.py, sweep_overdue_alerts/barangay_deadline) can have for
+// jumping straight to the barangay: an SOS press, a senior with no family contact at all, or
+// an ordinary no-response timeout. Those reasons are written into `entry.reason` verbatim, so
+// matching on that text -- rather than collapsing all three into one "no answer from family"
+// label -- is what actually tells a responder why they're looking at this incident.
+const ESCALATED_BARANGAY_AUTO_LABEL = [
+  ['SOS pressed', 'SOS pressed — escalated to barangay'],
+  ['No family contact', 'No family contact — escalated to barangay'],
+]
+
+function escalatedBarangayAutoLabel(reason) {
+  const hit = ESCALATED_BARANGAY_AUTO_LABEL.find(([needle]) => reason && reason.includes(needle))
+  return hit ? hit[1] : 'No answer from family — escalated to barangay'
+}
+
+// Takes a full escalation_steps entry (not just the step code) because a couple of step
+// types need more than their name to say what happened -- see escalatedBarangayAutoLabel
+// above. An unknown step code falls back to itself rather than vanishing.
+export function stepLabel(entry) {
+  const step = (entry && entry.step) ?? entry
+  if (step === 'escalated_barangay_auto') return escalatedBarangayAutoLabel(entry && entry.reason)
+  return STEP_LABEL[step] || step
+}
 export const triggerLabel = (trigger) => TRIGGER_LABEL[trigger] || trigger
 export const triggerShort = (trigger) => TRIGGER_SHORT[trigger] || trigger
 export const statusLabel = (status) => STATUS_LABEL[status] || status

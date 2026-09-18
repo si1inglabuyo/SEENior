@@ -86,7 +86,7 @@ function EscalationTimeline({ steps }) {
           <li key={i} className="timeline-item">
             <span className="timeline-dot" aria-hidden="true" />
             <div className="timeline-body">
-              <p className="timeline-step">{stepLabel(entry.step)}</p>
+              <p className="timeline-step">{stepLabel(entry)}</p>
               <p className="timeline-meta">
                 {dateTimeLabel(entry.at)}
                 {entry.by ? ` · ${entry.by}` : ''}
