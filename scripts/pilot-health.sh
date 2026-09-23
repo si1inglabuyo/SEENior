@@ -101,6 +101,47 @@ SELECT s.first_name || ' ' || s.last_name AS senior,
        date(o.onboarding_completed_at/1000,'unixepoch','+8 hours') AS onboarded
 FROM Seniors s LEFT JOIN Senior_Onboarding o ON o.senior_id = s.senior_id;
 
+-- How long each of this senior's four blocks is, and therefore how many 5-minute readings a
+-- full one holds. Mirrors SeedBaselineGenerator.computeTimeBlocks + AggregateFeatures
+-- .expectedSampleCount exactly, including their integer division: the awake day is split into
+-- three, the remainder lands on evening, and night is whatever is left of the 24 hours. A fixed
+-- threshold was wrong here -- it was 48, read off a 5-hour night -- and waved through daytime
+-- blocks the app had already discarded on a senior whose waking hours are longer.
+CREATE TEMP VIEW block_plan AS
+WITH o AS (
+  SELECT senior_id,
+         CAST(substr(wake_time, 1, instr(wake_time,':')-1) AS INT) * 60
+           + CAST(substr(wake_time, instr(wake_time,':')+1, 2) AS INT) AS wake_min,
+         CAST(substr(sleep_time, 1, instr(sleep_time,':')-1) AS INT) * 60
+           + CAST(substr(sleep_time, instr(sleep_time,':')+1, 2) AS INT) AS sleep_min
+  FROM Senior_Onboarding
+  WHERE wake_time IS NOT NULL AND sleep_time IS NOT NULL
+       AND instr(wake_time,':') > 0 AND instr(sleep_time,':') > 0
+),
+b AS (
+  SELECT senior_id,
+         ((sleep_min - wake_min) + 1440) % 1440              AS awake,
+         (((sleep_min - wake_min) + 1440) % 1440) / 3        AS blk,
+         1440 - (((sleep_min - wake_min) + 1440) % 1440)     AS night_dur
+  FROM o
+)
+SELECT senior_id, 'morning'   AS time_block, blk           AS minutes, blk/5           AS expected FROM b
+UNION ALL SELECT senior_id, 'afternoon', blk,              blk/5                                  FROM b
+UNION ALL SELECT senior_id, 'evening',   awake - 2*blk,    (awake - 2*blk)/5                      FROM b
+UNION ALL SELECT senior_id, 'night',     night_dur,        night_dur/5                            FROM b;
+
+.print ''
+.print '--- her blocks, derived from her own wake/sleep hours ---------'
+.print 'min = 80 pct of expected, the same line AggregateFeatures.isUsable draws'
+SELECT time_block,
+       minutes || 'm' AS length,
+       expected,
+       (expected*9 + 9)/10 AS healthy_at,
+       (expected*8 + 9)/10 AS min_usable
+FROM block_plan
+ORDER BY CASE time_block WHEN 'morning' THEN 1 WHEN 'afternoon' THEN 2
+                         WHEN 'evening' THEN 3 ELSE 4 END;
+
 .print ''
 .print '--- is the step counter alive? -------------------------------'
 .print '(all zero = no sensor, or Physical activity was denied. Not fatal'
@@ -122,24 +163,31 @@ FROM Sensor_Data;
 
 .print ''
 .print '--- block health (this is the answer) ------------------------'
-.print 'healthy >=55   dozing 48-54   DISCARDED <48'
-SELECT date, time_block, sample_count AS n,
-       CASE WHEN sample_count >= 55 THEN 'healthy'
-            WHEN sample_count >= 48 THEN 'dozing'
+.print 'judged against THIS senior blocks above, not a fixed count'
+SELECT d.date, d.time_block, d.sample_count AS n,
+       p.expected AS exp,
+       (p.expected*8 + 9)/10 AS min,
+       CASE WHEN p.expected IS NULL          THEN 'no hours on file'
+            WHEN d.sample_count IS NULL      THEN 'unknown (pre-column row)'
+            WHEN d.sample_count >= (p.expected*9 + 9)/10 THEN 'healthy'
+            WHEN d.sample_count >= (p.expected*8 + 9)/10 THEN 'dozing'
             ELSE 'DISCARDED' END AS verdict,
-       total_inactivity_duration AS inact, total_steps AS steps
-FROM Daily_Aggregates
-ORDER BY date DESC,
-         CASE time_block WHEN 'morning' THEN 1 WHEN 'afternoon' THEN 2
-                         WHEN 'evening' THEN 3 ELSE 4 END;
+       d.total_inactivity_duration AS inact, d.total_steps AS steps
+FROM Daily_Aggregates d
+LEFT JOIN block_plan p ON p.senior_id = d.senior_id AND p.time_block = d.time_block
+ORDER BY d.date DESC,
+         CASE d.time_block WHEN 'morning' THEN 1 WHEN 'afternoon' THEN 2
+                           WHEN 'evening' THEN 3 ELSE 4 END;
 
 .print ''
 .print '--- summary --------------------------------------------------'
 SELECT COUNT(*) AS blocks_recorded,
-       SUM(sample_count >= 48) AS usable,
-       SUM(sample_count < 48)  AS discarded,
-       ROUND(100.0 * SUM(sample_count >= 48) / NULLIF(COUNT(*),0), 1) AS pct_usable
-FROM Daily_Aggregates;
+       SUM(d.sample_count >= (p.expected*8 + 9)/10) AS usable,
+       SUM(d.sample_count <  (p.expected*8 + 9)/10) AS discarded,
+       ROUND(100.0 * SUM(d.sample_count >= (p.expected*8 + 9)/10)
+             / NULLIF(COUNT(*),0), 1) AS pct_usable
+FROM Daily_Aggregates d
+LEFT JOIN block_plan p ON p.senior_id = d.senior_id AND p.time_block = d.time_block;
 
 .print ''
 .print '--- baseline written yet? ------------------------------------'
@@ -159,6 +207,6 @@ SQL
 
 echo ''
 echo '--------------------------------------------------------------'
-echo " Any block under 48 means that phone froze the app. Redo step 4"
+echo " Any DISCARDED block means that phone froze the app. Redo step 4"
 echo " of the setup checklist for that brand before the fortnight runs."
 echo '--------------------------------------------------------------'
