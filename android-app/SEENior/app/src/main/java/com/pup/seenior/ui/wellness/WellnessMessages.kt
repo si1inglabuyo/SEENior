@@ -201,7 +201,7 @@ object WellnessMessages {
     private fun filipinoTrigger(triggerType: String) = when (triggerType) {
         "inactivity" -> "Matagal na Walang Paggalaw"
         "movement" -> "Hindi Pangkaraniwang Paggalaw"
-        "screen_idle" -> "Matagal na Hindi Nagagamit ang Telepono"
+        "screen_idle" -> "Matagal na Hindi Nagagamit ang Mobile Device"
         "charging" -> "Matagal nang Hindi Naka-charge"
         "fall_pattern" -> "Posibleng Pagkahulog"
         "ml_flag" -> "Hindi Pangkaraniwang Rutina"
@@ -217,9 +217,9 @@ object WellnessMessages {
             "movement" ->
                 "Ang inyong paggalaw ngayong $block ay iba sa inyong karaniwang rutina."
             "screen_idle" ->
-                "Matagal po ninyong hindi nagagamit ang inyong telepono kumpara sa karaniwan tuwing $block."
+                "Matagal po ninyong hindi nagagamit ang inyong mobile device kumpara sa karaniwan tuwing $block."
             "charging" ->
-                "Matagal na pong hindi naka-charge ang inyong telepono ngayong $block."
+                "Matagal na pong hindi naka-charge ang inyong mobile device ngayong $block."
             "fall_pattern" ->
                 "May natukoy pong biglaang paggalaw na parang pagkahulog."
             "ml_flag" ->
