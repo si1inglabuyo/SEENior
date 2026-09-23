@@ -18,9 +18,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.outlined.Contacts
 import androidx.compose.material.icons.outlined.Home
-import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.PersonAddAlt1
 import androidx.compose.material3.AlertDialog
@@ -134,7 +134,7 @@ private val TAB_ICON_ALERTS_SIZE = 32.dp
 private enum class SeniorTab(val icon: ImageVector) {
     HOME(Icons.Outlined.Home),
     INVITE(Icons.Outlined.PersonAddAlt1),
-    ALERTS(Icons.Outlined.Notifications),
+    ALERTS(Icons.Filled.NotificationsActive),
     CONTACTS(Icons.Outlined.Contacts),
     PROFILE(Icons.Outlined.Person)
 }
