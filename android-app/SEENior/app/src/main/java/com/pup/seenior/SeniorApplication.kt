@@ -3,6 +3,7 @@ package com.pup.seenior
 import android.app.Activity
 import android.app.Application
 import android.os.Bundle
+import android.util.Log
 import com.pup.seenior.database.SeniorAppDatabase
 import com.pup.seenior.network.HeartbeatReporter
 import kotlinx.coroutines.CoroutineScope
@@ -42,6 +43,42 @@ class SeniorApplication : Application() {
         scheduleNightlyAggregation()
         scheduleMonitoringWatchdog()
         trackForegroundState()
+        removeDuplicateSeniors()
+    }
+
+    /**
+     * Clears the extra senior rows left behind by the duplicate-onboarding bug.
+     *
+     * Onboarding used to insert a new senior every time its final screen re-entered composition,
+     * so a senior who walked back through the permission chain ended up as several people in
+     * their own database -- five, in six minutes, on the realme tester handset on 2026-09-18.
+     * [com.pup.seenior.ui.onboarding.OnboardingViewModel.submitOnboarding] no longer does that,
+     * but every phone already running the old build carries the rows, and each dead one holds
+     * twenty seed Baseline rows and possibly an orphan Sensor_Data row that no nightly pass will
+     * ever roll up, because aggregation only sweeps the senior the app considers current.
+     *
+     * The row kept is whatever `getOnboardedSenior()` returns -- deliberately the same selector
+     * every other caller in the app already follows, so this can never delete the row the rest
+     * of the app is using. Everything with an Alert or a Daily_Aggregate against it is left
+     * alone regardless (see [SeniorDao.findDuplicateSeniorIds]).
+     *
+     * Runs on the app's own scope rather than as a Room migration: it is a data repair, not a
+     * schema change, and it has to be safe to run on every start and do nothing on the second.
+     */
+    private fun removeDuplicateSeniors() {
+        appScope.launch {
+            runCatching {
+                val db = SeniorAppDatabase.getInstance(this@SeniorApplication)
+                val keep = db.seniorDao().getOnboardedSenior() ?: return@runCatching
+                val duplicates = db.seniorDao().findDuplicateSeniorIds(keep.seniorId)
+                if (duplicates.isEmpty()) return@runCatching
+                db.seniorDao().deleteByIds(duplicates)
+                Log.i(TAG, "Removed ${duplicates.size} duplicate senior row(s): $duplicates")
+            }.onFailure {
+                // A tidy-up must never be the reason the app fails to start.
+                Log.w(TAG, "Duplicate senior cleanup failed", it)
+            }
+        }
     }
 
     /**
@@ -145,6 +182,8 @@ class SeniorApplication : Application() {
     }
 
     private companion object {
+        const val TAG = "SeniorApplication"
+
         /** Shortest gap between two foreground-triggered check-ins. */
         const val FOREGROUND_HEARTBEAT_MIN_INTERVAL_MS = 60_000L
     }

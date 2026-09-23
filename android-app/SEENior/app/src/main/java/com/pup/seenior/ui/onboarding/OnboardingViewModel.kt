@@ -172,6 +172,26 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
             chargesOvernight != null &&
             languageLabel != null
 
+    /**
+     * Writes the senior, their questionnaire answers and their seed Baseline, and returns the
+     * senior_id this install will use from now on.
+     *
+     * **Idempotent, and that is the whole point.** [com.pup.seenior.ui.onboarding.AllSetScreen]
+     * calls this from a `LaunchedEffect(Unit)`, which runs again every time that destination
+     * re-enters composition -- and the permission chain immediately before it leaves and returns
+     * repeatedly, once per settings page the senior is sent to. Inserting unconditionally minted
+     * a fresh senior on every pass: five rows in six minutes on the realme tester handset on
+     * 2026-09-18, ids 1-5, all the same person, created 14:23:04 through 14:28:58. The app then
+     * followed `getOnboardedSenior()` to the newest of them and left the other four holding
+     * twenty dead seed Baseline rows apiece, plus one orphan Sensor_Data row no nightly pass
+     * would ever roll up or purge, because the aggregation worker only sweeps the senior the
+     * app considers current.
+     *
+     * So an existing row is updated in place instead of duplicated, and the senior_id is held
+     * stable across re-runs. That last part matters more than it looks: Sensor_Data,
+     * Daily_Aggregates, Baseline and Alerts are all keyed to it, and a re-run that minted a new
+     * id would orphan every reading collected up to that point.
+     */
     suspend fun submitOnboarding(): Int = withContext(Dispatchers.IO) {
         val db = SeniorAppDatabase.getInstance(getApplication())
         val livingArrangementValue = OnboardingOptions.livingArrangements
@@ -179,8 +199,15 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
         val activityLevelValue = OnboardingOptions.activityLevels
             .first { it.first == activityLevelLabel }.second
 
-        val insertedId = db.withTransaction {
+        val resolvedId = db.withTransaction {
+            // [seniorId] first, because within a single run of onboarding it names the row this
+            // view model itself just wrote. The query behind it covers the case where the
+            // process was killed between two passes and the view model came back empty -- which
+            // is the same state a senior experiences as "it asked me everything again".
+            val existing = db.seniorDao().getById(seniorId) ?: db.seniorDao().getOnboardedSenior()
+
             val senior = Senior(
+                seniorId = existing?.seniorId ?: 0,
                 firstName = firstName.trim(),
                 lastName = lastName.trim(),
                 age = age.trim().toInt(),
@@ -190,11 +217,25 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
                     .joinToString(", "),
                 barangay = barangay!!,
                 livingArrangement = livingArrangementValue,
-                isOnboardingComplete = true
+                // Both carried over rather than regenerated. createdAt is when this senior first
+                // signed up, not when they last walked back through the form; cloudSyncId is the
+                // identity the server and every paired family contact already know them by, and
+                // dropping it here would strand the pairing while the phone carried on happily.
+                createdAt = existing?.createdAt ?: System.currentTimeMillis(),
+                isOnboardingComplete = true,
+                cloudSyncId = existing?.cloudSyncId
             )
-            val id = db.seniorDao().insert(senior).toInt()
 
+            val id = if (existing == null) {
+                db.seniorDao().insert(senior).toInt()
+            } else {
+                db.seniorDao().update(senior)
+                existing.seniorId
+            }
+
+            val previous = db.seniorOnboardingDao().getBySeniorId(id)
             val onboarding = SeniorOnboarding(
+                onboardingId = previous?.onboardingId ?: 0,
                 seniorId = id,
                 wakeTime = wakeTime!!.format(TIME_FORMAT),
                 sleepTime = sleepTime!!.format(TIME_FORMAT),
@@ -203,19 +244,31 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
                 napDurationMinutes = if (hasNap == "Yes") parseDurationMinutes(napDuration) else null,
                 activityLevel = activityLevelValue,
                 languagePreference = OnboardingOptions.languages
-                    .first { it.first == languageLabel }.second
+                    .first { it.first == languageLabel }.second,
+                // Kept from the row being replaced: both record what has already happened to
+                // this senior's baseline, which is not something the questionnaire can restate.
+                seedBaselineGenerated = previous?.seedBaselineGenerated ?: false,
+                onboardingCompletedAt = previous?.onboardingCompletedAt ?: System.currentTimeMillis(),
+                baselineReadyAt = previous?.baselineReadyAt
             )
-            db.seniorOnboardingDao().insert(onboarding)
+            if (previous == null) db.seniorOnboardingDao().insert(onboarding)
+            else db.seniorOnboardingDao().update(onboarding)
 
-            val seedBaselines = SeedBaselineGenerator.generate(id, onboarding)
-            db.baselineDao().insertAll(seedBaselines)
-            db.seniorOnboardingDao().markSeedBaselineGenerated(id)
+            // Only when there is nothing there already. Seeding unconditionally would drop a
+            // senior who has lived through the fortnight back to questionnaire guesses -- the
+            // section 6 hand-over run in reverse. If the declared hours really did change,
+            // BaselineUpdater folds them in from the next nightly pass against real data, which
+            // is the honest way to get there.
+            if (db.baselineDao().getAllBySeniorOnce(id).isEmpty()) {
+                db.baselineDao().insertAll(SeedBaselineGenerator.generate(id, onboarding))
+                db.seniorOnboardingDao().markSeedBaselineGenerated(id)
+            }
 
             id
         }
 
-        seniorId = insertedId
-        insertedId
+        seniorId = resolvedId
+        resolvedId
     }
 
     private fun parseDurationMinutes(label: String?): Int? = when (label) {
