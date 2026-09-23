@@ -14,9 +14,13 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Contacts
 import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.PersonAddAlt1
 import androidx.compose.material3.AlertDialog
@@ -35,17 +39,20 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.delay
 import com.pup.seenior.alerts.AlertPermissions
 import com.pup.seenior.location.LocationPermissionState
 import com.pup.seenior.sensors.DeviceCapabilities
+import com.pup.seenior.ui.alerts.AlertsScreen
 import com.pup.seenior.ui.contacts.InviteScreen
 import com.pup.seenior.ui.contacts.SeniorContactsScreen
 import com.pup.seenior.ui.home.HomeScreen
@@ -121,6 +128,7 @@ private fun ShowOverLockScreen() {
 private enum class SeniorTab(val icon: ImageVector) {
     HOME(Icons.Outlined.Home),
     INVITE(Icons.Outlined.PersonAddAlt1),
+    ALERTS(Icons.Outlined.Notifications),
     CONTACTS(Icons.Outlined.Contacts),
     PROFILE(Icons.Outlined.Person)
 }
@@ -130,6 +138,7 @@ private enum class SeniorTab(val icon: ImageVector) {
 private fun SeniorTab.label(copy: SeniorStrings.Copy): String = when (this) {
     SeniorTab.HOME -> copy.tabHome
     SeniorTab.INVITE -> copy.tabInvite
+    SeniorTab.ALERTS -> copy.tabAlerts
     SeniorTab.CONTACTS -> copy.tabContacts
     SeniorTab.PROFILE -> copy.tabProfile
 }
@@ -138,16 +147,21 @@ private fun SeniorTab.label(copy: SeniorStrings.Copy): String = when (this) {
  * The tabs this senior actually gets.
  *
  * A senior who told us at sign-up that they live alone has no use for Invite (a code for
- * nobody) or Contacts (a list that stays empty) — two of their four tabs would be dead
- * weight on a screen designed to be scanned quickly. They get Home and Profile.
+ * nobody) or Contacts (a list that stays empty) — two of their five tabs would be dead
+ * weight on a screen designed to be scanned quickly. They get Home, Alerts and Profile —
+ * Alerts stays, because it's about their own detection history, not about family pairing.
  *
  * Nothing is deleted: both screens still exist and are reachable from Profile → Family
  * contacts, so a senior whose situation changes can pair without reinstalling anything.
  * And the moment someone does pair, HomeViewModel.restoreFamilyTabsIfPaired() flips the
- * stored answer and all four tabs come back on their own.
+ * stored answer and all five tabs come back on their own.
+ *
+ * Alerts sits in the middle of both lists on purpose (CLAUDE.md request: "an alert tab in
+ * the middle") — index 1 of 3, index 2 of 5 — so it lands in the same physical spot on the
+ * bar regardless of which list a senior has.
  */
 private fun tabsFor(livesAlone: Boolean): List<SeniorTab> =
-    if (livesAlone) listOf(SeniorTab.HOME, SeniorTab.PROFILE)
+    if (livesAlone) listOf(SeniorTab.HOME, SeniorTab.ALERTS, SeniorTab.PROFILE)
     else SeniorTab.entries
 
 /**
@@ -404,25 +418,58 @@ fun SeniorDashboard(onAccountDeleted: () -> Unit) {
         LocalOnboardingCopy provides formCopy,
         LocalInfoCopy provides infoCopy
     ) {
+    // Whether Alerts' bottom-bar icon carries the small red dot: the same "something is still
+    // open" fact Home's own status card reads, so the badge and the card it points at never
+    // disagree with each other.
+    val hasOpenAlert = homeViewModel.helpDelivery != null
+
     Scaffold(
         bottomBar = {
             NavigationBar(containerColor = Color.White) {
                 tabs.forEach { entry ->
+                    val highlighted = entry == SeniorTab.ALERTS
                     NavigationBarItem(
                         selected = activeTab == entry,
                         onClick = { tab = entry },
-                        icon = { Icon(entry.icon, contentDescription = entry.label(copy)) },
+                        icon = {
+                            if (highlighted) {
+                                // A little bigger than the other four, and always filled in the
+                                // brand green — this is the tab meant to catch the eye first,
+                                // not just the one that happens to be selected.
+                                Box(
+                                    modifier = Modifier.size(38.dp).background(SeniorColors.Green, CircleShape),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        entry.icon,
+                                        contentDescription = entry.label(copy),
+                                        tint = Color.White,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                    if (hasOpenAlert) {
+                                        Box(
+                                            modifier = Modifier
+                                                .align(Alignment.TopEnd)
+                                                .size(11.dp)
+                                                .background(Color(0xFFC62828), CircleShape)
+                                        )
+                                    }
+                                }
+                            } else {
+                                Icon(entry.icon, contentDescription = entry.label(copy))
+                            }
+                        },
                         label = {
                             Text(
                                 entry.label(copy),
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 12.sp
+                                fontSize = if (highlighted) 13.sp else 12.sp
                             )
                         },
                         colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = Color.White,
                             selectedTextColor = Color.Black,
-                            indicatorColor = SeniorColors.Green,
+                            indicatorColor = if (highlighted) Color.Transparent else SeniorColors.Green,
                             unselectedIconColor = SeniorColors.Green,
                             unselectedTextColor = Color.Black
                         )
@@ -435,6 +482,7 @@ fun SeniorDashboard(onAccountDeleted: () -> Unit) {
             when (activeTab) {
                 SeniorTab.HOME -> HomeScreen(homeViewModel)
                 SeniorTab.INVITE -> InviteScreen()
+                SeniorTab.ALERTS -> AlertsScreen(homeViewModel)
                 SeniorTab.CONTACTS -> SeniorContactsScreen(
                     onGoToInvite = { tab = SeniorTab.INVITE },
                     inviteActionLabel = profileCopy.inviteTabLabel

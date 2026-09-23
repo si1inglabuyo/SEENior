@@ -159,8 +159,12 @@ private fun HelpDeliveryCard(
     val copy = WellnessMessages.forAlert(
         language, firstName, delivery.alert.triggerType, delivery.alert.timeBlock
     )
-    val accent = if (waiting) WarningAmber else SeniorColors.Green
-    val bg = if (waiting) WarningAmberBg else SeniorColors.GreenLightBg
+    // Delivered means the family HAS been notified of a still-open alert — that's the more
+    // urgent state, not a settled one, so it reads red like the rest of the app's emergency UI
+    // rather than green like "You're Safe". The stand-down button stays green regardless: it's
+    // the senior's own affirmative "I'm fine now" action, not a reflection of alert severity.
+    val accent = if (waiting) WarningAmber else EmergencyRed
+    val bg = if (waiting) WarningAmberBg else EmergencyCardBg
 
     Row(
         modifier = Modifier
@@ -192,14 +196,15 @@ private fun HelpDeliveryCard(
 
             // The way back out. Help being on its way used to be a one-way door: a senior who
             // got up unhurt had no way to say so, and the alert sat in the family app until a
-            // relative opened it and resolved it by hand.
+            // relative opened it and resolved it by hand. Always green — it's the senior's own
+            // "I'm fine now", not a severity indicator, so it doesn't follow the card's accent.
             Row(
                 modifier = Modifier
                     .padding(top = 12.dp)
                     .height(44.dp)
                     .clip(RoundedCornerShape(12.dp))
                     .background(Color.White)
-                    .border(1.dp, accent, RoundedCornerShape(12.dp))
+                    .border(1.dp, SeniorColors.Green, RoundedCornerShape(12.dp))
                     .clickable(onClick = onStandDown)
                     .padding(horizontal = 20.dp),
                 horizontalArrangement = Arrangement.Center,
@@ -207,7 +212,7 @@ private fun HelpDeliveryCard(
             ) {
                 Text(
                     copy.standDownButton,
-                    color = accent,
+                    color = SeniorColors.Green,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Bold
                 )
