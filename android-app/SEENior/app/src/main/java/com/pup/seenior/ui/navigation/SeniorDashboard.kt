@@ -125,6 +125,12 @@ private fun ShowOverLockScreen() {
     }
 }
 
+/** The shared icon slot every bottom-tab icon is centered in, so the Alerts tab's bigger glyph
+ *  doesn't shift its label out of line with the other four. */
+private val TAB_ICON_SLOT = 34.dp
+private val TAB_ICON_DEFAULT_SIZE = 24.dp
+private val TAB_ICON_ALERTS_SIZE = 32.dp
+
 private enum class SeniorTab(val icon: ImageVector) {
     HOME(Icons.Outlined.Home),
     INVITE(Icons.Outlined.PersonAddAlt1),
@@ -428,35 +434,41 @@ fun SeniorDashboard(onAccountDeleted: () -> Unit) {
             NavigationBar(containerColor = Color.White) {
                 tabs.forEach { entry ->
                     val highlighted = entry == SeniorTab.ALERTS
+                    val alertsSelected = highlighted && activeTab == entry
                     NavigationBarItem(
                         selected = activeTab == entry,
                         onClick = { tab = entry },
                         icon = {
-                            if (highlighted) {
-                                // A little bigger than the other four, and always filled in the
-                                // brand green — this is the tab meant to catch the eye first,
-                                // not just the one that happens to be selected.
-                                Box(
-                                    modifier = Modifier.size(38.dp).background(SeniorColors.Green, CircleShape),
-                                    contentAlignment = Alignment.Center
-                                ) {
+                            // Every tab's icon sits in the same fixed-size box, so a bigger
+                            // glyph for Alerts doesn't change where its label lands — only the
+                            // icon inside the box grows, not the slot the bar measures.
+                            Box(modifier = Modifier.size(TAB_ICON_SLOT), contentAlignment = Alignment.Center) {
+                                if (highlighted) {
+                                    // Much bigger than the other four, and always green (darker
+                                    // while pressed or on this tab) rather than white-on-a-pill
+                                    // — this is the tab meant to catch the eye first, not just
+                                    // the one that happens to be selected.
                                     Icon(
                                         entry.icon,
                                         contentDescription = entry.label(copy),
-                                        tint = Color.White,
-                                        modifier = Modifier.size(22.dp)
+                                        tint = if (alertsSelected) SeniorColors.GreenDark else SeniorColors.Green,
+                                        modifier = Modifier.size(TAB_ICON_ALERTS_SIZE)
                                     )
                                     if (hasOpenAlert) {
                                         Box(
                                             modifier = Modifier
                                                 .align(Alignment.TopEnd)
-                                                .size(11.dp)
+                                                .size(9.dp)
                                                 .background(Color(0xFFC62828), CircleShape)
                                         )
                                     }
+                                } else {
+                                    Icon(
+                                        entry.icon,
+                                        contentDescription = entry.label(copy),
+                                        modifier = Modifier.size(TAB_ICON_DEFAULT_SIZE)
+                                    )
                                 }
-                            } else {
-                                Icon(entry.icon, contentDescription = entry.label(copy))
                             }
                         },
                         label = {
@@ -469,6 +481,9 @@ fun SeniorDashboard(onAccountDeleted: () -> Unit) {
                         colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = Color.White,
                             selectedTextColor = Color.Black,
+                            // Alerts draws its own tint above regardless of selection, so it
+                            // gets no pill behind it — a colored circle plus a color change on
+                            // the icon itself would be two signals saying the same thing.
                             indicatorColor = if (highlighted) Color.Transparent else SeniorColors.Green,
                             unselectedIconColor = SeniorColors.Green,
                             unselectedTextColor = Color.Black
