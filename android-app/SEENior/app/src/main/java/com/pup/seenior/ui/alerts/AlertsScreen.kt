@@ -29,6 +29,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -114,6 +115,7 @@ fun AlertsScreen(homeViewModel: HomeViewModel, viewModel: AlertsViewModel = view
                             delivery = delivery,
                             language = language,
                             copy = copy,
+                            mlFlagScore = viewModel.mlFlagScores[delivery.alert.alertId],
                             onStandDown = { homeViewModel.standDown(delivery.alert) }
                         )
                     } else {
@@ -136,7 +138,12 @@ fun AlertsScreen(homeViewModel: HomeViewModel, viewModel: AlertsViewModel = view
                     item { EmptyNotice(copy.alertsNoHistory) }
                 } else {
                     items(history, key = { it.alertId }) { alert ->
-                        HistoryAlertCard(alert = alert, language = language, copy = copy)
+                        HistoryAlertCard(
+                            alert = alert,
+                            language = language,
+                            copy = copy,
+                            mlFlagScore = viewModel.mlFlagScores[alert.alertId]
+                        )
                         Spacer(Modifier.height(12.dp))
                     }
                 }
@@ -156,6 +163,7 @@ private fun CurrentAlertCard(
     delivery: HelpDelivery,
     language: String,
     copy: SeniorStrings.Copy,
+    mlFlagScore: Double?,
     onStandDown: () -> Unit
 ) {
     val alert = delivery.alert
@@ -166,6 +174,7 @@ private fun CurrentAlertCard(
 
     val wellnessCopy = WellnessMessages.forAlert(language, "", alert.triggerType, alert.timeBlock)
     val description = AlertDescriptions.describe(language, alert.triggerType, alert.timeBlock, alert.deviationScore)
+    val computation = AlertDescriptions.computationLine(language, alert.triggerType, alert.deviationScore, mlFlagScore)
 
     Column(
         modifier = Modifier
@@ -189,6 +198,10 @@ private fun CurrentAlertCard(
         }
         Spacer(Modifier.height(10.dp))
         Text(description, color = SeniorColors.TextPrimary, fontSize = 14.sp, lineHeight = 19.sp)
+        if (computation != null) {
+            Spacer(Modifier.height(8.dp))
+            ComputationLine(computation)
+        }
         Spacer(Modifier.height(10.dp))
         Text(formatTimestamp(alert.triggeredAt), color = SeniorColors.TextSecondary, fontSize = 12.sp)
 
@@ -217,9 +230,10 @@ private fun CurrentAlertCard(
 }
 
 @Composable
-private fun HistoryAlertCard(alert: Alert, language: String, copy: SeniorStrings.Copy) {
+private fun HistoryAlertCard(alert: Alert, language: String, copy: SeniorStrings.Copy, mlFlagScore: Double?) {
     val wellnessCopy = WellnessMessages.forAlert(language, "", alert.triggerType, alert.timeBlock)
     val description = AlertDescriptions.describe(language, alert.triggerType, alert.timeBlock, alert.deviationScore)
+    val computation = AlertDescriptions.computationLine(language, alert.triggerType, alert.deviationScore, mlFlagScore)
     val accent = riskColor(alert.riskLevel)
 
     Column(
@@ -244,6 +258,10 @@ private fun HistoryAlertCard(alert: Alert, language: String, copy: SeniorStrings
         }
         Spacer(Modifier.height(6.dp))
         Text(description, color = SeniorColors.TextPrimary, fontSize = 13.sp, lineHeight = 18.sp)
+        if (computation != null) {
+            Spacer(Modifier.height(6.dp))
+            ComputationLine(computation)
+        }
         Spacer(Modifier.height(8.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             RiskBadge(alert.riskLevel, copy)
@@ -255,6 +273,30 @@ private fun HistoryAlertCard(alert: Alert, language: String, copy: SeniorStrings
                 fontWeight = FontWeight.Bold
             )
         }
+    }
+}
+
+/**
+ * The "show your work" line — set in monospace, distinct from the plain-language description
+ * above it, so it visibly reads as a computed figure rather than more prose.
+ */
+@Composable
+private fun ComputationLine(text: String) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(Color.White)
+            .border(1.dp, SeniorColors.FieldBorder, RoundedCornerShape(8.dp))
+            .padding(horizontal = 10.dp, vertical = 8.dp)
+    ) {
+        Text(
+            text,
+            color = SeniorColors.TextSecondary,
+            fontSize = 12.sp,
+            lineHeight = 16.sp,
+            fontFamily = FontFamily.Monospace
+        )
     }
 }
 

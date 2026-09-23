@@ -24,10 +24,37 @@ class AlertsViewModel(application: Application) : AndroidViewModel(application) 
     var alerts by mutableStateOf<List<Alert>>(emptyList())
         private set
 
+    /**
+     * `ml_flag` alerts' Isolation Forest path-length score, keyed by alert id — recovered from
+     * [com.pup.seenior.database.entities.DailyAggregate] since `Alert.deviationScore` is null for
+     * this trigger type (CLAUDE.md §8; see [com.pup.seenior.database.dao.DailyAggregateDao
+     * .getMostRecentBefore]'s KDoc for why). Absent from Layer 1 alerts entirely — they show
+     * `Alert.deviationScore` directly, no lookup needed.
+     */
+    var mlFlagScores by mutableStateOf<Map<Int, Double>>(emptyMap())
+        private set
+
     fun start() {
         viewModelScope.launch {
             val seniorId = db.seniorDao().getOnboardedSenior()?.seniorId ?: return@launch
-            db.alertDao().getAllBySenior(seniorId).collectLatest { alerts = it }
+            db.alertDao().getAllBySenior(seniorId).collectLatest { list ->
+                alerts = list
+                loadMlFlagScores(seniorId, list)
+            }
         }
+    }
+
+    /** Fetched once per alert and cached forever: the aggregate row it reads is never rewritten
+     *  after the night it was scored, so there is nothing to refresh. */
+    private suspend fun loadMlFlagScores(seniorId: Int, list: List<Alert>) {
+        val unfetched = list.filter { it.triggerType == "ml_flag" && it.alertId !in mlFlagScores }
+        if (unfetched.isEmpty()) return
+        val found = unfetched.mapNotNull { alert ->
+            db.dailyAggregateDao()
+                .getMostRecentBefore(seniorId, alert.timeBlock, alert.triggeredAt)
+                ?.isolationForestScore
+                ?.let { alert.alertId to it }
+        }
+        mlFlagScores = mlFlagScores + found
     }
 }
