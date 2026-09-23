@@ -197,14 +197,10 @@ class NightlyAggregationWorker(
         val avgScreenIdleDuration = rows.maxOf { clipToBlock(it, it.screenIdleDuration) }
         val totalScreenUnlocks = rows.sumOf { it.screenUnlockCount }
 
-        // step_count is the raw cumulative-since-boot sensor reading. A device reboot
-        // mid-block resets the counter, so max-min would silently floor to 0 and lose
-        // real steps; sum positive deltas between timestamp-ordered readings instead,
-        // treating any decrease as a reboot boundary (counter restarted from 0).
-        val totalSteps = rows.sortedBy { it.timestamp }.zipWithNext { prev, curr ->
-            val delta = curr.stepCount - prev.stepCount
-            if (delta >= 0) delta else curr.stepCount
-        }.sum().coerceAtLeast(0)
+        // Lives in [StepTotals] rather than here because the counter misbehaves in ways worth
+        // testing directly -- see that file for the vivo reading that fell by 49 without a
+        // reboot and was credited as 9,182 steps in seven minutes.
+        val totalSteps = StepTotals.forBlock(rows)
 
         val chargingCount = rows.count { it.isCharging }
         val isChargingMajority = chargingCount > rows.size / 2
