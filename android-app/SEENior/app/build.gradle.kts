@@ -5,6 +5,9 @@ plugins {
     // Reads app/google-services.json and generates the Firebase config resources the
     // messaging SDK reads at runtime. Fails the build outright if that file is missing.
     alias(libs.plugins.google.services)
+    // Uploads the symbol mapping for each build so a stack trace from a tester's phone is
+    // readable rather than obfuscated.
+    alias(libs.plugins.firebase.crashlytics)
 }
 
 android {
@@ -70,5 +73,6 @@ dependencies {
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.messaging)
     implementation(libs.firebase.auth)
+    implementation(libs.firebase.crashlytics)
     implementation(libs.osmdroid.android)
 }
