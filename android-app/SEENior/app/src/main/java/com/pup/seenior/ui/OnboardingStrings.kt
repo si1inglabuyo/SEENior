@@ -129,6 +129,12 @@ object OnboardingStrings {
         val manufacturerDialogBody: String,
         val manufacturerDialogOpenSettings: String,
         val manufacturerDialogSkip: String,
+        /* Shown once, during setup, on a device with no step counter. Deliberately NOT a
+         * Home-screen message: missing hardware is not something the senior can act on, and the
+         * only moment the choice of device is still open is this one. */
+        val noStepSensorTitle: String,
+        val noStepSensorBody: String,
+        val noStepSensorContinue: String,
 
         // All set
         val allSetBody: String,
@@ -303,6 +309,12 @@ object OnboardingStrings {
         manufacturerDialogBody = "Your phone's maker limits which apps can run in the background more than most. The next two screens are from your phone's own settings app — find SEENior in each list and turn off any restriction, so check-ins and alerts are never delayed.",
         manufacturerDialogOpenSettings = "OPEN SETTINGS",
         manufacturerDialogSkip = "SKIP FOR NOW",
+        noStepSensorTitle = "This Device Cannot Count Steps",
+        noStepSensorBody = "This device has no step sensor, so SEENior cannot tell the " +
+            "difference between you resting and the phone being asleep as reliably. " +
+            "Monitoring still works, but a phone with a step counter is a better choice if " +
+            "you have one.",
+        noStepSensorContinue = "USE THIS DEVICE ANYWAY",
 
         allSetBody = "SEENior is now quietly monitoring your usual activity. Your family will be notified if anything seems unusual.",
         allSetMonitoringStarted = "Passive monitoring started",
@@ -443,6 +455,12 @@ object OnboardingStrings {
         manufacturerDialogBody = "Mas mahigpit ang paghihigpit ng gumawa ng iyong cellphone sa mga app na tumatakbo sa background. Mula sa settings mismo ng iyong cellphone ang susunod na dalawang screen — hanapin ang SEENior sa bawat listahan at alisin ang anumang paghihigpit, upang hindi maantala ang mga Safety Confirmation Prompts at alerto.",
         manufacturerDialogOpenSettings = "BUKSAN ANG SETTINGS",
         manufacturerDialogSkip = "LAKTAWAN MUNA",
+        noStepSensorTitle = "Hindi Makabilang ng Hakbang ang Device na Ito",
+        noStepSensorBody = "Walang step sensor ang device na ito, kaya hindi gaanong " +
+            "matukoy nang tama ng SEENior kung nagpapahinga kayo o natutulog lang ang " +
+            "cellphone. Gumagana pa rin ang pagbantay, ngunit mas mainam ang cellphone na " +
+            "may step counter kung mayroon kayo.",
+        noStepSensorContinue = "GAMITIN PA RIN ITO",
 
         allSetBody = "Tahimik na pong sinusubaybayan ng SEENior ang iyong pangkaraniwang gawain. Aabisuhan po ang iyong pamilya kung may mapansing hindi pangkaraniwan.",
         allSetMonitoringStarted = "Passive monitoring started",

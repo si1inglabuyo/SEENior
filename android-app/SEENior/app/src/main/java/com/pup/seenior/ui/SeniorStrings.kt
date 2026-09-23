@@ -47,6 +47,13 @@ object SeniorStrings {
         val reachBody: String,
         val openSettings: String,
         val notNow: String,
+        /* The Home-screen banner for a permission monitoring needs and no longer has. Unlike
+         * reachTitle/reachBody above, which offer an improvement, these describe something
+         * already broken -- so the wording says what has stopped working, not what could be
+         * better, and the banner stays up until it is fixed. */
+        val permissionLostTitle: String,
+        val permissionLostBody: String,
+        val permissionLostCta: String,
     ) {
         fun greeting(name: String): String = if (this === FILIPINO_COPY) "Kumusta, $name" else "Hi, $name"
 
@@ -84,6 +91,10 @@ object SeniorStrings {
             "which is easy to miss.",
         openSettings = "Open settings",
         notNow = "Not now",
+        permissionLostTitle = "SEENior cannot watch over you right now",
+        permissionLostBody = "A permission SEENior needs has been turned off, so it cannot " +
+            "check on you properly. Tap below to turn it back on.",
+        permissionLostCta = "Turn it back on",
     )
 
     private val FILIPINO_COPY = Copy(
@@ -110,6 +121,10 @@ object SeniorStrings {
             "hindi mapansin.",
         openSettings = "Buksan ang settings",
         notNow = "Hindi muna",
+        permissionLostTitle = "Hindi kayo mabantayan ng SEENior ngayon",
+        permissionLostBody = "May pahintulot na kailangan ang SEENior na nakapatay, kaya hindi " +
+            "kayo nito mabantayan nang maayos. Pindutin sa ibaba upang ibalik ito.",
+        permissionLostCta = "Ibalik ito",
     )
 
     fun forLanguage(language: String): Copy =

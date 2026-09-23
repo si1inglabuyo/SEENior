@@ -3,7 +3,10 @@ package com.pup.seenior.ui.navigation
 import android.Manifest
 import android.app.Activity
 import android.content.ContextWrapper
+import android.content.Intent
+import android.net.Uri
 import android.os.Build
+import android.provider.Settings
 import android.view.WindowManager
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -39,8 +42,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.delay
 import com.pup.seenior.alerts.AlertPermissions
 import com.pup.seenior.location.LocationPermissionState
+import com.pup.seenior.sensors.DeviceCapabilities
 import com.pup.seenior.ui.contacts.InviteScreen
 import com.pup.seenior.ui.contacts.SeniorContactsScreen
 import com.pup.seenior.ui.home.HomeScreen
@@ -249,6 +254,93 @@ private fun RepairAlertPermissions(copy: SeniorStrings.Copy) {
     )
 }
 
+/**
+ * Asks, and keeps asking, while monitoring is missing a permission it cannot work without.
+ *
+ * Deliberately a different shape from [RepairLocationPermission] and [RepairAlertPermissions]
+ * directly above, and the difference is the point. Those two offer an *improvement* on a system
+ * that already works -- an alert without them still posts, still counts down and still escalates
+ * -- so they ask once and never nag. This one describes something already broken: without
+ * ACTIVITY_RECOGNITION there is no step counter to tell a frozen phone apart from a senior who
+ * has not moved, without notifications a check-in cannot reach the screen, and without location
+ * an alert reaches the barangay with no idea where to go. A senior in that state is being
+ * watched over by an app that cannot see, so this does not take "not now" for an answer.
+ *
+ * Onboarding gates on exactly these permissions already
+ * ([com.pup.seenior.ui.onboarding.PermissionsScreen]), so reaching this screen missing one means
+ * a grant was lost *after* setup: revoked by hand, cleared by a storage sweep, or auto-revoked by
+ * the OS for an app it decided was unused. Nothing re-opens the onboarding screen on an install
+ * that has already finished it, so before this there was no path back at all -- the app went on
+ * looking normal and monitoring quietly less.
+ *
+ * What this is NOT: a lock on the app. The SOS button works from day one regardless of what the
+ * baseline or the permissions are doing (CLAUDE.md 6), and a dialog the senior cannot get past
+ * would take away the one thing that always works, at the exact moment the passive half is
+ * already degraded. So the dashboard stays reachable behind it.
+ */
+@Composable
+private fun RestoreRequiredPermissions(copy: SeniorStrings.Copy) {
+    val context = LocalContext.current
+    var missing by remember { mutableStateOf(DeviceCapabilities.missingRequiredPermissions(context)) }
+    var systemDialogExhausted by remember { mutableStateOf(false) }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) {
+        val still = DeviceCapabilities.missingRequiredPermissions(context)
+        // A request that granted nothing means Android is no longer showing the dialog at all --
+        // the senior has hit "Don't ask again" on it at some point, and asking again is a button
+        // that visibly does nothing. From here the only honest route is the app's settings page.
+        systemDialogExhausted = still.size == missing.size
+        missing = still
+    }
+
+    val settingsLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { missing = DeviceCapabilities.missingRequiredPermissions(context) }
+
+    // Only runs while something is actually missing, so the healthy case costs nothing. It exists
+    // because the senior can also grant the permission from the phone's own Settings app, which
+    // hands this screen no callback -- without re-reading, the dialog would sit there insisting
+    // on a permission they had already restored.
+    LaunchedEffect(missing.isNotEmpty()) {
+        while (missing.isNotEmpty()) {
+            delay(2_000)
+            missing = DeviceCapabilities.missingRequiredPermissions(context)
+        }
+    }
+
+    if (missing.isEmpty()) return
+
+    AlertDialog(
+        // No dismiss button and no dismiss-on-outside-tap: see the note above on why this one
+        // insists where the other two do not.
+        onDismissRequest = { },
+        title = { Text(copy.permissionLostTitle) },
+        text = { Text(copy.permissionLostBody) },
+        confirmButton = {
+            TextButton(onClick = {
+                if (systemDialogExhausted) {
+                    // Some OEM builds rename or remove this screen; a missing settings page must
+                    // not crash the dashboard out from under an alert.
+                    runCatching {
+                        settingsLauncher.launch(
+                            Intent(
+                                Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                Uri.fromParts("package", context.packageName, null)
+                            )
+                        )
+                    }
+                } else {
+                    permissionLauncher.launch(missing.toTypedArray())
+                }
+            }) {
+                Text(if (systemDialogExhausted) copy.openSettings else copy.permissionLostCta)
+            }
+        }
+    )
+}
+
 @Composable
 fun SeniorDashboard(onAccountDeleted: () -> Unit) {
     var tab by remember { mutableStateOf(SeniorTab.HOME) }
@@ -292,6 +384,9 @@ fun SeniorDashboard(onAccountDeleted: () -> Unit) {
     val formCopy = OnboardingStrings.forLanguage(homeViewModel.language)
     val infoCopy = InfoStrings.forLanguage(homeViewModel.language)
 
+    // First of the three: the other two offer improvements, this one reports a fault, and a
+    // senior looking at two dialogs at once reads neither.
+    RestoreRequiredPermissions(copy)
     RepairLocationPermission()
     RepairAlertPermissions(copy)
 

@@ -52,6 +52,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.pup.seenior.sensors.DeviceCapabilities
 import com.pup.seenior.ui.LocalOnboardingCopy
 import com.pup.seenior.ui.onboarding.components.OnboardingHeading
 import com.pup.seenior.ui.onboarding.components.OnboardingTopBar
@@ -237,10 +238,40 @@ fun PermissionsScreen(
         runCatching { batteryLauncher.launch(intent) }.onFailure { requestFullScreenThenContinue() }
     }
 
+    /**
+     * Says so, once, when the handset has no step counter at all.
+     *
+     * Not a permission problem and not fixable as one, which is exactly why it is called out
+     * here instead of being left to look like one. On the realme RMP2204 tester device every
+     * step reading was zero across five days with ACTIVITY_RECOGNITION granted the whole time:
+     * `dumpsys sensorservice` lists eighteen hardware sensors and no step counter among them,
+     * because the device is a tablet. The standing advice -- "check the permission" -- was
+     * unfollowable on that device, and nothing on any screen said so.
+     *
+     * It costs more than the step column. The counter is the witness
+     * [com.pup.seenior.sensors.SensorCollectionService] uses to tell a gap the OS froze apart
+     * from a senior who genuinely did not move, so a device without one has no independent check
+     * on its own inactivity figures.
+     *
+     * Asked, not enforced: a senior who owns one device owns one device, and refusing to set up
+     * on it would leave them with no monitoring rather than imperfect monitoring. What they get
+     * is the choice, at the only point in the app where the choice is still open -- afterwards
+     * there is nothing to decide and nothing they could do about it.
+     */
+    var showNoStepSensor by remember { mutableStateOf(false) }
+
+    fun warnIfNoStepSensorThenContinue() {
+        if (DeviceCapabilities.hasStepCounter(context)) {
+            requestBatteryExemptionThenContinue()
+            return
+        }
+        showNoStepSensor = true
+    }
+
     val launcher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { results ->
-        if (requiredPermissionsGranted(results)) requestBatteryExemptionThenContinue() else showDenied = true
+        if (requiredPermissionsGranted(results)) warnIfNoStepSensorThenContinue() else showDenied = true
     }
 
     Surface(modifier = Modifier.fillMaxSize(), color = Color.White) {
@@ -324,6 +355,13 @@ fun PermissionsScreen(
         PermissionDeniedDialog(onClose = { showDenied = false })
     }
 
+    if (showNoStepSensor) {
+        NoStepSensorDialog(onContinue = {
+            showNoStepSensor = false
+            requestBatteryExemptionThenContinue()
+        })
+    }
+
     if (showManufacturerDialog) {
         ManufacturerExemptionDialog(
             onSkip = {
@@ -380,6 +418,51 @@ private fun PermissionRationaleDialog(onDeny: () -> Unit, onAllow: () -> Unit) {
         },
         dismissButton = {
             TextButton(onClick = onDeny) { Text(copy.deny, color = SeniorColors.Green, fontWeight = FontWeight.Bold) }
+        }
+    )
+}
+
+/**
+ * One button only. There is no second option to offer: the hardware is missing, the senior
+ * cannot grant it, and a "fix this" button that led nowhere would be worse than none.
+ */
+@Composable
+private fun NoStepSensorDialog(onContinue: () -> Unit) {
+    val copy = LocalOnboardingCopy.current
+    AlertDialog(
+        // Dismissing is the same decision as continuing -- setup cannot stop here.
+        onDismissRequest = onContinue,
+        shape = RoundedCornerShape(24.dp),
+        containerColor = Color.White,
+        icon = {
+            Icon(
+                Icons.AutoMirrored.Filled.DirectionsRun,
+                contentDescription = null,
+                tint = SeniorColors.Green,
+                modifier = Modifier.size(40.dp)
+            )
+        },
+        title = {
+            Text(
+                copy.noStepSensorTitle,
+                textAlign = TextAlign.Center,
+                fontWeight = FontWeight.Bold,
+                fontSize = 20.sp,
+                color = SeniorColors.TextPrimary
+            )
+        },
+        text = {
+            Text(
+                copy.noStepSensorBody,
+                textAlign = TextAlign.Center,
+                fontSize = 16.sp,
+                color = SeniorColors.TextPrimary
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onContinue) {
+                Text(copy.noStepSensorContinue, color = SeniorColors.Green, fontWeight = FontWeight.Bold)
+            }
         }
     )
 }
