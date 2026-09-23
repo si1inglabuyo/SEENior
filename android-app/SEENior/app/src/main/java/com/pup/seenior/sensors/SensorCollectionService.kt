@@ -74,6 +74,15 @@ class SensorCollectionService : Service(), SensorEventListener
     private var latestStepCount = 0
 
     /**
+     * Whether [onCreate] ran all the way through.
+     *
+     * False when it bailed on a refused foreground service, in which case no sensor listener,
+     * receiver or trigger was ever registered and [onDestroy] must not try to take them down --
+     * `sensorManager` is not even assigned, and unregistering an unregistered receiver throws.
+     */
+    private var startedUp = false
+
+    /**
      * Whether TYPE_STEP_COUNTER has delivered anything at all this run.
      *
      * Not the same question as `stepCounter != null`. The sensor can be present and still never
@@ -198,7 +207,15 @@ class SensorCollectionService : Service(), SensorEventListener
 
     override fun onCreate() {
         super.onCreate()
-        startForegroundWithLocationIfAllowed()
+        if (!startForegroundWithLocationIfAllowed()) {
+            // Nothing below this line is safe to do without a foreground service, and none of it
+            // has happened yet -- so stop before registering a single listener rather than
+            // running on as a background service Android will kill mid-sample anyway. The app
+            // itself keeps launching, which is the point: the dashboard's permission prompt is
+            // the only route back and it cannot run if the process dies here.
+            stopSelf()
+            return
+        }
         isRunning = true
 
         // The service can start while the screen is already off (boot, or a restart with the
@@ -261,6 +278,8 @@ class SensorCollectionService : Service(), SensorEventListener
                 collectAndStore()
             }
         }
+
+        startedUp = true
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -268,6 +287,11 @@ class SensorCollectionService : Service(), SensorEventListener
         // after this service is already running, and a service that claimed only "health" at
         // 06:00 would go on being refused a fix all day. Calling startForeground again on a
         // service already in the foreground widens the type in place.
+        //
+        // The return value is ignored here on purpose, unlike in onCreate. By this point the
+        // service is already in the foreground with a type that was accepted, and a refusal to
+        // *widen* it costs the alert GPS for this run and nothing else -- which is exactly the
+        // degradation the fallback chain was built to allow.
         startForegroundWithLocationIfAllowed()
         if (intent?.action == ACTION_POLL_NOW) pollOnce()
         return START_STICKY
@@ -317,11 +341,29 @@ class SensorCollectionService : Service(), SensorEventListener
      * screen, fall) runs on any of these; only the alert-time GPS fix needs `location`, and
      * that is restored the next time [onStartCommand] runs from an eligible state.
      *
-     * The final typeless attempt is deliberately left to throw. If the platform refuses even
-     * that there is no foreground service to be had, and a silent failure would hide it.
+     * **The final typeless attempt used to be left to throw**, on the reasoning that if the
+     * platform refuses even that there is no foreground service to be had and a silent failure
+     * would hide it. The instinct was right and the mechanism was wrong: it hid nothing from a
+     * log nobody reads, and it crashed the process in `onCreate` -- which is the very failure
+     * the rest of this chain exists to prevent, arrived at one step later.
+     *
+     * Reproduced on the vivo V2317 tester handset on 2026-09-23: with ACTIVITY_RECOGNITION
+     * revoked, every type including typeless was refused and the app died on launch, repeatedly.
+     * A senior in that state sees the app close itself with no explanation, and -- worse --
+     * never reaches the dashboard, where [com.pup.seenior.sensors.DeviceCapabilities] and the
+     * prompt built on it would have told them which permission to turn back on. The one screen
+     * that could end the outage was unreachable because of the outage.
+     *
+     * So the refusal is reported rather than thrown: `false` here, a loud log, and [onCreate]
+     * stops the service cleanly instead of half-starting it. The app then opens normally, the
+     * senior is asked for the permission, and [MonitoringWatchdogJobService] retries the service
+     * from an eligible state. The failure is still visible -- in the log as before, and now on
+     * the screen of the person who can actually fix it.
+     *
+     * @return true if a foreground service of some type was started.
      */
     @Suppress("InlinedApi")
-    private fun startForegroundWithLocationIfAllowed() {
+    private fun startForegroundWithLocationIfAllowed(): Boolean {
         val health = ServiceInfo.FOREGROUND_SERVICE_TYPE_HEALTH
         val location = ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
 
@@ -332,7 +374,7 @@ class SensorCollectionService : Service(), SensorEventListener
         for ((label, type) in preferred) {
             try {
                 ServiceCompat.startForeground(this, NOTIFICATION_ID, buildNotification(), type)
-                return
+                return true
             } catch (e: RuntimeException) {
                 // SecurityException (missing/limited permission) and
                 // ForegroundServiceStartNotAllowedException (an IllegalStateException — a
@@ -341,8 +383,14 @@ class SensorCollectionService : Service(), SensorEventListener
                 Log.w(TAG_WAKE, "foreground service type '$label' refused; trying a plainer one", e)
             }
         }
-        Log.w(TAG_WAKE, "starting monitoring as a typeless foreground service (no alert GPS until next eligible start)")
-        ServiceCompat.startForeground(this, NOTIFICATION_ID, buildNotification(), 0)
+        return try {
+            Log.w(TAG_WAKE, "starting monitoring as a typeless foreground service (no alert GPS until next eligible start)")
+            ServiceCompat.startForeground(this, NOTIFICATION_ID, buildNotification(), 0)
+            true
+        } catch (e: RuntimeException) {
+            Log.e(TAG_WAKE, "every foreground service type refused, including typeless; monitoring cannot start", e)
+            false
+        }
     }
 
     /**
@@ -402,6 +450,12 @@ class SensorCollectionService : Service(), SensorEventListener
     override fun onDestroy() {
         // Cleared first, so nothing can read a stale `true` while the service tears down.
         isRunning = false
+        if (!startedUp) {
+            // onCreate stopped early: there is nothing registered to unregister, and reaching
+            // for it would turn a handled failure back into the crash this exists to avoid.
+            super.onDestroy()
+            return
+        }
         sensorManager.unregisterListener(this)
         // A trigger sensor is not covered by unregisterListener; it is cancelled by its own call
         // or it stays armed against a listener whose service is gone.
