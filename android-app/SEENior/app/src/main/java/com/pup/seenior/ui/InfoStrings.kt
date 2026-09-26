@@ -22,11 +22,12 @@ import com.pup.seenior.ui.wellness.WellnessMessages
  *    "cellphone". It has not been read end-to-end by a native speaker since, and the panel has
  *    already rejected one phrasing in this app as too informal. The legal sections matter most: a
  *    translated privacy notice is the notice the senior is relying on.
- * 2. **One English claim is already false, and is translated here faithfully rather than quietly
- *    reworded.** The offline FAQ promises "SEENior will try to send an SMS instead". SMS fallback
- *    is not built (CLAUDE.md §9 lists Semaphore PH; nothing calls it). A senior with no signal is
- *    being told help will still get through, and it will not. Fix the claim or build the feature —
- *    do not leave it as it stands.
+ * 2. **Fixed 2026-09-27: the offline FAQ used to promise "SEENior will try to send an SMS
+ *    instead" with no internet at all.** That was never true and could not be — SMS is sent by
+ *    the *backend*, to family/barangay, after it already received the alert over the internet
+ *    from this phone. A senior with zero connectivity has no path to report anything, SMS
+ *    included. The note now says that plainly instead of promising a fallback that doesn't
+ *    exist on this end.
  */
 object InfoStrings {
 
@@ -134,8 +135,10 @@ object InfoStrings {
                 "Yes. SEENior keeps watching over you and can still show your saved contacts with no " +
                     "internet at all. Sending alerts and real-time updates to your family needs an " +
                     "internet or network connection.",
-                note = "If you have no signal at all, SEENior will try to send an SMS instead. Keep your " +
-                    "phone charged and with you so it can reach someone for you."
+                note = "Important: this needs your phone's own internet connection to work — SMS is not " +
+                    "a backup for that. If your phone has no internet at all, an alert cannot reach " +
+                    "anyone yet. Keep your phone charged, connected to Wi-Fi or mobile data, and with " +
+                    "you at all times."
             ),
             Faq(
                 "How do I remove a paired contact?",
@@ -302,8 +305,10 @@ object InfoStrings {
                 "Oo. Patuloy nagbabantay ang SEENior at maipapakita pa rin ang iyong mga " +
                     "naka-save na contact kahit walang internet. Ang pagpapadala ng alerto at " +
                     "update sa iyong pamilya ay nangangailangan ng internet o signal.",
-                note = "Kung wala pang signal, susubukan ng SEENior na magpadala ng SMS. Panatilihing " +
-                    "may baterya ang iyong cellphone at dala ito upang may maabot para sa inyo."
+                note = "Mahalaga: kailangan nito ng sariling internet connection ng iyong cellphone — " +
+                    "hindi kapalit nito ang SMS. Kung walang internet ang iyong cellphone, hindi pa " +
+                    "maipapadala ang alerto sa sinuman. Panatilihing may baterya ang iyong cellphone, " +
+                    "konektado sa Wi-Fi o mobile data, at laging dala ito."
             ),
             Faq(
                 "Paano ko aalisin ang isang nakakonektang contact?",
