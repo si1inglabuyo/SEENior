@@ -241,5 +241,9 @@ class BaselineUpdaterTest {
         override suspend fun getRecentDays(seniorId: Int, days: Int): List<DailyAggregate> = this.days
         override suspend fun getWithoutIsolationForestScore(seniorId: Int): List<DailyAggregate> = emptyList()
         override suspend fun updateIsolationForestScore(aggregateId: Int, score: Double) = Unit
+
+        override suspend fun getMostRecentBefore(seniorId: Int, timeBlock: String, notAfter: Long): DailyAggregate? =
+            days.filter { it.timeBlock == timeBlock && it.createdAt <= notAfter }
+                .maxByOrNull { it.createdAt }
     }
 }
