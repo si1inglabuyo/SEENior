@@ -92,6 +92,14 @@ async def send_sms(numbers: list[str], message: str) -> SmsResult:
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
             response = await client.post(SEMAPHORE_URL, data=payload)
+        if response.status_code >= 400:
+            # Read the body before raising -- Semaphore's actual reason (bad sender
+            # name, insufficient credits, etc.) lives here, and raise_for_status()'s
+            # exception message never includes it, which cost real diagnostic time
+            # the first time this fired (2026-09-14: logs only showed a generic 500).
+            logger.warning(
+                "Semaphore returned %d: %s", response.status_code, response.text[:500]
+            )
         response.raise_for_status()
     except Exception:
         # Network trouble, a bad key, Semaphore down. Logged, never raised: the alert
