@@ -31,17 +31,27 @@ logger = logging.getLogger(__name__)
 SEMAPHORE_URL = "https://api.semaphore.co/api/v4/messages"
 
 # Plain-language reason per trigger, for a text a senior's family or a responder reads
-# in a few seconds with no app open. Mirrors the trigger_type vocabulary in CLAUDE.md §8;
-# an unrecognised value (there shouldn't be one) falls back to the raw code rather than
-# failing the message.
+# in a few seconds with no app open. Kept deliberately short (CLAUDE.md's SMS credits
+# are billed per 153-char segment) -- mirrors the trigger_type vocabulary in CLAUDE.md
+# §8; an unrecognised value (there shouldn't be one) falls back to the raw code rather
+# than failing the message.
 _TRIGGER_LABELS = {
-    "sos": "pressed the SOS button",
-    "fall_pattern": "a possible fall was detected",
-    "inactivity": "prolonged inactivity was detected",
-    "movement": "unusually low movement was detected",
-    "screen_idle": "the phone has gone unused for longer than usual",
-    "charging": "an unusual charging pattern was detected",
-    "ml_flag": "an unusual daily pattern was detected",
+    "sos": "SOS pressed",
+    "fall_pattern": "possible fall",
+    "inactivity": "prolonged inactivity",
+    "movement": "low movement",
+    "screen_idle": "phone unused too long",
+    "charging": "unusual charging",
+    "ml_flag": "unusual daily pattern",
+}
+
+# Same idea for the barangay tier's escalation reason (escalation.py's three fixed
+# strings) -- the audit-log timeline keeps the full sentence; only the SMS gets the
+# shortened one.
+_SHORT_REASONS = {
+    "SOS pressed by the senior": "SOS pressed",
+    "No family contact is linked to this senior": "no family contact",
+    "No response from the senior or any family contact": "no response from senior/family",
 }
 
 
@@ -129,15 +139,13 @@ async def send_sms(numbers: list[str], message: str) -> SmsResult:
 
 
 def family_alert_message(senior_name: str, risk_level: str, trigger_type: str) -> str:
+    minutes = max(1, settings.family_response_seconds // 60)
     return (
-        f"SEENior Alert: {senior_name} did not respond to a safety check "
-        f"({_trigger_label(trigger_type)}, {risk_level} risk). Please open the SEENior "
-        "app to check on them."
+        f"SEENior: {senior_name} - {_trigger_label(trigger_type)} ({risk_level} risk), "
+        f"no response. Ack in app within {minutes} min or barangay is notified."
     )
 
 
 def barangay_alert_message(senior_name: str, barangay: str, address: str, risk_level: str, reason: str) -> str:
-    return (
-        f"SEENior Alert: {senior_name} ({barangay}) may need a welfare check ({risk_level} "
-        f"risk) -- {reason}. Address: {address}. Details in the SEENior barangay dashboard."
-    )
+    short_reason = _SHORT_REASONS.get(reason, reason)
+    return f"SEENior: {senior_name} ({barangay}), {risk_level} risk - {short_reason}. {address}"
