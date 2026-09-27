@@ -72,20 +72,21 @@ private fun ContactsListScreen(
     viewModel: FamilySeniorsViewModel,
     onSelect: (ContactDto) -> Unit
 ) {
+    val copy = LocalFamilyCopy.current
     var query by remember { mutableStateOf("") }
     val filtered = viewModel.contacts.filter {
         query.isBlank() || "${it.senior.firstName} ${it.senior.lastName}".contains(query, ignoreCase = true)
     }
 
     Column(modifier = Modifier.fillMaxSize().background(Color.White)) {
-        BlueHeader(Icons.Filled.Contacts, "Contacts")
+        BlueHeader(Icons.Filled.Contacts, copy.tabContacts)
 
         Column(modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp)) {
             OutlinedTextField(
                 value = query,
                 onValueChange = { query = it },
                 modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("Search seniors…") },
+                placeholder = { Text(copy.contactsSearchPlaceholder) },
                 singleLine = true,
                 shape = RoundedCornerShape(24.dp),
                 colors = OutlinedTextFieldDefaults.colors(
@@ -99,20 +100,20 @@ private fun ContactsListScreen(
         // "No seniors linked yet." looked like the links had been removed.
         if (viewModel.isLoading) {
             Box(modifier = Modifier.fillMaxWidth().padding(24.dp)) {
-                LoadingCard("Loading your seniors…")
+                LoadingCard(copy.loadingSeniors)
             }
         } else if (viewModel.loadFailed) {
             Box(modifier = Modifier.fillMaxWidth().padding(24.dp)) {
                 CouldNotLoadCard(
-                    title = "Could not load your seniors",
-                    message = viewModel.error ?: "Could not reach the server.",
-                    reassurance = "They are still linked to your account.",
+                    title = copy.couldNotLoadSeniorsTitle,
+                    message = viewModel.error ?: copy.couldNotReachServer,
+                    reassurance = copy.stillLinkedReassurance,
                     onRetry = { viewModel.refresh() }
                 )
             }
         } else if (viewModel.contacts.isEmpty() && !viewModel.isLoading) {
             Box(modifier = Modifier.fillMaxWidth().padding(top = 40.dp), contentAlignment = Alignment.Center) {
-                Text("No seniors linked yet.", color = FamilyColors.TextSecondary, fontSize = 15.sp)
+                Text(copy.noSeniorsLinkedYet, color = FamilyColors.TextSecondary, fontSize = 15.sp)
             }
         } else {
             LazyColumn(modifier = Modifier.weight(1f).padding(horizontal = 24.dp)) {
@@ -130,6 +131,7 @@ private fun ContactsListScreen(
 
 @Composable
 private fun ContactRow(contact: ContactDto, onClick: () -> Unit) {
+    val copy = LocalFamilyCopy.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -147,7 +149,7 @@ private fun ContactRow(contact: ContactDto, onClick: () -> Unit) {
         Column(modifier = Modifier.padding(start = 14.dp).weight(1f)) {
             Text("${contact.senior.firstName} ${contact.senior.lastName}", color = FamilyColors.TextPrimary, fontSize = 17.sp, fontWeight = FontWeight.Bold)
             Text(
-                "${contact.relationshipLabel?.replaceFirstChar { it.uppercase() } ?: "Family"} · ${formatPhone(contact.senior.mobileNumber)}",
+                "${contact.relationshipLabel?.replaceFirstChar { it.uppercase() } ?: copy.familyFallbackLabel} · ${formatPhone(contact.senior.mobileNumber)}",
                 color = FamilyColors.TextSecondary,
                 fontSize = 14.sp
             )
@@ -163,6 +165,7 @@ private fun ContactDetailScreen(
     onBack: () -> Unit,
     onUnlinked: () -> Unit
 ) {
+    val copy = LocalFamilyCopy.current
     var showConfirm by remember { mutableStateOf(false) }
     val senior = contact.senior
 
@@ -211,14 +214,14 @@ private fun ContactDetailScreen(
                     modifier = Modifier.padding(top = 10.dp)
                 )
                 Text(
-                    "${contact.relationshipLabel?.replaceFirstChar { it.uppercase() } ?: "Family"} · ${senior.age}",
+                    "${contact.relationshipLabel?.replaceFirstChar { it.uppercase() } ?: copy.familyFallbackLabel} · ${senior.age}",
                     color = FamilyColors.TextSecondary,
                     fontSize = 14.sp
                 )
             }
 
             Text(
-                "CONTACT INFORMATION",
+                copy.contactInformationLabel,
                 color = FamilyColors.TextPrimary,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Bold,
@@ -230,9 +233,9 @@ private fun ContactDetailScreen(
                     .fillMaxWidth()
                     .border(1.dp, FamilyColors.FieldBorder, RoundedCornerShape(14.dp))
             ) {
-                InfoRow(Icons.Outlined.Phone, "Phone", formatPhone(senior.mobileNumber))
+                InfoRow(Icons.Outlined.Phone, copy.phoneLabel, formatPhone(senior.mobileNumber))
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 14.dp), thickness = 1.dp, color = FamilyColors.FieldBorder)
-                InfoRow(Icons.Outlined.LocationOn, "Home address", senior.address)
+                InfoRow(Icons.Outlined.LocationOn, copy.homeAddressLabel, senior.address)
             }
 
             Spacer(Modifier.height(28.dp))
@@ -255,7 +258,7 @@ private fun ContactDetailScreen(
                     modifier = Modifier.size(22.dp)
                 )
                 Text(
-                    "Unlink Senior",
+                    copy.unlinkSeniorButton,
                     color = Color(0xFF9E2A2A),
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
@@ -276,18 +279,18 @@ private fun ContactDetailScreen(
     if (showConfirm) {
         AlertDialog(
             onDismissRequest = { showConfirm = false },
-            title = { Text("Unlink this senior?") },
+            title = { Text(copy.unlinkConfirmTitle) },
             text = {
-                Text("Are you sure you want to unlink ${senior.firstName} ${senior.lastName}? You will no longer receive alerts and updates from this senior.")
+                Text(copy.unlinkConfirmBody("${senior.firstName} ${senior.lastName}"))
             },
             confirmButton = {
                 TextButton(onClick = {
                     showConfirm = false
                     viewModel.unlink(contact.id, onDone = onUnlinked)
-                }) { Text("Unlink", color = FamilyColors.ErrorRed) }
+                }) { Text(copy.unlinkButton, color = FamilyColors.ErrorRed) }
             },
             dismissButton = {
-                TextButton(onClick = { showConfirm = false }) { Text("Cancel", color = FamilyColors.TextSecondary) }
+                TextButton(onClick = { showConfirm = false }) { Text(copy.cancelButton, color = FamilyColors.TextSecondary) }
             }
         )
     }

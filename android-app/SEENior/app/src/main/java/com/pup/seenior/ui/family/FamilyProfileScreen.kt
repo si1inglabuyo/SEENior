@@ -26,8 +26,11 @@ import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Gavel
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.PrivacyTip
+import androidx.compose.material.icons.filled.SupportAgent
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -57,27 +60,44 @@ import com.pup.seenior.network.PushTokenRegistrar
 /** Family "Profile" tab (designs/family_contact/profile). Account card + MY INFO (Edit profile,
  *  functional) + HELP & INFORMATION (static rows — no sub-screens built, out of scope here)
  *  + Log Out (clears the session, [onLoggedOut] returns to the pre-auth flow). */
+private enum class FamilyProfilePage {
+    HOME, EDIT, DELETE_ACCOUNT, LANGUAGE, ABOUT, HOW_TO_USE, FAQS, FEEDBACK, SUPPORT, TERMS, PRIVACY
+}
+
 @Composable
 fun FamilyProfileScreen(viewModel: FamilyProfileViewModel = viewModel(), onLoggedOut: () -> Unit) {
     LaunchedEffect(Unit) { viewModel.refresh() }
-    var editing by remember { mutableStateOf(false) }
-    var deleting by remember { mutableStateOf(false) }
-    var choosingLanguage by remember { mutableStateOf(false) }
+    var page by remember { mutableStateOf(FamilyProfilePage.HOME) }
+    val goHome = { page = FamilyProfilePage.HOME }
 
-    when {
-        editing -> FamilyEditProfileScreen(viewModel = viewModel, onBack = { editing = false })
-        deleting -> FamilyDeleteAccountScreen(
+    when (page) {
+        FamilyProfilePage.EDIT -> FamilyEditProfileScreen(viewModel = viewModel, onBack = goHome)
+        FamilyProfilePage.DELETE_ACCOUNT -> FamilyDeleteAccountScreen(
             viewModel = viewModel,
-            onBack = { deleting = false },
+            onBack = goHome,
             // Account is gone server-side; onLoggedOut already routes to the pre-auth flow.
             onDeleted = onLoggedOut
         )
-        choosingLanguage -> FamilyLanguageScreen(viewModel = viewModel, onBack = { choosingLanguage = false })
-        else -> FamilyProfileHome(
+        FamilyProfilePage.LANGUAGE -> FamilyLanguageScreen(viewModel = viewModel, onBack = goHome)
+        FamilyProfilePage.ABOUT -> FamilyAboutScreen(onBack = goHome)
+        FamilyProfilePage.HOW_TO_USE -> FamilyHowToUseScreen(onBack = goHome)
+        FamilyProfilePage.FAQS -> FamilyFaqsScreen(onBack = goHome)
+        FamilyProfilePage.FEEDBACK -> FamilyFeedbackScreen(onBack = goHome)
+        FamilyProfilePage.SUPPORT -> FamilyContactSupportScreen(onBack = goHome)
+        FamilyProfilePage.TERMS -> FamilyTermsScreen(onBack = goHome)
+        FamilyProfilePage.PRIVACY -> FamilyPrivacyScreen(onBack = goHome)
+        FamilyProfilePage.HOME -> FamilyProfileHome(
             viewModel = viewModel,
-            onEditProfile = { editing = true },
-            onDeleteAccount = { deleting = true },
-            onChooseLanguage = { choosingLanguage = true },
+            onEditProfile = { page = FamilyProfilePage.EDIT },
+            onDeleteAccount = { page = FamilyProfilePage.DELETE_ACCOUNT },
+            onChooseLanguage = { page = FamilyProfilePage.LANGUAGE },
+            onAbout = { page = FamilyProfilePage.ABOUT },
+            onHowToUse = { page = FamilyProfilePage.HOW_TO_USE },
+            onFaqs = { page = FamilyProfilePage.FAQS },
+            onFeedback = { page = FamilyProfilePage.FEEDBACK },
+            onContactSupport = { page = FamilyProfilePage.SUPPORT },
+            onTerms = { page = FamilyProfilePage.TERMS },
+            onPrivacy = { page = FamilyProfilePage.PRIVACY },
             onLoggedOut = onLoggedOut
         )
     }
@@ -89,6 +109,13 @@ private fun FamilyProfileHome(
     onEditProfile: () -> Unit,
     onDeleteAccount: () -> Unit,
     onChooseLanguage: () -> Unit,
+    onAbout: () -> Unit,
+    onHowToUse: () -> Unit,
+    onFaqs: () -> Unit,
+    onFeedback: () -> Unit,
+    onContactSupport: () -> Unit,
+    onTerms: () -> Unit,
+    onPrivacy: () -> Unit,
     onLoggedOut: () -> Unit
 ) {
     val copy = LocalFamilyCopy.current
@@ -138,13 +165,21 @@ private fun FamilyProfileHome(
             )
 
             Text(copy.helpInfoLabel, color = FamilyColors.TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 24.dp, bottom = 10.dp))
-            ProfileRow(icon = Icons.Filled.Info, title = copy.aboutAppLabel)
+            ProfileRow(icon = Icons.Filled.Info, title = copy.aboutAppLabel, onClick = onAbout)
             Spacer(Modifier.height(10.dp))
-            ProfileRow(icon = Icons.AutoMirrored.Filled.MenuBook, title = copy.howToUseLabel)
+            ProfileRow(icon = Icons.AutoMirrored.Filled.MenuBook, title = copy.howToUseLabel, onClick = onHowToUse)
             Spacer(Modifier.height(10.dp))
-            ProfileRow(icon = Icons.AutoMirrored.Filled.HelpOutline, title = copy.faqsLabel)
+            ProfileRow(icon = Icons.AutoMirrored.Filled.HelpOutline, title = copy.faqsLabel, onClick = onFaqs)
             Spacer(Modifier.height(10.dp))
-            ProfileRow(icon = Icons.AutoMirrored.Outlined.Chat, title = copy.feedbackLabel)
+            ProfileRow(icon = Icons.AutoMirrored.Outlined.Chat, title = copy.feedbackLabel, onClick = onFeedback)
+            if (FAMILY_SUPPORT_CONTACT_CONFIGURED) {
+                Spacer(Modifier.height(10.dp))
+                ProfileRow(icon = Icons.Filled.SupportAgent, title = copy.contactSupportLabel, onClick = onContactSupport)
+            }
+            Spacer(Modifier.height(10.dp))
+            ProfileRow(icon = Icons.Filled.Gavel, title = copy.termsLabel, onClick = onTerms)
+            Spacer(Modifier.height(10.dp))
+            ProfileRow(icon = Icons.Filled.PrivacyTip, title = copy.privacyLabel, onClick = onPrivacy)
 
             Spacer(Modifier.height(24.dp))
             ProfileRow(
@@ -297,6 +332,7 @@ private fun ProfileRow(
 
 @Composable
 private fun FamilyEditProfileScreen(viewModel: FamilyProfileViewModel, onBack: () -> Unit) {
+    val copy = LocalFamilyCopy.current
     var showPasswordDialog by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxSize().background(Color.White)) {
@@ -310,7 +346,7 @@ private fun FamilyEditProfileScreen(viewModel: FamilyProfileViewModel, onBack: (
             IconButton(onClick = onBack) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
             }
-            Text("Edit profile", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Text(copy.editProfileTitle, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
         }
 
         Column(
@@ -326,16 +362,16 @@ private fun FamilyEditProfileScreen(viewModel: FamilyProfileViewModel, onBack: (
             }
 
             Spacer(Modifier.height(24.dp))
-            FamilyTextField("Full name", viewModel.fullName, { viewModel.fullName = it })
+            FamilyTextField(copy.fullNameLabel, viewModel.fullName, { viewModel.fullName = it })
 
             Spacer(Modifier.height(14.dp))
             FamilyTextField(
-                "Mobile number",
+                copy.mobileNumberLabel,
                 viewModel.phone,
                 { viewModel.phone = it },
                 keyboardType = KeyboardType.Phone,
                 isError = viewModel.phone.isNotBlank() && !com.pup.seenior.validation.PhilippinePhone.isValid(viewModel.phone),
-                errorText = "Enter a valid PH mobile number (09XXXXXXXXX or +639XXXXXXXXX)"
+                errorText = copy.invalidPhoneError
             )
 
             Spacer(Modifier.height(20.dp))
@@ -354,7 +390,7 @@ private fun FamilyEditProfileScreen(viewModel: FamilyProfileViewModel, onBack: (
                 // A Google-only account has no password to change — it sets one instead, which
                 // then also unlocks email + password sign-in.
                 Text(
-                    if (viewModel.hasPassword) "Change Password" else "Set a Password",
+                    if (viewModel.hasPassword) copy.changePasswordButton else copy.setAPasswordButton,
                     color = FamilyColors.Blue,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold
@@ -367,7 +403,7 @@ private fun FamilyEditProfileScreen(viewModel: FamilyProfileViewModel, onBack: (
 
             Spacer(Modifier.height(28.dp))
             BluePillButton(
-                text = if (viewModel.isSaving) "SAVING…" else "SAVE CHANGES",
+                text = if (viewModel.isSaving) copy.savingEllipsis else copy.saveChangesButton,
                 enabled = viewModel.isEditValid && !viewModel.isSaving,
                 onClick = { viewModel.saveProfile(onSaved = onBack) }
             )
@@ -384,6 +420,7 @@ private fun FamilyEditProfileScreen(viewModel: FamilyProfileViewModel, onBack: (
 
 @Composable
 private fun ChangePasswordDialog(viewModel: FamilyProfileViewModel, onDismiss: () -> Unit) {
+    val copy = LocalFamilyCopy.current
     // Same dialog, two modes: an account with a password *changes* it (needs the current one);
     // a Google-only account *sets* one for the first time (no current password, and it also
     // turns on email + password sign-in).
@@ -394,34 +431,28 @@ private fun ChangePasswordDialog(viewModel: FamilyProfileViewModel, onDismiss: (
         title = {
             Text(
                 when {
-                    viewModel.passwordChanged && setting -> "Password set"
-                    viewModel.passwordChanged -> "Password changed"
-                    setting -> "Set a Password"
-                    else -> "Change Password"
+                    viewModel.passwordChanged && setting -> copy.passwordSetTitle
+                    viewModel.passwordChanged -> copy.passwordChangedTitle
+                    setting -> copy.setAPasswordButton
+                    else -> copy.changePasswordButton
                 }
             )
         },
         text = {
             if (viewModel.passwordChanged) {
-                Text(
-                    if (setting)
-                        "You can now sign in with your email and this password, or keep using Google."
-                    else
-                        "Your password was updated successfully."
-                )
+                Text(if (setting) copy.passwordSetBody else copy.passwordChangedBody)
             } else {
                 Column {
                     if (setting) {
                         Text(
-                            "You signed up with Google. Add a password to also sign in with " +
-                                (viewModel.user?.email ?: "your email") + ".",
+                            copy.googleSignupNotice(viewModel.user?.email ?: "your email"),
                             color = FamilyColors.TextSecondary,
                             fontSize = 13.sp,
                             modifier = Modifier.padding(bottom = 12.dp)
                         )
                     } else {
                         FamilyTextField(
-                            "Current password",
+                            copy.currentPasswordLabel,
                             viewModel.currentPassword,
                             { viewModel.currentPassword = it },
                             keyboardType = KeyboardType.Password,
@@ -430,7 +461,7 @@ private fun ChangePasswordDialog(viewModel: FamilyProfileViewModel, onDismiss: (
                         Spacer(Modifier.height(10.dp))
                     }
                     FamilyTextField(
-                        "New password",
+                        copy.newPasswordLabel,
                         viewModel.newPassword,
                         { viewModel.newPassword = it },
                         keyboardType = KeyboardType.Password,
@@ -438,13 +469,13 @@ private fun ChangePasswordDialog(viewModel: FamilyProfileViewModel, onDismiss: (
                     )
                     Spacer(Modifier.height(10.dp))
                     FamilyTextField(
-                        "Confirm new password",
+                        copy.confirmNewPasswordLabel,
                         viewModel.confirmPassword,
                         { viewModel.confirmPassword = it },
                         keyboardType = KeyboardType.Password,
                         isPassword = true,
                         isError = viewModel.confirmPassword.isNotBlank() && viewModel.confirmPassword != viewModel.newPassword,
-                        errorText = "Passwords don't match"
+                        errorText = copy.passwordsDontMatch
                     )
                     viewModel.passwordError?.let {
                         Text(it, color = FamilyColors.ErrorRed, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp))
@@ -454,32 +485,28 @@ private fun ChangePasswordDialog(viewModel: FamilyProfileViewModel, onDismiss: (
         },
         confirmButton = {
             if (viewModel.passwordChanged) {
-                TextButton(onClick = onDismiss) { Text("Done", color = FamilyColors.Blue) }
+                TextButton(onClick = onDismiss) { Text(copy.doneButton, color = FamilyColors.Blue) }
             } else {
                 TextButton(
                     onClick = { if (setting) viewModel.setPassword() else viewModel.changePassword() },
                     enabled = formValid && !viewModel.isChangingPassword
                 ) {
-                    Text(if (viewModel.isChangingPassword) "Saving…" else "Save", color = FamilyColors.Blue)
+                    Text(if (viewModel.isChangingPassword) copy.savingDots else copy.saveButton, color = FamilyColors.Blue)
                 }
             }
         },
         dismissButton = {
             if (!viewModel.passwordChanged) {
-                TextButton(onClick = onDismiss) { Text("Cancel", color = FamilyColors.TextSecondary) }
+                TextButton(onClick = onDismiss) { Text(copy.cancelButton, color = FamilyColors.TextSecondary) }
             }
         }
     )
 }
 
-/** code → label. The code is what the server stores; the label is display only. */
-private val DELETE_REASONS = listOf(
-    "senior_no_longer_needs" to "The senior I monitored no longer needs this",
-    "not_caregiver" to "I'm no longer a caregiver for this senior",
-    "duplicate" to "I made this account by mistake or it's a duplicate",
-    "privacy" to "Privacy concerns",
-    "not_useful" to "It didn't work the way I expected",
-    "other" to "Another reason",
+/** The codes the server stores as `deletion_reason` — never translated. The label shown to
+ *  the family member comes from [FamilyStrings.Copy.deleteReasonLabel] instead. */
+private val DELETE_REASON_CODES = listOf(
+    "senior_no_longer_needs", "not_caregiver", "duplicate", "privacy", "not_useful", "other"
 )
 
 @Composable
@@ -488,6 +515,7 @@ private fun FamilyDeleteAccountScreen(
     onBack: () -> Unit,
     onDeleted: () -> Unit
 ) {
+    val copy = LocalFamilyCopy.current
     var selectedReason by remember { mutableStateOf<String?>(null) }
     var note by remember { mutableStateOf("") }
     var showConfirm by remember { mutableStateOf(false) }
@@ -508,7 +536,7 @@ private fun FamilyDeleteAccountScreen(
             IconButton(onClick = onBack) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
             }
-            Text("Delete account", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Text(copy.deleteAccountTitle, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
         }
 
         Column(
@@ -517,22 +545,20 @@ private fun FamilyDeleteAccountScreen(
                 .padding(24.dp)
         ) {
             Text(
-                "This removes your account and unlinks every senior you monitor. They will no " +
-                    "longer send alerts to you, and you will need to sign up again to use the app. " +
-                    "This cannot be undone.",
+                copy.deleteAccountWarning,
                 color = FamilyColors.TextPrimary,
                 fontSize = 15.sp
             )
 
             Text(
-                "Please tell us why (required)",
+                copy.tellUsWhyRequired,
                 color = FamilyColors.TextPrimary,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(top = 22.dp, bottom = 4.dp)
             )
 
-            DELETE_REASONS.forEach { (code, label) ->
+            DELETE_REASON_CODES.forEach { code ->
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -541,17 +567,17 @@ private fun FamilyDeleteAccountScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     RadioButton(selected = selectedReason == code, onClick = { selectedReason = code })
-                    Text(label, color = FamilyColors.TextPrimary, fontSize = 15.sp, modifier = Modifier.padding(start = 4.dp))
+                    Text(copy.deleteReasonLabel(code), color = FamilyColors.TextPrimary, fontSize = 15.sp, modifier = Modifier.padding(start = 4.dp))
                 }
             }
 
             Spacer(Modifier.height(12.dp))
             FamilyTextField(
-                "Tell us more",
+                copy.tellUsMoreLabel,
                 note,
                 { note = it },
                 isError = noteRequired && note.isBlank(),
-                errorText = "Please tell us your reason"
+                errorText = copy.tellUsMoreError
             )
 
             viewModel.deleteError?.let {
@@ -560,7 +586,7 @@ private fun FamilyDeleteAccountScreen(
 
             Spacer(Modifier.height(28.dp))
             BluePillButton(
-                text = if (viewModel.isDeleting) "DELETING…" else "DELETE MY ACCOUNT",
+                text = if (viewModel.isDeleting) copy.deletingEllipsis else copy.deleteMyAccountButton,
                 enabled = canDelete,
                 onClick = { showConfirm = true }
             )
@@ -570,8 +596,8 @@ private fun FamilyDeleteAccountScreen(
     if (showConfirm) {
         AlertDialog(
             onDismissRequest = { showConfirm = false },
-            title = { Text("Delete your account?") },
-            text = { Text("Your account is removed and every senior is unlinked. This cannot be undone.") },
+            title = { Text(copy.deleteConfirmTitle) },
+            text = { Text(copy.deleteConfirmBody) },
             confirmButton = {
                 TextButton(onClick = {
                     val reason = selectedReason
@@ -580,12 +606,12 @@ private fun FamilyDeleteAccountScreen(
                         viewModel.deleteAccount(reason, note.trim().ifBlank { null }, onDeleted)
                     }
                 }) {
-                    Text("Delete", color = FamilyColors.ErrorRed)
+                    Text(copy.deleteButton, color = FamilyColors.ErrorRed)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showConfirm = false }) {
-                    Text("Cancel", color = FamilyColors.TextSecondary)
+                    Text(copy.cancelButton, color = FamilyColors.TextSecondary)
                 }
             }
         )

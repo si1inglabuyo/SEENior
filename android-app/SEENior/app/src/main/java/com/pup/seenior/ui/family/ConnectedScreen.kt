@@ -49,6 +49,7 @@ fun ConnectedScreen(
     onAddAnother: (() -> Unit)? = null
 ) {
     val senior: SeniorDto = viewModel.verifiedSenior ?: return
+    val copy = LocalFamilyCopy.current
 
     Column(
         modifier = Modifier
@@ -68,9 +69,9 @@ fun ConnectedScreen(
             Icon(Icons.Filled.Check, null, tint = FamilyColors.SuccessGreen, modifier = Modifier.size(36.dp))
         }
 
-        Text("Connected", color = FamilyColors.Blue, fontSize = 26.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 12.dp))
+        Text(copy.connectedTitle, color = FamilyColors.Blue, fontSize = 26.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 12.dp))
         Text(
-            "You are now monitoring ${senior.firstName}. You'll receive alerts if anything unusual is detected.",
+            copy.nowMonitoring(senior.firstName),
             color = FamilyColors.TextSecondary,
             fontSize = 15.sp,
             textAlign = TextAlign.Center,
@@ -107,7 +108,7 @@ fun ConnectedScreen(
         // the senior's father. "You are the senior's:" fixes the direction for both paths at
         // once, since only one answer to the fill-in-the-blank is grammatical.
         Text(
-            "You are the senior's:",
+            copy.youAreSeniorsLabel,
             color = FamilyColors.Blue,
             fontSize = 15.sp,
             fontWeight = FontWeight.Bold,
@@ -127,7 +128,10 @@ fun ConnectedScreen(
                         .clickable { viewModel.chooseRelationship(rel) }
                         .padding(horizontal = 18.dp, vertical = 10.dp)
                 ) {
-                    Text(rel.replaceFirstChar { it.uppercase() }, color = if (selected) FamilyColors.Blue else FamilyColors.TextPrimary, fontSize = 15.sp)
+                    // rel (the value sent to the server as relationship_label) stays English --
+                    // only the displayed chip label varies with this account's language. See
+                    // FamilyStrings.Copy.relationshipLabel's kdoc for why.
+                    Text(copy.relationshipLabel(rel), color = if (selected) FamilyColors.Blue else FamilyColors.TextPrimary, fontSize = 15.sp)
                 }
             }
         }
@@ -143,7 +147,7 @@ fun ConnectedScreen(
             // Examples in the same direction as the chips above (niece, neighbor -- not "aunt",
             // "landlord"), so a free-typed answer keeps the fill-in-the-blank grammatical instead
             // of silently reversing it.
-            placeholder = { Text("Other (e.g. niece, neighbor)") },
+            placeholder = { Text(copy.otherRelationshipPlaceholder) },
             singleLine = true,
             shape = RoundedCornerShape(12.dp),
             colors = OutlinedTextFieldDefaults.colors(
@@ -158,7 +162,7 @@ fun ConnectedScreen(
 
         Spacer(Modifier.height(24.dp))
         BluePillButton(
-            text = if (viewModel.isPairing) "CONNECTING…" else "Go to Home",
+            text = if (viewModel.isPairing) copy.connectingEllipsis else copy.goToHomeButton,
             enabled = viewModel.relationshipLabel != null && !viewModel.isPairing,
             onClick = { viewModel.pair(onGoHome) }
         )
@@ -178,7 +182,7 @@ fun ConnectedScreen(
             ) {
                 Icon(Icons.Filled.Add, null, tint = FamilyColors.Blue, modifier = Modifier.size(18.dp))
                 Text(
-                    "Add another senior",
+                    copy.addAnotherSenior,
                     color = FamilyColors.Blue,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Bold,
@@ -195,17 +199,13 @@ fun ConnectedScreen(
             onDismissRequest = viewModel::confirmPairSuccess,
             confirmButton = {
                 TextButton(onClick = viewModel::confirmPairSuccess) {
-                    Text("Done", color = FamilyColors.Blue, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    Text(copy.doneButton, color = FamilyColors.Blue, fontSize = 15.sp, fontWeight = FontWeight.Bold)
                 }
             },
             icon = { Icon(Icons.Filled.CheckCircle, null, tint = FamilyColors.SuccessGreen) },
-            title = { Text("Linked successfully", fontSize = 19.sp, fontWeight = FontWeight.Bold) },
+            title = { Text(copy.linkedSuccessTitle, fontSize = 19.sp, fontWeight = FontWeight.Bold) },
             text = {
-                Text(
-                    "You are now monitoring $name. You'll be alerted right away if anything " +
-                        "unusual is detected.",
-                    fontSize = 15.sp
-                )
+                Text(copy.linkedSuccessBody(name), fontSize = 15.sp)
             }
         )
     }

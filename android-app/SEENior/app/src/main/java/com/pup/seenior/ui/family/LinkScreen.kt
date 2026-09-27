@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.sp
 
 @Composable
 fun LinkScreen(viewModel: FamilyPairingViewModel, onVerified: () -> Unit) {
+    val copy = LocalFamilyCopy.current
     val focusRequester = remember { FocusRequester() }
 
     Column(
@@ -46,7 +47,7 @@ fun LinkScreen(viewModel: FamilyPairingViewModel, onVerified: () -> Unit) {
             .fillMaxSize()
             .background(Color.White)
     ) {
-        BlueHeader(Icons.Filled.Link, "Link")
+        BlueHeader(Icons.Filled.Link, copy.tabLink)
 
         // Scrolls; the header does not. This screen has a text field, so the moment the
         // keyboard opens the window shrinks (MainActivity is adjustResize) and the Verify
@@ -59,14 +60,14 @@ fun LinkScreen(viewModel: FamilyPairingViewModel, onVerified: () -> Unit) {
                 .padding(horizontal = 24.dp)
         ) {
             Text(
-                "Share With Family",
+                copy.linkToYourSeniorHeading,
                 color = FamilyColors.Blue,
                 fontSize = 24.sp,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(top = 20.dp)
             )
             Text(
-                "Enter the invite code from a senior's SEENior app to connect.",
+                copy.enterInviteCodeBody,
                 color = FamilyColors.TextSecondary,
                 fontSize = 15.sp,
                 modifier = Modifier.padding(top = 6.dp)
@@ -80,7 +81,7 @@ fun LinkScreen(viewModel: FamilyPairingViewModel, onVerified: () -> Unit) {
                     .padding(vertical = 24.dp, horizontal = 16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text("Invite code:", color = FamilyColors.TextPrimary, fontSize = 18.sp)
+                Text(copy.inviteCodeLabel, color = FamilyColors.TextPrimary, fontSize = 18.sp)
 
                 LaunchedEffect(Unit) { focusRequester.requestFocus() }
 
@@ -122,11 +123,11 @@ fun LinkScreen(viewModel: FamilyPairingViewModel, onVerified: () -> Unit) {
                 if (viewModel.isVerifying) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         CircularProgressIndicator(color = FamilyColors.Blue, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                        Text("Looking up code…", color = FamilyColors.Blue, fontSize = 18.sp, modifier = Modifier.padding(start = 10.dp))
+                        Text(copy.lookingUpCode, color = FamilyColors.Blue, fontSize = 18.sp, modifier = Modifier.padding(start = 10.dp))
                     }
                 } else {
                     BluePillButton(
-                        text = "→  Verify code",
+                        text = copy.verifyCodeButton,
                         enabled = viewModel.code.length == 6,
                         onClick = { viewModel.verify(onVerified) }
                     )
@@ -147,9 +148,8 @@ fun LinkScreen(viewModel: FamilyPairingViewModel, onVerified: () -> Unit) {
             ) {
                 Icon(Icons.Outlined.Info, null, tint = FamilyColors.WarningText, modifier = Modifier.size(22.dp))
                 Text(
-                    if (viewModel.isVerifying)
-                        "Connecting to SEENior's server to verify ${viewModel.code}. Make sure you have internet."
-                    else "The senior must generate a code first from their SEENior app.",
+                    if (viewModel.isVerifying) copy.connectingHint(viewModel.code)
+                    else copy.seniorMustGenerateHint,
                     color = FamilyColors.WarningText,
                     fontSize = 14.sp,
                     modifier = Modifier.padding(start = 12.dp)

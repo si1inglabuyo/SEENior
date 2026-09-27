@@ -220,8 +220,9 @@ private fun LinkTab(
     onDone: () -> Unit
 ) {
     if (!seniorsViewModel.canLinkMore) {
+        val copy = LocalFamilyCopy.current
         Column(modifier = Modifier.fillMaxSize().background(Color.White)) {
-            BlueHeader(Icons.Outlined.Link, "Link")
+            BlueHeader(Icons.Outlined.Link, copy.tabLink)
             Column(modifier = Modifier.padding(24.dp)) {
                 MonitoringLimitCard()
                 Row(
@@ -233,7 +234,7 @@ private fun LinkTab(
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Manage linked seniors", color = FamilyColors.Blue, fontWeight = FontWeight.Bold)
+                    Text(copy.manageLinkedSeniors, color = FamilyColors.Blue, fontWeight = FontWeight.Bold)
                 }
             }
         }

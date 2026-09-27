@@ -155,6 +155,9 @@ object FamilyStrings {
         val howToUseLabel: String,
         val faqsLabel: String,
         val feedbackLabel: String,
+        val contactSupportLabel: String,
+        val termsLabel: String,
+        val privacyLabel: String,
         val logOutLabel: String,
         val deleteAccountTitle: String,
         val deleteAccountSubtitle: String,
@@ -168,6 +171,76 @@ object FamilyStrings {
         val languagePickerBodyFil: String,
         val englishOptionLabel: String,
         val filipinoOptionLabel: String,
+
+        // Contacts tab
+        val contactsSearchPlaceholder: String,
+        val noSeniorsLinkedYet: String,
+        val unlinkSeniorButton: String,
+        val unlinkConfirmTitle: String,
+        val unlinkButton: String,
+
+        // Edit profile
+        val fullNameLabel: String,
+        val mobileNumberLabel: String,
+        val invalidPhoneError: String,
+        val changePasswordButton: String,
+        val setAPasswordButton: String,
+        val savingEllipsis: String,
+        val saveChangesButton: String,
+
+        // Change/set password dialog
+        val passwordSetTitle: String,
+        val passwordChangedTitle: String,
+        val passwordSetBody: String,
+        val passwordChangedBody: String,
+        val currentPasswordLabel: String,
+        val newPasswordLabel: String,
+        val confirmNewPasswordLabel: String,
+        val passwordsDontMatch: String,
+        val doneButton: String,
+        val saveButton: String,
+        val savingDots: String,
+
+        // Delete account
+        val deleteAccountWarning: String,
+        val tellUsWhyRequired: String,
+        val deleteReasonSeniorNoLongerNeeds: String,
+        val deleteReasonNotCaregiver: String,
+        val deleteReasonDuplicate: String,
+        val deleteReasonPrivacy: String,
+        val deleteReasonNotUseful: String,
+        val deleteReasonOther: String,
+        val tellUsMoreLabel: String,
+        val tellUsMoreError: String,
+        val deletingEllipsis: String,
+        val deleteMyAccountButton: String,
+        val deleteConfirmTitle: String,
+        val deleteConfirmBody: String,
+        val deleteButton: String,
+
+        // Link (enter code)
+        val linkToYourSeniorHeading: String,
+        val enterInviteCodeBody: String,
+        val inviteCodeLabel: String,
+        val lookingUpCode: String,
+        val verifyCodeButton: String,
+        val seniorMustGenerateHint: String,
+        val manageLinkedSeniors: String,
+
+        // Connected (relationship picker)
+        val connectedTitle: String,
+        val youAreSeniorsLabel: String,
+        val relationshipDaughter: String,
+        val relationshipSon: String,
+        val relationshipGrandchild: String,
+        val relationshipCaregiver: String,
+        val relationshipHusband: String,
+        val relationshipWife: String,
+        val otherRelationshipPlaceholder: String,
+        val connectingEllipsis: String,
+        val goToHomeButton: String,
+        val addAnotherSenior: String,
+        val linkedSuccessTitle: String,
     ) {
         fun greeting(firstName: String): String =
             if (language == WellnessMessages.FILIPINO) {
@@ -338,6 +411,72 @@ object FamilyStrings {
 
         val languageValueLabel: String
             get() = if (language == WellnessMessages.FILIPINO) filipinoOptionLabel else englishOptionLabel
+
+        fun unlinkConfirmBody(name: String): String =
+            if (language == WellnessMessages.FILIPINO)
+                "Sigurado ka bang gusto mong i-unlink si $name? Hindi ka na makakatanggap ng mga " +
+                    "alerto at update mula sa senior na ito."
+            else
+                "Are you sure you want to unlink $name? You will no longer receive alerts and " +
+                    "updates from this senior."
+
+        /** [email] is shown so the family member knows which sign-in identity a new password
+         *  would attach to -- meaningless to translate, since it's their own literal address. */
+        fun googleSignupNotice(email: String): String =
+            if (language == WellnessMessages.FILIPINO)
+                "Nag-sign up ka gamit ang Google. Magdagdag ng password upang makapag-sign in ka " +
+                    "rin gamit ang $email."
+            else
+                "You signed up with Google. Add a password to also sign in with $email."
+
+        /** Dispatch-reason-style code/label split: [code] is the stable string the app already
+         *  sends as `deletion_reason` (AccountDeletionRequest.reason in DELETE_REASONS below) --
+         *  never translated, since the backend stores it verbatim for audit. */
+        fun deleteReasonLabel(code: String): String = when (code) {
+            "senior_no_longer_needs" -> deleteReasonSeniorNoLongerNeeds
+            "not_caregiver" -> deleteReasonNotCaregiver
+            "duplicate" -> deleteReasonDuplicate
+            "privacy" -> deleteReasonPrivacy
+            "not_useful" -> deleteReasonNotUseful
+            else -> deleteReasonOther
+        }
+
+        /** [code] is one of the fixed English values in RELATIONSHIPS (ConnectedScreen.kt),
+         *  stored verbatim as `Contact.relationship_label` and shown on the SENIOR's own
+         *  Contacts screen regardless of the family member's language -- so, same reasoning as
+         *  the dispatch/delete reasons, only the on-screen chip label may vary; the stored value
+         *  never does, or a Filipino chip pick would show untranslated on an English-reading
+         *  senior's screen and vice versa. */
+        fun relationshipLabel(code: String): String = when (code) {
+            "daughter" -> relationshipDaughter
+            "son" -> relationshipSon
+            "grandchild" -> relationshipGrandchild
+            "caregiver" -> relationshipCaregiver
+            "husband" -> relationshipHusband
+            "wife" -> relationshipWife
+            else -> code.replaceFirstChar { it.uppercase() }
+        }
+
+        fun connectingHint(code: String): String =
+            if (language == WellnessMessages.FILIPINO)
+                "Kumokonekta sa server ng SEENior upang i-verify ang $code. Siguraduhing may " +
+                    "internet ka."
+            else
+                "Connecting to SEENior's server to verify $code. Make sure you have internet."
+
+        fun nowMonitoring(name: String): String =
+            if (language == WellnessMessages.FILIPINO)
+                "Binabantayan mo na ngayon si $name. Maaabisuhan ka kung may matukoy na kakaiba."
+            else
+                "You are now monitoring $name. You'll receive alerts if anything unusual is detected."
+
+        fun linkedSuccessBody(name: String): String =
+            if (language == WellnessMessages.FILIPINO)
+                "Binabantayan mo na ngayon si $name. Maaabisuhan ka agad kung may matukoy na " +
+                    "kakaiba."
+            else
+                "You are now monitoring $name. You'll be alerted right away if anything unusual " +
+                    "is detected."
     }
 
     private val ENGLISH_COPY = Copy(
@@ -456,6 +595,9 @@ object FamilyStrings {
         howToUseLabel = "How to use",
         faqsLabel = "FAQs",
         feedbackLabel = "Feedback & requests",
+        contactSupportLabel = "Contact support",
+        termsLabel = "Terms & conditions",
+        privacyLabel = "Privacy policy",
         logOutLabel = "Log Out",
         deleteAccountTitle = "Delete account",
         deleteAccountSubtitle = "Permanently remove your account and unlink your seniors",
@@ -467,6 +609,72 @@ object FamilyStrings {
         languagePickerBodyFil = "Gagamitin ng app ang wikang ito.",
         englishOptionLabel = "English",
         filipinoOptionLabel = "Filipino / Tagalog",
+
+        contactsSearchPlaceholder = "Search seniors…",
+        noSeniorsLinkedYet = "No seniors linked yet.",
+        unlinkSeniorButton = "Unlink Senior",
+        unlinkConfirmTitle = "Unlink this senior?",
+        unlinkButton = "Unlink",
+
+        fullNameLabel = "Full name",
+        mobileNumberLabel = "Mobile number",
+        invalidPhoneError = "Enter a valid PH mobile number (09XXXXXXXXX or +639XXXXXXXXX)",
+        changePasswordButton = "Change Password",
+        setAPasswordButton = "Set a Password",
+        savingEllipsis = "SAVING…",
+        saveChangesButton = "SAVE CHANGES",
+
+        passwordSetTitle = "Password set",
+        passwordChangedTitle = "Password changed",
+        passwordSetBody = "You can now sign in with your email and this password, or keep using Google.",
+        passwordChangedBody = "Your password was updated successfully.",
+        currentPasswordLabel = "Current password",
+        newPasswordLabel = "New password",
+        confirmNewPasswordLabel = "Confirm new password",
+        passwordsDontMatch = "Passwords don't match",
+        doneButton = "Done",
+        saveButton = "Save",
+        savingDots = "Saving…",
+
+        deleteAccountWarning = "This removes your account and unlinks every senior you monitor. They will no " +
+            "longer send alerts to you, and you will need to sign up again to use the app. " +
+            "This cannot be undone.",
+        tellUsWhyRequired = "Please tell us why (required)",
+        deleteReasonSeniorNoLongerNeeds = "The senior I monitored no longer needs this",
+        deleteReasonNotCaregiver = "I'm no longer a caregiver for this senior",
+        deleteReasonDuplicate = "I made this account by mistake or it's a duplicate",
+        deleteReasonPrivacy = "Privacy concerns",
+        deleteReasonNotUseful = "It didn't work the way I expected",
+        deleteReasonOther = "Another reason",
+        tellUsMoreLabel = "Tell us more",
+        tellUsMoreError = "Please tell us your reason",
+        deletingEllipsis = "DELETING…",
+        deleteMyAccountButton = "DELETE MY ACCOUNT",
+        deleteConfirmTitle = "Delete your account?",
+        deleteConfirmBody = "Your account is removed and every senior is unlinked. This cannot be undone.",
+        deleteButton = "Delete",
+
+        linkToYourSeniorHeading = "Link to Your Senior",
+        enterInviteCodeBody = "Enter the invite code from a senior's SEENior app to connect.",
+        inviteCodeLabel = "Invite code:",
+        lookingUpCode = "Looking up code…",
+        verifyCodeButton = "→  Verify code",
+        seniorMustGenerateHint = "The senior must generate a code first from their SEENior app.",
+        manageLinkedSeniors = "Manage linked seniors",
+
+        connectedTitle = "Connected",
+        youAreSeniorsLabel = "You are the senior's:",
+        relationshipDaughter = "Daughter",
+        relationshipSon = "Son",
+        relationshipGrandchild = "Grandchild",
+        relationshipCaregiver = "Caregiver",
+        relationshipHusband = "Husband",
+        relationshipWife = "Wife",
+        otherRelationshipPlaceholder = "Other (e.g. niece, neighbor)",
+        connectingEllipsis = "CONNECTING…",
+        goToHomeButton = "Go to Home",
+        addAnotherSenior = "Add another senior",
+        linkedSuccessTitle = "Linked successfully",
     )
 
     private val FILIPINO_COPY = ENGLISH_COPY.copy(
@@ -585,6 +793,9 @@ object FamilyStrings {
         howToUseLabel = "Paano gamitin",
         faqsLabel = "Mga Tanong",
         feedbackLabel = "Puna at kahilingan",
+        contactSupportLabel = "Makipag-ugnayan sa support",
+        termsLabel = "Mga tuntunin at kondisyon",
+        privacyLabel = "Privacy Policy",
         logOutLabel = "Mag-log Out",
         deleteAccountTitle = "Burahin ang account",
         deleteAccountSubtitle = "Permanenteng alisin ang iyong account at i-unlink ang mga senior mo",
@@ -596,6 +807,72 @@ object FamilyStrings {
         languagePickerBodyFil = "Gagamitin ng app ang wikang ito.",
         englishOptionLabel = "English",
         filipinoOptionLabel = "Filipino / Tagalog",
+
+        contactsSearchPlaceholder = "Maghanap ng senior…",
+        noSeniorsLinkedYet = "Walang naka-link na senior pa.",
+        unlinkSeniorButton = "I-unlink ang Senior",
+        unlinkConfirmTitle = "I-unlink ang senior na ito?",
+        unlinkButton = "I-unlink",
+
+        fullNameLabel = "Buong pangalan",
+        mobileNumberLabel = "Numero ng mobile",
+        invalidPhoneError = "Ilagay ang wastong PH mobile number (09XXXXXXXXX o +639XXXXXXXXX)",
+        changePasswordButton = "Baguhin ang Password",
+        setAPasswordButton = "Magtakda ng Password",
+        savingEllipsis = "SINE-SAVE…",
+        saveChangesButton = "I-SAVE ANG PAGBABAGO",
+
+        passwordSetTitle = "Naitakda ang password",
+        passwordChangedTitle = "Nabago ang password",
+        passwordSetBody = "Maaari ka na ngayong mag-sign in gamit ang iyong email at password na ito, o patuloy gamitin ang Google.",
+        passwordChangedBody = "Matagumpay na na-update ang iyong password.",
+        currentPasswordLabel = "Kasalukuyang password",
+        newPasswordLabel = "Bagong password",
+        confirmNewPasswordLabel = "Kumpirmahin ang bagong password",
+        passwordsDontMatch = "Hindi tugma ang mga password",
+        doneButton = "Tapos",
+        saveButton = "I-save",
+        savingDots = "Ise-save…",
+
+        deleteAccountWarning = "Aalisin nito ang iyong account at i-unlink ang bawat senior na binabantayan mo. Hindi na sila " +
+            "makakapadala ng alerto sa iyo, at kailangan mo ulit mag-sign up upang gamitin ang app. " +
+            "Hindi na ito maibabalik.",
+        tellUsWhyRequired = "Sabihin sa amin kung bakit (kinakailangan)",
+        deleteReasonSeniorNoLongerNeeds = "Hindi na kailangan ng senior na binabantayan ko ito",
+        deleteReasonNotCaregiver = "Hindi na ako caregiver ng senior na ito",
+        deleteReasonDuplicate = "Nagawa ko ito nang mali o duplicate lang",
+        deleteReasonPrivacy = "Alalahanin sa privacy",
+        deleteReasonNotUseful = "Hindi ito gumana sa inaasahan ko",
+        deleteReasonOther = "Ibang dahilan",
+        tellUsMoreLabel = "Sabihin pa sa amin",
+        tellUsMoreError = "Pakisabi ang iyong dahilan",
+        deletingEllipsis = "BINUBURA…",
+        deleteMyAccountButton = "BURAHIN ANG AKING ACCOUNT",
+        deleteConfirmTitle = "Burahin ang iyong account?",
+        deleteConfirmBody = "Aalisin ang iyong account at ma-unlink ang bawat senior. Hindi na ito maibabalik.",
+        deleteButton = "Burahin",
+
+        linkToYourSeniorHeading = "I-link sa Iyong Senior",
+        enterInviteCodeBody = "Ilagay ang invite code mula sa SEENior app ng senior upang kumonekta.",
+        inviteCodeLabel = "Invite code:",
+        lookingUpCode = "Hinahanap ang code…",
+        verifyCodeButton = "→  I-verify ang code",
+        seniorMustGenerateHint = "Kailangan munang gumawa ng code ang senior mula sa kanilang SEENior app.",
+        manageLinkedSeniors = "Pamahalaan ang mga naka-link na senior",
+
+        connectedTitle = "Nakakonekta",
+        youAreSeniorsLabel = "Ikaw ang kanyang:",
+        relationshipDaughter = "Anak na babae",
+        relationshipSon = "Anak na lalaki",
+        relationshipGrandchild = "Apo",
+        relationshipCaregiver = "Caregiver",
+        relationshipHusband = "Asawang lalaki",
+        relationshipWife = "Asawang babae",
+        otherRelationshipPlaceholder = "Iba pa (hal. pamangkin, kapitbahay)",
+        connectingEllipsis = "KUMOKONEKTA…",
+        goToHomeButton = "Pumunta sa Home",
+        addAnotherSenior = "Magdagdag ng isa pang senior",
+        linkedSuccessTitle = "Matagumpay na na-link",
     )
 
     fun forLanguage(language: String): Copy =
