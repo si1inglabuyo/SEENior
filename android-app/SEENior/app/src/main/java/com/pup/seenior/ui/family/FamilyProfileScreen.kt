@@ -40,6 +40,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.filled.Language
+import com.pup.seenior.ui.wellness.WellnessMessages
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -56,11 +58,11 @@ import com.pup.seenior.network.PushTokenRegistrar
  *  functional) + HELP & INFORMATION (static rows — no sub-screens built, out of scope here)
  *  + Log Out (clears the session, [onLoggedOut] returns to the pre-auth flow). */
 @Composable
-fun FamilyProfileScreen(onLoggedOut: () -> Unit) {
-    val viewModel: FamilyProfileViewModel = viewModel()
+fun FamilyProfileScreen(viewModel: FamilyProfileViewModel = viewModel(), onLoggedOut: () -> Unit) {
     LaunchedEffect(Unit) { viewModel.refresh() }
     var editing by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf(false) }
+    var choosingLanguage by remember { mutableStateOf(false) }
 
     when {
         editing -> FamilyEditProfileScreen(viewModel = viewModel, onBack = { editing = false })
@@ -70,10 +72,12 @@ fun FamilyProfileScreen(onLoggedOut: () -> Unit) {
             // Account is gone server-side; onLoggedOut already routes to the pre-auth flow.
             onDeleted = onLoggedOut
         )
+        choosingLanguage -> FamilyLanguageScreen(viewModel = viewModel, onBack = { choosingLanguage = false })
         else -> FamilyProfileHome(
             viewModel = viewModel,
             onEditProfile = { editing = true },
             onDeleteAccount = { deleting = true },
+            onChooseLanguage = { choosingLanguage = true },
             onLoggedOut = onLoggedOut
         )
     }
@@ -84,11 +88,13 @@ private fun FamilyProfileHome(
     viewModel: FamilyProfileViewModel,
     onEditProfile: () -> Unit,
     onDeleteAccount: () -> Unit,
+    onChooseLanguage: () -> Unit,
     onLoggedOut: () -> Unit
 ) {
+    val copy = LocalFamilyCopy.current
     val context = LocalContext.current
     var showLogoutConfirm by remember { mutableStateOf(false) }
-    val name = viewModel.user?.fullName?.takeIf { it.isNotBlank() } ?: "Family Member"
+    val name = viewModel.user?.fullName?.takeIf { it.isNotBlank() } ?: copy.defaultFamilyMemberName
 
     Column(
         modifier = Modifier
@@ -96,7 +102,7 @@ private fun FamilyProfileHome(
             .background(Color.White)
             .verticalScroll(rememberScrollState())
     ) {
-        BlueHeader(Icons.Filled.Person, "Profile")
+        BlueHeader(Icons.Filled.Person, copy.profileHeader)
 
         Column(modifier = Modifier.padding(24.dp)) {
             Column(
@@ -113,30 +119,37 @@ private fun FamilyProfileHome(
                     Text(initials(name), color = FamilyColors.Blue, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                 }
                 Text(name, color = FamilyColors.Blue, fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 10.dp))
-                Text("Family Member", color = FamilyColors.TextSecondary, fontSize = 14.sp)
+                Text(copy.familyMemberRoleLabel, color = FamilyColors.TextSecondary, fontSize = 14.sp)
             }
 
-            Text("MY INFO", color = FamilyColors.TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 24.dp, bottom = 10.dp))
+            Text(copy.myInfoLabel, color = FamilyColors.TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 24.dp, bottom = 10.dp))
             ProfileRow(
                 icon = Icons.Filled.Edit,
-                title = "Edit profile",
-                subtitle = "Full name, mobile number, password",
+                title = copy.editProfileTitle,
+                subtitle = copy.editProfileSubtitle,
                 onClick = onEditProfile
             )
+            Spacer(Modifier.height(10.dp))
+            ProfileRow(
+                icon = Icons.Filled.Language,
+                title = copy.languageRowTitle,
+                subtitle = copy.languageValueLabel,
+                onClick = onChooseLanguage
+            )
 
-            Text("HELP & INFORMATION", color = FamilyColors.TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 24.dp, bottom = 10.dp))
-            ProfileRow(icon = Icons.Filled.Info, title = "About this app")
+            Text(copy.helpInfoLabel, color = FamilyColors.TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 24.dp, bottom = 10.dp))
+            ProfileRow(icon = Icons.Filled.Info, title = copy.aboutAppLabel)
             Spacer(Modifier.height(10.dp))
-            ProfileRow(icon = Icons.AutoMirrored.Filled.MenuBook, title = "How to use")
+            ProfileRow(icon = Icons.AutoMirrored.Filled.MenuBook, title = copy.howToUseLabel)
             Spacer(Modifier.height(10.dp))
-            ProfileRow(icon = Icons.AutoMirrored.Filled.HelpOutline, title = "FAQs")
+            ProfileRow(icon = Icons.AutoMirrored.Filled.HelpOutline, title = copy.faqsLabel)
             Spacer(Modifier.height(10.dp))
-            ProfileRow(icon = Icons.AutoMirrored.Outlined.Chat, title = "Feedback & requests")
+            ProfileRow(icon = Icons.AutoMirrored.Outlined.Chat, title = copy.feedbackLabel)
 
             Spacer(Modifier.height(24.dp))
             ProfileRow(
                 icon = Icons.AutoMirrored.Filled.Logout,
-                title = "Log Out",
+                title = copy.logOutLabel,
                 titleColor = FamilyColors.ErrorRed,
                 iconTint = FamilyColors.ErrorRed,
                 iconBackground = FamilyColors.ErrorRed.copy(alpha = 0.1f),
@@ -147,8 +160,8 @@ private fun FamilyProfileHome(
             Spacer(Modifier.height(10.dp))
             ProfileRow(
                 icon = Icons.Filled.DeleteForever,
-                title = "Delete account",
-                subtitle = "Permanently remove your account and unlink your seniors",
+                title = copy.deleteAccountTitle,
+                subtitle = copy.deleteAccountSubtitle,
                 titleColor = FamilyColors.ErrorRed,
                 iconTint = FamilyColors.ErrorRed,
                 iconBackground = FamilyColors.ErrorRed.copy(alpha = 0.1f),
@@ -164,8 +177,8 @@ private fun FamilyProfileHome(
     if (showLogoutConfirm) {
         AlertDialog(
             onDismissRequest = { showLogoutConfirm = false },
-            title = { Text("Log out?") },
-            text = { Text("You'll need to sign in again to see your linked seniors.") },
+            title = { Text(copy.logoutConfirmTitle) },
+            text = { Text(copy.logoutConfirmBody) },
             confirmButton = {
                 TextButton(onClick = {
                     showLogoutConfirm = false
@@ -176,15 +189,74 @@ private fun FamilyProfileHome(
                     PushTokenRegistrar.signOutAsync(context)
                     onLoggedOut()
                 }) {
-                    Text("Log Out", color = FamilyColors.ErrorRed)
+                    Text(copy.logOutLabel, color = FamilyColors.ErrorRed)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showLogoutConfirm = false }) {
-                    Text("Cancel", color = FamilyColors.TextSecondary)
+                    Text(copy.cancelButton, color = FamilyColors.TextSecondary)
                 }
             }
         )
+    }
+}
+
+/**
+ * Profile -> Language. Mirrors the senior side's own picker (SeniorLanguageScreen):
+ * writes through immediately via [FamilyProfileViewModel.setLanguage], no Save button,
+ * and each option is labelled in its own language so a Filipino-only reader can find
+ * their option without reading English first.
+ */
+@Composable
+private fun FamilyLanguageScreen(viewModel: FamilyProfileViewModel, onBack: () -> Unit) {
+    val copy = LocalFamilyCopy.current
+    Column(modifier = Modifier.fillMaxSize().background(Color.White)) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(FamilyColors.HeaderBlue)
+                .padding(horizontal = 8.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onBack) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
+            }
+            Text(copy.languageRowTitle, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+        }
+        Column(modifier = Modifier.padding(24.dp)) {
+            Text(
+                copy.languagePickerHeading,
+                color = FamilyColors.TextPrimary,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(bottom = 10.dp)
+            )
+            Text(copy.languagePickerBodyEn, color = FamilyColors.TextSecondary, fontSize = 13.sp)
+            Text(
+                copy.languagePickerBodyFil,
+                color = FamilyColors.TextSecondary,
+                fontSize = 13.sp,
+                modifier = Modifier.padding(top = 4.dp, bottom = 16.dp)
+            )
+            listOf(
+                copy.englishOptionLabel to WellnessMessages.ENGLISH,
+                copy.filipinoOptionLabel to WellnessMessages.FILIPINO
+            ).forEach { (label, code) ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { viewModel.setLanguage(code) }
+                        .padding(vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    androidx.compose.material3.RadioButton(
+                        selected = viewModel.language == code,
+                        onClick = { viewModel.setLanguage(code) }
+                    )
+                    Text(label, color = FamilyColors.TextPrimary, fontSize = 16.sp, modifier = Modifier.padding(start = 8.dp))
+                }
+            }
+        }
     }
 }
 

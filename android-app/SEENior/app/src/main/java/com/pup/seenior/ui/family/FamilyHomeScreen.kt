@@ -73,6 +73,7 @@ fun FamilyHomeScreen(
         onPauseOrDispose { homeViewModel.stopPolling() }
     }
 
+    val copy = LocalFamilyCopy.current
     val firstName = profileViewModel.fullName.split(" ").firstOrNull() ?: ""
     val hasSeniors = !seniorsViewModel.isLoading && !seniorsViewModel.loadFailed &&
         seniorsViewModel.contacts.isNotEmpty()
@@ -90,7 +91,7 @@ fun FamilyHomeScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text("SEENior ", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-            Text("Family", color = Color.White, fontSize = 16.sp)
+            Text(copy.homeRoleBadge, color = Color.White, fontSize = 16.sp)
         }
 
         Column(
@@ -100,13 +101,13 @@ fun FamilyHomeScreen(
                 .padding(horizontal = 24.dp)
         ) {
             Text(
-                if (firstName.isNotBlank()) "Hi there, $firstName" else "Hi there,",
+                copy.greeting(firstName),
                 color = FamilyColors.Blue,
                 fontSize = 24.sp,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(top = 20.dp)
             )
-            Text(greetingSubtitle(homeViewModel), color = FamilyColors.TextSecondary, fontSize = 15.sp)
+            Text(greetingSubtitle(homeViewModel, copy), color = FamilyColors.TextSecondary, fontSize = 15.sp)
 
             // Read from the per-senior status rather than the recent-alerts feed: that feed
             // includes alerts that have already been resolved, so it would keep claiming
@@ -121,18 +122,18 @@ fun FamilyHomeScreen(
                 )
             }
 
-            SectionHeader("MY SENIORS", onSeeAll = onSeeAllSeniors.takeIf { hasSeniors })
+            SectionHeader(copy.sectionMySeniors, onSeeAll = onSeeAllSeniors.takeIf { hasSeniors })
 
             // Loading and failure are both checked before the empty case — rendering either as
             // EmptyLinkCard told the user "no one linked yet" when their seniors were still
             // linked, just slow to fetch or unreachable.
             if (seniorsViewModel.isLoading) {
-                LoadingCard("Loading your seniors…")
+                LoadingCard(copy.loadingSeniors)
             } else if (seniorsViewModel.loadFailed) {
                 CouldNotLoadCard(
-                    title = "Could not load your seniors",
-                    message = seniorsViewModel.error ?: "Could not reach the server.",
-                    reassurance = "They are still linked to your account.",
+                    title = copy.couldNotLoadSeniorsTitle,
+                    message = seniorsViewModel.error ?: copy.couldNotReachServer,
+                    reassurance = copy.stillLinkedReassurance,
                     onRetry = { seniorsViewModel.refresh() }
                 )
             } else if (seniorsViewModel.contacts.isEmpty()) {
@@ -152,15 +153,15 @@ fun FamilyHomeScreen(
 
             if (hasSeniors) {
                 SectionHeader(
-                    "RECENT ALERTS",
+                    copy.sectionRecentAlerts,
                     onSeeAll = onSeeAllAlerts.takeIf { homeViewModel.recent.isNotEmpty() }
                 )
                 when {
                     homeViewModel.isLoading && !homeViewModel.loaded ->
-                        LoadingCard("Loading recent alerts…")
+                        LoadingCard(copy.loadingRecentAlerts)
                     homeViewModel.loadFailed -> CouldNotLoadCard(
-                        title = "Could not load recent alerts",
-                        message = homeViewModel.error ?: "Could not reach the server.",
+                        title = copy.couldNotLoadAlertsTitle,
+                        message = homeViewModel.error ?: copy.couldNotReachServer,
                         onRetry = { homeViewModel.refresh(seniorsViewModel.contacts) }
                     )
                     homeViewModel.recent.isEmpty() -> NoAlertsCard()
@@ -178,10 +179,10 @@ fun FamilyHomeScreen(
 
 /** The line under the greeting. "You're all set today" is a claim about the seniors' safety,
  *  so it is only made once a fetch has confirmed nothing is open. */
-private fun greetingSubtitle(homeViewModel: FamilyHomeViewModel): String = when {
-    !homeViewModel.loaded || homeViewModel.loadFailed -> "Checking on your seniors…"
-    homeViewModel.statuses.values.any { it.hasOpenAlert } -> "Someone needs your attention"
-    else -> "You're all set today"
+private fun greetingSubtitle(homeViewModel: FamilyHomeViewModel, copy: FamilyStrings.Copy): String = when {
+    !homeViewModel.loaded || homeViewModel.loadFailed -> copy.greetingCheckingOnSeniors
+    homeViewModel.statuses.values.any { it.hasOpenAlert } -> copy.greetingSomeoneNeedsAttention
+    else -> copy.greetingAllSetToday
 }
 
 /**
@@ -198,8 +199,7 @@ private fun greetingSubtitle(homeViewModel: FamilyHomeViewModel): String = when 
  */
 @Composable
 private fun OngoingAlertBanner(names: List<String>, onOpenAlerts: () -> Unit) {
-    val message = if (names.size == 1) "${names.first()} has an ongoing alert."
-    else "${names.size} seniors have ongoing alerts."
+    val message = LocalFamilyCopy.current.ongoingAlertMessage(names)
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -217,7 +217,7 @@ private fun OngoingAlertBanner(names: List<String>, onOpenAlerts: () -> Unit) {
             modifier = Modifier.size(18.dp)
         )
         Text(
-            "$message Tap to open Alerts.",
+            message,
             color = FamilyColors.AlertRed,
             fontSize = 14.sp,
             fontWeight = FontWeight.Bold,
@@ -249,7 +249,7 @@ private fun SectionHeader(title: String, onSeeAll: (() -> Unit)? = null) {
                     .padding(horizontal = 4.dp, vertical = 2.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("See all", color = FamilyColors.Blue, fontSize = 14.sp)
+                Text(LocalFamilyCopy.current.seeAll, color = FamilyColors.Blue, fontSize = 14.sp)
                 Icon(
                     Icons.AutoMirrored.Filled.ArrowForward,
                     contentDescription = null,
@@ -263,6 +263,7 @@ private fun SectionHeader(title: String, onSeeAll: (() -> Unit)? = null) {
 
 @Composable
 private fun SeniorCard(contact: ContactDto, status: SeniorStatus?) {
+    val copy = LocalFamilyCopy.current
     val senior = contact.senior
     val seniorName = "${senior.firstName} ${senior.lastName}"
     Column(
@@ -288,7 +289,7 @@ private fun SeniorCard(contact: ContactDto, status: SeniorStatus?) {
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    contact.relationshipLabel?.replaceFirstChar { it.uppercase() } ?: "Family",
+                    contact.relationshipLabel?.replaceFirstChar { it.uppercase() } ?: copy.familyFallbackLabel,
                     color = FamilyColors.TextSecondary,
                     fontSize = 14.sp,
                     maxLines = 1,
@@ -310,15 +311,15 @@ private fun SeniorCard(contact: ContactDto, status: SeniorStatus?) {
         ) {
             StatTile(
                 icon = Icons.Filled.MonitorHeart,
-                value = status?.riskLevel?.replaceFirstChar { it.uppercase() } ?: "—",
-                label = "Risk Level",
+                value = status?.riskLevel?.replaceFirstChar { it.uppercase() } ?: copy.unknownDash,
+                label = copy.riskLevelLabel,
                 background = riskTileColor(status?.riskLevel),
                 modifier = Modifier.weight(1f).fillMaxHeight()
             )
             StatTile(
                 icon = Icons.Outlined.Notifications,
-                value = status?.alertsToday?.toString() ?: "—",
-                label = "Alerts Today",
+                value = status?.alertsToday?.toString() ?: copy.unknownDash,
+                label = copy.alertsTodayLabel,
                 modifier = Modifier.weight(1f).fillMaxHeight()
             )
             // The privacy decision the earlier note here asked for was taken deliberately:
@@ -332,8 +333,8 @@ private fun SeniorCard(contact: ContactDto, status: SeniorStatus?) {
             // worth showing as itself rather than dressing up as 0%.
             StatTile(
                 icon = Icons.Filled.BatteryChargingFull,
-                value = senior.batteryPercent?.let { "$it%" } ?: "—",
-                label = if (senior.isCharging == true) "Charging" else "Battery",
+                value = senior.batteryPercent?.let { "$it%" } ?: copy.unknownDash,
+                label = if (senior.isCharging == true) copy.chargingLabel else copy.batteryLabel,
                 background = batteryTileColor(senior.batteryPercent, senior.isCharging == true),
                 modifier = Modifier.weight(1f).fillMaxHeight()
             )
@@ -350,18 +351,19 @@ private fun SeniorCard(contact: ContactDto, status: SeniorStatus?) {
  */
 @Composable
 private fun SeniorPresenceLine(lastSeenAt: String?) {
-    val minutesAgo = remember(lastSeenAt) {
+    val copy = LocalFamilyCopy.current
+    val lastSeenMinutesAgo = remember(lastSeenAt) {
         lastSeenAt?.let(::parseServerTime)?.let {
             java.time.Duration.between(it.toInstant(), java.time.Instant.now())
                 .toMinutes().coerceAtLeast(0)
         }
     }
-    val recent = minutesAgo != null && minutesAgo < 20L
+    val recent = lastSeenMinutesAgo != null && lastSeenMinutesAgo < 20L
     val color = if (recent) FamilyColors.SuccessGreen else FamilyColors.TextSecondary
     val text = when {
-        minutesAgo == null -> "No check-in yet"
-        recent -> "Phone active"
-        else -> "Last check-in ${relativeTimeAgo(lastSeenAt!!)}"
+        lastSeenMinutesAgo == null -> copy.noCheckInYet
+        recent -> copy.phoneActive
+        else -> copy.lastCheckIn(copy.relativeTimeAgo(lastSeenMinutesAgo))
     }
     Row(
         modifier = Modifier.padding(top = 8.dp),
@@ -376,12 +378,13 @@ private fun SeniorPresenceLine(lastSeenAt: String?) {
  *  to find out; the senior's device presence is a separate line (see [SeniorPresenceLine]). */
 @Composable
 private fun StatusChip(status: SeniorStatus?) {
+    val copy = LocalFamilyCopy.current
     // Kept short on purpose: this chip shares its row with the senior's name, and a longer
     // label ("Needs attention") squeezed the name into "Revi …" on a 720px screen.
     val (text, color, background) = when {
-        status == null -> Triple("Checking", FamilyColors.TextSecondary, FamilyColors.FieldBackground)
-        status.hasOpenAlert -> Triple("Alert", FamilyColors.AlertRed, FamilyColors.AlertRedBg)
-        else -> Triple("All clear", FamilyColors.SuccessGreen, FamilyColors.SafeGreenBg)
+        status == null -> Triple(copy.statusChecking, FamilyColors.TextSecondary, FamilyColors.FieldBackground)
+        status.hasOpenAlert -> Triple(copy.statusAlert, FamilyColors.AlertRed, FamilyColors.AlertRedBg)
+        else -> Triple(copy.statusAllClear, FamilyColors.SuccessGreen, FamilyColors.SafeGreenBg)
     }
     Row(
         modifier = Modifier
@@ -438,6 +441,7 @@ private fun StatTile(
 
 @Composable
 private fun RecentAlertRow(item: RecentAlert, onClick: () -> Unit) {
+    val copy = LocalFamilyCopy.current
     val (accent, background) = when (item.alert.status) {
         "pending" -> FamilyColors.AlertRed to FamilyColors.AlertRedBg
         "escalated" -> FamilyColors.Orange to FamilyColors.OrangeBg
@@ -478,7 +482,7 @@ private fun RecentAlertRow(item: RecentAlert, onClick: () -> Unit) {
             Text(
                 // "17 hr" not "17 hr ago": next to the widest chip ("Acknowledged") the extra
                 // word was exactly what pushed this line into an ellipsis.
-                "${triggerShortLabel(item.alert.triggerType)} · ${relativeTimeAgo(item.alert.createdAt).removeSuffix(" ago")}",
+                "${copy.triggerShortLabel(item.alert.triggerType)} · ${copy.relativeTimeAgoShort(minutesAgo(item.alert.createdAt))}",
                 color = FamilyColors.TextSecondary,
                 fontSize = 13.sp,
                 maxLines = 1,
@@ -491,13 +495,14 @@ private fun RecentAlertRow(item: RecentAlert, onClick: () -> Unit) {
                 .background(background, RoundedCornerShape(20.dp))
                 .padding(horizontal = 6.dp, vertical = 4.dp)
         ) {
-            Text(recentAlertChipLabel(item.alert.status), color = accent, fontSize = 10.sp, maxLines = 1)
+            Text(copy.recentAlertChipLabel(item.alert.status), color = accent, fontSize = 10.sp, maxLines = 1)
         }
     }
 }
 
 @Composable
 private fun NoAlertsCard() {
+    val copy = LocalFamilyCopy.current
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -506,9 +511,9 @@ private fun NoAlertsCard() {
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Icon(Icons.Outlined.Notifications, null, tint = FamilyColors.TextSecondary, modifier = Modifier.size(26.dp))
-        Text("No alerts yet", color = FamilyColors.TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 10.dp))
+        Text(copy.noAlertsYetTitle, color = FamilyColors.TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 10.dp))
         Text(
-            "Alerts about your senior will show up here.",
+            copy.noAlertsYetBody,
             color = FamilyColors.TextSecondary,
             fontSize = 13.sp,
             textAlign = TextAlign.Center,
@@ -519,6 +524,7 @@ private fun NoAlertsCard() {
 
 @Composable
 private fun EmptyLinkCard(onLinkSenior: () -> Unit) {
+    val copy = LocalFamilyCopy.current
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -532,9 +538,9 @@ private fun EmptyLinkCard(onLinkSenior: () -> Unit) {
         ) {
             Icon(Icons.Outlined.Favorite, null, tint = FamilyColors.TextSecondary, modifier = Modifier.size(28.dp))
         }
-        Text("No one linked yet", color = FamilyColors.TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 16.dp))
+        Text(copy.noOneLinkedTitle, color = FamilyColors.TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 16.dp))
         Text(
-            "Link your senior family member so you can keep an eye on them and receive alerts.",
+            copy.noOneLinkedBody,
             color = FamilyColors.TextSecondary,
             fontSize = 14.sp,
             textAlign = TextAlign.Center,
@@ -551,7 +557,7 @@ private fun EmptyLinkCard(onLinkSenior: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(Icons.Filled.Link, null, tint = FamilyColors.Blue, modifier = Modifier.size(20.dp))
-            Text("Link a senior now", color = FamilyColors.Blue, fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 8.dp))
+            Text(copy.linkASeniorNow, color = FamilyColors.Blue, fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 8.dp))
         }
     }
 }

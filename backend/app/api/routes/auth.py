@@ -22,6 +22,7 @@ from app.schemas.auth import (
     AccountDeletionRequest,
     FirebaseSignInRequest,
     GoogleSignInRequest,
+    LanguagePreferenceUpdate,
     PasswordChangeRequest,
     PasswordSetRequest,
     RegisterRequest,
@@ -245,6 +246,21 @@ async def update_current_user(
 ) -> User:
     current_user.full_name = payload.full_name
     current_user.phone = payload.phone
+    await db.commit()
+    await db.refresh(current_user)
+    return current_user
+
+
+@router.patch("/me/language", response_model=UserOut)
+async def update_language(
+    payload: LanguagePreferenceUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> User:
+    """Family app's Profile -> Language toggle. Writes through immediately, same as the
+    senior side's onboarding/Profile language choice — there is no Save button, since a
+    half-applied language is worse than either."""
+    current_user.language_preference = payload.language
     await db.commit()
     await db.refresh(current_user)
     return current_user

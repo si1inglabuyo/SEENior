@@ -11,7 +11,15 @@ data class UserDto(
     val email: String? = null,
     /** False for a Google-only account. Defaults true so the UI never offers "Set a
      *  password" before a fetch has confirmed there isn't one. */
-    val hasPassword: Boolean = true
+    val hasPassword: Boolean = true,
+    /** "en" / "fil" — same two codes the senior side already uses (WellnessMessages.ENGLISH
+     *  / .FILIPINO). Defaults "en" until a profile fetch says otherwise. */
+    val languagePreference: String = "en"
+)
+
+/** Mirrors backend LanguagePreferenceUpdate — the family app's Profile -> Language toggle. */
+data class LanguagePreferenceRequest(
+    val language: String
 )
 
 /** Mirrors backend UserUpdate — the family app's Edit Profile screen. */

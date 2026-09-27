@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel, EmailStr, Field
 
 from app.db.models import UserRole
@@ -19,6 +21,9 @@ class UserOut(BaseModel):
     # False for a Google-only account — the family app shows "Set a password" rather than
     # "Change password" (read off User.has_password).
     has_password: bool = False
+    # "en" / "fil" — drives the family app's Profile -> Language toggle. Meaningless for a
+    # barangay responder (that dashboard has no bilingual UI), harmless to include anyway.
+    language_preference: str = "en"
 
     model_config = {"from_attributes": True}
 
@@ -59,6 +64,15 @@ class FirebaseSignInRequest(BaseModel):
     # Google-linking use case /auth/google already relies on) keeps the existing
     # "same email, different sign-in method -> same account" merge behavior.
     is_sign_up: bool = False
+
+
+class LanguagePreferenceUpdate(BaseModel):
+    """Family app's Profile -> Language toggle. Same two codes the senior side already
+    writes to Senior_Onboarding.language_preference (CLAUDE.md's WellnessMessages.ENGLISH
+    / .FILIPINO), so the vocabulary matches across both apps even though this field has
+    no local-SQLite counterpart."""
+
+    language: Literal["en", "fil"]
 
 
 class AccountDeletionRequest(BaseModel):

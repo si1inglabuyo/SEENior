@@ -28,6 +28,7 @@ import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -55,17 +56,30 @@ import com.pup.seenior.ui.family.FamilyContactsScreen
 import com.pup.seenior.ui.family.FamilyHomeScreen
 import com.pup.seenior.ui.family.FamilyPairingViewModel
 import com.pup.seenior.ui.family.FamilyProfileScreen
+import com.pup.seenior.ui.family.FamilyProfileViewModel
 import com.pup.seenior.ui.family.FamilySeniorsViewModel
+import com.pup.seenior.ui.family.FamilyStrings
 import com.pup.seenior.ui.family.LinkScreen
+import com.pup.seenior.ui.family.LocalFamilyCopy
 import com.pup.seenior.ui.family.MonitoringLimitCard
 import com.pup.seenior.session.SessionState
 
-private enum class FamilyTab(val label: String, val icon: ImageVector) {
-    HOME("Home", Icons.Outlined.Home),
-    LINK("Link", Icons.Outlined.Link),
-    ALERTS("Alerts", Icons.Outlined.Notifications),
-    CONTACTS("Contacts", Icons.Outlined.Contacts),
-    PROFILE("Profile", Icons.Outlined.Person)
+private enum class FamilyTab(val icon: ImageVector) {
+    HOME(Icons.Outlined.Home),
+    LINK(Icons.Outlined.Link),
+    ALERTS(Icons.Outlined.Notifications),
+    CONTACTS(Icons.Outlined.Contacts),
+    PROFILE(Icons.Outlined.Person)
+}
+
+/** Resolves a tab's translated label from the account's own language setting, mirroring
+ *  SeniorTab.label(copy) on the senior side. */
+private fun FamilyTab.label(copy: FamilyStrings.Copy): String = when (this) {
+    FamilyTab.HOME -> copy.tabHome
+    FamilyTab.LINK -> copy.tabLink
+    FamilyTab.ALERTS -> copy.tabAlerts
+    FamilyTab.CONTACTS -> copy.tabContacts
+    FamilyTab.PROFILE -> copy.tabProfile
 }
 
 @Composable
@@ -75,6 +89,12 @@ fun FamilyDashboard(onLoggedOut: () -> Unit) {
     // without a re-fetch.
     val seniorsViewModel: FamilySeniorsViewModel = viewModel()
     val alertsViewModel: FamilyAlertsViewModel = viewModel()
+    // Hoisted here (rather than let each of Home/Profile create its own) so the account's
+    // language_preference is fetched once and every tab reads the same instance — Home's own
+    // LaunchedEffect(Unit) { profileViewModel.refresh() } below is what actually fires it.
+    val profileViewModel: FamilyProfileViewModel = viewModel()
+    LaunchedEffect(Unit) { profileViewModel.refresh() }
+    val copy = FamilyStrings.forLanguage(profileViewModel.language)
     // Re-fetch on every resume and on every tab change. The senior can unlink from their own
     // phone at any time and there is no push channel to tell us, so a once-per-login fetch
     // leaves this list frozen at whatever it was when the session started. The senior's own
@@ -131,6 +151,7 @@ fun FamilyDashboard(onLoggedOut: () -> Unit) {
         }
     }
 
+    CompositionLocalProvider(LocalFamilyCopy provides copy) {
     Scaffold(
         bottomBar = {
             NavigationBar(containerColor = Color.White) {
@@ -138,10 +159,10 @@ fun FamilyDashboard(onLoggedOut: () -> Unit) {
                     NavigationBarItem(
                         selected = tab == entry,
                         onClick = { tab = entry },
-                        icon = { Icon(entry.icon, contentDescription = entry.label) },
+                        icon = { Icon(entry.icon, contentDescription = entry.label(copy)) },
                         label = {
                             Text(
-                                entry.label,
+                                entry.label(copy),
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 12.sp
                             )
@@ -162,6 +183,7 @@ fun FamilyDashboard(onLoggedOut: () -> Unit) {
             when (tab) {
                 FamilyTab.HOME -> FamilyHomeScreen(
                     seniorsViewModel = seniorsViewModel,
+                    profileViewModel = profileViewModel,
                     onLinkSenior = { tab = FamilyTab.LINK },
                     onSeeAllSeniors = { tab = FamilyTab.CONTACTS },
                     onSeeAllAlerts = { tab = FamilyTab.ALERTS }
@@ -179,9 +201,10 @@ fun FamilyDashboard(onLoggedOut: () -> Unit) {
                     onRetrySeniors = { seniorsViewModel.refresh() }
                 )
                 FamilyTab.CONTACTS -> FamilyContactsScreen(seniorsViewModel, onLinkSenior = { tab = FamilyTab.LINK })
-                FamilyTab.PROFILE -> FamilyProfileScreen(onLoggedOut = onLoggedOut)
+                FamilyTab.PROFILE -> FamilyProfileScreen(viewModel = profileViewModel, onLoggedOut = onLoggedOut)
             }
         }
+    }
     }
 }
 

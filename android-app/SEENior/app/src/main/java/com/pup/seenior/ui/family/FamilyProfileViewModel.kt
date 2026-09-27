@@ -10,6 +10,7 @@ import com.pup.seenior.network.PushTokenRegistrar
 import com.pup.seenior.network.RetrofitClient
 import com.pup.seenior.network.dto.AccountDeletionRequest
 import com.pup.seenior.network.dto.ChangePasswordRequest
+import com.pup.seenior.network.dto.LanguagePreferenceRequest
 import com.pup.seenior.network.dto.SetPasswordRequest
 import com.pup.seenior.network.dto.UpdateProfileRequest
 import com.pup.seenior.network.dto.UserDto
@@ -94,6 +95,41 @@ class FamilyProfileViewModel(application: Application) : AndroidViewModel(applic
      *  own safe default (true) until a profile fetch says otherwise. */
     val hasPassword: Boolean
         get() = user?.hasPassword ?: true
+
+    /** "en" / "fil", read live off the fetched profile — defaults "en" until [refresh] lands,
+     *  same as [UserDto.languagePreference]'s own default. Drives [FamilyStrings.forLanguage]
+     *  everywhere this view model is hoisted (FamilyDashboard). */
+    val language: String
+        get() = user?.languagePreference ?: "en"
+
+    /**
+     * Profile -> Language. Writes through to the server immediately (no Save button — a
+     * half-applied language is worse than either, same call [SeniorProfileViewModel.
+     * chooseLanguage] makes on the senior side) and updates [user] optimistically so every
+     * screen reading [language] switches the instant this returns, without waiting on a
+     * second fetch.
+     */
+    fun setLanguage(code: String) {
+        val token = token() ?: return
+        val current = user ?: return
+        if (current.languagePreference == code) return
+        viewModelScope.launch {
+            try {
+                user = RetrofitClient.api.updateLanguage(
+                    "Bearer $token",
+                    LanguagePreferenceRequest(language = code)
+                )
+            } catch (e: HttpException) {
+                if (SessionState.handleIfUnauthorized(getApplication(), e)) {
+                    error = SessionState.SESSION_EXPIRED_MESSAGE
+                }
+                // Otherwise: leave the language as it was: a failed write must not claim
+                // success on a screen the family member is looking straight at.
+            } catch (e: IOException) {
+                // Could not reach the server -- same reasoning, no local override.
+            }
+        }
+    }
 
     // Change-password / set-password dialog state (shared — set-password skips currentPassword)
     var currentPassword by mutableStateOf("")

@@ -14,6 +14,7 @@ import com.pup.seenior.network.dto.FamilyContactDto
 import com.pup.seenior.network.dto.FirebaseSignInRequest
 import com.pup.seenior.network.dto.GoogleSignInRequest
 import com.pup.seenior.network.dto.InviteCodeDto
+import com.pup.seenior.network.dto.LanguagePreferenceRequest
 import com.pup.seenior.network.dto.PairRequest
 import com.pup.seenior.network.dto.PairResponseDto
 import com.pup.seenior.network.dto.RegisterDeviceRequest
@@ -158,6 +159,14 @@ interface ApiService {
     suspend fun updateProfile(
         @Header("Authorization") auth: String,
         @Body body: UpdateProfileRequest
+    ): UserDto
+
+    // Family app's Profile -> Language toggle. Writes through immediately (no Save
+    // button), same posture as the senior side's own language choice.
+    @PATCH("auth/me/language")
+    suspend fun updateLanguage(
+        @Header("Authorization") auth: String,
+        @Body body: LanguagePreferenceRequest
     ): UserDto
 
     @POST("auth/change-password")

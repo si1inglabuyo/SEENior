@@ -55,7 +55,13 @@ import com.pup.seenior.network.dto.AlertDto
 import com.pup.seenior.network.dto.ContactDto
 import com.pup.seenior.network.dto.SeniorDto
 
-private val DISPATCH_REASONS = listOf(
+// Matches the mockup's fixed "10 mins/minutes" copy -- not read from any backend setting
+// (unlike the family-tier SMS window, which does read FAMILY_RESPONSE_SECONDS; see sms.py).
+private const val BARANGAY_WINDOW_MINUTES = 10
+
+// Sent verbatim as the dispatch `reason` (POST /alerts/{id}/dispatch) -- kept in English
+// regardless of the account's language; see Copy.dispatchReasonLabel's kdoc for why.
+private val DISPATCH_REASON_CODES = listOf(
     "No movement / unresponsive",
     "Fall suspected",
     "Medical emergency",
@@ -93,12 +99,14 @@ fun FamilyAlertsScreen(
         return
     }
 
+    val copy = LocalFamilyCopy.current
+
     // If the senior list itself never loaded we know nothing about their status — showing
     // "All Clear" here would actively assert the senior is fine, which is the worst possible
     // thing for a safety app to get wrong.
     if (seniorsLoadFailed) {
         AlertsLoadFailedContent(
-            message = "Could not reach the server. Check your internet connection.",
+            message = copy.couldNotReachInternet,
             onRetry = onRetrySeniors
         )
         return
@@ -107,7 +115,7 @@ fun FamilyAlertsScreen(
     when (viewModel.screen) {
         AlertScreen.LOADING -> AlertsLoadingContent()
         AlertScreen.LOAD_FAILED -> AlertsLoadFailedContent(
-            message = viewModel.error ?: "Could not reach the server.",
+            message = viewModel.error ?: copy.couldNotReachServer,
             onRetry = { viewModel.retry(contacts) }
         )
         AlertScreen.ALL_CLEAR -> AllClearContent(senior)
@@ -166,14 +174,15 @@ fun FamilyAlertsScreen(
  *  actually checked anything. */
 @Composable
 private fun AlertsLoadingContent() {
+    val copy = LocalFamilyCopy.current
     Column(modifier = Modifier.fillMaxSize().background(Color.White)) {
-        BlueHeaderBar("Alerts")
+        BlueHeaderBar(copy.alertsHeader)
         Column(
             modifier = Modifier.fillMaxSize().padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Spacer(Modifier.height(8.dp))
-            LoadingCard("Checking your senior's status…")
+            LoadingCard(copy.checkingStatus)
         }
     }
 }
@@ -182,8 +191,9 @@ private fun AlertsLoadingContent() {
  *  claim that the senior is fine, and we must never make that claim from a failed request. */
 @Composable
 private fun AlertsLoadFailedContent(message: String, onRetry: () -> Unit) {
+    val copy = LocalFamilyCopy.current
     Column(modifier = Modifier.fillMaxSize().background(Color.White)) {
-        BlueHeaderBar("Alerts")
+        BlueHeaderBar(copy.alertsHeader)
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -193,9 +203,9 @@ private fun AlertsLoadFailedContent(message: String, onRetry: () -> Unit) {
         ) {
             Spacer(Modifier.height(8.dp))
             CouldNotLoadCard(
-                title = "Status unavailable",
+                title = copy.statusUnavailableTitle,
                 message = message,
-                reassurance = "We could not check on your senior — this does not mean anything is wrong.",
+                reassurance = copy.statusUnavailableReassurance,
                 onRetry = onRetry
             )
         }
@@ -214,8 +224,9 @@ private fun AlertsLoadFailedContent(message: String, onRetry: () -> Unit) {
  */
 @Composable
 private fun AllClearContent(senior: SeniorDto?) {
+    val copy = LocalFamilyCopy.current
     Column(modifier = Modifier.fillMaxSize().background(Color.White)) {
-        BlueHeaderBar("Alerts")
+        BlueHeaderBar(copy.alertsHeader)
         Column(
             modifier = Modifier.fillMaxSize().padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -225,8 +236,8 @@ private fun AllClearContent(senior: SeniorDto?) {
             // about anybody's safety, it is the setup step, and a brand-new user landing on a
             // blank tab would otherwise have no idea why it is blank.
             Text(
-                if (senior == null) "Link a senior to start receiving alerts."
-                else "No ongoing alerts.",
+                if (senior == null) copy.linkASeniorToStart
+                else copy.noOngoingAlerts,
                 color = FamilyColors.TextSecondary,
                 fontSize = 15.sp,
                 textAlign = TextAlign.Center
@@ -237,13 +248,14 @@ private fun AllClearContent(senior: SeniorDto?) {
 
 @Composable
 private fun AlertDetailContent(alert: AlertDto, senior: SeniorDto, onAcknowledge: () -> Unit) {
+    val copy = LocalFamilyCopy.current
     Column(modifier = Modifier.fillMaxSize().background(Color.White)) {
         Row(
             modifier = Modifier.fillMaxWidth().background(FamilyColors.AlertRed).padding(horizontal = 20.dp, vertical = 18.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(Icons.Filled.NotificationsNone, null, tint = Color.White)
-            Text("Active Alert", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 10.dp))
+            Text(copy.activeAlertHeader, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 10.dp))
         }
         Column(
             modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
@@ -256,20 +268,20 @@ private fun AlertDetailContent(alert: AlertDto, senior: SeniorDto, onAcknowledge
                 Icon(Icons.Filled.Warning, null, tint = FamilyColors.AlertRed, modifier = Modifier.size(30.dp))
             }
             Text(
-                "${alert.riskLevel.replaceFirstChar { it.uppercase() }} Risk Detected",
+                copy.riskDetected(alert.riskLevel.replaceFirstChar { it.uppercase() }),
                 color = FamilyColors.AlertRed,
                 fontSize = 22.sp,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(top = 12.dp)
             )
             Text(
-                "${senior.firstName} may need your attention.",
+                copy.mayNeedAttention(senior.firstName),
                 color = FamilyColors.AlertRed,
                 fontSize = 14.sp,
                 modifier = Modifier.padding(top = 4.dp)
             )
             Text(
-                "Detected ${formatClockTime(alert.createdAt)} · ${relativeTimeAgo(alert.createdAt)}",
+                copy.detectedAt(formatClockTime(alert.createdAt), copy.relativeTimeAgo(minutesAgo(alert.createdAt))),
                 color = FamilyColors.TextSecondary,
                 fontSize = 13.sp,
                 modifier = Modifier.padding(top = 4.dp)
@@ -283,22 +295,22 @@ private fun AlertDetailContent(alert: AlertDto, senior: SeniorDto, onAcknowledge
                     .background(FamilyColors.AlertRedBg, RoundedCornerShape(16.dp))
                     .padding(18.dp)
             ) {
-                Text("Alert reason", color = FamilyColors.AlertRed, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Text(copy.alertReasonLabel, color = FamilyColors.AlertRed, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                 Text(
-                    alertReasonText(alert.triggerType),
+                    copy.alertReasonText(alert.triggerType),
                     color = FamilyColors.AlertRed,
                     fontSize = 14.sp,
                     modifier = Modifier.padding(top = 8.dp, bottom = 16.dp)
                 )
-                ColorPillButton("Acknowledge Alert", color = FamilyColors.AlertRed, onClick = onAcknowledge)
+                ColorPillButton(copy.acknowledgeAlertButton, color = FamilyColors.AlertRed, onClick = onAcknowledge)
             }
 
-            SectionLabel("ESCALATION CHAIN", Modifier.padding(top = 24.dp, bottom = 10.dp))
-            EscalationRow(Icons.Filled.CheckCircle, FamilyColors.Blue, "Senior prompted at ${formatClockTime(alert.createdAt)}")
-            EscalationRow(Icons.Filled.HourglassEmpty, FamilyColors.Blue, "Your notified - pending acknowledgement")
-            EscalationRow(Icons.Filled.AccountBalance, FamilyColors.Blue, "Barangay - 10 mins window")
+            SectionLabel(copy.escalationChainLabel, Modifier.padding(top = 24.dp, bottom = 10.dp))
+            EscalationRow(Icons.Filled.CheckCircle, FamilyColors.Blue, copy.seniorPromptedAt(formatClockTime(alert.createdAt)))
+            EscalationRow(Icons.Filled.HourglassEmpty, FamilyColors.Blue, copy.escalationFamilyNotifiedPending)
+            EscalationRow(Icons.Filled.AccountBalance, FamilyColors.Blue, copy.barangayWindow(BARANGAY_WINDOW_MINUTES))
 
-            SectionLabel("LAST KNOWN LOCATION", Modifier.padding(top = 24.dp, bottom = 10.dp))
+            SectionLabel(copy.lastKnownLocationLabel, Modifier.padding(top = 24.dp, bottom = 10.dp))
             AlertLocationMap(
                 clusterId = alert.locationClusterId,
                 registeredAddress = senior.address
@@ -316,13 +328,14 @@ private fun AcknowledgedContent(
     onDispatch: () -> Unit,
     onMarkResolved: () -> Unit
 ) {
+    val copy = LocalFamilyCopy.current
     val alreadyDispatched = alert.status == "escalated"
     Column(modifier = Modifier.fillMaxSize().background(Color.White)) {
         Row(
             modifier = Modifier.fillMaxWidth().background(FamilyColors.Orange).padding(horizontal = 8.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("You Acknowledged", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 16.dp))
+            Text(copy.youAcknowledgedHeader, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 16.dp))
         }
         Column(
             modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
@@ -334,10 +347,10 @@ private fun AcknowledgedContent(
             ) {
                 Icon(Icons.Filled.CheckCircle, null, tint = FamilyColors.SuccessGreen, modifier = Modifier.size(34.dp))
             }
-            Text("Alert Acknowledged", color = FamilyColors.TextPrimary, fontSize = 22.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 14.dp))
+            Text(copy.alertAcknowledgedTitle, color = FamilyColors.TextPrimary, fontSize = 22.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 14.dp))
             Text(
-                if (alreadyDispatched) "Barangay responders have been dispatched to ${senior.firstName}'s location."
-                else "Barangay responders will be notified if this isn't resolved soon.",
+                if (alreadyDispatched) copy.barangayDispatchedBody(senior.firstName)
+                else copy.barangayWillNotifyBody,
                 color = FamilyColors.TextSecondary,
                 fontSize = 14.sp,
                 textAlign = TextAlign.Center,
@@ -346,39 +359,40 @@ private fun AcknowledgedContent(
 
             if (!alreadyDispatched) {
                 SectionInfoBox(
-                    text = "Barangay will be notified if unresolved in 10 minutes",
+                    text = copy.barangayNotifyWindow(BARANGAY_WINDOW_MINUTES),
                     bg = FamilyColors.OrangeBg,
                     textColor = FamilyColors.WarningText,
                     modifier = Modifier.padding(top = 18.dp)
                 )
             }
 
-            SectionLabel("LOCATION", Modifier.fillMaxWidth().padding(top = 24.dp, bottom = 10.dp))
+            SectionLabel(copy.locationLabel, Modifier.fillMaxWidth().padding(top = 24.dp, bottom = 10.dp))
             AlertLocationMap(
                 clusterId = alert.locationClusterId,
                 registeredAddress = senior.address
             )
 
-            SectionLabel("NEXT STEPS", Modifier.fillMaxWidth().padding(top = 24.dp, bottom = 12.dp))
+            SectionLabel(copy.nextStepsLabel, Modifier.fillMaxWidth().padding(top = 24.dp, bottom = 12.dp))
 
-            ColorPillButton("Call ${senior.firstName}", color = FamilyColors.SuccessGreen, icon = Icons.Filled.Phone, onClick = onCallSenior)
+            ColorPillButton(copy.callName(senior.firstName), color = FamilyColors.SuccessGreen, icon = Icons.Filled.Phone, onClick = onCallSenior)
             Spacer(Modifier.height(12.dp))
-            ColorPillButton("Navigate to her location", color = FamilyColors.Blue, icon = Icons.Filled.Navigation, onClick = onNavigate)
+            ColorPillButton(copy.navigateToSeniorLocation, color = FamilyColors.Blue, icon = Icons.Filled.Navigation, onClick = onNavigate)
             Spacer(Modifier.height(12.dp))
             if (!alreadyDispatched) {
-                ColorPillButton("Dispatch barangay responders", color = FamilyColors.Orange, icon = Icons.Filled.AccountBalance, onClick = onDispatch)
+                ColorPillButton(copy.dispatchBarangayResponders, color = FamilyColors.Orange, icon = Icons.Filled.AccountBalance, onClick = onDispatch)
                 Spacer(Modifier.height(12.dp))
             }
-            OutlinePillButton("Mark resolved. ${genderPronoun(senior)}'s safe", onClick = onMarkResolved)
+            OutlinePillButton(copy.markResolvedSafe(genderPronoun(senior)), onClick = onMarkResolved)
         }
     }
 }
 
 @Composable
 private fun CallSeniorContent(senior: SeniorDto, onBack: () -> Unit) {
+    val copy = LocalFamilyCopy.current
     val context = LocalContext.current
     Column(modifier = Modifier.fillMaxSize().background(Color.White)) {
-        BackHeader("Call Senior", FamilyColors.HeaderBlue, onBack)
+        BackHeader(copy.callSeniorHeader, FamilyColors.HeaderBlue, onBack)
         Column(modifier = Modifier.verticalScroll(rememberScrollState()).padding(24.dp)) {
             Column(
                 modifier = Modifier
@@ -397,16 +411,16 @@ private fun CallSeniorContent(senior: SeniorDto, onBack: () -> Unit) {
                 Text("${senior.age}", color = FamilyColors.TextSecondary, fontSize = 14.sp)
             }
 
-            SectionLabel("CONTACT INFORMATION", Modifier.padding(top = 24.dp, bottom = 10.dp))
+            SectionLabel(copy.contactInformationLabel, Modifier.padding(top = 24.dp, bottom = 10.dp))
             Column(modifier = Modifier.fillMaxWidth().border(1.dp, FamilyColors.FieldBorder, RoundedCornerShape(14.dp))) {
-                ContactInfoRow(Icons.Filled.Phone, "Phone", senior.mobileNumber)
+                ContactInfoRow(Icons.Filled.Phone, copy.phoneLabel, senior.mobileNumber)
                 androidx.compose.material3.HorizontalDivider(color = FamilyColors.FieldBorder)
-                ContactInfoRow(Icons.Filled.Navigation, "Home address", senior.address)
+                ContactInfoRow(Icons.Filled.Navigation, copy.homeAddressLabel, senior.address)
             }
 
             Spacer(Modifier.height(24.dp))
             ColorPillButton(
-                "Call now",
+                copy.callNowButton,
                 color = FamilyColors.SuccessGreen,
                 icon = Icons.Filled.Phone,
                 onClick = {
@@ -419,12 +433,13 @@ private fun CallSeniorContent(senior: SeniorDto, onBack: () -> Unit) {
 
 @Composable
 private fun AlertLocationContent(alert: AlertDto, senior: SeniorDto, onBack: () -> Unit) {
+    val copy = LocalFamilyCopy.current
     val context = LocalContext.current
     Column(modifier = Modifier.fillMaxSize().background(Color.White)) {
-        BackHeader("Alert Location", FamilyColors.HeaderBlue, onBack)
+        BackHeader(copy.alertLocationHeader, FamilyColors.HeaderBlue, onBack)
         Column(modifier = Modifier.verticalScroll(rememberScrollState()).padding(24.dp)) {
             SectionInfoBox(
-                text = "Last known location. Captured at ${formatClockTime(alert.createdAt)}",
+                text = copy.lastKnownLocationCaptured(formatClockTime(alert.createdAt)),
                 bg = FamilyColors.AlertRedBg,
                 textColor = FamilyColors.AlertRed
             )
@@ -442,7 +457,7 @@ private fun AlertLocationContent(alert: AlertDto, senior: SeniorDto, onBack: () 
             // was captured. The map above already draws the same cell.
             val alertCell = alert.locationClusterId?.let(Geohash::decode)
             ColorPillButton(
-                if (alertCell != null) "Navigate here" else "Navigate to home address",
+                if (alertCell != null) copy.navigateHereButton else copy.navigateToHomeAddressButton,
                 color = FamilyColors.Blue,
                 icon = Icons.Filled.Navigation,
                 onClick = { openMaps(context, alertCell, senior.address) }
@@ -481,27 +496,30 @@ private fun DispatchBarangayContent(
     onBack: () -> Unit,
     onDispatch: (reason: String, notes: String?) -> Unit
 ) {
+    val copy = LocalFamilyCopy.current
     var selectedReason by remember { mutableStateOf<String?>(null) }
     var notes by remember { mutableStateOf("") }
 
     Column(modifier = Modifier.fillMaxSize().background(Color.White)) {
-        BackHeader("Dispatch Barangay", FamilyColors.HeaderBlue, onBack)
+        BackHeader(copy.dispatchBarangayHeader, FamilyColors.HeaderBlue, onBack)
         Column(modifier = Modifier.verticalScroll(rememberScrollState()).padding(24.dp)) {
             SectionInfoBox(
-                text = "This requests an official welfare check from the Barangay. A responder will be dispatched to $seniorName's location.",
+                text = copy.dispatchExplainer(seniorName),
                 bg = FamilyColors.OrangeBg,
                 textColor = FamilyColors.WarningText
             )
 
-            SectionLabel("REASON FOR DISPATCH", Modifier.padding(top = 24.dp, bottom = 10.dp))
-            DISPATCH_REASONS.forEach { reason ->
-                val selected = selectedReason == reason
+            SectionLabel(copy.reasonForDispatchLabel, Modifier.padding(top = 24.dp, bottom = 10.dp))
+            // DISPATCH_REASON_CODES are the English values sent to the server; only the
+            // displayed label (copy.dispatchReasonLabel) changes with the account's language.
+            DISPATCH_REASON_CODES.forEach { reasonCode ->
+                val selected = selectedReason == reasonCode
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(bottom = 10.dp)
                         .border(1.dp, if (selected) FamilyColors.Orange else FamilyColors.FieldBorder, RoundedCornerShape(14.dp))
-                        .clickable { selectedReason = reason }
+                        .clickable { selectedReason = reasonCode }
                         .padding(vertical = 14.dp, horizontal = 16.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -510,14 +528,14 @@ private fun DispatchBarangayContent(
                         null,
                         tint = if (selected) FamilyColors.Orange else FamilyColors.TextSecondary
                     )
-                    Text(reason, color = FamilyColors.TextPrimary, fontSize = 15.sp, modifier = Modifier.padding(start = 12.dp))
+                    Text(copy.dispatchReasonLabel(reasonCode), color = FamilyColors.TextPrimary, fontSize = 15.sp, modifier = Modifier.padding(start = 12.dp))
                 }
             }
 
             OutlinedTextField(
                 value = notes,
                 onValueChange = { notes = it },
-                placeholder = { Text("Additional notes for responder…") },
+                placeholder = { Text(copy.additionalNotesPlaceholder) },
                 modifier = Modifier.fillMaxWidth().height(110.dp),
                 shape = RoundedCornerShape(14.dp),
                 colors = OutlinedTextFieldDefaults.colors(
@@ -528,7 +546,7 @@ private fun DispatchBarangayContent(
 
             Spacer(Modifier.height(20.dp))
             ColorPillButton(
-                "Dispatch now",
+                copy.dispatchNowButton,
                 color = FamilyColors.Orange,
                 icon = Icons.Filled.AccountBalance,
                 onClick = { selectedReason?.let { onDispatch(it, notes.ifBlank { null }) } }
@@ -539,8 +557,9 @@ private fun DispatchBarangayContent(
 
 @Composable
 private fun ResolvedContent(senior: SeniorDto, summary: ResolvedSummary, onDone: () -> Unit) {
+    val copy = LocalFamilyCopy.current
     Column(modifier = Modifier.fillMaxSize().background(Color.White)) {
-        BackHeader("Alert Resolved", FamilyColors.HeaderBlue, onDone)
+        BackHeader(copy.alertResolvedHeader, FamilyColors.HeaderBlue, onDone)
         Column(
             modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
@@ -551,23 +570,23 @@ private fun ResolvedContent(senior: SeniorDto, summary: ResolvedSummary, onDone:
             ) {
                 Icon(Icons.Filled.Favorite, null, tint = FamilyColors.SuccessGreen, modifier = Modifier.size(32.dp))
             }
-            Text("${senior.firstName} is Safe", color = FamilyColors.TextPrimary, fontSize = 22.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 14.dp))
-            Text("Alert closed by you · ${summary.resolvedAt}", color = FamilyColors.TextSecondary, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp))
+            Text(copy.isSafe(senior.firstName), color = FamilyColors.TextPrimary, fontSize = 22.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 14.dp))
+            Text(copy.closedByYou(summary.resolvedAt), color = FamilyColors.TextSecondary, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp))
 
             SectionInfoBox(
-                text = "All family members and Barangay responders have been notified that the situation is resolved.",
+                text = copy.allNotifiedResolved,
                 bg = FamilyColors.SafeGreenBg,
                 textColor = FamilyColors.SuccessGreen,
                 modifier = Modifier.padding(top = 18.dp)
             )
 
-            SectionLabel("INCIDENT SUMMARY", Modifier.fillMaxWidth().padding(top = 24.dp, bottom = 8.dp))
+            SectionLabel(copy.incidentSummaryLabel, Modifier.fillMaxWidth().padding(top = 24.dp, bottom = 8.dp))
             Column(modifier = Modifier.fillMaxWidth().background(FamilyColors.FieldBackground, RoundedCornerShape(12.dp)).padding(horizontal = 16.dp)) {
-                SummaryRow("Alert ID", summary.alertShortId)
-                SummaryRow("Triggered", summary.triggeredAt)
-                SummaryRow("Resolved", summary.resolvedAt)
-                SummaryRow("Duration", "${summary.durationMinutes} minutes")
-                SummaryRow("Resolved by", summary.resolvedBy, isLast = true)
+                SummaryRow(copy.summaryAlertId, summary.alertShortId)
+                SummaryRow(copy.summaryTriggered, summary.triggeredAt)
+                SummaryRow(copy.summaryResolved, summary.resolvedAt)
+                SummaryRow(copy.summaryDuration, copy.durationMinutes(summary.durationMinutes))
+                SummaryRow(copy.summaryResolvedBy, summary.resolvedBy, isLast = true)
             }
         }
     }

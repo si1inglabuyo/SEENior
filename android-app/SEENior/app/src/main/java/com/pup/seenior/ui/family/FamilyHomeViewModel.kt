@@ -161,18 +161,8 @@ class FamilyHomeViewModel(application: Application) : AndroidViewModel(applicati
     }
 }
 
-/**
- * Status label for one RECENT ALERTS row.
- *
- * Note the design mock's example row ("Alfreda replied 'I'm okay'") cannot occur here: a senior
- * who answers "I'M SAFE" closes the alert locally as `self_cancelled` and nothing is ever
- * uploaded (CLAUDE.md §11), so the cloud only ever holds alerts that actually escalated.
- */
-fun recentAlertChipLabel(status: String): String = when (status) {
-    "pending" -> "Pending"
-    "acknowledged" -> "Acknowledged"
-    "escalated" -> "Escalated"
-    "resolved" -> "Resolved"
-    "false_positive" -> "False alarm"
-    else -> status
-}
+// Status label for one RECENT ALERTS row is FamilyStrings.Copy.recentAlertChipLabel now.
+//
+// Note the design mock's example row ("Alfreda replied 'I'm okay'") cannot occur here: a senior
+// who answers "I'M SAFE" closes the alert locally as `self_cancelled` and nothing is ever
+// uploaded (CLAUDE.md §11), so the cloud only ever holds alerts that actually escalated.

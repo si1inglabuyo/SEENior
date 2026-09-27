@@ -192,7 +192,7 @@ fun LoadingCard(message: String, modifier: Modifier = Modifier) {
             modifier = Modifier.padding(top = 16.dp)
         )
         Text(
-            "This can take a moment if the server is waking up.",
+            LocalFamilyCopy.current.loadingHint,
             color = FamilyColors.TextHint,
             fontSize = 13.sp,
             textAlign = TextAlign.Center,
@@ -246,7 +246,7 @@ fun CouldNotLoadCard(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(Icons.Filled.Refresh, null, tint = FamilyColors.Blue, modifier = Modifier.size(20.dp))
-            Text("Try again", color = FamilyColors.Blue, fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 8.dp))
+            Text(LocalFamilyCopy.current.tryAgain, color = FamilyColors.Blue, fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 8.dp))
         }
     }
 }
@@ -255,6 +255,7 @@ fun CouldNotLoadCard(
  *  once a family account has reached MAX_LINKED_SENIORS. */
 @Composable
 fun MonitoringLimitCard(modifier: Modifier = Modifier) {
+    val copy = LocalFamilyCopy.current
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -265,13 +266,13 @@ fun MonitoringLimitCard(modifier: Modifier = Modifier) {
         Icon(Icons.Outlined.Info, null, tint = FamilyColors.WarningText, modifier = Modifier.size(22.dp))
         Column(modifier = Modifier.padding(start = 12.dp)) {
             Text(
-                "Monitoring limit reached ($MAX_LINKED_SENIORS/$MAX_LINKED_SENIORS)",
+                copy.monitoringLimitReached(MAX_LINKED_SENIORS),
                 color = FamilyColors.WarningText,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Bold
             )
             Text(
-                "Remove a linked senior to monitor a new one.",
+                copy.monitoringLimitBody,
                 color = FamilyColors.WarningText,
                 fontSize = 14.sp,
                 modifier = Modifier.padding(top = 2.dp)

@@ -341,19 +341,6 @@ class FamilyAlertsViewModel(application: Application) : AndroidViewModel(applica
     }
 }
 
-/** Plain-language "why we're asking" text derived from Alert.triggerType, mirroring the
- *  senior-side wellness-prompt requirement in CLAUDE.md §7 so families get the same context. */
-fun alertReasonText(triggerType: String): String = when (triggerType) {
-    "inactivity" -> "No movement for a while during their usual active hours. No response to the check-in prompt."
-    "movement" -> "Movement pattern looks unusual compared to their normal routine."
-    "screen_idle" -> "Phone hasn't been used in longer than usual for this time of day."
-    "charging" -> "Device has been charging far longer than expected with no normal activity."
-    "sos" -> "They pressed the SOS button."
-    "ml_flag" -> "Today's overall activity pattern looks unusual compared to their routine."
-    "fall_pattern" -> "A possible fall was detected."
-    else -> "An unusual pattern was detected in their routine."
-}
-
 /**
  * Parses a timestamp as the backend writes it and converts it to the device's own zone.
  *
@@ -373,32 +360,36 @@ fun parseServerTime(iso: String): ZonedDateTime? {
     }.getOrNull()
 }
 
-fun relativeTimeAgo(iso: String): String {
-    val then = parseServerTime(iso) ?: return ""
-    val minutes = Duration.between(then, ZonedDateTime.now()).toMinutes()
-    return when {
-        // Negative means the server clock is marginally ahead of the device's; showing
-        // "-1 min ago" would look broken, and the alert is new either way.
-        minutes < 1 -> "just now"
-        minutes < 60 -> "$minutes min ago"
-        minutes < 60 * 24 -> "${minutes / 60} hr ago"
-        else -> "${minutes / (60 * 24)} d ago"
-    }
+/**
+ * Plain-language "why we're asking" text derived from Alert.triggerType, mirroring the
+ * senior-side wellness-prompt requirement in CLAUDE.md §7 so families get the same context.
+ *
+ * English-only, deliberately: [FamilyAlertNotifier] (a system notification built outside any
+ * Composable, from an FCM message) has no access to [LocalFamilyCopy] to translate this with.
+ * The in-app Alerts tab uses [FamilyStrings.Copy.alertReasonText] instead, which is the same
+ * wording in English and adds Filipino.
+ */
+fun alertReasonText(triggerType: String): String = when (triggerType) {
+    "inactivity" -> "No movement for a while during their usual active hours. No response to the check-in prompt."
+    "movement" -> "Movement pattern looks unusual compared to their normal routine."
+    "screen_idle" -> "Phone hasn't been used in longer than usual for this time of day."
+    "charging" -> "Device has been charging far longer than expected with no normal activity."
+    "sos" -> "They pressed the SOS button."
+    "ml_flag" -> "Today's overall activity pattern looks unusual compared to their routine."
+    "fall_pattern" -> "A possible fall was detected."
+    else -> "An unusual pattern was detected in their routine."
+}
+
+/** Minutes between a server timestamp and now, clamped to 0 -- feeds
+ *  [FamilyStrings.Copy.relativeTimeAgo], which turns it into a translated phrase. Negative
+ *  would mean the server clock is marginally ahead of the device's; the alert is new either
+ *  way. */
+fun minutesAgo(iso: String): Long {
+    val then = parseServerTime(iso) ?: return 0L
+    return Duration.between(then, ZonedDateTime.now()).toMinutes().coerceAtLeast(0)
 }
 
 fun formatClockTime(iso: String): String {
     val then = parseServerTime(iso) ?: return ""
     return then.format(DateTimeFormatter.ofPattern("h:mm a"))
-}
-
-/** Compact form of [alertReasonText] for list rows, where the full sentence doesn't fit. */
-fun triggerShortLabel(triggerType: String): String = when (triggerType) {
-    "inactivity" -> "No movement"
-    "movement" -> "Unusual movement"
-    "screen_idle" -> "Phone idle"
-    "charging" -> "Charging unusually long"
-    "sos" -> "SOS pressed"
-    "ml_flag" -> "Unusual daily pattern"
-    "fall_pattern" -> "Possible fall"
-    else -> "Unusual pattern"
 }

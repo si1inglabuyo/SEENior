@@ -109,6 +109,11 @@ class User(Base):
     firebase_uid: Mapped[str | None] = mapped_column(String(255), unique=True, index=True, nullable=True)
     # Scopes a barangay_responder's dashboard queries; unused for family contacts.
     barangay: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    # "en" / "fil" — same two codes as the senior side's Senior_Onboarding.language_preference
+    # (WellnessMessages.ENGLISH / .FILIPINO on-device), so the vocabulary matches across both
+    # apps even though this column has no local-SQLite counterpart. Drives the family app's
+    # bilingual UI (Profile -> Language); barangay-responder accounts never read it.
+    language_preference: Mapped[str] = mapped_column(String(8), server_default="en")
     is_active: Mapped[bool] = mapped_column(default=True)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
