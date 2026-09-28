@@ -54,6 +54,7 @@ import com.pup.seenior.ui.family.FamilyAlertsViewModel
 import com.pup.seenior.ui.family.FamilyColors
 import com.pup.seenior.ui.family.FamilyContactsScreen
 import com.pup.seenior.ui.family.FamilyHomeScreen
+import com.pup.seenior.ui.family.FamilyInfoStrings
 import com.pup.seenior.ui.family.FamilyPairingViewModel
 import com.pup.seenior.ui.family.FamilyProfileScreen
 import com.pup.seenior.ui.family.FamilyProfileViewModel
@@ -61,6 +62,7 @@ import com.pup.seenior.ui.family.FamilySeniorsViewModel
 import com.pup.seenior.ui.family.FamilyStrings
 import com.pup.seenior.ui.family.LinkScreen
 import com.pup.seenior.ui.family.LocalFamilyCopy
+import com.pup.seenior.ui.family.LocalFamilyInfoCopy
 import com.pup.seenior.ui.family.MonitoringLimitCard
 import com.pup.seenior.session.SessionState
 
@@ -95,6 +97,7 @@ fun FamilyDashboard(onLoggedOut: () -> Unit) {
     val profileViewModel: FamilyProfileViewModel = viewModel()
     LaunchedEffect(Unit) { profileViewModel.refresh() }
     val copy = FamilyStrings.forLanguage(profileViewModel.language)
+    val infoCopy = FamilyInfoStrings.forLanguage(profileViewModel.language)
     // Re-fetch on every resume and on every tab change. The senior can unlink from their own
     // phone at any time and there is no push channel to tell us, so a once-per-login fetch
     // leaves this list frozen at whatever it was when the session started. The senior's own
@@ -151,7 +154,7 @@ fun FamilyDashboard(onLoggedOut: () -> Unit) {
         }
     }
 
-    CompositionLocalProvider(LocalFamilyCopy provides copy) {
+    CompositionLocalProvider(LocalFamilyCopy provides copy, LocalFamilyInfoCopy provides infoCopy) {
     Scaffold(
         bottomBar = {
             NavigationBar(containerColor = Color.White) {
