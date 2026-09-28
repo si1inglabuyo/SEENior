@@ -767,7 +767,6 @@ private fun AlertHistoryDetailContent(item: AlertHistoryItem, summary: ResolvedS
 
             SectionLabel(copy.incidentSummaryLabel, Modifier.fillMaxWidth().padding(top = 24.dp, bottom = 8.dp))
             Column(modifier = Modifier.fillMaxWidth().background(FamilyColors.FieldBackground, RoundedCornerShape(12.dp)).padding(horizontal = 16.dp)) {
-                SummaryRow(copy.summaryAlertId, summary.alertShortId)
                 SummaryRow(copy.summaryTriggered, summary.triggeredAt)
                 SummaryRow(copy.summaryResolved, summary.resolvedAt)
                 SummaryRow(copy.summaryDuration, copy.durationMinutes(summary.durationMinutes))
