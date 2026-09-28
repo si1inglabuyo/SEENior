@@ -10,6 +10,7 @@ import com.pup.seenior.network.RetrofitClient
 import com.pup.seenior.network.dto.AlertDispatchRequest
 import com.pup.seenior.network.dto.AlertDto
 import com.pup.seenior.network.dto.ContactDto
+import com.pup.seenior.network.dto.SeniorDto
 import com.pup.seenior.session.FamilySession
 import com.pup.seenior.session.SessionState
 import kotlinx.coroutines.Job
@@ -26,7 +27,14 @@ import java.time.ZoneOffset
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 
-enum class AlertScreen { LOADING, ALL_CLEAR, LOAD_FAILED, DETAIL, ACKNOWLEDGED, CALL_SENIOR, LOCATION, DISPATCH, RESOLVED }
+enum class AlertScreen {
+    LOADING, ALL_CLEAR, LOAD_FAILED, DETAIL, ACKNOWLEDGED, CALL_SENIOR, LOCATION, DISPATCH,
+    RESOLVED, HISTORY, HISTORY_DETAIL
+}
+
+/** One row in the history list — an alert plus which senior it belongs to, since a family
+ *  account can monitor up to [MAX_LINKED_SENIORS]. */
+data class AlertHistoryItem(val alert: AlertDto, val senior: SeniorDto)
 
 /** A closed alert's summary, kept only for the Resolved screen right after resolving it
  *  (designs/family_contact/dashboard_notification/Resolved.png) — not persisted anywhere else. */
@@ -60,6 +68,14 @@ class FamilyAlertsViewModel(application: Application) : AndroidViewModel(applica
     var activeSenior by mutableStateOf<ContactDto?>(null)
         private set
     var resolvedSummary by mutableStateOf<ResolvedSummary?>(null)
+        private set
+
+    /** Every fetched alert across every linked senior, newest first — refreshed on every
+     *  [load], including background polls, so it's current whenever History is opened even
+     *  though only a foreground fetch may change [screen] itself. */
+    var history by mutableStateOf<List<AlertHistoryItem>>(emptyList())
+        private set
+    var selectedHistoryItem by mutableStateOf<AlertHistoryItem?>(null)
         private set
 
     private var actionInFlight = false
@@ -132,8 +148,10 @@ class FamilyAlertsViewModel(application: Application) : AndroidViewModel(applica
                 var requestedAlert: AlertDto? = null
                 var requestedContact: ContactDto? = null
                 val wanted = requestedSyncId
+                val fetchedHistory = mutableListOf<AlertHistoryItem>()
                 for (contact in contacts) {
                     val alerts = RetrofitClient.api.getAlerts(contact.senior.syncId, "Bearer $token")
+                    fetchedHistory += alerts.map { AlertHistoryItem(it, contact.senior) }
                     if (wanted != null) {
                         alerts.firstOrNull { it.syncId == wanted }?.let {
                             requestedAlert = it
@@ -147,6 +165,10 @@ class FamilyAlertsViewModel(application: Application) : AndroidViewModel(applica
                         bestContact = contact
                     }
                 }
+                // Refreshed unconditionally (unlike screen, below) so History is current the
+                // moment it's opened even if a background poll fetched it while the family
+                // member was mid-task on a different screen.
+                history = fetchedHistory.sortedByDescending { it.alert.createdAt }
                 // An explicitly requested alert outranks "newest open": the family member tapped
                 // through to that one. Falls back to the usual pick if it has since vanished.
                 if (requestedAlert != null) {
@@ -271,6 +293,16 @@ class FamilyAlertsViewModel(application: Application) : AndroidViewModel(applica
     fun goTo(target: AlertScreen) {
         screen = target
     }
+
+    /** Opens the read-only detail view for a tapped history tile. */
+    fun openHistoryDetail(item: AlertHistoryItem) {
+        selectedHistoryItem = item
+        screen = AlertScreen.HISTORY_DETAIL
+    }
+
+    /** Same incident-summary shape [markResolved] builds for the alert it just closed, exposed
+     *  so the history detail screen can build one for any past alert, not only the freshest. */
+    fun summaryFor(alert: AlertDto): ResolvedSummary = buildSummary(alert)
 
     /** Called after leaving the Resolved screen — goes back to All Clear rather than
      *  re-fetching, since the just-resolved alert is correctly excluded from OPEN_STATUSES. */

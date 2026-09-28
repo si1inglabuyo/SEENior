@@ -576,6 +576,18 @@ object FamilyStrings {
         val mapPreviewUnavailable: String
             get() = if (language == WellnessMessages.FILIPINO) "Hindi available ang preview ng mapa" else "Map preview unavailable"
 
+        val alertHistoryTitle: String
+            get() = if (language == WellnessMessages.FILIPINO) "Kasaysayan ng Alerto" else "Alert History"
+
+        val alertHistoryEmpty: String
+            get() = if (language == WellnessMessages.FILIPINO) "Walang nakaraang alerto pa." else "No past alerts yet."
+
+        val viewAlertHistory: String
+            get() = if (language == WellnessMessages.FILIPINO) "Tingnan ang kasaysayan ng alerto" else "View alert history"
+
+        val alertHistoryDetailTitle: String
+            get() = if (language == WellnessMessages.FILIPINO) "Detalye ng Alerto" else "Alert Details"
+
         val yourEmailFallback: String
             get() = if (language == WellnessMessages.FILIPINO) "iyong email" else "your email"
 

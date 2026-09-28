@@ -15,11 +15,16 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.draw.clip
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.CheckCircle
@@ -118,11 +123,11 @@ fun FamilyAlertsScreen(
             message = copy.errorMessage(viewModel.error) ?: copy.couldNotReachServer,
             onRetry = { viewModel.retry(contacts) }
         )
-        AlertScreen.ALL_CLEAR -> AllClearContent(senior)
+        AlertScreen.ALL_CLEAR -> AllClearContent(senior, onViewHistory = { viewModel.goTo(AlertScreen.HISTORY) })
         AlertScreen.DETAIL -> {
             val alert = viewModel.activeAlert
             if (alert == null || senior == null) {
-                AllClearContent(senior)
+                AllClearContent(senior, onViewHistory = { viewModel.goTo(AlertScreen.HISTORY) })
             } else {
                 AlertDetailContent(alert, senior, onAcknowledge = { viewModel.acknowledge() })
             }
@@ -130,7 +135,7 @@ fun FamilyAlertsScreen(
         AlertScreen.ACKNOWLEDGED -> {
             val alert = viewModel.activeAlert
             if (alert == null || senior == null) {
-                AllClearContent(senior)
+                AllClearContent(senior, onViewHistory = { viewModel.goTo(AlertScreen.HISTORY) })
             } else {
                 AcknowledgedContent(
                     alert = alert,
@@ -163,7 +168,29 @@ fun FamilyAlertsScreen(
             if (summary != null && senior != null) {
                 ResolvedContent(senior, summary, onDone = { viewModel.backToAllClear() })
             } else {
-                AllClearContent(senior)
+                AllClearContent(senior, onViewHistory = { viewModel.goTo(AlertScreen.HISTORY) })
+            }
+        }
+        AlertScreen.HISTORY -> AlertHistoryListContent(
+            items = viewModel.history,
+            onBack = { viewModel.goTo(AlertScreen.ALL_CLEAR) },
+            onSelect = { viewModel.openHistoryDetail(it) }
+        )
+        AlertScreen.HISTORY_DETAIL -> {
+            val item = viewModel.selectedHistoryItem
+            if (item != null) {
+                AlertHistoryDetailContent(
+                    item = item,
+                    summary = viewModel.summaryFor(item.alert),
+                    onBack = { viewModel.goTo(AlertScreen.HISTORY) }
+                )
+            } else {
+                // Defensive only -- openHistoryDetail always sets both together.
+                AlertHistoryListContent(
+                    items = viewModel.history,
+                    onBack = { viewModel.goTo(AlertScreen.ALL_CLEAR) },
+                    onSelect = { viewModel.openHistoryDetail(it) }
+                )
             }
         }
     }
@@ -223,7 +250,7 @@ private fun AlertsLoadFailedContent(message: String, onRetry: () -> Unit) {
  * sentence.
  */
 @Composable
-private fun AllClearContent(senior: SeniorDto?) {
+private fun AllClearContent(senior: SeniorDto?, onViewHistory: () -> Unit) {
     val copy = LocalFamilyCopy.current
     Column(modifier = Modifier.fillMaxSize().background(Color.White)) {
         BlueHeaderBar(copy.alertsHeader)
@@ -242,6 +269,15 @@ private fun AllClearContent(senior: SeniorDto?) {
                 fontSize = 15.sp,
                 textAlign = TextAlign.Center
             )
+            if (senior != null) {
+                Text(
+                    copy.viewAlertHistory,
+                    color = FamilyColors.Blue,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(top = 18.dp).clickable(onClick = onViewHistory)
+                )
+            }
         }
     }
 }
@@ -588,6 +624,161 @@ private fun ResolvedContent(senior: SeniorDto, summary: ResolvedSummary, onDone:
                 SummaryRow(copy.summaryDuration, copy.durationMinutes(summary.durationMinutes))
                 SummaryRow(copy.summaryResolvedBy, summary.resolvedBy, isLast = true)
             }
+        }
+    }
+}
+
+/** Every alert across every linked senior — reached from All Clear's "View alert history"
+ *  link. Each tile is tappable, opening [AlertHistoryDetailContent] for that one alert. */
+@Composable
+private fun AlertHistoryListContent(
+    items: List<AlertHistoryItem>,
+    onBack: () -> Unit,
+    onSelect: (AlertHistoryItem) -> Unit
+) {
+    val copy = LocalFamilyCopy.current
+    Column(modifier = Modifier.fillMaxSize().background(Color.White)) {
+        BackHeader(copy.alertHistoryTitle, FamilyColors.HeaderBlue, onBack)
+        if (items.isEmpty()) {
+            Column(
+                modifier = Modifier.fillMaxSize().padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text(copy.alertHistoryEmpty, color = FamilyColors.TextSecondary, fontSize = 15.sp, textAlign = TextAlign.Center)
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp),
+                contentPadding = PaddingValues(top = 16.dp, bottom = 24.dp)
+            ) {
+                items(items, key = { it.alert.syncId }) { entry ->
+                    AlertHistoryTile(entry, onClick = { onSelect(entry) })
+                    Spacer(Modifier.height(12.dp))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AlertHistoryTile(entry: AlertHistoryItem, onClick: () -> Unit) {
+    val copy = LocalFamilyCopy.current
+    val accent = riskColor(entry.alert.riskLevel)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(FamilyColors.FieldBackground)
+            .border(1.dp, FamilyColors.FieldBorder, RoundedCornerShape(14.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(modifier = Modifier.size(10.dp).background(accent, CircleShape))
+        Spacer(Modifier.width(10.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                copy.triggerShortLabel(entry.alert.triggerType),
+                color = FamilyColors.TextPrimary,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Text(entry.senior.firstName, color = FamilyColors.TextSecondary, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
+            Text(
+                formatClockTime(entry.alert.createdAt) + " · " + copy.recentAlertChipLabel(entry.alert.status),
+                color = FamilyColors.TextSecondary,
+                fontSize = 12.sp
+            )
+        }
+        RiskDot(entry.alert.riskLevel, copy)
+    }
+}
+
+@Composable
+private fun RiskDot(riskLevel: String, copy: FamilyStrings.Copy) {
+    val accent = riskColor(riskLevel)
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .background(accent.copy(alpha = 0.15f))
+            .padding(horizontal = 10.dp, vertical = 4.dp)
+    ) {
+        Text(
+            riskLevel.replaceFirstChar { it.uppercase() },
+            color = accent,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold
+        )
+    }
+}
+
+private fun riskColor(riskLevel: String): Color = when (riskLevel) {
+    "high" -> FamilyColors.AlertRed
+    "medium" -> FamilyColors.Orange
+    else -> FamilyColors.SuccessGreen
+}
+
+/**
+ * Read-only detail for one past alert, tapped from [AlertHistoryListContent]. No action buttons
+ * -- unlike [AlertDetailContent]/[AcknowledgedContent] this is history, not a live incident, so
+ * Acknowledge/Dispatch/Call/Resolve would all be acting on something already over. Reuses the
+ * same incident-summary shape [ResolvedContent] shows for a just-closed alert (built for any
+ * alert via [FamilyAlertsViewModel.summaryFor]), plus the reason text and location map.
+ */
+@Composable
+private fun AlertHistoryDetailContent(item: AlertHistoryItem, summary: ResolvedSummary, onBack: () -> Unit) {
+    val copy = LocalFamilyCopy.current
+    val alert = item.alert
+    val senior = item.senior
+    Column(modifier = Modifier.fillMaxSize().background(Color.White)) {
+        BackHeader(copy.alertHistoryDetailTitle, FamilyColors.HeaderBlue, onBack)
+        Column(
+            modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    copy.triggerShortLabel(alert.triggerType),
+                    color = FamilyColors.TextPrimary,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f)
+                )
+                RiskDot(alert.riskLevel, copy)
+            }
+            Text(senior.firstName, color = FamilyColors.TextSecondary, fontSize = 13.sp, modifier = Modifier.padding(top = 2.dp))
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 16.dp)
+                    .border(1.dp, FamilyColors.FieldBorder, RoundedCornerShape(16.dp))
+                    .background(FamilyColors.FieldBackground, RoundedCornerShape(16.dp))
+                    .padding(18.dp)
+            ) {
+                Text(copy.alertReasonLabel, color = FamilyColors.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                Text(
+                    copy.alertReasonText(alert.triggerType),
+                    color = FamilyColors.TextPrimary,
+                    fontSize = 14.sp,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+            }
+
+            SectionLabel(copy.incidentSummaryLabel, Modifier.fillMaxWidth().padding(top = 24.dp, bottom = 8.dp))
+            Column(modifier = Modifier.fillMaxWidth().background(FamilyColors.FieldBackground, RoundedCornerShape(12.dp)).padding(horizontal = 16.dp)) {
+                SummaryRow(copy.summaryAlertId, summary.alertShortId)
+                SummaryRow(copy.summaryTriggered, summary.triggeredAt)
+                SummaryRow(copy.summaryResolved, summary.resolvedAt)
+                SummaryRow(copy.summaryDuration, copy.durationMinutes(summary.durationMinutes))
+                SummaryRow(copy.summaryResolvedBy, summary.resolvedBy, isLast = true)
+            }
+
+            SectionLabel(copy.lastKnownLocationLabel, Modifier.fillMaxWidth().padding(top = 24.dp, bottom = 10.dp))
+            AlertLocationMap(
+                clusterId = alert.locationClusterId,
+                registeredAddress = senior.address
+            )
         }
     }
 }
