@@ -589,6 +589,11 @@ h4 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase;
   border: 1px solid var(--line); border-radius: 10px; overflow: hidden;
 }
 .location-map { width: 100%; height: 160px; display: block; border: 0; background: #eef2f0; }
+/* OSM's tile usage policy requires this credit to stay -- kept, but as a quiet footer rather
+   than a prominent watermark. */
+.location-map .leaflet-control-attribution {
+  font-size: 9px; opacity: 0.6; padding: 0 4px; background: rgba(255, 255, 255, 0.7);
+}
 .location-text { padding: 10px 12px; }
 .location-address { margin: 0 0 4px; font-weight: 600; }
 .location-coords { margin: 0 0 6px; font-size: 12px; color: var(--muted); }

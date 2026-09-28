@@ -5,14 +5,16 @@ import { canActOn } from '../alertActions'
 import { isActiveAlert } from '../historyFilters'
 import { decodeGeohash, cellSizeMeters } from '../geohash'
 import Modal from './Modal'
+import LocationMap from './LocationMap'
 
 // "Last Known Location" -- the senior's actual position at the moment the alert fired,
 // captured once (never continuously) and stored as a precision geohash. Since 2026-08-31
 // this is a precise fix, held lawfully under RA 10173 §12(c) during an active emergency,
-// NOT an anonymised cluster (root CLAUDE.md §11 -- do not call it anonymous). We decode the
-// geohash to coordinates and show the real spot on an OpenStreetMap tile, with the
-// registered street address kept alongside because the responder still needs a name to
-// read out. Older alerts carry a ~150 m cell; we say "approximate area" for those.
+// NOT an anonymised cluster (root CLAUDE.md §11 -- do not call it anonymous). Rendered on a
+// live OpenStreetMap tile via LocationMap -- the same osmdroid-equivalent pin-vs-square map
+// the family app uses, not a static openstreetmap.org iframe embed -- with the registered
+// street address kept alongside because the responder still needs a name to read out. Older
+// alerts carry a ~150 m cell; we say "approximate area" for those.
 function LocationPreview({ address, clusterId }) {
   const cell = decodeGeohash(clusterId)
 
@@ -30,40 +32,13 @@ function LocationPreview({ address, clusterId }) {
     )
   }
 
-  const { lat, lon } = cell
   const metres = cellSizeMeters(cell)
-  const precise = metres <= 30
-  // A small window around the point for the embed; a touch wider for the coarse old cells.
-  const pad = precise ? 0.0016 : Math.max(cell.lonErr, cell.latErr) * 1.6
-  const bbox = [lon - pad, lat - pad, lon + pad, lat + pad].map((n) => n.toFixed(6)).join(',')
-  const embedSrc = `https://www.openstreetmap.org/export/embed.html?bbox=${encodeURIComponent(
-    bbox
-  )}&layer=mapnik&marker=${lat.toFixed(6)},${lon.toFixed(6)}`
-  const mapLink = `https://www.openstreetmap.org/?mlat=${lat.toFixed(6)}&mlon=${lon.toFixed(
-    6
-  )}#map=${precise ? 18 : 16}/${lat.toFixed(5)}/${lon.toFixed(5)}`
 
   return (
     <div className="location-preview">
-      <iframe
-        className="location-map"
-        title="Alert location"
-        loading="lazy"
-        src={embedSrc}
-      />
+      <LocationMap cell={cell} metres={metres} />
       <div className="location-text">
         <p className="location-address">{address || 'Address not on file'}</p>
-        <p className="location-coords">
-          {precise ? 'Fix' : 'Approximate area'}: {lat.toFixed(5)}, {lon.toFixed(5)}
-          {' · '}
-          <a href={mapLink} target="_blank" rel="noreferrer">
-            Open in OpenStreetMap
-          </a>
-        </p>
-        <p className="location-note muted">
-          The senior’s position when the alert fired, captured once. Shared with the barangay
-          for this emergency under RA 10173 §12(c){precise ? '' : ` (~${Math.round(metres)} m cell)`}.
-        </p>
       </div>
     </div>
   )
