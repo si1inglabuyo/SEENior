@@ -53,20 +53,14 @@ import com.pup.seenior.ui.onboarding.OnboardingOptions
 import androidx.compose.material3.RadioButton
 
 /*
- * Unset on purpose, and the Profile menu hides its "Contact support" row while they stay
- * that way (see SUPPORT_CONTACT_CONFIGURED).
- *
- * These used to ship as "+63 000 000 0000" and "seenior.support@example.com", straight out
- * of designs/senior/profile. A senior in difficulty tapping Call us and reaching a dead
- * number is worse than not offering the button: the offer itself is the harm, because it
- * spends the moment they decided to ask for help.
- *
- * To turn the feature back on, put a real value in either one -- the screen renders the
- * call row only when there is a number and the message form only when there is an address,
- * so a phone line alone or an inbox alone both work.
+ * These used to ship as "+63 000 000 0000" and "seenior.support@example.com", straight out of
+ * designs/senior/profile -- placeholders, deliberately left null (see SUPPORT_CONTACT_CONFIGURED)
+ * until real ones existed, because a senior in difficulty tapping Call us and reaching a dead
+ * number is worse than not offering the button -- the offer itself is the harm, because it
+ * spends the moment they decided to ask for help. Both are now real and monitored.
  */
-private val SUPPORT_PHONE: String? = null
-private val SUPPORT_EMAIL: String? = null
+private val SUPPORT_PHONE: String? = "0910 358 4546"
+private val SUPPORT_EMAIL: String? = "SEENiorApp@gmail.com"
 
 /** Whether there is anything behind the Profile menu's "Contact support" row. */
 internal val SUPPORT_CONTACT_CONFIGURED: Boolean

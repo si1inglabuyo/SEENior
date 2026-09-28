@@ -54,14 +54,13 @@ import androidx.compose.ui.unit.sp
  */
 
 /*
- * Unset on purpose, same reasoning as SeniorInfoScreens.kt's SUPPORT_PHONE/SUPPORT_EMAIL: a
- * placeholder number or address is worse than no button at all, because tapping "Call us" and
- * reaching a dead line spends the exact moment someone decided to ask for help. Contact
- * support stays hidden, and Feedback's Send button stays disabled, until a real value is set
- * here.
+ * Same reasoning as SeniorInfoScreens.kt's SUPPORT_PHONE/SUPPORT_EMAIL: both were left null
+ * until real ones existed, because a placeholder number is worse than no button at all --
+ * tapping "Call us" and reaching a dead line spends the exact moment someone decided to ask
+ * for help. Both are now real and monitored.
  */
-private val FAMILY_SUPPORT_PHONE: String? = null
-private val FAMILY_SUPPORT_EMAIL: String? = null
+private val FAMILY_SUPPORT_PHONE: String? = "0910 358 4546"
+private val FAMILY_SUPPORT_EMAIL: String? = "SEENiorApp@gmail.com"
 
 /** Whether there is anything behind the Profile menu's "Contact support" row. */
 internal val FAMILY_SUPPORT_CONTACT_CONFIGURED: Boolean
