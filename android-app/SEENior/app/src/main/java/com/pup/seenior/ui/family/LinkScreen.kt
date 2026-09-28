@@ -135,7 +135,7 @@ fun LinkScreen(viewModel: FamilyPairingViewModel, onVerified: () -> Unit) {
             }
 
             viewModel.error?.let {
-                Text(it, color = FamilyColors.ErrorRed, fontSize = 14.sp, modifier = Modifier.padding(top = 12.dp))
+                Text(copy.errorMessage(it) ?: "", color = FamilyColors.ErrorRed, fontSize = 14.sp, modifier = Modifier.padding(top = 12.dp))
             }
 
             Row(

@@ -157,7 +157,7 @@ fun ConnectedScreen(
         )
 
         viewModel.error?.let {
-            Text(it, color = FamilyColors.ErrorRed, fontSize = 14.sp, modifier = Modifier.padding(top = 12.dp))
+            Text(copy.errorMessage(it) ?: "", color = FamilyColors.ErrorRed, fontSize = 14.sp, modifier = Modifier.padding(top = 12.dp))
         }
 
         Spacer(Modifier.height(24.dp))
@@ -195,6 +195,7 @@ fun ConnectedScreen(
     // Shown once the pairing has actually gone through on the server — the flow otherwise
     // navigated straight on, so nothing confirmed the link had been made.
     viewModel.pairedSeniorName?.let { name ->
+        val displayName = name.ifBlank { copy.theSeniorFallback }
         AlertDialog(
             onDismissRequest = viewModel::confirmPairSuccess,
             confirmButton = {
@@ -205,7 +206,7 @@ fun ConnectedScreen(
             icon = { Icon(Icons.Filled.CheckCircle, null, tint = FamilyColors.SuccessGreen) },
             title = { Text(copy.linkedSuccessTitle, fontSize = 19.sp, fontWeight = FontWeight.Bold) },
             text = {
-                Text(copy.linkedSuccessBody(name), fontSize = 15.sp)
+                Text(copy.linkedSuccessBody(displayName), fontSize = 15.sp)
             }
         )
     }

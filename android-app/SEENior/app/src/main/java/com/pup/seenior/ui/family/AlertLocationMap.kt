@@ -80,7 +80,8 @@ fun AlertLocationMap(
     registeredAddress: String,
     modifier: Modifier = Modifier,
     height: Dp = 140.dp,
-    interactive: Boolean = false
+    interactive: Boolean = false,
+    copy: FamilyStrings.Copy = LocalFamilyCopy.current
 ) {
     val context = LocalContext.current
 
@@ -148,8 +149,8 @@ fun AlertLocationMap(
                 // statement while the reverse lookup is in flight or if it comes back empty —
                 // the pin on the map above still stands either way.
                 Text(
-                    text = capturedPlace?.let { "Current location: $it" }
-                        ?: "Current location captured when the alert was raised (shown on the map).",
+                    text = capturedPlace?.let(copy::currentLocationKnown)
+                        ?: copy.currentLocationUnknownPlace,
                     color = FamilyColors.TextPrimary,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Bold,
@@ -159,10 +160,9 @@ fun AlertLocationMap(
                     text = run {
                         val span = target.cell.approximateSpanMetres()
                         if (span <= PIN_THRESHOLD_METRES) {
-                            "Captured once, at that moment only — SEENior does not track " +
-                                "location at any other time."
+                            copy.locationCapturedOnceNote
                         } else {
-                            "Approximate area — about ${span.roundToInt()} m across."
+                            copy.approximateAreaNote(span.roundToInt())
                         }
                     },
                     color = FamilyColors.TextSecondary,
@@ -173,13 +173,13 @@ fun AlertLocationMap(
 
             is MapTarget.RegisteredAddress -> {
                 Text(
-                    text = "No live location was captured for this alert.",
+                    text = copy.noLiveLocationCaptured,
                     color = FamilyColors.TextSecondary,
                     fontSize = 12.sp,
                     modifier = Modifier.padding(top = 8.dp)
                 )
                 Text(
-                    text = "Home address: $registeredAddress",
+                    text = copy.homeAddressLine(registeredAddress),
                     color = FamilyColors.TextPrimary,
                     fontSize = 13.sp,
                     modifier = Modifier.padding(top = 4.dp)
@@ -190,7 +190,7 @@ fun AlertLocationMap(
             // family the address in words rather than a bare placeholder.
             null -> if (!resolving && registeredAddress.isNotBlank()) {
                 Text(
-                    text = "Home address: $registeredAddress",
+                    text = copy.homeAddressLine(registeredAddress),
                     color = FamilyColors.TextPrimary,
                     fontSize = 13.sp,
                     modifier = Modifier.padding(top = 8.dp)

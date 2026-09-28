@@ -132,7 +132,7 @@ fun FamilyHomeScreen(
             } else if (seniorsViewModel.loadFailed) {
                 CouldNotLoadCard(
                     title = copy.couldNotLoadSeniorsTitle,
-                    message = seniorsViewModel.error ?: copy.couldNotReachServer,
+                    message = copy.errorMessage(seniorsViewModel.error) ?: copy.couldNotReachServer,
                     reassurance = copy.stillLinkedReassurance,
                     onRetry = { seniorsViewModel.refresh() }
                 )
@@ -161,7 +161,7 @@ fun FamilyHomeScreen(
                         LoadingCard(copy.loadingRecentAlerts)
                     homeViewModel.loadFailed -> CouldNotLoadCard(
                         title = copy.couldNotLoadAlertsTitle,
-                        message = homeViewModel.error ?: copy.couldNotReachServer,
+                        message = copy.errorMessage(homeViewModel.error) ?: copy.couldNotReachServer,
                         onRetry = { homeViewModel.refresh(seniorsViewModel.contacts) }
                     )
                     homeViewModel.recent.isEmpty() -> NoAlertsCard()

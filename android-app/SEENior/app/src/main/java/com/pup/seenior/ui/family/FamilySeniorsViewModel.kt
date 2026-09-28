@@ -27,7 +27,7 @@ class FamilySeniorsViewModel(application: Application) : AndroidViewModel(applic
         private set
     var isLoading by mutableStateOf(false)
         private set
-    var error by mutableStateOf<String?>(null)
+    var error by mutableStateOf<FamilyError?>(null)
         private set
 
     /** True when the last refresh failed. Screens must branch on this before `contacts.isEmpty()`
@@ -50,11 +50,11 @@ class FamilySeniorsViewModel(application: Application) : AndroidViewModel(applic
                 contacts = RetrofitClient.api.getMyContacts("Bearer $token")
             } catch (e: HttpException) {
                 error = if (SessionState.handleIfUnauthorized(getApplication(), e))
-                    SessionState.SESSION_EXPIRED_MESSAGE
-                else "Could not load your linked seniors (server error ${e.code()})."
+                    FamilyError.SessionExpired
+                else FamilyError.Server(FamilyError.Action.LoadSeniors, e.code())
                 loadFailed = true
             } catch (e: IOException) {
-                error = "Could not reach the server. Check your internet connection."
+                error = FamilyError.Network(FamilyError.NetworkVariant.CheckConnection)
                 loadFailed = true
             } finally {
                 isLoading = false
@@ -71,10 +71,10 @@ class FamilySeniorsViewModel(application: Application) : AndroidViewModel(applic
                 onDone()
             } catch (e: HttpException) {
                 error = if (SessionState.handleIfUnauthorized(getApplication(), e))
-                    SessionState.SESSION_EXPIRED_MESSAGE
-                else "Could not unlink (server error ${e.code()})."
+                    FamilyError.SessionExpired
+                else FamilyError.Server(FamilyError.Action.Unlink, e.code())
             } catch (e: IOException) {
-                error = "Could not reach the server."
+                error = FamilyError.Network()
             }
         }
     }

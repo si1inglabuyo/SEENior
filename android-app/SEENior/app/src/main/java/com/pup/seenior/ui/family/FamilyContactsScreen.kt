@@ -106,7 +106,7 @@ private fun ContactsListScreen(
             Box(modifier = Modifier.fillMaxWidth().padding(24.dp)) {
                 CouldNotLoadCard(
                     title = copy.couldNotLoadSeniorsTitle,
-                    message = viewModel.error ?: copy.couldNotReachServer,
+                    message = copy.errorMessage(viewModel.error) ?: copy.couldNotReachServer,
                     reassurance = copy.stillLinkedReassurance,
                     onRetry = { viewModel.refresh() }
                 )
@@ -178,7 +178,7 @@ private fun ContactDetailScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = onBack) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = copy.backContentDescription, tint = Color.White)
             }
             Text("${senior.firstName} ${senior.lastName}", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
         }
@@ -267,7 +267,7 @@ private fun ContactDetailScreen(
             }
 
             viewModel.error?.let {
-                Text(it, color = FamilyColors.ErrorRed, fontSize = 14.sp, modifier = Modifier.padding(top = 12.dp))
+                Text(copy.errorMessage(it) ?: "", color = FamilyColors.ErrorRed, fontSize = 14.sp, modifier = Modifier.padding(top = 12.dp))
             }
 
             // Clears the bottom navigation bar, which would otherwise sit on top of the last

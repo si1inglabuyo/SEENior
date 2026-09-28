@@ -56,6 +56,7 @@ fun BlueHeader(icon: ImageVector, title: String) {
  *  different accent color: red for the active alert, orange once acknowledged, blue elsewhere). */
 @Composable
 fun BackHeader(title: String, background: Color, onBack: () -> Unit) {
+    val copy = LocalFamilyCopy.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -64,7 +65,7 @@ fun BackHeader(title: String, background: Color, onBack: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         IconButton(onClick = onBack) {
-            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
+            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = copy.backContentDescription, tint = Color.White)
         }
         Text(title, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
     }
@@ -75,6 +76,7 @@ fun BackHeader(title: String, background: Color, onBack: () -> Unit) {
  *  map — same "cosmetic, not a dead-end pretending to be real" judgment call as elsewhere. */
 @Composable
 fun MapPlaceholder(modifier: Modifier = Modifier) {
+    val copy = LocalFamilyCopy.current
     Box(
         modifier = modifier
             .fillMaxWidth()
@@ -84,7 +86,7 @@ fun MapPlaceholder(modifier: Modifier = Modifier) {
     ) {
         Icon(Icons.Outlined.Info, contentDescription = null, tint = FamilyColors.TextSecondary, modifier = Modifier.size(24.dp))
         Text(
-            "Map preview unavailable",
+            copy.mapPreviewUnavailable,
             color = FamilyColors.TextSecondary,
             fontSize = 13.sp,
             modifier = Modifier.padding(top = 36.dp)

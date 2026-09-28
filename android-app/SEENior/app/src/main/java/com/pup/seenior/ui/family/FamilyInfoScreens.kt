@@ -271,7 +271,7 @@ fun FamilyFeedbackScreen(onBack: () -> Unit) {
                     }
                     val intent = Intent(Intent.ACTION_SENDTO).apply {
                         data = Uri.parse("mailto:$supportEmail")
-                        putExtra(Intent.EXTRA_SUBJECT, "SEENior family app feedback")
+                        putExtra(Intent.EXTRA_SUBJECT, copy.feedbackEmailSubject)
                         putExtra(Intent.EXTRA_TEXT, body)
                     }
                     runCatching { context.startActivity(intent) }
@@ -373,7 +373,7 @@ fun FamilyContactSupportScreen(onBack: () -> Unit) {
                 onClick = {
                     val intent = Intent(Intent.ACTION_SENDTO).apply {
                         data = Uri.parse("mailto:$supportEmail")
-                        putExtra(Intent.EXTRA_SUBJECT, "SEENior support request")
+                        putExtra(Intent.EXTRA_SUBJECT, copy.supportEmailSubject)
                         putExtra(Intent.EXTRA_TEXT, message)
                     }
                     runCatching { context.startActivity(intent) }.onSuccess { message = "" }

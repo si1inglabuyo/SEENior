@@ -21,9 +21,6 @@ import retrofit2.HttpException
  */
 object SessionState {
 
-    /** User-facing text for the expired case; the bounce to Log In usually beats it on screen. */
-    const val SESSION_EXPIRED_MESSAGE = "Your session expired. Please log in again."
-
     /** Raised on any 401, lowered by consume() once the dashboard has navigated away. */
     var expired by mutableStateOf(false)
         private set
@@ -33,8 +30,8 @@ object SessionState {
      * Returns true when it handled the exception, so callers can pick the right message:
      *
      *     error = if (SessionState.handleIfUnauthorized(getApplication(), e))
-     *         SessionState.SESSION_EXPIRED_MESSAGE
-     *     else "Could not load … (server error ${e.code()})."
+     *         FamilyError.SessionExpired
+     *     else FamilyError.Server(FamilyError.Action.LoadAlerts, e.code())
      */
     fun handleIfUnauthorized(context: Context, e: HttpException): Boolean {
         if (e.code() != HTTP_UNAUTHORIZED) return false

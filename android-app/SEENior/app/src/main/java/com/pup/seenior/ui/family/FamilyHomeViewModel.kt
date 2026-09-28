@@ -55,7 +55,7 @@ class FamilyHomeViewModel(application: Application) : AndroidViewModel(applicati
         private set
     var loadFailed by mutableStateOf(false)
         private set
-    var error by mutableStateOf<String?>(null)
+    var error by mutableStateOf<FamilyError?>(null)
         private set
 
     /** False until a fetch has completed at least once, so the screen can tell "no alerts"
@@ -135,14 +135,14 @@ class FamilyHomeViewModel(application: Application) : AndroidViewModel(applicati
             loadFailed = false
         } catch (e: HttpException) {
             error = if (SessionState.handleIfUnauthorized(getApplication(), e))
-                SessionState.SESSION_EXPIRED_MESSAGE
-            else "Could not load alert activity (server error ${e.code()})."
+                FamilyError.SessionExpired
+            else FamilyError.Server(FamilyError.Action.LoadHomeActivity, e.code())
             // A blip on one of the polls must not wipe a screen that already has data: replacing
             // real alerts with an error card would hide the very thing this screen exists to
             // show. The last known alerts stay up instead.
             if (!loaded) loadFailed = true
         } catch (e: IOException) {
-            error = "Could not reach the server. Check your internet connection."
+            error = FamilyError.Network(FamilyError.NetworkVariant.CheckConnection)
             if (!loaded) loadFailed = true
         } finally {
             isLoading = false

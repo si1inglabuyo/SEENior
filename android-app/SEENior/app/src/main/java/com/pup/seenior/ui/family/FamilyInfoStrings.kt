@@ -64,6 +64,8 @@ object FamilyInfoStrings {
         val featureRequestPlaceholder: String,
         val sendFeedback: String,
         val feedbackNotConnected: String,
+        /** Intent.EXTRA_SUBJECT for the "Send us a message" mailto intent below. */
+        val feedbackEmailSubject: String,
 
         // Contact support
         val supportTitle: String,
@@ -72,6 +74,8 @@ object FamilyInfoStrings {
         val messageLabel: String,
         val messagePlaceholder: String,
         val send: String,
+        /** Intent.EXTRA_SUBJECT for this screen's mailto intent. */
+        val supportEmailSubject: String,
 
         // Legal
         val termsScaffoldTitle: String,
@@ -165,6 +169,7 @@ object FamilyInfoStrings {
         featureRequestPlaceholder = "Suggest a new feature…",
         sendFeedback = "SEND FEEDBACK",
         feedbackNotConnected = "Feedback isn't connected to an inbox yet — nothing is sent until it is.",
+        feedbackEmailSubject = "SEENior family app feedback",
 
         supportTitle = "Contact support",
         callUs = "Call us",
@@ -172,6 +177,7 @@ object FamilyInfoStrings {
         messageLabel = "MESSAGE",
         messagePlaceholder = "Tell us what's going on…",
         send = "SEND FEEDBACK",
+        supportEmailSubject = "SEENior support request",
 
         termsScaffoldTitle = "Terms & conditions",
         termsBodyTitle = "Terms & Conditions",
@@ -338,6 +344,7 @@ object FamilyInfoStrings {
         featureRequestPlaceholder = "Magmungkahi ng bagong feature…",
         sendFeedback = "IPADALA ANG PUNA",
         feedbackNotConnected = "Hindi pa konektado ang puna sa isang inbox — walang ipinapadala hangga't hindi ito nakakonekta.",
+        feedbackEmailSubject = "Puna sa SEENior family app",
 
         supportTitle = "Makipag-ugnayan sa support",
         callUs = "Tawagan kami",
@@ -345,6 +352,7 @@ object FamilyInfoStrings {
         messageLabel = "MENSAHE",
         messagePlaceholder = "Sabihin sa amin ang problema…",
         send = "IPADALA ANG PUNA",
+        supportEmailSubject = "Kahilingan sa suporta ng SEENior",
 
         termsScaffoldTitle = "Mga tuntunin at kondisyon",
         termsBodyTitle = "Mga Tuntunin at Kondisyon",

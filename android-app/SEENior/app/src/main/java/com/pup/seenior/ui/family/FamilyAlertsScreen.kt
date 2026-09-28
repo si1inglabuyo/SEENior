@@ -115,7 +115,7 @@ fun FamilyAlertsScreen(
     when (viewModel.screen) {
         AlertScreen.LOADING -> AlertsLoadingContent()
         AlertScreen.LOAD_FAILED -> AlertsLoadFailedContent(
-            message = viewModel.error ?: copy.couldNotReachServer,
+            message = copy.errorMessage(viewModel.error) ?: copy.couldNotReachServer,
             onRetry = { viewModel.retry(contacts) }
         )
         AlertScreen.ALL_CLEAR -> AllClearContent(senior)

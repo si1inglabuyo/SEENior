@@ -204,7 +204,7 @@ private fun FamilyProfileHome(
             )
 
             viewModel.error?.let {
-                Text(it, color = FamilyColors.ErrorRed, fontSize = 14.sp, modifier = Modifier.padding(top = 16.dp))
+                Text(copy.errorMessage(it) ?: "", color = FamilyColors.ErrorRed, fontSize = 14.sp, modifier = Modifier.padding(top = 16.dp))
             }
         }
     }
@@ -254,7 +254,7 @@ private fun FamilyLanguageScreen(viewModel: FamilyProfileViewModel, onBack: () -
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = onBack) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = copy.backContentDescription, tint = Color.White)
             }
             Text(copy.languageRowTitle, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
         }
@@ -344,7 +344,7 @@ private fun FamilyEditProfileScreen(viewModel: FamilyProfileViewModel, onBack: (
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = onBack) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = copy.backContentDescription, tint = Color.White)
             }
             Text(copy.editProfileTitle, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
         }
@@ -398,7 +398,7 @@ private fun FamilyEditProfileScreen(viewModel: FamilyProfileViewModel, onBack: (
             }
 
             viewModel.error?.let {
-                Text(it, color = FamilyColors.ErrorRed, fontSize = 14.sp, modifier = Modifier.padding(top = 14.dp))
+                Text(copy.errorMessage(it) ?: "", color = FamilyColors.ErrorRed, fontSize = 14.sp, modifier = Modifier.padding(top = 14.dp))
             }
 
             Spacer(Modifier.height(28.dp))
@@ -445,7 +445,7 @@ private fun ChangePasswordDialog(viewModel: FamilyProfileViewModel, onDismiss: (
                 Column {
                     if (setting) {
                         Text(
-                            copy.googleSignupNotice(viewModel.user?.email ?: "your email"),
+                            copy.googleSignupNotice(viewModel.user?.email ?: copy.yourEmailFallback),
                             color = FamilyColors.TextSecondary,
                             fontSize = 13.sp,
                             modifier = Modifier.padding(bottom = 12.dp)
@@ -478,7 +478,7 @@ private fun ChangePasswordDialog(viewModel: FamilyProfileViewModel, onDismiss: (
                         errorText = copy.passwordsDontMatch
                     )
                     viewModel.passwordError?.let {
-                        Text(it, color = FamilyColors.ErrorRed, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp))
+                        Text(copy.errorMessage(it) ?: "", color = FamilyColors.ErrorRed, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp))
                     }
                 }
             }
@@ -534,7 +534,7 @@ private fun FamilyDeleteAccountScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = onBack) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = copy.backContentDescription, tint = Color.White)
             }
             Text(copy.deleteAccountTitle, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
         }
@@ -581,7 +581,7 @@ private fun FamilyDeleteAccountScreen(
             )
 
             viewModel.deleteError?.let {
-                Text(it, color = FamilyColors.ErrorRed, fontSize = 14.sp, modifier = Modifier.padding(top = 14.dp))
+                Text(copy.errorMessage(it) ?: "", color = FamilyColors.ErrorRed, fontSize = 14.sp, modifier = Modifier.padding(top = 14.dp))
             }
 
             Spacer(Modifier.height(28.dp))

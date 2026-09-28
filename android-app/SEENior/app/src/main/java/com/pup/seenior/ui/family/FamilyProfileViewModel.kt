@@ -28,7 +28,7 @@ class FamilyProfileViewModel(application: Application) : AndroidViewModel(applic
         private set
     var isLoading by mutableStateOf(false)
         private set
-    var error by mutableStateOf<String?>(null)
+    var error by mutableStateOf<FamilyError?>(null)
         private set
 
     // Edit-profile form state
@@ -54,10 +54,10 @@ class FamilyProfileViewModel(application: Application) : AndroidViewModel(applic
                 phone = me.phone ?: ""
             } catch (e: HttpException) {
                 error = if (SessionState.handleIfUnauthorized(getApplication(), e))
-                    SessionState.SESSION_EXPIRED_MESSAGE
-                else "Could not load your profile (server error ${e.code()})."
+                    FamilyError.SessionExpired
+                else FamilyError.Server(FamilyError.Action.LoadProfile, e.code())
             } catch (e: IOException) {
-                error = "Could not reach the server."
+                error = FamilyError.Network()
             } finally {
                 isLoading = false
             }
@@ -80,10 +80,10 @@ class FamilyProfileViewModel(application: Application) : AndroidViewModel(applic
                 onSaved()
             } catch (e: HttpException) {
                 error = if (SessionState.handleIfUnauthorized(getApplication(), e))
-                    SessionState.SESSION_EXPIRED_MESSAGE
-                else "Could not save (server error ${e.code()})."
+                    FamilyError.SessionExpired
+                else FamilyError.Server(FamilyError.Action.SaveProfile, e.code())
             } catch (e: IOException) {
-                error = "Could not reach the server."
+                error = FamilyError.Network()
             } finally {
                 isSaving = false
             }
@@ -121,7 +121,7 @@ class FamilyProfileViewModel(application: Application) : AndroidViewModel(applic
                 )
             } catch (e: HttpException) {
                 if (SessionState.handleIfUnauthorized(getApplication(), e)) {
-                    error = SessionState.SESSION_EXPIRED_MESSAGE
+                    error = FamilyError.SessionExpired
                 }
                 // Otherwise: leave the language as it was: a failed write must not claim
                 // success on a screen the family member is looking straight at.
@@ -137,7 +137,7 @@ class FamilyProfileViewModel(application: Application) : AndroidViewModel(applic
     var confirmPassword by mutableStateOf("")
     var isChangingPassword by mutableStateOf(false)
         private set
-    var passwordError by mutableStateOf<String?>(null)
+    var passwordError by mutableStateOf<FamilyError?>(null)
         private set
     var passwordChanged by mutableStateOf(false)
         private set
@@ -166,12 +166,12 @@ class FamilyProfileViewModel(application: Application) : AndroidViewModel(applic
                 passwordChanged = true
             } catch (e: HttpException) {
                 passwordError = when {
-                    e.code() == 400 -> "Current password is incorrect."
-                    SessionState.handleIfUnauthorized(getApplication(), e) -> SessionState.SESSION_EXPIRED_MESSAGE
-                    else -> "Could not change password (server error ${e.code()})."
+                    e.code() == 400 -> FamilyError.CurrentPasswordIncorrect
+                    SessionState.handleIfUnauthorized(getApplication(), e) -> FamilyError.SessionExpired
+                    else -> FamilyError.Server(FamilyError.Action.ChangePassword, e.code())
                 }
             } catch (e: IOException) {
-                passwordError = "Could not reach the server."
+                passwordError = FamilyError.Network()
             } finally {
                 isChangingPassword = false
             }
@@ -202,12 +202,12 @@ class FamilyProfileViewModel(application: Application) : AndroidViewModel(applic
                 user = user?.copy(hasPassword = true)
             } catch (e: HttpException) {
                 passwordError = when {
-                    e.code() == 400 -> "This account already has a password. Use Change Password."
-                    SessionState.handleIfUnauthorized(getApplication(), e) -> SessionState.SESSION_EXPIRED_MESSAGE
-                    else -> "Could not set a password (server error ${e.code()})."
+                    e.code() == 400 -> FamilyError.AccountAlreadyHasPassword
+                    SessionState.handleIfUnauthorized(getApplication(), e) -> FamilyError.SessionExpired
+                    else -> FamilyError.Server(FamilyError.Action.SetPassword, e.code())
                 }
             } catch (e: IOException) {
-                passwordError = "Could not reach the server."
+                passwordError = FamilyError.Network()
             } finally {
                 isChangingPassword = false
             }
@@ -226,7 +226,7 @@ class FamilyProfileViewModel(application: Application) : AndroidViewModel(applic
 
     var isDeleting by mutableStateOf(false)
         private set
-    var deleteError by mutableStateOf<String?>(null)
+    var deleteError by mutableStateOf<FamilyError?>(null)
         private set
 
     /**
@@ -256,10 +256,10 @@ class FamilyProfileViewModel(application: Application) : AndroidViewModel(applic
                 onDeleted()
             } catch (e: HttpException) {
                 deleteError = if (SessionState.handleIfUnauthorized(getApplication(), e))
-                    SessionState.SESSION_EXPIRED_MESSAGE
-                else "Could not delete your account (server error ${e.code()}). Please try again."
+                    FamilyError.SessionExpired
+                else FamilyError.Server(FamilyError.Action.DeleteAccount, e.code())
             } catch (e: IOException) {
-                deleteError = "Could not reach the server. Check your connection and try again."
+                deleteError = FamilyError.Network(FamilyError.NetworkVariant.TryAgain)
             } finally {
                 isDeleting = false
             }

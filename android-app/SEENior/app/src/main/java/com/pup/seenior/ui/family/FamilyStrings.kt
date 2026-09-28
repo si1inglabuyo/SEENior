@@ -477,6 +477,136 @@ object FamilyStrings {
             else
                 "You are now monitoring $name. You'll be alerted right away if anything unusual " +
                     "is detected."
+
+        // -- Error/status messages for the ViewModels below. ViewModels are plain classes, not
+        // Composables, so they cannot read LocalFamilyCopy themselves -- each stores a
+        // FamilyError describing WHAT went wrong (see FamilyError.kt), and the screen calls one
+        // of these to render it in the account's language, same split as nowMonitoring()/
+        // linkedSuccessBody() above already use for ViewModel-sourced data.
+        fun couldNotLoadAlerts(code: Int): String =
+            if (language == WellnessMessages.FILIPINO) "Hindi ma-load ang mga alerto (server error $code)."
+            else "Could not load alerts (server error $code)."
+
+        fun couldNotAcknowledge(code: Int): String =
+            if (language == WellnessMessages.FILIPINO) "Hindi ma-acknowledge (server error $code)."
+            else "Could not acknowledge (server error $code)."
+
+        fun couldNotDispatchBarangay(code: Int): String =
+            if (language == WellnessMessages.FILIPINO) "Hindi maipadala sa barangay (server error $code)."
+            else "Could not dispatch barangay (server error $code)."
+
+        fun couldNotResolve(code: Int): String =
+            if (language == WellnessMessages.FILIPINO) "Hindi maresolba (server error $code)."
+            else "Could not resolve (server error $code)."
+
+        fun couldNotLoadProfile(code: Int): String =
+            if (language == WellnessMessages.FILIPINO) "Hindi ma-load ang iyong profile (server error $code)."
+            else "Could not load your profile (server error $code)."
+
+        fun couldNotSaveProfile(code: Int): String =
+            if (language == WellnessMessages.FILIPINO) "Hindi ma-save (server error $code)."
+            else "Could not save (server error $code)."
+
+        fun couldNotChangePassword(code: Int): String =
+            if (language == WellnessMessages.FILIPINO) "Hindi mabago ang password (server error $code)."
+            else "Could not change password (server error $code)."
+
+        fun couldNotSetPassword(code: Int): String =
+            if (language == WellnessMessages.FILIPINO) "Hindi maitakda ang password (server error $code)."
+            else "Could not set a password (server error $code)."
+
+        fun couldNotDeleteAccount(code: Int): String =
+            if (language == WellnessMessages.FILIPINO) "Hindi ma-delete ang iyong account (server error $code). Subukan ulit."
+            else "Could not delete your account (server error $code). Please try again."
+
+        fun couldNotLoadSeniors(code: Int): String =
+            if (language == WellnessMessages.FILIPINO) "Hindi ma-load ang iyong mga naka-link na senior (server error $code)."
+            else "Could not load your linked seniors (server error $code)."
+
+        fun couldNotUnlink(code: Int): String =
+            if (language == WellnessMessages.FILIPINO) "Hindi ma-unlink (server error $code)."
+            else "Could not unlink (server error $code)."
+
+        fun couldNotLoadHomeActivity(code: Int): String =
+            if (language == WellnessMessages.FILIPINO) "Hindi ma-load ang aktibidad ng alerto (server error $code)."
+            else "Could not load alert activity (server error $code)."
+
+        fun couldNotVerifyCode(code: Int): String =
+            if (language == WellnessMessages.FILIPINO) "Hindi ma-verify (server error $code)."
+            else "Could not verify (server error $code)."
+
+        fun couldNotConnect(code: Int): String =
+            if (language == WellnessMessages.FILIPINO) "Hindi makakonekta (server error $code)."
+            else "Could not connect (server error $code)."
+
+        val currentPasswordIncorrect: String
+            get() = if (language == WellnessMessages.FILIPINO) "Mali ang kasalukuyang password." else "Current password is incorrect."
+
+        val accountAlreadyHasPassword: String
+            get() = if (language == WellnessMessages.FILIPINO) "Ang account na ito ay may password na. Gamitin ang Baguhin ang Password."
+            else "This account already has a password. Use Change Password."
+
+        val invalidOrExpiredCode: String
+            get() = if (language == WellnessMessages.FILIPINO) "Hindi valid o expired na ang code. Hilingin sa senior na gumawa ng bago."
+            else "Invalid or expired code. Ask the senior to generate a new one."
+
+        val codeExpiredOrLimitReached: String
+            get() = if (language == WellnessMessages.FILIPINO) "Naubos na ang code, o naabot mo na ang limitasyong 3 senior."
+            else "That code just expired, or you're already at the 3-senior limit."
+
+        val couldNotReachServerCheckConnection: String
+            get() = if (language == WellnessMessages.FILIPINO) "Hindi maabot ang server. Suriin ang iyong internet connection."
+            else "Could not reach the server. Check your internet connection."
+
+        val couldNotReachServerTryAgain: String
+            get() = if (language == WellnessMessages.FILIPINO) "Hindi maabot ang server. Suriin ang koneksyon at subukan ulit."
+            else "Could not reach the server. Check your connection and try again."
+
+        val couldNotReachServerHasInternet: String
+            get() = if (language == WellnessMessages.FILIPINO) "Hindi maabot ang server. Siguraduhing may internet ka."
+            else "Could not reach the server. Make sure you have internet."
+
+        val sessionExpiredMessage: String
+            get() = if (language == WellnessMessages.FILIPINO) "Nag-expire ang iyong session. Mag-log in ulit."
+            else "Your session expired. Please log in again."
+
+        val backContentDescription: String
+            get() = if (language == WellnessMessages.FILIPINO) "Bumalik" else "Back"
+
+        val mapPreviewUnavailable: String
+            get() = if (language == WellnessMessages.FILIPINO) "Hindi available ang preview ng mapa" else "Map preview unavailable"
+
+        val yourEmailFallback: String
+            get() = if (language == WellnessMessages.FILIPINO) "iyong email" else "your email"
+
+        val theSeniorFallback: String
+            get() = if (language == WellnessMessages.FILIPINO) "ang senior" else "the senior"
+
+        // -- AlertLocationMap.kt captions. That file draws the map shared by the Active/
+        // Acknowledged/Resolved alert screens above but has no Composable-scoped `copy` of its
+        // own, so it takes one as a parameter instead.
+        fun currentLocationKnown(place: String): String =
+            if (language == WellnessMessages.FILIPINO) "Kasalukuyang lokasyon: $place" else "Current location: $place"
+
+        val currentLocationUnknownPlace: String
+            get() = if (language == WellnessMessages.FILIPINO)
+                "Nakuha ang kasalukuyang lokasyon noong itinaas ang alerto (nasa mapa)."
+            else "Current location captured when the alert was raised (shown on the map)."
+
+        val locationCapturedOnceNote: String
+            get() = if (language == WellnessMessages.FILIPINO)
+                "Nakuha nang isang beses lang, sa sandaling iyon — hindi sinusubaybayan ng SEENior ang lokasyon sa anumang oras."
+            else "Captured once, at that moment only — SEENior does not track location at any other time."
+
+        fun approximateAreaNote(metres: Int): String =
+            if (language == WellnessMessages.FILIPINO) "Tinatayang lugar — humigit-kumulang $metres m ang lawak."
+            else "Approximate area — about $metres m across."
+
+        val noLiveLocationCaptured: String
+            get() = if (language == WellnessMessages.FILIPINO) "Walang nakuhang live location para sa alertong ito."
+            else "No live location was captured for this alert."
+
+        fun homeAddressLine(address: String): String = "$homeAddressLabel: $address"
     }
 
     private val ENGLISH_COPY = Copy(

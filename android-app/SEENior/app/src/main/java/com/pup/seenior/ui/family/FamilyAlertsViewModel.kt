@@ -52,7 +52,7 @@ class FamilyAlertsViewModel(application: Application) : AndroidViewModel(applica
         private set
     var isLoading by mutableStateOf(false)
         private set
-    var error by mutableStateOf<String?>(null)
+    var error by mutableStateOf<FamilyError?>(null)
         private set
 
     var activeAlert by mutableStateOf<AlertDto?>(null)
@@ -168,11 +168,11 @@ class FamilyAlertsViewModel(application: Application) : AndroidViewModel(applica
                 }
             } catch (e: HttpException) {
                 error = if (SessionState.handleIfUnauthorized(getApplication(), e))
-                    SessionState.SESSION_EXPIRED_MESSAGE
-                else "Could not load alerts (server error ${e.code()})."
+                    FamilyError.SessionExpired
+                else FamilyError.Server(FamilyError.Action.LoadAlerts, e.code())
                 if (mayClaimScreen(background)) screen = AlertScreen.LOAD_FAILED
             } catch (e: IOException) {
-                error = "Could not reach the server. Check your internet connection."
+                error = FamilyError.Network(FamilyError.NetworkVariant.CheckConnection)
                 if (mayClaimScreen(background)) screen = AlertScreen.LOAD_FAILED
             } finally {
                 isLoading = false
@@ -210,10 +210,10 @@ class FamilyAlertsViewModel(application: Application) : AndroidViewModel(applica
                 screen = AlertScreen.ACKNOWLEDGED
             } catch (e: HttpException) {
                 error = if (SessionState.handleIfUnauthorized(getApplication(), e))
-                    SessionState.SESSION_EXPIRED_MESSAGE
-                else "Could not acknowledge (server error ${e.code()})."
+                    FamilyError.SessionExpired
+                else FamilyError.Server(FamilyError.Action.Acknowledge, e.code())
             } catch (e: IOException) {
-                error = "Could not reach the server."
+                error = FamilyError.Network()
             } finally {
                 actionInFlight = false
             }
@@ -235,10 +235,10 @@ class FamilyAlertsViewModel(application: Application) : AndroidViewModel(applica
                 screen = AlertScreen.ACKNOWLEDGED
             } catch (e: HttpException) {
                 error = if (SessionState.handleIfUnauthorized(getApplication(), e))
-                    SessionState.SESSION_EXPIRED_MESSAGE
-                else "Could not dispatch barangay (server error ${e.code()})."
+                    FamilyError.SessionExpired
+                else FamilyError.Server(FamilyError.Action.DispatchBarangay, e.code())
             } catch (e: IOException) {
-                error = "Could not reach the server."
+                error = FamilyError.Network()
             } finally {
                 actionInFlight = false
             }
@@ -258,10 +258,10 @@ class FamilyAlertsViewModel(application: Application) : AndroidViewModel(applica
                 screen = AlertScreen.RESOLVED
             } catch (e: HttpException) {
                 error = if (SessionState.handleIfUnauthorized(getApplication(), e))
-                    SessionState.SESSION_EXPIRED_MESSAGE
-                else "Could not resolve (server error ${e.code()})."
+                    FamilyError.SessionExpired
+                else FamilyError.Server(FamilyError.Action.Resolve, e.code())
             } catch (e: IOException) {
-                error = "Could not reach the server."
+                error = FamilyError.Network()
             } finally {
                 actionInFlight = false
             }

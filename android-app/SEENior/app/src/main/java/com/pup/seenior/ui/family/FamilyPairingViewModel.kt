@@ -63,7 +63,7 @@ class FamilyPairingViewModel(application: Application) : AndroidViewModel(applic
     var isPairing by mutableStateOf(false)
         private set
 
-    var error by mutableStateOf<String?>(null)
+    var error by mutableStateOf<FamilyError?>(null)
         private set
 
     /**
@@ -99,10 +99,10 @@ class FamilyPairingViewModel(application: Application) : AndroidViewModel(applic
                 verifiedSenior = response.senior
                 onVerified()
             } catch (e: HttpException) {
-                error = if (e.code() == 400) "Invalid or expired code. Ask the senior to generate a new one."
-                    else "Could not verify (server error ${e.code()})."
+                error = if (e.code() == 400) FamilyError.InvalidOrExpiredCode
+                    else FamilyError.Server(FamilyError.Action.VerifyCode, e.code())
             } catch (e: IOException) {
-                error = "Could not reach the server. Make sure you have internet."
+                error = FamilyError.Network(FamilyError.NetworkVariant.HasInternet)
             } finally {
                 isVerifying = false
             }
@@ -121,17 +121,20 @@ class FamilyPairingViewModel(application: Application) : AndroidViewModel(applic
                     PairRequest(inviteCode = code, relationshipLabel = relationship),
                     auth = "Bearer $token"
                 )
-                // Hold the navigation until the family member has seen the confirmation.
+                // Hold the navigation until the family member has seen the confirmation. Empty
+                // string (not a hardcoded English fallback) when the server didn't return a
+                // name -- the screen substitutes copy.theSeniorFallback in the account's own
+                // language; blank still counts as "paired" for the dialog's own null-check.
                 pendingContinuation = onPaired
-                pairedSeniorName = verifiedSenior?.firstName ?: "the senior"
+                pairedSeniorName = verifiedSenior?.firstName.orEmpty()
             } catch (e: HttpException) {
                 error = when {
-                    e.code() == 400 -> "That code just expired, or you're already at the 3-senior limit."
-                    SessionState.handleIfUnauthorized(getApplication(), e) -> SessionState.SESSION_EXPIRED_MESSAGE
-                    else -> "Could not connect (server error ${e.code()})."
+                    e.code() == 400 -> FamilyError.CodeExpiredOrLimitReached
+                    SessionState.handleIfUnauthorized(getApplication(), e) -> FamilyError.SessionExpired
+                    else -> FamilyError.Server(FamilyError.Action.Connect, e.code())
                 }
             } catch (e: IOException) {
-                error = "Could not reach the server."
+                error = FamilyError.Network()
             } finally {
                 isPairing = false
             }
