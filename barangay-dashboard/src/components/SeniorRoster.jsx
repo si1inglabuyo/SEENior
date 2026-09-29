@@ -13,40 +13,24 @@ import FilterMenu from './FilterMenu'
 import SeniorDetail from './SeniorDetail'
 import DeviceBadge from './DeviceBadge'
 
-// Client-only deactivation store. The cloud `seniors` table has no active/deactivated
-// column, and adding one is a schema migration owned by the Android/backend lane
-// (barangay-dashboard/CLAUDE.md §2) -- so this keeps the flow real and persistent on this
-// machine. When `seniors.status` and a deactivate endpoint exist, replace loadDeactivated
-// + the localStorage write in setDeactivatedFor with the API calls; nothing else changes.
-const DEACT_KEY = 'seenior.deactivatedSeniors'
-function loadDeactivated() {
-  try {
-    return new Set(JSON.parse(localStorage.getItem(DEACT_KEY) || '[]'))
-  } catch {
-    return new Set()
-  }
-}
-
 export default function SeniorRoster({ onSessionLost }) {
   const [seniors, setSeniors] = useState(null)
   const [error, setError] = useState('')
   const [statusFilter, setStatusFilter] = useState('all') // 'all' | 'active' | 'deactivated'
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState(null) // sync_id of the senior being viewed
-  const [deactivated, setDeactivated] = useState(() => loadDeactivated())
 
-  function setDeactivatedFor(syncId, value) {
-    setDeactivated((prev) => {
-      const next = new Set(prev)
-      if (value) next.add(syncId)
-      else next.delete(syncId)
-      try {
-        localStorage.setItem(DEACT_KEY, JSON.stringify([...next]))
-      } catch {
-        /* private mode / storage full -- the in-memory Set still drives this session */
-      }
-      return next
+  // Deactivation is saved on the server (PATCH /seniors/{sync_id}/status), so it survives a
+  // cleared browser and is the same on every machine. Rejects on failure so the caller can say
+  // so; the list only changes once the server has agreed.
+  async function setDeactivatedFor(syncId, value) {
+    const updated = await api(`/seniors/${syncId}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status: value ? 'inactive' : 'active' }),
     })
+    setSeniors((current) =>
+      (current ?? []).map((s) => (s.sync_id === syncId ? { ...s, status: updated.status } : s))
+    )
   }
 
   const load = useCallback(async () => {
@@ -73,10 +57,10 @@ export default function SeniorRoster({ onSessionLost }) {
     () =>
       rows.filter(
         (senior) =>
-          matchesSeniorStatus(deactivated.has(senior.sync_id), statusFilter) &&
+          matchesSeniorStatus(senior.status === 'inactive', statusFilter) &&
           matchesSeniorSearch(senior, search)
       ),
-    [rows, deactivated, statusFilter, search]
+    [rows, statusFilter, search]
   )
 
   if (selected) {
@@ -84,7 +68,7 @@ export default function SeniorRoster({ onSessionLost }) {
       <SeniorDetail
         syncId={selected}
         fallbackSenior={rows.find((s) => s.sync_id === selected) || null}
-        isDeactivated={deactivated.has(selected)}
+        isDeactivated={rows.find((s) => s.sync_id === selected)?.status === 'inactive'}
         onDeactivate={() => setDeactivatedFor(selected, true)}
         onReactivate={() => setDeactivatedFor(selected, false)}
         onBack={() => {
@@ -172,7 +156,7 @@ export default function SeniorRoster({ onSessionLost }) {
         ) : (
           <ul className="senior-rows">
             {visible.map((senior) => {
-              const off = deactivated.has(senior.sync_id)
+              const off = senior.status === 'inactive'
               return (
                 <li
                   key={senior.sync_id}

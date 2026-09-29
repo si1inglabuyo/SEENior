@@ -134,15 +134,19 @@ export default function SeniorDetail({
     }
   }, [syncId, fallbackSenior, onSessionLost])
 
-  function confirmAccountToggle() {
-    // The write that persists this is a backend endpoint that doesn't exist yet (needs a
-    // `seniors.status` column -- see SeniorRoster). Until then the on(De)activate callbacks
-    // update the client store so the List and this page reflect it immediately.
+  async function confirmAccountToggle() {
+    // Saved on the server; the callbacks reject if it could not be, in which case nothing has
+    // changed and the responder is told so rather than shown a success that did not happen.
     const message = accountAction.successMessage
-    if (isDeactivated) onReactivate()
-    else onDeactivate()
     setConfirming(false)
-    setToastMsg(message)
+    try {
+      if (isDeactivated) await onReactivate()
+      else await onDeactivate()
+      setToastMsg(message)
+    } catch (err) {
+      if (err.message.includes('expired')) onSessionLost()
+      else setToastMsg(`Could not save: ${err.message}`)
+    }
   }
 
   const profile = useMemo(

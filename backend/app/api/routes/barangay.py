@@ -179,7 +179,11 @@ async def list_barangay_alerts(
     query = (
         select(Alert)
         .join(Senior, Senior.id == Alert.senior_id)
-        .where(Senior.barangay == barangay, Alert.status != AlertStatus.PENDING)
+        .where(
+            Senior.barangay == barangay,
+            Senior.deleted_at.is_(None),  # deleted their own account (CLAUDE.md §11a)
+            Alert.status != AlertStatus.PENDING,
+        )
         .options(selectinload(Alert.senior).selectinload(Senior.contacts))
         .order_by(Alert.created_at.desc())
     )
@@ -241,7 +245,12 @@ async def _responder_alert(sync_id: UUID, db: AsyncSession, responder: User) -> 
         .options(selectinload(Alert.senior).selectinload(Senior.contacts))
     )
     alert = result.scalar_one_or_none()
-    if alert is None or alert.senior is None or alert.senior.barangay != barangay:
+    if (
+        alert is None
+        or alert.senior is None
+        or alert.senior.barangay != barangay
+        or alert.senior.deleted_at is not None  # deleted their own account (CLAUDE.md §11a)
+    ):
         # One 404 for both "no such alert" and "not your barangay". Confirming that an
         # alert exists but belongs to a neighbouring barangay is itself a disclosure.
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Alert not found")
@@ -353,7 +362,7 @@ async def list_barangay_seniors(
 
     seniors_result = await db.execute(
         select(Senior)
-        .where(Senior.barangay == barangay)
+        .where(Senior.barangay == barangay, Senior.deleted_at.is_(None))
         .order_by(Senior.last_name, Senior.first_name)
     )
     seniors = list(seniors_result.scalars().all())
@@ -381,6 +390,7 @@ async def list_barangay_seniors(
             gender=senior.gender,
             address=senior.address,
             mobile_number=senior.mobile_number,
+            status=senior.status,
             last_seen_at=senior.last_seen_at,
             battery_percent=senior.battery_percent,
             is_charging=senior.is_charging,
@@ -409,7 +419,7 @@ async def barangay_senior_detail(
         )
     )
     senior = result.scalar_one_or_none()
-    if senior is None or senior.barangay != barangay:
+    if senior is None or senior.barangay != barangay or senior.deleted_at is not None:
         # One 404 for "no such senior" and "not your barangay" alike -- confirming a
         # senior exists in a neighbouring barangay is itself a disclosure (CLAUDE.md §11).
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Senior not found")
@@ -443,6 +453,7 @@ async def barangay_senior_detail(
         gender=senior.gender,
         address=senior.address,
         mobile_number=senior.mobile_number,
+        status=senior.status,
         living_arrangement="With Family" if family else "Lives alone",
         has_family_contact=bool(family),
         last_seen_at=senior.last_seen_at,
@@ -461,7 +472,9 @@ async def barangay_stats(
     """Numbers for the analytics panel (CLAUDE.md §13, item 13)."""
     barangay = _assigned_barangay(responder)
 
-    seniors_result = await db.execute(select(Senior.id).where(Senior.barangay == barangay))
+    seniors_result = await db.execute(
+        select(Senior.id).where(Senior.barangay == barangay, Senior.deleted_at.is_(None))
+    )
     senior_ids = list(seniors_result.scalars().all())
     if not senior_ids:
         return BarangayStats(
@@ -552,7 +565,9 @@ async def barangay_stats(
     )
     seniors_month_result = await db.execute(
         select(func.count(Senior.id)).where(
-            Senior.barangay == barangay, Senior.created_at >= month_start_utc
+            Senior.barangay == barangay,
+            Senior.deleted_at.is_(None),
+            Senior.created_at >= month_start_utc,
         )
     )
 

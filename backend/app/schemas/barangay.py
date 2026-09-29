@@ -3,7 +3,7 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
-from app.db.models import AlertStatus, RiskLevel, TriggerType
+from app.db.models import AlertStatus, RiskLevel, SeniorStatus, TriggerType
 
 
 class BarangayAlertOut(BaseModel):
@@ -58,6 +58,9 @@ class BarangaySeniorOut(BaseModel):
     gender: str
     address: str
     mobile_number: str
+    # The responder's own roster bookkeeping (PATCH /seniors/{sync_id}/status). An inactive
+    # senior is still listed -- the dashboard badges it -- and their alerts still arrive.
+    status: SeniorStatus
     # Device health, not behaviour. Null means the phone has never checked in at all,
     # which is a different answer from "checked in, battery at 0".
     last_seen_at: datetime | None
@@ -98,6 +101,7 @@ class BarangaySeniorDetail(BaseModel):
     gender: str
     address: str
     mobile_number: str
+    status: SeniorStatus
     living_arrangement: str
     has_family_contact: bool
     # Device health, same three fields the roster carries -- so the record can tell the
