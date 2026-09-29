@@ -1,3 +1,5 @@
+import { isAttending } from './labels'
+
 // Everything that varies between the three row actions, in one table, so ConfirmDialog and
 // the success toast stay single components instead of three near-identical copies. Wording
 // matches design/alert/alert-*-confirm.png and alert-*-success.png exactly.
@@ -34,10 +36,13 @@ export const ALERT_ACTIONS = {
 
 // Mirrors what the backend itself enforces (backend/app/api/routes/barangay.py) so a
 // disabled button never triggers a confirm dialog just to have the API reject it:
-// acknowledge only makes sense while an incident is open at the barangay tier, and neither
-// closing action is available once one of them has already closed it.
-export function canActOn(actionKey, status) {
+// acknowledge only makes sense while an incident is open at the barangay tier and nobody
+// has claimed it yet -- once a responder is attending, the only moves left are the two
+// closing actions -- and neither closing action is available once one of them has already
+// closed it.
+export function canActOn(actionKey, alert) {
+  const { status } = alert
   if (status === 'resolved' || status === 'false_positive') return false
-  if (actionKey === 'acknowledge') return status === 'escalated'
+  if (actionKey === 'acknowledge') return status === 'escalated' && !isAttending(alert)
   return true
 }

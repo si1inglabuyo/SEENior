@@ -1,4 +1,4 @@
-import { alertCategory, CATEGORY_LABEL } from '../labels'
+import { alertCategory, CATEGORY_LABEL, displayStatus } from '../labels'
 import { initials, dateTimeLabel } from '../format'
 import StatusPill from './StatusPill'
 
@@ -10,6 +10,7 @@ import StatusPill from './StatusPill'
 const CATEGORY_CLASS = {
   sos: 'type-badge-sos',
   dispatch_family: 'type-badge-dispatch',
+  potential_fall: 'type-badge-fall',
   anomaly: '',
 }
 
@@ -51,7 +52,7 @@ export default function AlertRow({ alert, onShowDetails }) {
           <span className={`type-badge ${CATEGORY_CLASS[category]}`.trim()}>
             {CATEGORY_LABEL[category]}
           </span>
-          <StatusPill status={alert.status} />
+          <StatusPill status={displayStatus(alert)} />
         </div>
       </div>
     </li>

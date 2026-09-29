@@ -3,11 +3,12 @@ import { CATEGORY_LABEL } from '../labels'
 import SectionCard from './SectionCard'
 import Donut from './Donut'
 
-// This week's alerts grouped into the three responder-facing categories. Every slice
+// This week's alerts grouped into the four responder-facing categories. Every slice
 // drills into Alert History filtered to that category.
-const CATEGORY_ORDER = ['anomaly', 'sos', 'dispatch_family']
+const CATEGORY_ORDER = ['anomaly', 'potential_fall', 'sos', 'dispatch_family']
 const CATEGORY_COLOR = {
   anomaly: '#e08a3c',
+  potential_fall: '#7b52a6',
   sos: '#a33329',
   dispatch_family: '#4f6b8a',
 }

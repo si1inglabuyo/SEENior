@@ -1,4 +1,4 @@
-import { triggerLabel } from '../labels'
+import { displayStatus, triggerLabel } from '../labels'
 import { initials, clockTime } from '../format'
 import { IconWarning, IconEye } from '../icons'
 import SectionCard from './SectionCard'
@@ -60,7 +60,7 @@ export default function ActiveAlertsPanel({ alerts, onViewAll, onShowDetails }) 
               </div>
               <div className="alert-row-end">
                 <span className="alert-row-time">{clockTime(alert.created_at)}</span>
-                <StatusPill status={alert.status} />
+                <StatusPill status={displayStatus(alert)} />
               </div>
             </li>
           ))}

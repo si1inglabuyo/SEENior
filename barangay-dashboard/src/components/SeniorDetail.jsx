@@ -48,7 +48,12 @@ import DeviceBadge from './DeviceBadge'
 // documented so far needs it. Add it here only alongside that documented need.
 // ---------------------------------------------------------------------------------------
 
-const CATEGORY_CLASS = { sos: 'type-badge-sos', dispatch_family: 'type-badge-dispatch', anomaly: '' }
+const CATEGORY_CLASS = {
+  sos: 'type-badge-sos',
+  dispatch_family: 'type-badge-dispatch',
+  potential_fall: 'type-badge-fall',
+  anomaly: '',
+}
 
 // Retention / data-minimisation for the per-senior alert history (RA 10173 §11(e) — keep
 // data "only for as long as necessary"):

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { api, parseServerTime, POLL_MS } from '../api'
-import { CATEGORY_LABEL, alertCategory, triggerLabel } from '../labels'
+import { CATEGORY_LABEL, alertCategory, displayStatus, triggerLabel } from '../labels'
 import { initials, dateTimeLabel } from '../format'
 import { recordAccess } from '../audit'
 import {
@@ -110,7 +110,7 @@ function GroupedAlertLine({ alert, onShowDetails }) {
         <p className="grouped-alert-title">{triggerLabel(alert.trigger_type)}</p>
         <p className="grouped-alert-meta muted">{dateTimeLabel(alert.created_at)}</p>
       </div>
-      <StatusPill status={alert.status} />
+      <StatusPill status={displayStatus(alert)} />
     </li>
   )
 }

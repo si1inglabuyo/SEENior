@@ -140,7 +140,7 @@ function IncidentActions({ alert, onAct, busy }) {
             key={key}
             type="button"
             className={`btn-outline ${cls}`.trim()}
-            disabled={busy || !canActOn(key, alert.status)}
+            disabled={busy || !canActOn(key, alert)}
             onClick={() => onAct(alert, key, remarks)}
           >
             {label}

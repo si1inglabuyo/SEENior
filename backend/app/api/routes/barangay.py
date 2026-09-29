@@ -86,15 +86,28 @@ def _display_gender(gender: str | None) -> str | None:
 
 def _alert_category(trigger_type: TriggerType, escalation_steps: list | None) -> str:
     """The responder-facing category the dashboard groups alerts by. Mirrors the frontend's
-    alertCategory() (labels.js): SOS if the senior pressed the button, dispatch_family if a
-    relative asked for the welfare check (an `escalated_barangay` step, as opposed to the
+    alertCategory() (labels.js): SOS if the senior pressed the button, potential_fall if the
+    Layer 0 fall signature fired (not a routine deviation, so not an anomaly), dispatch_family
+    if a relative asked for the welfare check (an `escalated_barangay` step, as opposed to the
     server's `escalated_barangay_auto`), otherwise a passive-detection anomaly."""
     if trigger_type == TriggerType.SOS:
         return "sos"
+    if trigger_type == TriggerType.FALL_PATTERN:
+        return "potential_fall"
     for step in escalation_steps or []:
         if isinstance(step, dict) and step.get("step") == "escalated_barangay":
             return "dispatch_family"
     return "anomaly"
+
+
+def _is_attending(status: AlertStatus, escalation_steps: list | None) -> bool:
+    """An escalated alert a responder has already acknowledged. Not a stored status -- see
+    acknowledge_incident -- so it is read off the timeline. Mirrors isAttending() in the
+    dashboard's labels.js."""
+    return status == AlertStatus.ESCALATED and any(
+        isinstance(step, dict) and step.get("step") == "acknowledged_barangay"
+        for step in escalation_steps or []
+    )
 
 
 def _alert_out(alert: Alert) -> BarangayAlertOut:
@@ -264,6 +277,13 @@ async def acknowledge_incident(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="This incident is not open at the barangay tier",
+        )
+    # Once someone is attending, the only moves left are resolve or false positive. A second
+    # acknowledge would just stack a duplicate step onto the audit timeline.
+    if _is_attending(alert.status, alert.escalation_steps):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A responder is already attending this incident",
         )
     append_step(alert, "acknowledged_barangay", by=_responder_name(responder), notes=payload.notes)
     await db.commit()
@@ -494,7 +514,14 @@ async def barangay_stats(
         for offset in range(7)
     ]
 
-    outcomes = Counter(row.status.value for row in rows)
+    # `attending` is split out of `escalated` here so the outcome donut can show claimed
+    # incidents separately from unclaimed ones; see _is_attending.
+    outcomes = Counter(
+        "attending"
+        if _is_attending(row.status, row.escalation_steps)
+        else row.status.value
+        for row in rows
+    )
     alert_categories = Counter(
         _alert_category(row.trigger_type, row.escalation_steps) for row in rows
     )

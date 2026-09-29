@@ -2,7 +2,7 @@
 // withinRange, not a raw server string) so the combining rules can be reasoned about and
 // tested on their own, away from React and the API client.
 
-export const TYPE_OPTIONS = ['anomaly', 'sos', 'dispatch_family']
+export const TYPE_OPTIONS = ['anomaly', 'potential_fall', 'sos', 'dispatch_family']
 export const DATE_LABELS = {
   today: 'Today',
   yesterday: 'Yesterday',

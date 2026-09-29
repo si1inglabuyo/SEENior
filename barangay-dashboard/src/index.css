@@ -233,6 +233,8 @@ h4 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase;
 /* Not an anomaly and not an SOS -- the family asked for this welfare check. A distinct
    blue-grey so it reads as "how it got here", clear of the risk reds and the status greens. */
 .type-badge-dispatch { background: #4f6b8a; }
+/* Layer 0 fall signature -- not a routine deviation, so not the anomaly red/orange. */
+.type-badge-fall { background: #7b52a6; }
 
 /* --- alert history filter bar --- */
 .history-filters { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
@@ -429,6 +431,7 @@ h4 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase;
 .mini-alert-dot-dispatch_family { background: #4f6b8a; }
 .mini-alert-dot-anomaly { background: var(--high); }
 .mini-alert-dot-sos { background: #a33329; }
+.mini-alert-dot-potential_fall { background: #7b52a6; }
 .mini-alert-main { flex: 1; min-width: 0; }
 .mini-alert-title { margin: 0; font-weight: 700; }
 .mini-alert-when { margin: 2px 0 0; font-size: 12px; }

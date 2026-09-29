@@ -126,11 +126,13 @@ class BarangayStats(BaseModel):
     seniors_monitored: int
     open_incidents: int
     alerts_this_week: list[DayCount]
+    # Keyed by alert status, plus a derived `attending` key: escalated alerts a responder has
+    # acknowledged are counted there instead of under `escalated`.
     outcomes: dict[str, int]
 
-    # This week's alerts grouped into the three responder-facing categories -- `anomaly`
-    # (passive detection), `sos` (senior pressed the button), `dispatch_family` (a relative
-    # asked for a welfare check). Same week window and same non-pending rows the bar chart
+    # This week's alerts grouped into the four responder-facing categories -- `anomaly`
+    # (passive detection), `potential_fall` (Layer 0 fall signature), `sos` (senior pressed
+    # the button), `dispatch_family` (a relative asked for a welfare check). Same week window and same non-pending rows the bar chart
     # and outcome donut use. Backs the dashboard's clickable "Alerts by Type" donut.
     alert_categories: dict[str, int] = {}
 
