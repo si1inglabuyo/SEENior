@@ -7,9 +7,8 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.room.withTransaction
-import com.pup.seenior.address.PhAddressRepository
+import com.pup.seenior.address.AddressForm
 import com.pup.seenior.address.PsgcMatch
-import com.pup.seenior.address.RegionNode
 import com.pup.seenior.baseline.SeedBaselineGenerator
 import com.pup.seenior.database.SeniorAppDatabase
 import com.pup.seenior.database.entities.Senior
@@ -70,68 +69,34 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
     var mobileNumber by mutableStateOf("")
     var livingArrangementLabel by mutableStateOf<String?>(null)
 
-    // Structured address (delivery-style: region -> province -> city -> barangay + street line).
-    // Backed by the bundled PSGC dataset; selecting a level resets everything below it.
-    private var locations by mutableStateOf<Map<String, RegionNode>>(emptyMap())
-    var region by mutableStateOf<String?>(null)
-        private set
-    var province by mutableStateOf<String?>(null)
-        private set
-    var city by mutableStateOf<String?>(null)
-        private set
-    var barangay by mutableStateOf<String?>(null)
-    var streetAddress by mutableStateOf("")
+    // Structured address (delivery-style: region -> province -> city -> barangay + street line),
+    // held in [AddressForm] so Edit Profile accepts an address the same way. The members below
+    // just forward to it, so the sign-up screen reads as it always has.
+    val addressForm = AddressForm()
+    val region get() = addressForm.region
+    val province get() = addressForm.province
+    val city get() = addressForm.city
+    var barangay: String?
+        get() = addressForm.barangay
+        set(value) { value?.let(addressForm::onBarangaySelected) }
+    var streetAddress: String
+        get() = addressForm.streetAddress
+        set(value) = addressForm.onStreetChanged(value)
 
     init {
-        viewModelScope.launch {
-            locations = PhAddressRepository.load(getApplication())
-        }
+        viewModelScope.launch { addressForm.load(getApplication()) }
     }
 
-    private val regionNode: RegionNode?
-        get() = locations.values.firstOrNull { it.regionName == region }
+    val regionOptions get() = addressForm.regionOptions
+    val provinceOptions get() = addressForm.provinceOptions
+    val cityOptions get() = addressForm.cityOptions
+    val barangayOptions get() = addressForm.barangayOptions
 
-    val regionOptions: List<String>
-        get() = locations.values.map { it.regionName }.sorted()
-    val provinceOptions: List<String>
-        get() = regionNode?.provinceList?.keys?.sorted() ?: emptyList()
-    val cityOptions: List<String>
-        get() = regionNode?.provinceList?.get(province)?.municipalityList?.keys?.sorted() ?: emptyList()
-    val barangayOptions: List<String>
-        get() = regionNode?.provinceList?.get(province)
-            ?.municipalityList?.get(city)?.barangayList?.sorted() ?: emptyList()
-
-    fun onRegionSelected(name: String) {
-        region = name; province = null; city = null; barangay = null
-    }
-
-    /**
-     * Fills the address fields from a spot the senior pinned on the map.
-     *
-     * Set together and without the cascade resets the per-field setters do, because these four
-     * already agree with each other — they were read out of the same PSGC entry. Running the
-     * cascade would blank each level as the one above it changed.
-     *
-     * The barangay can legitimately arrive null: the map found the city but nothing it returned
-     * matched a barangay in that city's list, and guessing is not an option for the field that
-     * routes tier 3. The senior is told so on the picker and chooses from the dropdown, which by
-     * then is already narrowed to the right city.
-     */
-    fun applyPickedAddress(match: PsgcMatch, streetLine: String) {
-        region = match.regionName
-        province = match.province
-        city = match.city
-        barangay = match.barangay
-        if (streetLine.isNotBlank()) streetAddress = streetLine
-    }
-
-    fun onProvinceSelected(name: String) {
-        province = name; city = null; barangay = null
-    }
-
-    fun onCitySelected(name: String) {
-        city = name; barangay = null
-    }
+    fun onRegionSelected(name: String) = addressForm.onRegionSelected(name)
+    fun onProvinceSelected(name: String) = addressForm.onProvinceSelected(name)
+    fun onCitySelected(name: String) = addressForm.onCitySelected(name)
+    fun applyPickedAddress(match: PsgcMatch, streetLine: String) =
+        addressForm.applyPickedAddress(match, streetLine)
 
     // Onboarding questionnaire
     var wakeTime by mutableStateOf<LocalTime?>(null)

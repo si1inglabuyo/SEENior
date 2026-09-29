@@ -177,7 +177,7 @@ fun SignUpScreen(
  * still be able to finish signing up — so typing the address stays the guaranteed path.
  */
 @Composable
-private fun PickOnMapRow(onPickOnMap: () -> Unit) {
+internal fun PickOnMapRow(onPickOnMap: () -> Unit) {
     val copy = LocalOnboardingCopy.current
     Row(
         modifier = Modifier

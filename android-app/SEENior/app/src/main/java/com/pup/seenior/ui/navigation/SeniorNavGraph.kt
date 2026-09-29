@@ -108,7 +108,7 @@ fun SeniorNavGraph(navController: NavHostController = rememberNavController()) {
         }
         composable(SeniorRoutes.ADDRESS_MAP) {
             AddressMapPickerScreen(
-                viewModel = onboardingViewModel,
+                onApply = onboardingViewModel::applyPickedAddress,
                 onBack = { navController.popBackStack() },
                 // Returns to the form rather than skipping ahead: the picker fills the fields in,
                 // and the senior still has to see and accept them.

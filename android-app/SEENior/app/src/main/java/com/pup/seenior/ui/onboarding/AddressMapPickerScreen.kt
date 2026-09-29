@@ -89,12 +89,16 @@ private class MapHandle {
  * What this screen produces is a *suggestion*. It hands back only values that exist in the PSGC
  * dataset (see [PsgcMatcher]) and returns the senior to the form with the dropdowns filled in and
  * still editable, rather than committing an address on their behalf.
+ *
+ * Used by sign-up and by Edit Profile; [onApply] is where the result goes, and [showStepDots]
+ * turns off the onboarding progress dots for the latter.
  */
 @Composable
 fun AddressMapPickerScreen(
-    viewModel: OnboardingViewModel,
+    onApply: (PsgcMatch, String) -> Unit,
     onBack: () -> Unit,
-    onConfirmed: () -> Unit
+    onConfirmed: () -> Unit,
+    showStepDots: Boolean = true
 ) {
     val copy = LocalOnboardingCopy.current
     val context = LocalContext.current
@@ -128,7 +132,7 @@ fun AddressMapPickerScreen(
 
     Surface(modifier = Modifier.fillMaxSize(), color = Color.White) {
         Column(modifier = Modifier.fillMaxSize()) {
-            OnboardingTopBar(currentStep = 1, onBack = onBack)
+            OnboardingTopBar(currentStep = 1, totalSteps = if (showStepDots) 5 else 0, onBack = onBack)
             OnboardingHeading(
                 title = copy.mapTitle,
                 subtitle = copy.mapSubtitle
@@ -232,7 +236,7 @@ fun AddressMapPickerScreen(
                 text = copy.mapUseAddress,
                 onClick = {
                     (pinAddress as? PinAddress.Found)?.let {
-                        viewModel.applyPickedAddress(it.match, it.streetLine)
+                        onApply(it.match, it.streetLine)
                         onConfirmed()
                     }
                 },

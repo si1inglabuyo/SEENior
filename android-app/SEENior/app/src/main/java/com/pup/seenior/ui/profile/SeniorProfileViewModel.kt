@@ -6,6 +6,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.pup.seenior.address.AddressForm
 import com.pup.seenior.alerts.EscalationScheduler
 import com.pup.seenior.database.SeniorAppDatabase
 import com.pup.seenior.database.entities.Senior
@@ -55,7 +56,9 @@ class SeniorProfileViewModel(application: Application) : AndroidViewModel(applic
      *  relative must not decide what an emergency prompt says to the senior. */
     var language by mutableStateOf(WellnessMessages.ENGLISH)
         private set
-    var address by mutableStateOf("")
+    /** The structured address being edited -- the same holder sign-up uses, so the map picker and
+     *  the PSGC dropdowns behave identically here. */
+    val addressForm = AddressForm()
     var isSaving by mutableStateOf(false)
         private set
 
@@ -79,7 +82,9 @@ class SeniorProfileViewModel(application: Application) : AndroidViewModel(applic
             gender != null &&
             PhilippinePhone.isValid(mobileNumber) &&
             livingArrangementLabel != null &&
-            address.isNotBlank()
+            // An older free-text address the senior has not touched is left as it is; once they
+            // start changing it, it has to be a complete PSGC-backed one.
+            (!addressForm.dirty || addressForm.isComplete)
 
     fun refresh() {
         viewModelScope.launch {
@@ -91,6 +96,7 @@ class SeniorProfileViewModel(application: Application) : AndroidViewModel(applic
                     error = "No profile found on this device."
                 } else {
                     senior = loaded
+                    addressForm.load(getApplication())
                     fillFormFrom(loaded)
                     db.seniorOnboardingDao().getBySeniorId(loaded.seniorId)?.let {
                         language = it.languagePreference
@@ -132,7 +138,7 @@ class SeniorProfileViewModel(application: Application) : AndroidViewModel(applic
         age = source.age.toString()
         gender = source.gender
         mobileNumber = source.mobileNumber
-        address = source.address
+        addressForm.fillFrom(source.address, source.barangay)
         // Stored as "alone"/"with_family"; the dropdown shows the human-readable label.
         livingArrangementLabel = OnboardingOptions.livingArrangements
             .firstOrNull { it.second == source.livingArrangement }?.first
@@ -152,7 +158,9 @@ class SeniorProfileViewModel(application: Application) : AndroidViewModel(applic
                 age = age.trim().toInt(),
                 gender = gender!!,
                 mobileNumber = PhilippinePhone.normalize(mobileNumber)!!,
-                address = address.trim(),
+                // Untouched -> keep what is stored, including a pre-structured free-text address.
+                address = if (addressForm.dirty) addressForm.joined() else current.address,
+                barangay = if (addressForm.dirty) addressForm.barangay!! else current.barangay,
                 livingArrangement = OnboardingOptions.livingArrangements
                     .first { it.first == livingArrangementLabel }.second
             )

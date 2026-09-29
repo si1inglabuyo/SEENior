@@ -57,7 +57,10 @@ import com.pup.seenior.ui.contacts.InviteScreen
 import com.pup.seenior.ui.contacts.SeniorContactsScreen
 import com.pup.seenior.ui.onboarding.OnboardingOptions
 import com.pup.seenior.ui.onboarding.components.LabeledDropdownField
+import com.pup.seenior.ui.onboarding.AddressMapPickerScreen
+import com.pup.seenior.ui.onboarding.PickOnMapRow
 import com.pup.seenior.ui.onboarding.components.LabeledTextField
+import com.pup.seenior.ui.onboarding.components.SearchableDropdownField
 import com.pup.seenior.ui.onboarding.components.PrimaryPillButton
 import com.pup.seenior.ui.LocalOnboardingCopy
 import com.pup.seenior.ui.LocalProfileCopy
@@ -66,7 +69,7 @@ import com.pup.seenior.validation.PhilippinePhone
 import androidx.compose.material.icons.filled.Language
 
 private enum class ProfilePage {
-    HOME, EDIT, LANGUAGE, ABOUT, HOW_TO_USE, FAQS, SUPPORT, TERMS, PRIVACY, DELETE_ACCOUNT,
+    HOME, EDIT, ADDRESS_MAP, LANGUAGE, ABOUT, HOW_TO_USE, FAQS, SUPPORT, TERMS, PRIVACY, DELETE_ACCOUNT,
     /** Only reachable for a senior living alone — for everyone else these are bottom tabs. */
     FAMILY, FAMILY_INVITE
 }
@@ -93,7 +96,15 @@ fun SeniorProfileScreen(onAccountDeleted: () -> Unit) {
                 viewModel.discardEdits()
                 page = ProfilePage.HOME
             },
-            onSaved = { page = ProfilePage.HOME }
+            onSaved = { page = ProfilePage.HOME },
+            onPickOnMap = { page = ProfilePage.ADDRESS_MAP }
+        )
+        // Returns to the form, which keeps its other edits: the view model outlives the page.
+        ProfilePage.ADDRESS_MAP -> AddressMapPickerScreen(
+            onApply = viewModel.addressForm::applyPickedAddress,
+            onBack = { page = ProfilePage.EDIT },
+            onConfirmed = { page = ProfilePage.EDIT },
+            showStepDots = false
         )
         ProfilePage.DELETE_ACCOUNT -> SeniorDeleteAccountScreen(
             viewModel = viewModel,
@@ -259,9 +270,11 @@ private fun ProfileHome(viewModel: SeniorProfileViewModel, onNavigate: (ProfileP
 private fun SeniorEditProfileScreen(
     viewModel: SeniorProfileViewModel,
     onBack: () -> Unit,
-    onSaved: () -> Unit
+    onSaved: () -> Unit,
+    onPickOnMap: () -> Unit
 ) {
     val copy = LocalProfileCopy.current
+    val form = viewModel.addressForm
     // The name/age/gender/mobile labels are the sign-up form's, reused rather than
     // translated a second time — this screen edits the same fields.
     val formCopy = LocalOnboardingCopy.current
@@ -351,24 +364,43 @@ private fun SeniorEditProfileScreen(
                 placeholder = formCopy.selectPlaceholder
             )
 
-            LabeledTextField(
-                label = copy.addressLabel,
-                value = viewModel.address,
-                onValueChange = { viewModel.address = it },
-                placeholder = copy.addressPlaceholder
-            )
+            // Same address entry as sign-up: the map shortcut above the PSGC dropdowns, typing
+            // stays the guaranteed path. Changing the barangay changes which responder is told.
+            PickOnMapRow(onPickOnMap)
 
-            // Barangay routes alerts to the correct responder and was picked from the PSGC list
-            // at sign-up, so it's shown for confirmation but not editable here — a free-typed
-            // typo would silently send alerts to the wrong barangay.
-            viewModel.senior?.let {
-                Text(
-                    "Barangay: ${it.barangay}",
-                    color = SeniorColors.TextSecondary,
-                    fontSize = 14.sp,
-                    modifier = Modifier.padding(top = 10.dp)
-                )
-            }
+            SearchableDropdownField(
+                label = formCopy.regionLabel,
+                selected = form.region,
+                options = form.regionOptions,
+                onSelect = form::onRegionSelected
+            )
+            SearchableDropdownField(
+                label = formCopy.provinceLabel,
+                selected = form.province,
+                options = form.provinceOptions,
+                onSelect = form::onProvinceSelected,
+                enabled = form.region != null
+            )
+            SearchableDropdownField(
+                label = formCopy.cityLabel,
+                selected = form.city,
+                options = form.cityOptions,
+                onSelect = form::onCitySelected,
+                enabled = form.province != null
+            )
+            SearchableDropdownField(
+                label = formCopy.barangayLabel,
+                selected = form.barangay,
+                options = form.barangayOptions,
+                onSelect = form::onBarangaySelected,
+                enabled = form.city != null
+            )
+            LabeledTextField(
+                label = formCopy.streetLabel,
+                value = form.streetAddress,
+                onValueChange = form::onStreetChanged,
+                placeholder = formCopy.streetPlaceholder
+            )
 
             viewModel.syncWarning?.let {
                 Text(
