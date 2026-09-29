@@ -7,7 +7,7 @@ both -- one responder must never see another barangay's seniors.
 
 import logging
 from collections import Counter
-from datetime import date, timedelta
+from datetime import date, datetime, time, timedelta
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -37,6 +37,17 @@ from app.schemas.barangay import (
     DayCount,
     ResponderAction,
 )
+
+# created_at / db_now() run on the database's own clock, which is UTC (escalation.py's
+# db_now() docstring). Every barangay responder reads that data from the Philippines. A
+# calendar-day boundary computed straight off the UTC clock -- "today", a week's worth of
+# per-day bar-chart buckets, a clicked day's date_from/date_to -- drifts up to 8 hours from
+# the Manila day a responder actually means, wide enough to put a late-evening or
+# early-morning alert in the wrong day's bucket (or, worse, in a bucket the drill-down query
+# never asked for, so a bar shows a count and the click shows nothing). Every calendar-day
+# boundary below is reckoned in Manila time, then shifted back to the DB's UTC clock only at
+# the point it's compared against a stored timestamp.
+PH_OFFSET = timedelta(hours=8)
 
 logger = logging.getLogger(__name__)
 
@@ -75,15 +86,28 @@ def _display_gender(gender: str | None) -> str | None:
 
 def _alert_category(trigger_type: TriggerType, escalation_steps: list | None) -> str:
     """The responder-facing category the dashboard groups alerts by. Mirrors the frontend's
-    alertCategory() (labels.js): SOS if the senior pressed the button, dispatch_family if a
-    relative asked for the welfare check (an `escalated_barangay` step, as opposed to the
+    alertCategory() (labels.js): SOS if the senior pressed the button, potential_fall if the
+    Layer 0 fall signature fired (not a routine deviation, so not an anomaly), dispatch_family
+    if a relative asked for the welfare check (an `escalated_barangay` step, as opposed to the
     server's `escalated_barangay_auto`), otherwise a passive-detection anomaly."""
     if trigger_type == TriggerType.SOS:
         return "sos"
+    if trigger_type == TriggerType.FALL_PATTERN:
+        return "potential_fall"
     for step in escalation_steps or []:
         if isinstance(step, dict) and step.get("step") == "escalated_barangay":
             return "dispatch_family"
     return "anomaly"
+
+
+def _is_attending(status: AlertStatus, escalation_steps: list | None) -> bool:
+    """An escalated alert a responder has already acknowledged. Not a stored status -- see
+    acknowledge_incident -- so it is read off the timeline. Mirrors isAttending() in the
+    dashboard's labels.js."""
+    return status == AlertStatus.ESCALATED and any(
+        isinstance(step, dict) and step.get("step") == "acknowledged_barangay"
+        for step in escalation_steps or []
+    )
 
 
 def _alert_out(alert: Alert) -> BarangayAlertOut:
@@ -163,9 +187,12 @@ async def list_barangay_alerts(
         query = query.where(Alert.status == AlertStatus.ESCALATED)
     elif scope == "today":
         # The database's clock, for the same reason barangay_stats uses it: created_at is
-        # a naive timestamp Postgres wrote, so "midnight" has to be reckoned the same way.
+        # a naive timestamp Postgres wrote, so "midnight" has to be reckoned the same way --
+        # but "midnight" itself means Manila midnight (PH_OFFSET), not UTC midnight.
         now = await db_now(db)
-        start_of_today = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        start_of_today = (now + PH_OFFSET).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        ) - PH_OFFSET
         query = query.where(Alert.created_at >= start_of_today).limit(50)
     elif scope == "all":
         query = query.limit(500)
@@ -188,10 +215,18 @@ async def list_barangay_alerts(
                 (Senior.first_name + " " + Senior.last_name).ilike(needle),
             )
         )
+    # date_from/date_to are Manila calendar dates (the dashboard's date picker, and the day a
+    # responder clicked on the Alerts-This-Week bar) -- shift by PH_OFFSET to compare them
+    # against created_at's UTC clock, same reasoning as scope="today" above.
     if date_from is not None:
-        query = query.where(Alert.created_at >= date_from)
+        query = query.where(
+            Alert.created_at >= datetime.combine(date_from, time.min) - PH_OFFSET
+        )
     if date_to is not None:
-        query = query.where(Alert.created_at < date_to + timedelta(days=1))
+        query = query.where(
+            Alert.created_at
+            < datetime.combine(date_to, time.min) + timedelta(days=1) - PH_OFFSET
+        )
 
     result = await db.execute(query)
     return [_alert_out(alert) for alert in result.scalars().all()]
@@ -242,6 +277,13 @@ async def acknowledge_incident(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="This incident is not open at the barangay tier",
+        )
+    # Once someone is attending, the only moves left are resolve or false positive. A second
+    # acknowledge would just stack a duplicate step onto the audit timeline.
+    if _is_attending(alert.status, alert.escalation_steps):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A responder is already attending this incident",
         )
     append_step(alert, "acknowledged_barangay", by=_responder_name(responder), notes=payload.notes)
     await db.commit()
@@ -426,14 +468,20 @@ async def barangay_stats(
             seniors_monitored=0, open_incidents=0, alerts_this_week=[], outcomes={}
         )
 
-    # The database's clock again: this window is compared against created_at, which
-    # Postgres wrote. Using Python's UTC here would slide the seven-day boundary by
-    # whatever the database's zone offset happens to be.
-    now = await db_now(db)
-    today = now.date()
+    # The database's clock again for the query bound (created_at is compared against
+    # `now_utc`), but every calendar-day figure below -- today, yesterday, the week's bar
+    # buckets -- is reckoned in Manila time (PH_OFFSET) and only shifted back to UTC at the
+    # point it touches a stored timestamp.
+    now_utc = await db_now(db)
+    now_local = now_utc + PH_OFFSET
+    today = now_local.date()
     yesterday = today - timedelta(days=1)
-    week_start = (now - timedelta(days=6)).replace(hour=0, minute=0, second=0, microsecond=0)
-    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    week_start_local = (now_local - timedelta(days=6)).replace(
+        hour=0, minute=0, second=0, microsecond=0
+    )
+    week_start_utc = week_start_local - PH_OFFSET
+    month_start_local = now_local.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    month_start_utc = month_start_local - PH_OFFSET
 
     alerts_result = await db.execute(
         select(
@@ -445,23 +493,35 @@ async def barangay_stats(
         ).where(
             Alert.senior_id.in_(senior_ids),
             Alert.status != AlertStatus.PENDING,
-            Alert.created_at >= week_start,
+            Alert.created_at >= week_start_utc,
         )
     )
     rows = alerts_result.all()
 
     # Every one of the last seven days is filled in, including the empty ones. A bar chart
-    # that silently omits quiet days makes a quiet week look like a busy one.
-    per_day = Counter(row.created_at.date().isoformat() for row in rows)
+    # that silently omits quiet days makes a quiet week look like a busy one. Bucketed by
+    # Manila calendar day, not the raw UTC timestamp, so this lines up with the day a
+    # responder actually clicks (and with what the dashboard's own date filter -- also
+    # Manila calendar dates -- will fetch for that day).
+    per_day = Counter((row.created_at + PH_OFFSET).date().isoformat() for row in rows)
     days = [
         DayCount(
-            day=(week_start + timedelta(days=offset)).date().isoformat(),
-            count=per_day.get((week_start + timedelta(days=offset)).date().isoformat(), 0),
+            day=(week_start_local + timedelta(days=offset)).date().isoformat(),
+            count=per_day.get(
+                (week_start_local + timedelta(days=offset)).date().isoformat(), 0
+            ),
         )
         for offset in range(7)
     ]
 
-    outcomes = Counter(row.status.value for row in rows)
+    # `attending` is split out of `escalated` here so the outcome donut can show claimed
+    # incidents separately from unclaimed ones; see _is_attending.
+    outcomes = Counter(
+        "attending"
+        if _is_attending(row.status, row.escalation_steps)
+        else row.status.value
+        for row in rows
+    )
     alert_categories = Counter(
         _alert_category(row.trigger_type, row.escalation_steps) for row in rows
     )
@@ -473,15 +533,17 @@ async def barangay_stats(
         for row in rows
         if row.status == AlertStatus.RESOLVED
         and row.resolved_at is not None
-        and row.resolved_at.date() == today
+        and (row.resolved_at + PH_OFFSET).date() == today
     )
     sos_today_times = sorted(
         row.created_at
         for row in rows
-        if row.trigger_type == TriggerType.SOS and row.created_at.date() == today
+        if row.trigger_type == TriggerType.SOS and (row.created_at + PH_OFFSET).date() == today
     )
-    alerts_today_total = sum(1 for row in rows if row.created_at.date() == today)
-    alerts_yesterday_total = sum(1 for row in rows if row.created_at.date() == yesterday)
+    alerts_today_total = sum(1 for row in rows if (row.created_at + PH_OFFSET).date() == today)
+    alerts_yesterday_total = sum(
+        1 for row in rows if (row.created_at + PH_OFFSET).date() == yesterday
+    )
 
     open_result = await db.execute(
         select(func.count(Alert.id)).where(
@@ -490,7 +552,7 @@ async def barangay_stats(
     )
     seniors_month_result = await db.execute(
         select(func.count(Senior.id)).where(
-            Senior.barangay == barangay, Senior.created_at >= month_start
+            Senior.barangay == barangay, Senior.created_at >= month_start_utc
         )
     )
 

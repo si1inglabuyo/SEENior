@@ -24,22 +24,24 @@ function dayLabel(iso) {
 // sub-lines just fall back to "—" until then.
 function resolutionRate(outcomes) {
   const resolved = (outcomes.resolved || 0) + (outcomes.false_positive || 0)
-  const active = (outcomes.escalated || 0) + (outcomes.acknowledged || 0)
+  const active =
+    (outcomes.escalated || 0) + (outcomes.attending || 0) + (outcomes.acknowledged || 0)
   const total = resolved + active
   return total === 0 ? null : Math.round((resolved / total) * 100)
 }
 
-// The dashboard's "Alerts by Type" donut wants the three responder-facing categories
-// (anomaly / sos / dispatch_family). The deployed /barangay/stats still returns
+// The dashboard's "Alerts by Type" donut wants the four responder-facing categories
+// (anomaly / potential_fall / sos / dispatch_family). An older /barangay/stats returns only
 // `alert_types`, keyed by raw trigger_type, so fold those into the categories that can be
-// derived from a trigger alone: sos -> sos, everything else -> anomaly. (dispatch_family
+// derived from a trigger alone: sos -> sos, fall_pattern -> potential_fall, everything else
+// -> anomaly. (dispatch_family
 // needs the escalation timeline, which stats doesn't carry, so it only appears once the
 // API returns `alert_categories` directly.)
 function categoriesFromTypes(types) {
   if (!types) return null
   const out = {}
   for (const [trigger, n] of Object.entries(types)) {
-    const key = trigger === 'sos' ? 'sos' : 'anomaly'
+    const key = trigger === 'sos' ? 'sos' : trigger === 'fall_pattern' ? 'potential_fall' : 'anomaly'
     out[key] = (out[key] || 0) + n
   }
   return out
