@@ -34,6 +34,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -52,7 +53,6 @@ import com.pup.seenior.ui.onboarding.components.OnboardingHeading
 import com.pup.seenior.ui.onboarding.components.OnboardingTopBar
 import com.pup.seenior.ui.onboarding.components.PrimaryPillButton
 import com.pup.seenior.ui.theme.SeniorColors
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import org.osmdroid.config.Configuration
@@ -110,8 +110,12 @@ fun AddressMapPickerScreen(
     // slow reply can arrive after a newer one and describe a spot the pin has already left.
     var lookupJob by remember { mutableStateOf<Job?>(null) }
 
+    var findingMe by remember { mutableStateOf(false) }
+    var findMeFailed by remember { mutableStateOf(false) }
+
     fun lookUp(point: GeoPoint) {
         lookupJob?.cancel()
+        findMeFailed = false
         lookupJob = scope.launch {
             pinAddress = PinAddress.Looking
             val place = AddressGeocoder.reverse(point.latitude, point.longitude)
@@ -124,10 +128,23 @@ fun AddressMapPickerScreen(
         }
     }
 
+    /** Centres on the phone and says so when it cannot: a tap that silently does nothing reads as
+     *  a broken button, and the live-fix wait can be many seconds indoors. */
+    fun findMe() {
+        if (findingMe) return
+        findingMe = true
+        findMeFailed = false
+        scope.launch {
+            val found = centreOnSenior(context, mapHandle, ::lookUp)
+            findMeFailed = !found
+            findingMe = false
+        }
+    }
+
     val locationPermission = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { results ->
-        if (results.values.any { it }) scope.centreOnSenior(context, mapHandle, ::lookUp)
+        if (results.values.any { it }) findMe()
     }
 
     Surface(modifier = Modifier.fillMaxSize(), color = Color.White) {
@@ -146,7 +163,12 @@ fun AddressMapPickerScreen(
                     .background(SeniorColors.FieldBackground, RoundedCornerShape(16.dp))
             ) {
                 AndroidView(
-                    modifier = Modifier.fillMaxSize(),
+                    // Clipped on the view itself, as the alert map is: Compose's AndroidView holder
+                    // does not clip its children, and osmdroid paints its tiles at a scrolled
+                    // offset, so an unclipped MapView draws the dragged world outside its box.
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clip(RoundedCornerShape(16.dp)),
                     factory = { viewContext ->
                         ensureOsmdroid(viewContext)
                         MapView(viewContext).apply {
@@ -202,7 +224,7 @@ fun AddressMapPickerScreen(
                         .background(Color.White, RoundedCornerShape(12.dp))
                         .clickable {
                             if (hasAnyLocationPermission(context)) {
-                                scope.centreOnSenior(context, mapHandle, ::lookUp)
+                                findMe()
                             } else {
                                 // Location is normally asked for two screens later. Asking here
                                 // costs the senior nothing extra: granting now means the later
@@ -226,11 +248,16 @@ fun AddressMapPickerScreen(
                         tint = SeniorColors.GreenDark,
                         modifier = Modifier.size(20.dp)
                     )
-                    Text(copy.mapFindMe, color = SeniorColors.GreenDark, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    Text(
+                        if (findingMe) copy.mapFindingMe else copy.mapFindMe,
+                        color = SeniorColors.GreenDark,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
 
-            AddressPreview(pinAddress)
+            AddressPreview(pinAddress, findMeFailed)
 
             PrimaryPillButton(
                 text = copy.mapUseAddress,
@@ -250,7 +277,7 @@ fun AddressMapPickerScreen(
 }
 
 @Composable
-private fun AddressPreview(state: PinAddress) {
+private fun AddressPreview(state: PinAddress, findMeFailed: Boolean) {
     val copy = LocalOnboardingCopy.current
     Box(
         modifier = Modifier
@@ -259,6 +286,18 @@ private fun AddressPreview(state: PinAddress) {
             .height(96.dp),
         contentAlignment = Alignment.CenterStart
     ) {
+        when {
+            // Shown over whatever the pin says: the senior just asked for something and did not get it.
+            findMeFailed -> Text(copy.mapFindMeFailed, color = SeniorColors.TextSecondary, fontSize = 15.sp)
+            else -> AddressPreviewBody(state)
+        }
+    }
+}
+
+@Composable
+private fun AddressPreviewBody(state: PinAddress) {
+    val copy = LocalOnboardingCopy.current
+    Box(contentAlignment = Alignment.CenterStart) {
         when (state) {
             PinAddress.Looking -> Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -312,19 +351,18 @@ private fun hasAnyLocationPermission(context: Context): Boolean = listOf(
  * exactly one place in this app that asks where the senior's phone is. The round trip through a
  * geohash costs a couple of metres, which is nothing against a map the senior is about to drag.
  */
-private fun CoroutineScope.centreOnSenior(
+private suspend fun centreOnSenior(
     context: Context,
     mapHandle: MapHandle,
     lookUp: (GeoPoint) -> Unit
-) {
-    launch {
-        val map = mapHandle.map ?: return@launch
-        val cell = AlertLocationCapture.capture(context)?.let(Geohash::decode) ?: return@launch
-        val point = GeoPoint(cell.centerLatitude, cell.centerLongitude)
-        map.controller.setZoom(HOME_ZOOM)
-        map.controller.animateTo(point)
-        lookUp(point)
-    }
+): Boolean {
+    val map = mapHandle.map ?: return false
+    val cell = AlertLocationCapture.capture(context)?.let(Geohash::decode) ?: return false
+    val point = GeoPoint(cell.centerLatitude, cell.centerLongitude)
+    map.controller.setZoom(HOME_ZOOM)
+    map.controller.animateTo(point)
+    lookUp(point)
+    return true
 }
 
 private fun ensureOsmdroid(context: Context) {

@@ -81,6 +81,8 @@ object OnboardingStrings {
         val mapTitle: String,
         val mapSubtitle: String,
         val mapFindMe: String,
+        val mapFindingMe: String,
+        val mapFindMeFailed: String,
         val mapUseAddress: String,
         val mapLookingUp: String,
         val mapNoName: String,
@@ -231,6 +233,9 @@ object OnboardingStrings {
         mapTitle = "Point to Your Home",
         mapSubtitle = "Drag the map until the pin sits on your house.",
         mapFindMe = "Find me",
+        mapFindingMe = "Finding you...",
+        mapFindMeFailed = "We could not find where you are. Turn on Location in your phone settings, " +
+            "or drag the map to your house instead.",
         mapUseAddress = "USE THIS ADDRESS",
         mapLookingUp = "Looking up this spot...",
         mapNoName = "We could not name this spot. Try moving the pin, or go back and type your " +
@@ -380,6 +385,9 @@ object OnboardingStrings {
         mapTitle = "Ituro ang Iyong Bahay",
         mapSubtitle = "I-drag ang mapa hanggang tumapat ang pin sa iyong bahay.",
         mapFindMe = "Hanapin ako",
+        mapFindingMe = "Hinahanap ka...",
+        mapFindMeFailed = "Hindi namin matukoy kung nasaan ka. I-on ang Location sa settings ng iyong " +
+            "telepono, o i-drag na lang ang mapa papunta sa iyong bahay.",
         mapUseAddress = "GAMITIN ANG TIRAHANG ITO",
         mapLookingUp = "Hinahanap ang lugar na ito...",
         mapNoName = "Hindi namin makilala ang lugar na ito. Subukang igalaw ang pin, o " +
