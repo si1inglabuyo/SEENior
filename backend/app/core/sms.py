@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 
 import httpx
 
@@ -138,14 +139,49 @@ async def send_sms(numbers: list[str], message: str) -> SmsResult:
     return SmsResult(sent=sent, failed=failed)
 
 
-def family_alert_message(senior_name: str, risk_level: str, trigger_type: str) -> str:
+_PH_TZ = timezone(timedelta(hours=8))  # Philippines has no DST, so a fixed offset is exact.
+
+
+def _clock(at: datetime | None) -> str:
+    """The alert time as a responder reads it, Manila time: '9:41 AM'."""
+    moment = (at or datetime.now(timezone.utc)).astimezone(_PH_TZ)
+    return f"{moment.hour % 12 or 12}:{moment.minute:02d} {'AM' if moment.hour < 12 else 'PM'}"
+
+
+def family_alert_message(
+    senior_name: str, risk_level: str, trigger_type: str, at: datetime | None = None
+) -> str:
+    """One pattern for every family-tier text: "<KIND> ALERT (time): <what>. Acknowledge
+    immediately in the SEENior app. <what happens if nobody does>." No pronouns for the senior
+    -- their gender isn't on file. The window is read from settings so the text never drifts
+    from the timer that actually escalates."""
     minutes = max(1, settings.family_response_seconds // 60)
+    when = _clock(at)
+    ack = "Acknowledge immediately in the SEENior app."
+    if trigger_type == "sos":
+        return (
+            f"SOS ALERT ({when}): {senior_name} pressed the SOS button. {ack} "
+            f"Barangay responders are being notified at the same time."
+        )
+    if trigger_type == "fall_pattern":
+        return (
+            f"FALL ALERT ({when}): A possible fall was detected for {senior_name}, who did not "
+            f"respond to the safety check. {ack} If no action is taken within {minutes} "
+            f"minutes, barangay responders will be notified."
+        )
     return (
-        f"SEENior: {senior_name} - {_trigger_label(trigger_type)} ({risk_level} risk), "
-        f"no response. Ack in app within {minutes} min or barangay is notified."
+        f"{risk_level.upper()} RISK ALERT ({when}): {senior_name} did not respond to the "
+        f"safety check ({_trigger_label(trigger_type)}). {ack} If no action is taken within "
+        f"{minutes} minutes, barangay responders will be notified."
     )
 
 
-def barangay_alert_message(senior_name: str, barangay: str, address: str, risk_level: str, reason: str) -> str:
+def barangay_alert_message(
+    senior_name: str, barangay: str, address: str, risk_level: str, reason: str,
+    at: datetime | None = None,
+) -> str:
     short_reason = _SHORT_REASONS.get(reason, reason)
-    return f"SEENior: {senior_name} ({barangay}), {risk_level} risk - {short_reason}. {address}"
+    return (
+        f"{risk_level.upper()} RISK ALERT ({_clock(at)}): {senior_name} ({barangay}) - "
+        f"{short_reason}. Respond immediately. Address: {address}"
+    )
