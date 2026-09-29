@@ -86,6 +86,27 @@ async def family_phone_numbers(db: AsyncSession, senior_id: int) -> list[str]:
     return list(result.scalars().all())
 
 
+async def family_phone_numbers_by_language(db: AsyncSession, senior_id: int) -> dict[str, list[str]]:
+    """family_phone_numbers, grouped by each contact's own language preference ("en" / "fil")
+    so the SMS can be written once per language. Same filters, same reasons."""
+    result = await db.execute(
+        select(User.phone, User.language_preference)
+        .join(Contact, Contact.user_id == User.id)
+        .where(
+            Contact.senior_id == senior_id,
+            Contact.contact_type == ContactType.FAMILY,
+            Contact.is_active(),
+            User.is_active,
+            User.phone.is_not(None),
+        )
+        .distinct()
+    )
+    grouped: dict[str, list[str]] = {}
+    for phone, language in result.all():
+        grouped.setdefault(language if language == "fil" else "en", []).append(phone)
+    return grouped
+
+
 async def barangay_phone_numbers(db: AsyncSession, barangay: str) -> list[str]:
     """Every phone number belonging to an active barangay-responder account assigned
     to this barangay.
@@ -262,12 +283,13 @@ async def create_alert(
     # family tier). Nothing to send for a senior with no family tier: that case has no
     # phone numbers to text, and the barangay tier this alert falls straight through to
     # is texted separately, by the sweep, the moment its own deadline is reached.
-    phone_numbers = await family_phone_numbers(db, senior.id)
-    if phone_numbers:
+    for language, phone_numbers in (await family_phone_numbers_by_language(db, senior.id)).items():
         background_tasks.add_task(
             deliver_alert_sms,
             phone_numbers,
-            sms.family_alert_message(senior.first_name, alert.risk_level.value, alert.trigger_type.value),
+            sms.family_alert_message(
+                senior.first_name, alert.risk_level.value, alert.trigger_type.value, language=language
+            ),
             context=f"family/{alert.sync_id}",
         )
 

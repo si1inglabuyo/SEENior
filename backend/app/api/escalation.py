@@ -30,7 +30,7 @@ from app.api.routes.alerts import (
     deliver_alert_push,
     deliver_alert_sms,
     family_device_tokens,
-    family_phone_numbers,
+    family_phone_numbers_by_language,
 )
 from app.core import push, sms
 from app.core.config import settings
@@ -262,12 +262,15 @@ async def sweep_overdue_alerts(db: AsyncSession) -> tuple[int, int]:
                             trigger_type=alert.trigger_type.value,
                         ),
                     ))
-                phone_numbers = await family_phone_numbers(db, alert.senior_id)
-                if phone_numbers:
+                by_language = await family_phone_numbers_by_language(db, alert.senior_id)
+                for language, phone_numbers in by_language.items():
                     smses.append((
                         phone_numbers,
                         sms.family_alert_message(
-                            alert.senior.first_name, alert.risk_level.value, alert.trigger_type.value
+                            alert.senior.first_name,
+                            alert.risk_level.value,
+                            alert.trigger_type.value,
+                            language=language,
                         ),
                         f"family/{alert.sync_id}",
                     ))

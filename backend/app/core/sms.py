@@ -46,6 +46,17 @@ _TRIGGER_LABELS = {
     "ml_flag": "unusual daily pattern",
 }
 
+# Filipino counterparts, for a family contact whose language preference is "fil".
+_TRIGGER_LABELS_FIL = {
+    "sos": "pinindot ang SOS",
+    "fall_pattern": "posibleng pagkahulog",
+    "inactivity": "matagal nang walang galaw",
+    "movement": "kaunting galaw",
+    "screen_idle": "matagal na hindi ginagamit ang telepono",
+    "charging": "hindi karaniwang pag-charge",
+    "ml_flag": "hindi karaniwang gawi ngayong araw",
+}
+
 # Same idea for the barangay tier's escalation reason (escalation.py's three fixed
 # strings) -- the audit-log timeline keeps the full sentence; only the SMS gets the
 # shortened one.
@@ -149,14 +160,21 @@ def _clock(at: datetime | None) -> str:
 
 
 def family_alert_message(
-    senior_name: str, risk_level: str, trigger_type: str, at: datetime | None = None
+    senior_name: str,
+    risk_level: str,
+    trigger_type: str,
+    at: datetime | None = None,
+    language: str = "en",
 ) -> str:
     """One pattern for every family-tier text: "<KIND> ALERT (time): <what>. Acknowledge
     immediately in the SEENior app. <what happens if nobody does>." No pronouns for the senior
     -- their gender isn't on file. The window is read from settings so the text never drifts
-    from the timer that actually escalates."""
+    from the timer that actually escalates. `language` is the family contact's own
+    `users.language_preference` ("en" / "fil"); anything else falls back to English."""
     minutes = max(1, settings.family_response_seconds // 60)
     when = _clock(at)
+    if language == "fil":
+        return _family_alert_message_fil(senior_name, risk_level, trigger_type, when, minutes)
     ack = "Acknowledge immediately in the SEENior app."
     if trigger_type == "sos":
         return (
@@ -173,6 +191,28 @@ def family_alert_message(
         f"{risk_level.upper()} RISK ALERT ({when}): {senior_name} did not respond to the "
         f"safety check ({_trigger_label(trigger_type)}). {ack} If no action is taken within "
         f"{minutes} minutes, barangay responders will be notified."
+    )
+
+
+def _family_alert_message_fil(
+    senior_name: str, risk_level: str, trigger_type: str, when: str, minutes: int
+) -> str:
+    ack = "Paki-acknowledge agad sa SEENior app."
+    tail = f"Kung walang tugon sa loob ng {minutes} minuto, aabisuhan ang barangay responders."
+    if trigger_type == "sos":
+        return (
+            f"SOS ALERT ({when}): Pinindot ni {senior_name} ang SOS button. {ack} "
+            f"Inabisuhan na rin ang barangay responders."
+        )
+    if trigger_type == "fall_pattern":
+        return (
+            f"ALERTO SA PAGKAHULOG ({when}): May na-detect na posibleng pagkahulog kay "
+            f"{senior_name}, at hindi siya sumagot sa safety check. {ack} {tail}"
+        )
+    reason = _TRIGGER_LABELS_FIL.get(trigger_type, trigger_type)
+    return (
+        f"ALERTO ({risk_level.capitalize()} Risk) {when}: Hindi sumagot si {senior_name} sa "
+        f"safety check ({reason}). {ack} {tail}"
     )
 
 
