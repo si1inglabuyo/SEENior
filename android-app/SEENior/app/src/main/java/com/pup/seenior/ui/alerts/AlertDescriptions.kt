@@ -87,15 +87,15 @@ object AlertDescriptions {
             "ml_flag" -> mlFlagScore?.let { score ->
                 val threshold = fmt(IsolationForestDetector.THRESHOLD)
                 if (fil)
-                    "Isolation Forest: anomaly score = ${fmt(score)} (hangganan ng pag-flag: $threshold)"
+                    "Gawi Ngayon: Kakaiba ang buong araw mo ngayon. (Iskor: ${fmt(score)} / Normal ay mababa sa $threshold)"
                 else
-                    "Isolation Forest: anomaly score = ${fmt(score)} (flag threshold: $threshold)"
+                    "Daily Routine: Your whole day looks unusual today. (Score: ${fmt(score)} / Normal is under $threshold)"
             }
             "inactivity", "movement", "screen_idle" -> deviationScore?.let { z ->
                 if (fil)
-                    "Anomaly Detector: |binasa ngayon − karaniwan mong binasa| ÷ karaniwan mong pagbabago = ${fmt(z)}"
+                    "Galaw Ngayon: Iba ang galaw mo ngayon kumpara sa dati. (Iskor: ${fmt(z)} / Normal ay mababa sa 2.5)"
                 else
-                    "Anomaly Detector: |your reading − your usual| ÷ your usual variation = ${fmt(z)}"
+                    "Activity Check: Your movement today is very unusual. (Score: ${fmt(z)} / Normal is under 2.5)"
             }
             else -> null
         }
