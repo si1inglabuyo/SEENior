@@ -41,7 +41,6 @@ export const STEP_LABEL = {
   delivered_family: 'Alert reached the cloud',
   acknowledged_family: 'Family acknowledged',
   escalated_barangay: 'Family requested a barangay welfare check',
-  no_family_contact: 'No family contact linked — skipped straight to barangay',
   self_cancelled: 'Senior answered: safe',
   self_cancelled_senior: 'Senior answered: safe',
   cancel_synced: "Senior's all-clear reached the cloud",
@@ -54,25 +53,61 @@ export const STEP_LABEL = {
 // `escalated_barangay_auto` is one step code covering three different reasons the server's
 // sweep (backend/app/api/escalation.py, sweep_overdue_alerts/barangay_deadline) can have for
 // jumping straight to the barangay: an SOS press, a senior with no family contact at all, or
-// an ordinary no-response timeout. Those reasons are written into `entry.reason` verbatim, so
-// matching on that text -- rather than collapsing all three into one "no answer from family"
-// label -- is what actually tells a responder why they're looking at this incident.
-const ESCALATED_BARANGAY_AUTO_LABEL = [
-  ['SOS pressed', 'SOS pressed — escalated to barangay'],
-  ['No family contact', 'No family contact — escalated to barangay'],
-]
+// an ordinary no-response timeout. Those reasons are written into `entry.reason` verbatim.
+//
+// The no-family case must never read as "no answer from family -- escalated": nobody was
+// asked, so nobody failed to answer, and nothing was escalated *past* a tier. The alert
+// went to the barangay first because it is the only tier this senior has. The same goes
+// for `no_family_contact`, which on its own says nothing about what actually happened --
+// so it carries the alert's trigger ("Possible fall detected", "No movement ...") as well.
 
-function escalatedBarangayAutoLabel(reason) {
-  const hit = ESCALATED_BARANGAY_AUTO_LABEL.find(([needle]) => reason && reason.includes(needle))
-  return hit ? hit[1] : 'No answer from family — escalated to barangay'
+const FAMILY_NOTIFIED = ['escalated_family', 'escalated_family_server']
+
+// Did this alert go out with no family tier? Read from the timeline first -- the server's
+// `no_family_contact` step, or its reason text -- because that records how the alert was
+// actually routed. `senior_has_family_contact` is the senior's *current* state (they may
+// have paired someone since), so it is only a fallback for older rows written before the
+// sweep recorded the reason, and only when no family notification appears on the timeline.
+function wentWithoutFamily(entry, alert) {
+  if (entry && entry.reason && entry.reason.includes('No family contact')) return true
+  const steps = (alert && alert.escalation_steps) || []
+  if (steps.some((e) => e && e.step === 'no_family_contact')) return true
+  if (steps.some((e) => e && FAMILY_NOTIFIED.includes(e.step))) return false
+  return Boolean(alert) && alert.senior_has_family_contact === false
 }
 
-// Takes a full escalation_steps entry (not just the step code) because a couple of step
-// types need more than their name to say what happened -- see escalatedBarangayAutoLabel
-// above. An unknown step code falls back to itself rather than vanishing.
-export function stepLabel(entry) {
+const hasStep = (alert, step) =>
+  ((alert && alert.escalation_steps) || []).some((e) => e && e.step === step)
+
+function escalatedBarangayAutoLabel(entry, alert) {
+  const reason = entry && entry.reason
+  const sos = (reason && reason.includes('SOS pressed')) || (alert && alert.trigger_type === 'sos')
+  const alone = wentWithoutFamily(entry, alert)
+  if (sos && alone) return 'SOS pressed — sent straight to barangay (no family contact linked)'
+  if (sos) return 'SOS pressed — escalated to barangay'
+  if (alone) {
+    // When the `no_family_contact` step is on the timeline it has already said what the
+    // alert was; repeating it on the very next line is noise.
+    if (hasStep(alert, 'no_family_contact')) return 'Sent straight to barangay — no family contact to notify'
+    const what = alert ? triggerLabel(alert.trigger_type) : 'Alert'
+    return `${what} — sent straight to barangay (no family contact linked)`
+  }
+  return 'No answer from family — escalated to barangay'
+}
+
+function noFamilyContactLabel(alert) {
+  const what = alert ? triggerLabel(alert.trigger_type) : 'Alert raised'
+  return `${what} — senior lives alone, no family contact to notify`
+}
+
+// Takes a full escalation_steps entry (not just the step code), plus the alert it belongs
+// to, because a couple of step types need more than their name to say what happened -- see
+// escalatedBarangayAutoLabel above. An unknown step code falls back to itself rather than
+// vanishing.
+export function stepLabel(entry, alert) {
   const step = (entry && entry.step) ?? entry
-  if (step === 'escalated_barangay_auto') return escalatedBarangayAutoLabel(entry && entry.reason)
+  if (step === 'escalated_barangay_auto') return escalatedBarangayAutoLabel(entry, alert)
+  if (step === 'no_family_contact') return noFamilyContactLabel(alert)
   return STEP_LABEL[step] || step
 }
 export const triggerLabel = (trigger) => TRIGGER_LABEL[trigger] || trigger
@@ -96,6 +131,14 @@ export const CATEGORY_LABEL = {
   potential_fall: 'Potential Fall',
   sos: 'SOS',
   dispatch_family: 'Dispatch by Family',
+}
+
+// The badge class for each category (index.css .type-badge-*). Anomaly uses the base style.
+export const CATEGORY_CLASS = {
+  anomaly: '',
+  potential_fall: 'type-badge-fall',
+  sos: 'type-badge-sos',
+  dispatch_family: 'type-badge-dispatch',
 }
 
 // Mirrored by _alert_category() in backend/app/api/routes/barangay.py -- keep them in step.

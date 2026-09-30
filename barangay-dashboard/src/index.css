@@ -580,6 +580,8 @@ h4 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase;
 .avatar-lg { width: 46px; height: 46px; font-size: 17px; }
 .details-name { margin: 0; font-size: 19px; }
 .details-age { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+.details-badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.details-attending-note { margin: 8px 0 0; font-size: 13px; }
 .details-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .details-card {
   border: 1px solid var(--line); border-radius: 8px; padding: 9px 12px;

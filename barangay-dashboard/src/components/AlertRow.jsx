@@ -1,4 +1,4 @@
-import { alertCategory, CATEGORY_LABEL, displayStatus } from '../labels'
+import { alertCategory, CATEGORY_CLASS, CATEGORY_LABEL, displayStatus } from '../labels'
 import { initials, dateTimeLabel } from '../format'
 import StatusPill from './StatusPill'
 
@@ -7,12 +7,6 @@ import StatusPill from './StatusPill'
 // row itself carries no controls: it shows who the alert is about, when it fired, and the
 // type/status badges, and the whole row is a button that opens the Details modal.
 // Acknowledge / Resolve / False Positive live inside that modal.
-const CATEGORY_CLASS = {
-  sos: 'type-badge-sos',
-  dispatch_family: 'type-badge-dispatch',
-  potential_fall: 'type-badge-fall',
-  anomaly: '',
-}
 
 export default function AlertRow({ alert, onShowDetails }) {
   const category = alertCategory(alert)

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { api, parseServerTime } from '../api'
 import { initials, dateTimeLabel, maskPhone } from '../format'
-import { triggerLabel, alertCategory, CATEGORY_LABEL } from '../labels'
+import { triggerLabel, alertCategory, CATEGORY_CLASS, CATEGORY_LABEL } from '../labels'
 import { DEACTIVATE_ACTION, REACTIVATE_ACTION } from '../seniorActions'
 import { recordAccess } from '../audit'
 import {
@@ -48,12 +48,6 @@ import DeviceBadge from './DeviceBadge'
 // documented so far needs it. Add it here only alongside that documented need.
 // ---------------------------------------------------------------------------------------
 
-const CATEGORY_CLASS = {
-  sos: 'type-badge-sos',
-  dispatch_family: 'type-badge-dispatch',
-  potential_fall: 'type-badge-fall',
-  anomaly: '',
-}
 
 // Retention / data-minimisation for the per-senior alert history (RA 10173 §11(e) — keep
 // data "only for as long as necessary"):

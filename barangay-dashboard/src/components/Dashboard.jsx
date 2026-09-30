@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { api, POLL_MS } from '../api'
 import { clockTime } from '../format'
+import { alertCategory, displayStatus } from '../labels'
 import { IconPeople, IconCheck, IconSos } from '../icons'
 import { useAlertActions } from '../hooks/useAlertActions'
 import StatCard from './StatCard'
@@ -47,9 +48,24 @@ function categoriesFromTypes(types) {
   return out
 }
 
+// Tallies this week's alert rows by a key function. The Alerts Outcome and Alerts by Type
+// donuts are counted here, from the rows themselves, rather than read off /barangay/stats:
+// "attending" and "potential_fall" are both derived from data every alert row already
+// carries (the timeline and trigger_type), so counting them client-side means the charts
+// agree with the row badges whatever version of the backend is deployed.
+function tally(alerts, keyOf) {
+  const out = {}
+  for (const alert of alerts) {
+    const key = keyOf(alert)
+    out[key] = (out[key] || 0) + 1
+  }
+  return out
+}
+
 export default function Dashboard({ onSessionLost, onNavigate }) {
   const [stats, setStats] = useState(null)
   const [activeAlerts, setActiveAlerts] = useState(null)
+  const [weekAlerts, setWeekAlerts] = useState(null)
   const [error, setError] = useState('')
 
   // Stats drives the whole page and must succeed. The active-alerts feed is a nice-to-have
@@ -58,7 +74,19 @@ export default function Dashboard({ onSessionLost, onNavigate }) {
     (live = () => true) => {
       api('/barangay/stats')
         .then((s) => {
-          if (live()) setStats(s)
+          if (!live()) return
+          setStats(s)
+          // The same seven Manila calendar days the stats endpoint bucketed, so the donuts
+          // cover exactly the week the bar chart shows. A failure here leaves the donuts on
+          // the stats endpoint's own counts.
+          const days = s.alerts_this_week || []
+          if (days.length === 0) return
+          const range = `date_from=${days[0].day}&date_to=${days[days.length - 1].day}`
+          api(`/barangay/alerts?scope=all&${range}`)
+            .then((rows) => {
+              if (live()) setWeekAlerts(rows)
+            })
+            .catch(() => {})
         })
         .catch((err) => {
           if (!live()) return
@@ -102,7 +130,11 @@ export default function Dashboard({ onSessionLost, onNavigate }) {
   if (error && !stats) return <p className="error">{error}</p>
   if (!stats || !activeAlerts) return <p className="muted">Loading…</p>
 
-  const rate = resolutionRate(stats.outcomes || {})
+  const outcomes = weekAlerts ? tally(weekAlerts, displayStatus) : stats.outcomes || {}
+  const categories = weekAlerts
+    ? tally(weekAlerts, alertCategory)
+    : stats.alert_categories || categoriesFromTypes(stats.alert_types)
+  const rate = resolutionRate(outcomes)
   const monthAdded = stats.seniors_added_this_month
   const monthSub =
     monthAdded == null
@@ -156,9 +188,9 @@ export default function Dashboard({ onSessionLost, onNavigate }) {
       />
 
       <div className="dash-charts">
-        <OutcomeDonut outcomes={stats.outcomes} onNavigate={onNavigate} />
+        <OutcomeDonut outcomes={outcomes} onNavigate={onNavigate} />
         <AlertTypeChart
-          categories={stats.alert_categories || categoriesFromTypes(stats.alert_types)}
+          categories={categories}
           onSelect={(key, label) =>
             onNavigate('history', { category: key, label: `${label} alerts` })
           }
