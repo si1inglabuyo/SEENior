@@ -17,6 +17,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -25,6 +27,10 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -294,6 +300,13 @@ fun FamilyTextField(
     isError: Boolean = false,
     errorText: String? = null
 ) {
+    // Per field, and always hidden to begin with: a password must never appear on screen
+    // unless the person asks for it, and revealing one field says nothing about the others.
+    // Lives here rather than at each call site so every password field in the app (login,
+    // sign-up, change/set password) gets the same eye without anyone having to remember it.
+    var revealed by remember { mutableStateOf(false) }
+    val copy = LocalFamilyCopy.current
+
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
@@ -302,7 +315,18 @@ fun FamilyTextField(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
         keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
-        visualTransformation = if (isPassword) PasswordVisualTransformation() else VisualTransformation.None,
+        visualTransformation = if (isPassword && !revealed) PasswordVisualTransformation() else VisualTransformation.None,
+        trailingIcon = if (isPassword) {
+            {
+                IconButton(onClick = { revealed = !revealed }) {
+                    Icon(
+                        imageVector = if (revealed) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
+                        contentDescription = if (revealed) copy.hidePassword else copy.showPassword,
+                        tint = FamilyColors.TextSecondary
+                    )
+                }
+            }
+        } else null,
         isError = isError,
         supportingText = if (isError && errorText != null) {
             { Text(errorText, color = FamilyColors.ErrorRed, fontSize = 13.sp) }

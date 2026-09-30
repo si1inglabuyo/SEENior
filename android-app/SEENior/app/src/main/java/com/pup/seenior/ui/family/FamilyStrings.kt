@@ -543,6 +543,13 @@ object FamilyStrings {
             if (language == WellnessMessages.FILIPINO) "Hindi maresolba (server error $code)."
             else "Could not resolve (server error $code)."
 
+        /** Screen-reader labels for the eye button on every password field. */
+        val showPassword: String
+            get() = if (language == WellnessMessages.FILIPINO) "Ipakita ang password" else "Show password"
+
+        val hidePassword: String
+            get() = if (language == WellnessMessages.FILIPINO) "Itago ang password" else "Hide password"
+
         fun couldNotMarkFalseAlarm(code: Int): String =
             if (language == WellnessMessages.FILIPINO) "Hindi maimarkang maling alarma (server error $code)."
             else "Could not mark as a false alarm (server error $code)."
