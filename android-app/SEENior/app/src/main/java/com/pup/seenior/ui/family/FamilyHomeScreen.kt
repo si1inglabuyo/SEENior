@@ -435,7 +435,16 @@ private fun StatTile(
     ) {
         Icon(icon, contentDescription = label, tint = Color.White, modifier = Modifier.size(22.dp))
         Text(value, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 6.dp))
-        Text(label, color = Color.White, fontSize = 12.sp, textAlign = TextAlign.Center)
+        // One line, always. The three tiles share a row sized to the tallest of them, so a label
+        // that wraps (the Filipino ones used to) makes all three taller than in English.
+        Text(
+            label,
+            color = Color.White,
+            fontSize = 12.sp,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }
 
