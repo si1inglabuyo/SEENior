@@ -612,6 +612,8 @@ h4 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase;
 .location-coords a { color: var(--accent-ink); }
 .location-home { margin: 0 0 6px; font-size: 13px; }
 .location-note { margin: 0; font-size: 12px; }
+/* An <a> styled as .btn-primary, so it needs the box behaviour a <button> gets for free. */
+.location-navigate { display: block; margin-top: 10px; text-align: center; text-decoration: none; }
 
 /* Escalation timeline -- the audit trail of who did what, from escalation_steps. */
 .timeline { list-style: none; margin: 0 0 2px; padding: 0; }

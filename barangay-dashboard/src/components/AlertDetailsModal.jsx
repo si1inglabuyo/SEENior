@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { triggerLabel, stepLabel } from '../labels'
+import { reverseGeocode } from '../reverseGeocode'
 import { initials, dateTimeLabel } from '../format'
 import { canActOn } from '../alertActions'
 import { isActiveAlert } from '../historyFilters'
@@ -15,8 +16,54 @@ import LocationMap from './LocationMap'
 // the family app uses, not a static openstreetmap.org iframe embed -- with the registered
 // street address kept alongside because the responder still needs a name to read out. Older
 // alerts carry a ~150 m cell; we say "approximate area" for those.
+// The place name under the pin, looked up once per fix. The answer is stored with the key it
+// was fetched for and only used while that key is still current, so opening a different alert
+// never briefly shows the previous alert's street.
+function usePlaceName(cell) {
+  const lat = cell ? cell.lat : null
+  const lon = cell ? cell.lon : null
+  const key = lat === null ? null : `${lat},${lon}`
+  const [found, setFound] = useState({ key: null, name: null })
+
+  useEffect(() => {
+    if (key === null) return undefined
+    let cancelled = false
+    reverseGeocode(lat, lon).then((name) => {
+      if (!cancelled) setFound({ key, name })
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [key, lat, lon])
+
+  return found.key === key ? found.name : null
+}
+
+// Google Maps directions to the senior, the web counterpart of the family app's "Navigate to her
+// location" button. Only the destination is given, so Maps starts from wherever the responder
+// is. The captured fix wins; with none, the registered address is what there is to go on, which
+// is also what the family app falls back to. Opens in the responder's own browser -- nothing
+// here is sent by this app to anyone.
+function navigateUrl(cell, address) {
+  const base = 'https://www.google.com/maps/dir/?api=1&destination='
+  if (cell) return `${base}${cell.lat.toFixed(6)},${cell.lon.toFixed(6)}`
+  if (address) return `${base}${encodeURIComponent(address)}`
+  return null
+}
+
+function NavigateButton({ href }) {
+  if (!href) return null
+  return (
+    <a className="btn-primary location-navigate" href={href} target="_blank" rel="noopener noreferrer">
+      Navigate there
+    </a>
+  )
+}
+
 function LocationPreview({ address, clusterId }) {
   const cell = decodeGeohash(clusterId)
+  const place = usePlaceName(cell)
+  const navigateHref = navigateUrl(cell, address)
 
   if (!cell) {
     // No usable fix on this alert -- show the address the barangay already holds, nothing more.
@@ -27,6 +74,7 @@ function LocationPreview({ address, clusterId }) {
           <p className="location-note muted">
             No GPS fix was captured for this alert. Shown is the senior’s registered address.
           </p>
+          <NavigateButton href={navigateHref} />
         </div>
       </div>
     )
@@ -38,7 +86,23 @@ function LocationPreview({ address, clusterId }) {
     <div className="location-preview">
       <LocationMap cell={cell} metres={metres} />
       <div className="location-text">
-        <p className="location-address">{address || 'Address not on file'}</p>
+        {/* The place under the pin, not the home on file: a senior is often not at home when an
+            alert fires, and printing their registered address under a pin that is somewhere
+            else made the text contradict the map. */}
+        {place && (
+          <p className="location-address">
+            {metres > 50 ? 'Around ' : 'Near '}
+            {place}
+          </p>
+        )}
+        <p className="location-home">
+          <span className="muted">Registered address:</span> {address || 'Address not on file'}
+        </p>
+        <p className="location-note muted">
+          The pin is where the senior was when the alert fired. The registered address is their
+          home on file and may be somewhere else.
+        </p>
+        <NavigateButton href={navigateHref} />
       </div>
     </div>
   )
