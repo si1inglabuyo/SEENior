@@ -290,6 +290,31 @@ class FamilyAlertsViewModel(application: Application) : AndroidViewModel(applica
         }
     }
 
+    /** The senior was fine and the detection was wrong. Closes the alert the way [markResolved]
+     *  does, but as a false alarm, so it counts against the detector rather than as an incident. */
+    fun markFalseAlarm() {
+        val alert = activeAlert ?: return
+        val token = FamilySession.getToken(getApplication()) ?: return
+        if (actionInFlight) return
+        viewModelScope.launch {
+            actionInFlight = true
+            try {
+                val closed = RetrofitClient.api.markAlertFalsePositive(alert.syncId, "Bearer $token")
+                resolvedSummary = buildSummary(closed)
+                activeAlert = closed
+                screen = AlertScreen.RESOLVED
+            } catch (e: HttpException) {
+                error = if (SessionState.handleIfUnauthorized(getApplication(), e))
+                    FamilyError.SessionExpired
+                else FamilyError.Server(FamilyError.Action.FalseAlarm, e.code())
+            } catch (e: IOException) {
+                error = FamilyError.Network()
+            } finally {
+                actionInFlight = false
+            }
+        }
+    }
+
     fun goTo(target: AlertScreen) {
         screen = target
     }
@@ -354,7 +379,7 @@ class FamilyAlertsViewModel(application: Application) : AndroidViewModel(applica
         private val OPEN_STATUSES = setOf("pending", "acknowledged", "escalated")
 
         /** Audit steps that close an incident, newest of which names who closed it. */
-        private val CLOSING_STEPS = setOf("resolved_family", "self_cancelled_senior")
+        private val CLOSING_STEPS = setOf("resolved_family", "false_positive_family", "self_cancelled_senior")
 
         /** Screens that only report the current situation, so a poll may replace them. The rest
          *  are steps the family member is part-way through and must not be pulled out from under

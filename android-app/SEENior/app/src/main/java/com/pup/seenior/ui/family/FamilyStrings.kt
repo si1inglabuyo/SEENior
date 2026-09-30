@@ -385,6 +385,11 @@ object FamilyStrings {
             if (language == WellnessMessages.FILIPINO) "Markahang naresolba na. Ligtas na siya."
             else "Mark resolved. $pronoun's safe"
 
+        /** For an alert that was raised in error -- the senior was fine and the detection was
+         *  wrong. Distinct from "resolved", which means something happened and is now dealt with. */
+        val markFalseAlarm: String
+            get() = if (language == WellnessMessages.FILIPINO) "Maling alarma lang ito" else "This was a false alarm"
+
         fun dispatchExplainer(name: String): String =
             if (language == WellnessMessages.FILIPINO)
                 "Ito ay humihiling ng opisyal na welfare check mula sa Barangay. Ipapadala ang isang responder sa lokasyon ni $name."
@@ -537,6 +542,10 @@ object FamilyStrings {
         fun couldNotResolve(code: Int): String =
             if (language == WellnessMessages.FILIPINO) "Hindi maresolba (server error $code)."
             else "Could not resolve (server error $code)."
+
+        fun couldNotMarkFalseAlarm(code: Int): String =
+            if (language == WellnessMessages.FILIPINO) "Hindi maimarkang maling alarma (server error $code)."
+            else "Could not mark as a false alarm (server error $code)."
 
         fun couldNotLoadProfile(code: Int): String =
             if (language == WellnessMessages.FILIPINO) "Hindi ma-load ang iyong profile (server error $code)."

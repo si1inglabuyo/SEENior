@@ -183,6 +183,28 @@ object MedianMadDetector {
 
             val triggerType = FEATURE_TO_TRIGGER.getValue(featureName)
 
+            // This block may have earned a little slack: two or more recent alerts here that the
+            // senior, a family contact or the barangay closed as false alarms (see
+            // [FalseAlarmTolerance]). A reading that clears 2.5 but not the loosened threshold is
+            // written down as a logged note and nobody is asked -- the same treatment Layer 3
+            // gives a Low anomaly, so the record still shows what was seen and not acted on.
+            //
+            // Asked only here, after the reading has already cleared 2.5, so an ordinary poll
+            // never pays for the lookup. The stored score and Layer 3 are untouched: this moves
+            // the gate a reading must clear, not what it is worth once it has (CLAUDE.md §14).
+            val threshold = FalseAlarmTolerance.thresholdFor(
+                alertDao.getToleratedDeviationScores(
+                    seniorId,
+                    triggerType,
+                    sensorData.timeBlock,
+                    FalseAlarmTolerance.windowStart(sensorData.timestamp)
+                )
+            )
+            if (zScore < threshold) {
+                recordLowRisk(seniorId, triggerType, sensorData, zScore, alertDao)
+                continue
+            }
+
             // Layer 3 (CLAUDE.md §5). The z-score says how far from normal this reading is; the
             // classifier decides what that is worth at this hour of this senior's day. The score
             // itself is stored unchanged alongside it — the two are separate outputs and §14

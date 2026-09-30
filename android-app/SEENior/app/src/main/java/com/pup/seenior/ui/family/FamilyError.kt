@@ -9,7 +9,7 @@ package com.pup.seenior.ui.family
 sealed interface FamilyError {
 
     enum class Action {
-        LoadAlerts, Acknowledge, DispatchBarangay, Resolve,
+        LoadAlerts, Acknowledge, DispatchBarangay, Resolve, FalseAlarm,
         LoadProfile, SaveProfile, ChangePassword, SetPassword, DeleteAccount,
         LoadSeniors, Unlink, LoadHomeActivity, VerifyCode, Connect
     }
@@ -36,6 +36,7 @@ fun FamilyStrings.Copy.errorMessage(error: FamilyError?): String? = when (error)
         FamilyError.Action.Acknowledge -> couldNotAcknowledge(error.code)
         FamilyError.Action.DispatchBarangay -> couldNotDispatchBarangay(error.code)
         FamilyError.Action.Resolve -> couldNotResolve(error.code)
+        FamilyError.Action.FalseAlarm -> couldNotMarkFalseAlarm(error.code)
         FamilyError.Action.LoadProfile -> couldNotLoadProfile(error.code)
         FamilyError.Action.SaveProfile -> couldNotSaveProfile(error.code)
         FamilyError.Action.ChangePassword -> couldNotChangePassword(error.code)

@@ -143,7 +143,8 @@ fun FamilyAlertsScreen(
                     onCallSenior = { viewModel.goTo(AlertScreen.CALL_SENIOR) },
                     onNavigate = { viewModel.goTo(AlertScreen.LOCATION) },
                     onDispatch = { viewModel.goTo(AlertScreen.DISPATCH) },
-                    onMarkResolved = { viewModel.markResolved() }
+                    onMarkResolved = { viewModel.markResolved() },
+                    onMarkFalseAlarm = { viewModel.markFalseAlarm() }
                 )
             }
         }
@@ -362,7 +363,8 @@ private fun AcknowledgedContent(
     onCallSenior: () -> Unit,
     onNavigate: () -> Unit,
     onDispatch: () -> Unit,
-    onMarkResolved: () -> Unit
+    onMarkResolved: () -> Unit,
+    onMarkFalseAlarm: () -> Unit
 ) {
     val copy = LocalFamilyCopy.current
     val alreadyDispatched = alert.status == "escalated"
@@ -419,6 +421,8 @@ private fun AcknowledgedContent(
                 Spacer(Modifier.height(12.dp))
             }
             OutlinePillButton(copy.markResolvedSafe(genderPronoun(senior)), onClick = onMarkResolved)
+            Spacer(Modifier.height(12.dp))
+            OutlinePillButton(copy.markFalseAlarm, onClick = onMarkFalseAlarm)
         }
     }
 }

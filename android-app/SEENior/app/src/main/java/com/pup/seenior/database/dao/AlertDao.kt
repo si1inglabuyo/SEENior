@@ -128,6 +128,32 @@ interface AlertDao {
     """)
     suspend fun getOpenSyncedAlerts(seniorId: Int): List<Alert>
 
+    /**
+     * The z-scores of this signal's recent alerts, in one time block, that were closed as false
+     * alarms: the senior answered "Ligtas po ako" / "I'm fine now" (`self_cancelled`), or a
+     * family contact or the barangay marked it a false alarm (`false_positive`, carried back to
+     * this phone by the closed-alerts poll).
+     *
+     * Read by [com.pup.seenior.detection.FalseAlarmTolerance] to decide how far this block's
+     * trigger may loosen. Derived from Alerts rather than from False_Positives on purpose: the
+     * status already lives here, and a second table would be a second source of truth to keep
+     * in step. `logged` rows are deliberately absent -- a reading the system itself suppressed
+     * is not evidence, or the loosening could feed on itself.
+     */
+    @Query("""
+        SELECT deviation_score FROM Alerts
+        WHERE senior_id = :seniorId AND trigger_type = :triggerType AND time_block = :timeBlock
+          AND status IN ('self_cancelled', 'false_positive')
+          AND deviation_score IS NOT NULL
+          AND triggered_at >= :since
+    """)
+    suspend fun getToleratedDeviationScores(
+        seniorId: Int,
+        triggerType: String,
+        timeBlock: String,
+        since: Long
+    ): List<Double>
+
     @Query("UPDATE Alerts SET risk_level = :riskLevel, deviation_score = :deviationScore WHERE alert_id = :alertId")
     suspend fun updateSeverity(alertId: Int, riskLevel: String, deviationScore: Double)
 

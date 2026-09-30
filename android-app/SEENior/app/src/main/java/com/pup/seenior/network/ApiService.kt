@@ -229,6 +229,14 @@ interface ApiService {
         @Header("Authorization") auth: String
     ): AlertDto
 
+    /** Family says the alert was raised in error. Closes it as `false_positive`, which the
+     *  senior's phone later reads as evidence for loosening that time block's trigger. */
+    @PATCH("alerts/{syncId}/false-positive")
+    suspend fun markAlertFalsePositive(
+        @Path("syncId") syncId: String,
+        @Header("Authorization") auth: String
+    ): AlertDto
+
     @PATCH("alerts/{syncId}/acknowledge")
     suspend fun acknowledgeAlert(
         @Path("syncId") syncId: String,

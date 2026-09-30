@@ -108,6 +108,8 @@ deviation_score = |current_value − median_value| / mad_value
 
 Median + MAD (not mean + standard deviation) is used because it's robust to outlier days (e.g., one bad week doesn't permanently skew the baseline).
 
+**False-alarm tolerance (added 2026-09-30).** The baseline is never touched, but the 2.5 *trigger gate* can loosen for one signal in one time block. When 2+ alerts there in the last 14 days (`FalseAlarmTolerance.WINDOW_DAYS`, the same window as the baseline) were closed as false alarms — the senior answered "Ligtas po ako" / "I'm fine now" (`self_cancelled`), or a family contact or the barangay marked a false alarm (`false_positive`) — the gate becomes `clamp(median(their z) + 0.25, 2.5, 3.5)`. It can never reach 3.5, so an extreme reading always alerts; evidence with z ≥ 3.5 is discarded (so the demo's injected z = 4.0 cannot loosen anything); SOS, fall and Isolation Forest never pass through this gate; and nothing is stored, so it lapses on its own after 14 days. A reading that clears 2.5 but not the loosened gate is written as a `logged` note and nobody is asked. Evidence is read from `Alerts`, not the `False_Positives` table (which stays unused) — one source of truth, no migration.
+
 ### Layer 2 — Isolation Forest (once daily)
 Runs on the previous day's aggregated data (`Daily_Aggregates` table) across **all signals simultaneously**. Catches the case where no single signal crosses its individual threshold, but the *combined* pattern for the day is statistically unusual for that senior. Unsupervised — requires no labeled anomaly data (which can't ethically be collected for real emergencies).
 

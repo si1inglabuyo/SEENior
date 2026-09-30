@@ -652,6 +652,34 @@ async def dispatch_barangay(
     return alert
 
 
+@router.patch("/{sync_id}/false-positive", response_model=AlertOut)
+async def mark_false_positive(
+    sync_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Alert:
+    """Family says the alert was raised in error: the senior was fine and the detection was wrong.
+
+    Kept apart from `resolve` because the two answers mean opposite things about the detector.
+    Resolved is an incident that happened and is now dealt with; this is one that never was.
+    §10 targets a false-positive rate at or under 15%, which can only be measured if someone
+    records which alerts were wrong -- and the senior's phone reads this status back (through
+    GET /seniors/{sync_id}/closed-alerts) as evidence for loosening that time block's trigger.
+    The barangay has had the same action from the start (routes/barangay.py).
+    """
+    alert = await _family_alert(sync_id, db, current_user)
+    if alert.status in (AlertStatus.RESOLVED, AlertStatus.FALSE_POSITIVE):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Alert already closed")
+    alert.status = AlertStatus.FALSE_POSITIVE
+    alert.resolved_at = datetime.now(timezone.utc).replace(tzinfo=None)
+    # Same audit shape as resolved_family: who closed it, by their name or, failing that, the
+    # login handle (full_name is nullable for Google accounts).
+    append_step(alert, "false_positive_family", by=current_user.full_name or current_user.username)
+    await db.commit()
+    await db.refresh(alert)
+    return alert
+
+
 @router.patch("/{sync_id}/resolve", response_model=AlertOut)
 async def resolve_alert(
     sync_id: UUID,
