@@ -772,8 +772,16 @@ private fun AlertHistoryDetailContent(item: AlertHistoryItem, summary: ResolvedS
                 SummaryRow(copy.summaryDuration, copy.durationMinutes(summary.durationMinutes))
                 SummaryRow(copy.summaryResolvedBy, summary.resolvedBy, isLast = true)
             }
-            // No location map here: a location is shown only while an alert is active. Once it
-            // is closed there is nothing to act on, and a stored position is better not re-shown.
+            // The location shows only while the alert is still open -- the family may still need
+            // to reach the senior. Once it is resolved or marked a false positive there is
+            // nothing left to act on, so the stored position is not shown again.
+            if (alert.status != "resolved" && alert.status != "false_positive") {
+                SectionLabel(copy.lastKnownLocationLabel, Modifier.fillMaxWidth().padding(top = 24.dp, bottom = 10.dp))
+                AlertLocationMap(
+                    clusterId = alert.locationClusterId,
+                    registeredAddress = senior.address
+                )
+            }
         }
     }
 }
