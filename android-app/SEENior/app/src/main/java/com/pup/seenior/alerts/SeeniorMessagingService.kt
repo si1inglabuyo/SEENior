@@ -4,10 +4,13 @@ import android.util.Log
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import com.pup.seenior.network.PushTokenRegistrar
+import com.pup.seenior.network.RetrofitClient
 import com.pup.seenior.sensors.SensorCollectionService
+import com.pup.seenior.session.FamilySession
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
@@ -68,6 +71,31 @@ class SeeniorMessagingService : FirebaseMessagingService() {
             riskLevel = data["risk_level"].orEmpty(),
             triggerType = data["trigger_type"].orEmpty()
         )
+
+        confirmReceipt(alertSyncId)
+    }
+
+    /**
+     * Tells the server this phone got the push, so it skips the SMS it would otherwise send
+     * once its grace period runs out. Only a phone that is online can do this, which is the
+     * point: no receipt means no data, and the server texts instead.
+     *
+     * Two attempts, because a receipt that fails on a flaky connection only costs a
+     * redundant text, but one retry is cheap. Never fatal.
+     */
+    private fun confirmReceipt(alertSyncId: String) {
+        val app = applicationContext
+        val jwt = FamilySession.getToken(app)?.takeIf { FamilySession.hasLiveSession(app) } ?: return
+        scope.launch {
+            repeat(2) { attempt ->
+                val ok = runCatching {
+                    RetrofitClient.api.confirmAlertPushReceived(alertSyncId, "Bearer $jwt")
+                }.onFailure { Log.w(TAG, "Push receipt failed (attempt ${attempt + 1})", it) }
+                    .isSuccess
+                if (ok) return@launch
+                delay(2_000)
+            }
+        }
     }
 
     /**

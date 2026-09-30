@@ -62,6 +62,12 @@ class Settings:
     family_response_seconds: int = int(os.environ.get("FAMILY_RESPONSE_SECONDS", "120"))
     escalation_sweep_seconds: int = int(os.environ.get("ESCALATION_SWEEP_SECONDS", "20"))
 
+    # How long a family contact's phone has to confirm it received the alert push before
+    # the server texts them instead. A phone with data confirms within seconds and is never
+    # texted; a phone without data cannot confirm, so it gets the SMS. Kept inside the
+    # CLAUDE.md §10 30-second alert-delivery target.
+    family_sms_grace_seconds: int = int(os.environ.get("FAMILY_SMS_GRACE_SECONDS", "30"))
+
     # How long a senior's phone may go without checking in before the server pushes it
     # awake, and how long it then waits before pushing again.
     #

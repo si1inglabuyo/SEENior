@@ -19,6 +19,7 @@ phone does, so it only acts when the phone did not.
 import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
+from uuid import UUID
 
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -29,8 +30,8 @@ from app.api.routes.alerts import (
     barangay_phone_numbers,
     deliver_alert_push,
     deliver_alert_sms,
+    deliver_family_sms_after_grace,
     family_device_tokens,
-    family_phone_numbers_by_language,
 )
 from app.core import push, sms
 from app.core.config import settings
@@ -45,6 +46,8 @@ from app.db.models import (
 from app.db.session import SessionLocal
 
 logger = logging.getLogger(__name__)
+
+_family_sms_tasks: set[asyncio.Task] = set()
 
 # Mirrors AlertEscalator.windowSecondsFor() in the Android app -- how long the senior gets
 # to answer the wellness prompt, which depends on what raised the alert. If these two ever
@@ -205,6 +208,7 @@ async def sweep_overdue_alerts(db: AsyncSession) -> tuple[int, int]:
     # is for the log line inside deliver_alert_sms since `alert` is out of scope by
     # the time these are sent below.
     smses: list[tuple[list[str], str, str]] = []
+    family_sms: list[tuple[UUID, int, str, str, str]] = []
 
     for alert in result.scalars().all():
         if alert.senior is None:
@@ -262,18 +266,15 @@ async def sweep_overdue_alerts(db: AsyncSession) -> tuple[int, int]:
                             trigger_type=alert.trigger_type.value,
                         ),
                     ))
-                by_language = await family_phone_numbers_by_language(db, alert.senior_id)
-                for language, phone_numbers in by_language.items():
-                    smses.append((
-                        phone_numbers,
-                        sms.family_alert_message(
-                            alert.senior.first_name,
-                            alert.risk_level.value,
-                            alert.trigger_type.value,
-                            language=language,
-                        ),
-                        f"family/{alert.sync_id}",
-                    ))
+                # Family SMS waits out the grace period for push receipts, so it cannot
+                # run inline in this sweep. Queued now, launched after the commit below.
+                family_sms.append((
+                    alert.sync_id,
+                    alert.senior_id,
+                    alert.senior.first_name,
+                    alert.risk_level.value,
+                    alert.trigger_type.value,
+                ))
 
         # Tier 3.
         if now >= barangay_deadline(alert, has_family):
@@ -313,6 +314,12 @@ async def sweep_overdue_alerts(db: AsyncSession) -> tuple[int, int]:
         await deliver_alert_push(tokens, payload)
     for numbers, message, context in smses:
         await deliver_alert_sms(numbers, message, context=context)
+    for args in family_sms:
+        # Own task, not awaited: it sleeps for the grace period and must not stall the
+        # sweep. Held in a set so the loop's weak reference cannot let it be collected.
+        task = asyncio.create_task(deliver_family_sms_after_grace(*args))
+        _family_sms_tasks.add(task)
+        task.add_done_callback(_family_sms_tasks.discard)
 
     return notified_family, escalated_barangay
 

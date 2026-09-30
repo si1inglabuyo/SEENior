@@ -222,6 +222,13 @@ interface ApiService {
         @Header("Authorization") auth: String
     ): List<AlertDto>
 
+    /** Tells the server this phone got the alert push, so it does not also send an SMS. */
+    @POST("alerts/{syncId}/received")
+    suspend fun confirmAlertPushReceived(
+        @Path("syncId") syncId: String,
+        @Header("Authorization") auth: String
+    ): AlertDto
+
     @PATCH("alerts/{syncId}/acknowledge")
     suspend fun acknowledgeAlert(
         @Path("syncId") syncId: String,

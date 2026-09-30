@@ -10,6 +10,7 @@ from sqlalchemy.orm import selectinload
 
 from app.api.deps import get_current_user
 from app.core import push, sms
+from app.core.config import settings
 from app.db.models import (
     Alert,
     AlertStatus,
@@ -105,6 +106,84 @@ async def family_phone_numbers_by_language(db: AsyncSession, senior_id: int) -> 
     for phone, language in result.all():
         grouped.setdefault(language if language == "fil" else "en", []).append(phone)
     return grouped
+
+
+# Written by POST /alerts/{sync_id}/received when a family phone's FCM handler confirms
+# the push arrived. Carries `user_id` so the delayed SMS below can text only the contacts
+# whose phones did not confirm.
+PUSH_RECEIVED_STEP = "push_received_family"
+
+
+def push_received_user_ids(alert: Alert) -> set[int]:
+    ids: set[int] = set()
+    for entry in alert.escalation_steps or []:
+        if (entry or {}).get("step") == PUSH_RECEIVED_STEP:
+            try:
+                ids.add(int(entry["user_id"]))
+            except (KeyError, TypeError, ValueError):
+                continue
+    return ids
+
+
+async def deliver_family_sms_after_grace(
+    alert_sync_id: UUID,
+    senior_id: int,
+    senior_name: str,
+    risk_level: str,
+    trigger_type: str,
+) -> None:
+    """Texts the family contacts whose phones never confirmed the push.
+
+    A phone with data confirms within seconds and is never texted; one with no data cannot
+    confirm, so it is. Waits `family_sms_grace_seconds` first. Everything is re-read from
+    the database afterwards rather than captured up front: in those 30 seconds a contact
+    may have confirmed, acknowledged, or the senior may have cancelled.
+
+    Never raises, same posture as deliver_alert_sms -- the alert is already committed.
+    """
+    try:
+        await asyncio.sleep(settings.family_sms_grace_seconds)
+        async with SessionLocal() as db:
+            alert = (
+                await db.execute(select(Alert).where(Alert.sync_id == alert_sync_id))
+            ).scalar_one_or_none()
+            # A family member who acknowledged has plainly seen it, and a closed alert
+            # needs no text. ESCALATED is deliberately not skipped: an SOS reaches that
+            # state at once, and family still have to be told.
+            if alert is None or alert.status in (
+                AlertStatus.ACKNOWLEDGED,
+                AlertStatus.RESOLVED,
+                AlertStatus.FALSE_POSITIVE,
+            ):
+                return
+
+            received = push_received_user_ids(alert)
+            rows = await db.execute(
+                select(User.id, User.phone, User.language_preference)
+                .join(Contact, Contact.user_id == User.id)
+                .where(
+                    Contact.senior_id == senior_id,
+                    Contact.contact_type == ContactType.FAMILY,
+                    Contact.is_active(),
+                    User.is_active,
+                    User.phone.is_not(None),
+                )
+                .distinct()
+            )
+            grouped: dict[str, list[str]] = {}
+            for user_id, phone, language in rows.all():
+                if user_id in received:
+                    continue
+                grouped.setdefault(language if language == "fil" else "en", []).append(phone)
+
+        for language, numbers in grouped.items():
+            await deliver_alert_sms(
+                numbers,
+                sms.family_alert_message(senior_name, risk_level, trigger_type, language=language),
+                context=f"family/{alert_sync_id}",
+            )
+    except Exception:
+        logger.exception("Delayed family SMS task crashed for alert %s", alert_sync_id)
 
 
 async def barangay_phone_numbers(db: AsyncSession, barangay: str) -> list[str]:
@@ -277,20 +356,20 @@ async def create_alert(
             senior.sync_id,
         )
 
-    # SMS fallback, alongside push rather than only after it fails — a family member
-    # with a weak data connection but a live cellular signal gets the text before FCM
-    # would ever have timed out (CLAUDE.md §1's offline-first promise, applied to the
-    # family tier). Nothing to send for a senior with no family tier: that case has no
-    # phone numbers to text, and the barangay tier this alert falls straight through to
-    # is texted separately, by the sweep, the moment its own deadline is reached.
-    for language, phone_numbers in (await family_phone_numbers_by_language(db, senior.id)).items():
+    # SMS fallback, only for family phones that never confirm the push. Each family app
+    # calls POST /alerts/{sync_id}/received the moment the push arrives; after the grace
+    # period this texts whoever did not. So a family member with data gets the push alone,
+    # and one with no data (or a dead FCM connection) gets the SMS. Nothing to send for a
+    # senior with no family tier: the barangay tier this alert falls straight through to is
+    # texted separately, by the sweep, the moment its own deadline is reached.
+    if has_family:
         background_tasks.add_task(
-            deliver_alert_sms,
-            phone_numbers,
-            sms.family_alert_message(
-                senior.first_name, alert.risk_level.value, alert.trigger_type.value, language=language
-            ),
-            context=f"family/{alert.sync_id}",
+            deliver_family_sms_after_grace,
+            alert.sync_id,
+            senior.id,
+            senior.first_name,
+            alert.risk_level.value,
+            alert.trigger_type.value,
         )
 
     return alert
@@ -530,6 +609,27 @@ async def acknowledge_alert(
     append_step(alert, "acknowledged_family")
     await db.commit()
     await db.refresh(alert)
+    return alert
+
+
+@router.post("/{sync_id}/received", response_model=AlertOut)
+async def push_received(
+    sync_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Alert:
+    """A family phone confirms the alert push reached it, so the server need not text them.
+
+    Called from the FCM handler, even with the app closed. Idempotent per user: a retry, or
+    the same push arriving twice, leaves one step. The row is locked for the read-modify-
+    write of the JSON timeline so two contacts confirming at once cannot drop each other.
+    """
+    alert = await _family_alert(sync_id, db, current_user)
+    await db.refresh(alert, with_for_update=True)
+    if current_user.id not in push_received_user_ids(alert):
+        append_step(alert, PUSH_RECEIVED_STEP, user_id=str(current_user.id))
+        await db.commit()
+        await db.refresh(alert)
     return alert
 
 
