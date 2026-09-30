@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import { login } from '../api'
+import { IconEye, IconEyeOff } from '../icons'
 
 export default function Login({ onSignedIn }) {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
 
@@ -39,14 +41,26 @@ export default function Login({ onSignedIn }) {
         />
 
         <label htmlFor="password">Password</label>
-        <input
-          id="password"
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          autoComplete="current-password"
-          required
-        />
+        {/* Hidden until asked for. type="button" so the eye never submits the form. */}
+        <div className="password-field">
+          <input
+            id="password"
+            type={showPassword ? 'text' : 'password'}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoComplete="current-password"
+            required
+          />
+          <button
+            type="button"
+            className="password-toggle"
+            onClick={() => setShowPassword((shown) => !shown)}
+            aria-label={showPassword ? 'Hide password' : 'Show password'}
+            aria-pressed={showPassword}
+          >
+            {showPassword ? <IconEyeOff /> : <IconEye />}
+          </button>
+        </div>
 
         {error && <p className="error">{error}</p>}
 

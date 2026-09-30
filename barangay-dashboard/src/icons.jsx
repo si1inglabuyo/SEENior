@@ -142,6 +142,17 @@ export function IconEye(props) {
   )
 }
 
+export function IconEyeOff(props) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M17.94 17.94A10.94 10.94 0 0 1 12 19c-7 0-11-7-11-7a19.8 19.8 0 0 1 5.06-5.94" />
+      <path d="M9.9 4.24A10.9 10.9 0 0 1 12 5c7 0 11 7 11 7a19.9 19.9 0 0 1-3.17 4.19" />
+      <path d="M14.12 14.12A3 3 0 1 1 9.88 9.88" />
+      <line x1="1" y1="1" x2="23" y2="23" />
+    </svg>
+  )
+}
+
 export function IconLock(props) {
   return (
     <svg {...base} {...props}>
