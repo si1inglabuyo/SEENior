@@ -363,8 +363,8 @@ object FamilyStrings {
             else "Barangay - $minutes mins window"
 
         fun barangayDispatchedBody(name: String): String =
-            if (language == WellnessMessages.FILIPINO) "Ipinadala na ang mga barangay responder sa lokasyon ni $name."
-            else "Barangay responders have been dispatched to $name's location."
+            if (language == WellnessMessages.FILIPINO) "Naabisuhan na ang mga barangay responder tungkol sa alerto ni $name."
+            else "Barangay responders have been notified about $name's alert."
 
         val barangayWillNotifyBody: String
             get() = if (language == WellnessMessages.FILIPINO) "Aabisuhan ang mga barangay responder kung hindi ito maresolba agad."
