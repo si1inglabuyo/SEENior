@@ -149,7 +149,7 @@ private fun ContactRow(contact: ContactDto, onClick: () -> Unit) {
         Column(modifier = Modifier.padding(start = 14.dp).weight(1f)) {
             Text("${contact.senior.firstName} ${contact.senior.lastName}", color = FamilyColors.TextPrimary, fontSize = 17.sp, fontWeight = FontWeight.Bold)
             Text(
-                "${contact.relationshipLabel?.replaceFirstChar { it.uppercase() } ?: copy.familyFallbackLabel} · ${formatPhone(contact.senior.mobileNumber)}",
+                "${copy.seniorRelationshipLabel(contact.relationshipLabel, contact.senior.gender)} · ${formatPhone(contact.senior.mobileNumber)}",
                 color = FamilyColors.TextSecondary,
                 fontSize = 14.sp
             )
@@ -214,7 +214,7 @@ private fun ContactDetailScreen(
                     modifier = Modifier.padding(top = 10.dp)
                 )
                 Text(
-                    "${contact.relationshipLabel?.replaceFirstChar { it.uppercase() } ?: copy.familyFallbackLabel} · ${senior.age}",
+                    "${copy.seniorRelationshipLabel(contact.relationshipLabel, senior.gender)} · ${senior.age}",
                     color = FamilyColors.TextSecondary,
                     fontSize = 14.sp
                 )

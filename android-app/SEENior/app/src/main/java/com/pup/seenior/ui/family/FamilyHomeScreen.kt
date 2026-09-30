@@ -289,7 +289,7 @@ private fun SeniorCard(contact: ContactDto, status: SeniorStatus?) {
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    contact.relationshipLabel?.replaceFirstChar { it.uppercase() } ?: copy.familyFallbackLabel,
+                    copy.seniorRelationshipLabel(contact.relationshipLabel, contact.senior.gender),
                     color = FamilyColors.TextSecondary,
                     fontSize = 14.sp,
                     maxLines = 1,

@@ -457,6 +457,45 @@ object FamilyStrings {
             else -> code.replaceFirstChar { it.uppercase() }
         }
 
+        /**
+         * How the SENIOR relates to this family member, for the family app's own lists.
+         *
+         * [label] is stored as `Contact.relationship_label` and answers "you are the senior's ___"
+         * -- it describes the family member, so it reads right on the senior's Contacts screen
+         * ("Reviman -- Son"). The family app shows the senior next to that label, and there
+         * "Son" is backwards: the senior is this person's father or mother. So it is turned
+         * around here, using the senior's gender where the word depends on it.
+         *
+         * A label with no safe reverse (a typed "niece", "pamangkin") falls back to the generic
+         * family label rather than showing the wrong direction; a label that reads the same both
+         * ways (friend, neighbour, cousin, sibling) is shown as typed.
+         */
+        fun seniorRelationshipLabel(label: String?, seniorGender: String): String {
+            if (label.isNullOrBlank()) return familyFallbackLabel
+            val fil = language == WellnessMessages.FILIPINO
+            val male = seniorGender.equals("male", ignoreCase = true)
+            val female = seniorGender.equals("female", ignoreCase = true)
+            return when (label.trim().lowercase()) {
+                "son", "daughter" -> when {
+                    male -> if (fil) "Ama" else "Father"
+                    female -> if (fil) "Ina" else "Mother"
+                    else -> if (fil) "Magulang" else "Parent"
+                }
+                "grandchild" -> when {
+                    male -> if (fil) "Lolo" else "Grandfather"
+                    female -> if (fil) "Lola" else "Grandmother"
+                    else -> if (fil) "Lolo/Lola" else "Grandparent"
+                }
+                "husband" -> if (fil) "Asawang babae" else "Wife"
+                "wife" -> if (fil) "Asawang lalaki" else "Husband"
+                "caregiver" -> if (fil) "Inaalagaan" else "Under your care"
+                "friend", "kaibigan", "neighbour", "neighbor", "kapitbahay",
+                "cousin", "pinsan", "sibling", "kapatid", "relative", "kamag-anak" ->
+                    label.trim().replaceFirstChar { it.uppercase() }
+                else -> familyFallbackLabel
+            }
+        }
+
         fun connectingHint(code: String): String =
             if (language == WellnessMessages.FILIPINO)
                 "Kumokonekta sa server ng SEENior upang i-verify ang $code. Siguraduhing may " +
