@@ -486,8 +486,8 @@ object FamilyStrings {
                     female -> if (fil) "Lola" else "Grandmother"
                     else -> if (fil) "Lolo/Lola" else "Grandparent"
                 }
-                "husband" -> if (fil) "Asawang babae" else "Wife"
-                "wife" -> if (fil) "Asawang lalaki" else "Husband"
+                "husband" -> if (fil) "Asawa" else "Wife"
+                "wife" -> if (fil) "Asawa" else "Husband"
                 "caregiver" -> if (fil) "Inaalagaan" else "Under your care"
                 "friend", "kaibigan", "neighbour", "neighbor", "kapitbahay",
                 "cousin", "pinsan", "sibling", "kapatid", "relative", "kamag-anak" ->

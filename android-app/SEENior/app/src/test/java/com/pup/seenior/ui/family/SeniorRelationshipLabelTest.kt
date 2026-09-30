@@ -22,6 +22,9 @@ class SeniorRelationshipLabelTest {
         assertEquals("Grandmother", en.seniorRelationshipLabel("grandchild", "Female"))
         assertEquals("Wife", en.seniorRelationshipLabel("husband", "Female"))
         assertEquals("Husband", en.seniorRelationshipLabel("wife", "Male"))
+        // Filipino has one word for both, so it is not split by gender.
+        assertEquals("Asawa", fil.seniorRelationshipLabel("husband", "Female"))
+        assertEquals("Asawa", fil.seniorRelationshipLabel("wife", "Male"))
     }
 
     @Test fun symmetricWordsStayAndUnknownOnesFallBack() {
