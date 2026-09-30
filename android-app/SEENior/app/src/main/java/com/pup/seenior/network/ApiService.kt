@@ -4,6 +4,7 @@ import com.pup.seenior.network.dto.AccountDeletionRequest
 import com.pup.seenior.network.dto.AlertDispatchRequest
 import com.pup.seenior.network.dto.AlertDto
 import com.pup.seenior.network.dto.CancelAlertRequest
+import com.pup.seenior.network.dto.ClosedAlertDto
 import com.pup.seenior.network.dto.ChangePasswordRequest
 import com.pup.seenior.network.dto.HeartbeatRequest
 import com.pup.seenior.network.dto.ContactDto
@@ -52,6 +53,11 @@ interface ApiService {
         @Path("syncId") syncId: String,
         @Body body: UpdateSeniorRequest
     ): SeniorDto
+
+    // Which of this senior's recent alerts a family contact or the barangay has closed. The phone
+    // has no other way to learn that, and Home keeps saying "still open" until it does.
+    @GET("seniors/{syncId}/closed-alerts")
+    suspend fun getClosedAlerts(@Path("syncId") syncId: String): List<ClosedAlertDto>
 
     @PATCH("alerts/{syncId}/cancel")
     suspend fun cancelAlert(

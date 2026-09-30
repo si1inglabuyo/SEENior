@@ -8,10 +8,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import require_role
-from app.db.models import Contact, Senior, SeniorStatus, UnlinkActor, User, UserRole
+from app.db.models import Alert, AlertStatus, Contact, Senior, SeniorStatus, UnlinkActor, User, UserRole
 from app.db.session import get_db
 from app.schemas.contact import InviteCodeOut
 from app.schemas.senior import (
+    ClosedAlertOut,
     SeniorCreate,
     SeniorDeletionRequest,
     SeniorHeartbeat,
@@ -148,6 +149,36 @@ async def delete_senior(
 
 # Built once at import time, like barangay.py's own; FastAPI runs the check per request.
 _responder_only = require_role(UserRole.BARANGAY_RESPONDER)
+
+
+# How far back the phone is told about closed alerts. An alert still open on a handset is at most
+# a few days old; anything older is history, not something a Home card needs correcting.
+_CLOSED_ALERTS_WINDOW = timedelta(days=7)
+
+
+@router.get("/{sync_id}/closed-alerts", response_model=list[ClosedAlertOut])
+async def closed_alerts(sync_id: UUID, db: AsyncSession = Depends(get_db)) -> list[Alert]:
+    """Which of this senior's recent alerts a family contact or the barangay has closed.
+
+    The senior's phone has no other way to learn this: the family or a responder resolving an
+    alert happens in the cloud, and until now nothing carried it back, so Home kept showing
+    "your request is still open" over an incident that was over. Same credential as the rest of
+    this file's senior-facing routes -- the `sync_id` -- and it returns only sync ids and a
+    status, never who closed it or why.
+    """
+    senior = await _get_senior_or_404(sync_id, db)
+    since = datetime.now(timezone.utc).replace(tzinfo=None) - _CLOSED_ALERTS_WINDOW
+    result = await db.execute(
+        select(Alert)
+        .where(
+            Alert.senior_id == senior.id,
+            Alert.status.in_([AlertStatus.RESOLVED, AlertStatus.FALSE_POSITIVE]),
+            Alert.created_at >= since,
+        )
+        .order_by(Alert.created_at.desc())
+        .limit(50)
+    )
+    return list(result.scalars().all())
 
 
 @router.patch("/{sync_id}/status", response_model=SeniorStatusOut)

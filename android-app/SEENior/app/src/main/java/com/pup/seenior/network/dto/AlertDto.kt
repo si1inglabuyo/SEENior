@@ -66,3 +66,10 @@ data class AlertDispatchRequest(
     val reason: String,
     val notes: String?
 )
+
+/** Mirrors backend ClosedAlertOut: an alert of this senior's that a family contact or the
+ *  barangay has closed. Just the id and the status -- never who closed it or why. */
+data class ClosedAlertDto(
+    val syncId: String,
+    val status: String
+)

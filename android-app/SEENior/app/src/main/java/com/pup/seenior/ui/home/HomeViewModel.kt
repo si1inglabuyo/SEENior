@@ -21,6 +21,7 @@ import com.pup.seenior.network.SeniorCloudSync
 import com.pup.seenior.ui.onboarding.OnboardingOptions
 import com.pup.seenior.ui.wellness.WellnessMessages
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
@@ -115,14 +116,12 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
      * Undelivered outranks delivered, always: if anything at all is still stuck on this phone,
      * that is the fact the senior needs, even when a later alert did get through.
      *
-     * Neither state retires on its own. A previous version hid [HelpDelivery.Delivered] after
-     * half an hour so Home would not permanently advertise an old incident — but the family
-     * resolving an alert in the cloud is not synced back to this device, so there was no signal
-     * to retire *on*, and the timeout fired just as readily on an alert nobody had actually
-     * resolved. That let Home show the green "You're Safe" status card over a HIGH-risk alert
-     * still genuinely open. The only honest way to clear this now is the senior's own
-     * "I'm Fine Now" (see [standDown]) — this stays on screen, and Home's status card stays
-     * amber (HomeScreen.kt), until they use it or the alert is otherwise resolved.
+     * Neither state retires on a timer. A previous version hid [HelpDelivery.Delivered] after
+     * half an hour, but with no signal to retire *on* the timeout fired just as readily on an
+     * alert nobody had resolved, and Home showed the green "You're Safe" card over a HIGH-risk
+     * alert still genuinely open. It clears when the senior uses "I'm Fine Now" (see
+     * [standDown]) or when a family contact or the barangay closes the alert in the cloud, which
+     * [syncClosedAlerts] now carries back to this phone.
      */
     val helpDelivery: HelpDelivery?
         get() {
@@ -178,6 +177,13 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 db.seniorOnboardingDao().observeLanguagePreference(loaded.seniorId)
                     .collect { preference -> preference?.let { language = it } }
             }
+            // Same reason as the language collector above: the alert Flow below never returns.
+            launch {
+                while (true) {
+                    syncClosedAlerts()
+                    delay(CLOSED_ALERTS_POLL_MS)
+                }
+            }
             refreshBattery()
             loadWillAlertContacts()
             restoreFamilyTabsIfPaired()
@@ -185,6 +191,36 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 openAlerts = alerts
                 if (handling == null) handling = nextUnanswered()
             }
+        }
+    }
+
+    /**
+     * Retires an alert on this phone once a family contact or the barangay has closed it.
+     *
+     * A family member resolving an alert (or a responder closing it) happens in the cloud, and
+     * nothing carried that back, so the "your request is still open" card stayed up over an
+     * incident that was over -- the only way to clear it was the senior's own "I'm Fine Now".
+     * Asked of the server only while there is an alert that has actually reached it, so an
+     * ordinary day costs no requests. Best-effort: offline, or on any error, the card simply
+     * stays until the next pass, which is the behaviour it always had.
+     *
+     * The local row is closed the same way a self-cancel closes it (status written, queued
+     * alarms cancelled); the status write drops it out of [openAlerts] and the card goes with it.
+     */
+    private suspend fun syncClosedAlerts() {
+        val open = openAlerts.filter { it.isSynced }
+        if (open.isEmpty()) return
+        try {
+            val seniorSyncId = cloudSync.withSyncIdOrNull() ?: return
+            val closed = RetrofitClient.api.getClosedAlerts(seniorSyncId).associate { it.syncId to it.status }
+            val now = System.currentTimeMillis()
+            open.forEach { alert ->
+                val status = closed[alert.syncId] ?: return@forEach
+                db.alertDao().updateStatus(alert.alertId, status, now)
+                EscalationScheduler.cancel(getApplication(), alert.alertId)
+            }
+        } catch (e: Exception) {
+            // Offline or a server error: nothing to undo, try again on the next pass.
         }
     }
 
@@ -340,5 +376,8 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     private companion object {
         const val LOW_BATTERY_PERCENT = 20
+
+        /** How often Home asks whether an open alert has been closed elsewhere. */
+        const val CLOSED_ALERTS_POLL_MS = 30_000L
     }
 }

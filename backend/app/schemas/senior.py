@@ -89,3 +89,15 @@ class SeniorOut(BaseModel):
     status: SeniorStatus = SeniorStatus.ACTIVE
 
     model_config = {"from_attributes": True}
+
+
+class ClosedAlertOut(BaseModel):
+    """One of this senior's alerts that a family contact or the barangay has closed.
+
+    Just enough for the phone to stop showing it as open -- no reason, no who, no notes.
+    """
+
+    sync_id: UUID
+    status: str  # "resolved" or "false_positive"
+
+    model_config = {"from_attributes": True}
