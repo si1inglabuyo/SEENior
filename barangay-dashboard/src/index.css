@@ -29,10 +29,19 @@ h4 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase;
 .error { color: var(--high); font-weight: 600; }
 
 /* --- login --- */
-.login-page { min-height: 100vh; display: grid; place-items: center; }
+/* The photo is darkened with a flat overlay so the white card carries the page, as in
+   design/login/login.png. The full-size original stays in design/; this is a 1920px copy. */
+.login-page {
+  min-height: 100vh; display: grid; place-items: center; padding: 16px;
+  background:
+    linear-gradient(rgba(0, 0, 0, .55), rgba(0, 0, 0, .55)),
+    url('./assets/login-background.jpg') center / cover no-repeat;
+  background-color: #2b2f33; /* shown for the instant before the photo arrives */
+}
 .login-card {
   background: var(--surface); padding: 32px; border-radius: 12px; width: 340px;
-  box-shadow: 0 6px 24px rgba(0,0,0,.08); display: flex; flex-direction: column;
+  max-width: 100%;
+  box-shadow: 0 10px 40px rgba(0,0,0,.35); display: flex; flex-direction: column;
 }
 .login-card h1 { margin: 0; color: var(--brand); }
 .login-sub { margin: 4px 0 24px; color: var(--muted); }
