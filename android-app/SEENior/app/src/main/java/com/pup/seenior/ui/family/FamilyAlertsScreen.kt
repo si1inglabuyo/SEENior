@@ -772,12 +772,8 @@ private fun AlertHistoryDetailContent(item: AlertHistoryItem, summary: ResolvedS
                 SummaryRow(copy.summaryDuration, copy.durationMinutes(summary.durationMinutes))
                 SummaryRow(copy.summaryResolvedBy, summary.resolvedBy, isLast = true)
             }
-
-            SectionLabel(copy.lastKnownLocationLabel, Modifier.fillMaxWidth().padding(top = 24.dp, bottom = 10.dp))
-            AlertLocationMap(
-                clusterId = alert.locationClusterId,
-                registeredAddress = senior.address
-            )
+            // No location map here: a location is shown only while an alert is active. Once it
+            // is closed there is nothing to act on, and a stored position is better not re-shown.
         }
     }
 }

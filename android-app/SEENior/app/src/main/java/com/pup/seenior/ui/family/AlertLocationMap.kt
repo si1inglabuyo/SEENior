@@ -1,6 +1,8 @@
 package com.pup.seenior.ui.family
 
 import android.content.Context
+import androidx.core.content.ContextCompat
+import com.pup.seenior.R
 import android.graphics.Color as AndroidColor
 import android.view.MotionEvent
 import androidx.compose.foundation.background
@@ -265,6 +267,7 @@ private fun MapView.render(target: MapTarget) {
                 overlays.add(
                     Marker(this).apply {
                         position = centre
+                        icon = bluePin(context)
                         setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
                     }
                 )
@@ -299,6 +302,7 @@ private fun MapView.render(target: MapTarget) {
             overlays.add(
                 Marker(this).apply {
                     position = point
+                    icon = bluePin(context)
                     setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
                 }
             )
@@ -311,6 +315,9 @@ private fun MapView.render(target: MapTarget) {
     tag = target
     invalidate()
 }
+
+/** osmdroid's default marker is a pointing figure; this is the plain blue pin instead. */
+private fun bluePin(context: Context) = ContextCompat.getDrawable(context, R.drawable.ic_map_pin_blue)
 
 /**
  * The widest cell still drawn as a point rather than an area.
