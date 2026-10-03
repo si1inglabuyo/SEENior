@@ -21,7 +21,7 @@ import com.pup.seenior.sensors.DeviceCapabilities
  * and it is given nothing from [com.pup.seenior.database.SeniorAppDatabase]. No senior's name,
  * number, address, location or sensor reading is attached, and `setUserId` is deliberately never
  * called -- a crash report says *what broke on which model of phone*, never *who was using it*.
- * CLAUDE.md §11 is intact: raw behavioural data still never leaves the device.
+ * The spec §11 is intact: raw behavioural data still never leaves the device.
  *
  * The keys below are the three facts that cost a USB cable and an afternoon to establish on each
  * handset this week, and that between them explain most of what goes wrong on a phone that is not

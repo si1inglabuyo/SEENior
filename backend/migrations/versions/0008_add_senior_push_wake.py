@@ -15,7 +15,7 @@ the phone takes a sample on waking.
 
 `push_token` sits on `seniors` rather than in `device_tokens`, and the difference is not
 laziness. That table is keyed to `users.id` NOT NULL, and a senior deliberately has no
-account (CLAUDE.md §2) — there is nothing to key to. Its two reasons for existing also
+account (spec §2) — there is nothing to key to. Its two reasons for existing also
 do not apply here: a senior has exactly one monitored phone, not a phone and a tablet,
 and there is no second account a handset could be signed into.
 

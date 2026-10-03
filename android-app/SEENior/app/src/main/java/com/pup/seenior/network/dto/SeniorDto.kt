@@ -55,7 +55,7 @@ data class SeniorDto(
     val mobileNumber: String,
     val createdAt: String,
     /**
-     * Device health, not behaviour — the current reading only, never a series (CLAUDE.md §11).
+     * Device health, not behaviour — the current reading only, never a series (spec §11).
      * All three are null until the senior's phone has checked in at least once, and against an
      * older backend they simply stay null rather than breaking the parse.
      */

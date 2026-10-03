@@ -1,7 +1,7 @@
 """Everything the barangay responder's dashboard calls.
 
 Every route here is gated twice: the JWT must belong to a barangay_responder account, and
-the senior in question must sit in that responder's own barangay. CLAUDE.md §11 requires
+the senior in question must sit in that responder's own barangay. Spec §11 requires
 both -- one responder must never see another barangay's seniors.
 """
 
@@ -181,7 +181,7 @@ async def list_barangay_alerts(
         .join(Senior, Senior.id == Alert.senior_id)
         .where(
             Senior.barangay == barangay,
-            Senior.deleted_at.is_(None),  # deleted their own account (CLAUDE.md §11a)
+            Senior.deleted_at.is_(None),  # deleted their own account (spec §11a)
             Alert.status != AlertStatus.PENDING,
         )
         .options(selectinload(Alert.senior).selectinload(Senior.contacts))
@@ -249,7 +249,7 @@ async def _responder_alert(sync_id: UUID, db: AsyncSession, responder: User) -> 
         alert is None
         or alert.senior is None
         or alert.senior.barangay != barangay
-        or alert.senior.deleted_at is not None  # deleted their own account (CLAUDE.md §11a)
+        or alert.senior.deleted_at is not None  # deleted their own account (spec §11a)
     ):
         # One 404 for both "no such alert" and "not your barangay". Confirming that an
         # alert exists but belongs to a neighbouring barangay is itself a disclosure.
@@ -276,7 +276,7 @@ async def acknowledge_incident(
     is a native Postgres enum whose vocabulary cannot grow without an ALTER TYPE, and
     every reader of that column only needs to know the incident is open at the barangay
     tier. *Who picked it up* is an audit fact, and escalation_steps is where audit facts
-    live (CLAUDE.md §8) -- so no migration is needed to say it.
+    live (spec §8) -- so no migration is needed to say it.
 
     Keeping it in the active queue is also correct behaviour: an incident someone is
     driving to is still an open incident.
@@ -421,7 +421,7 @@ async def barangay_senior_detail(
     senior = result.scalar_one_or_none()
     if senior is None or senior.barangay != barangay or senior.deleted_at is not None:
         # One 404 for "no such senior" and "not your barangay" alike -- confirming a
-        # senior exists in a neighbouring barangay is itself a disclosure (CLAUDE.md §11).
+        # senior exists in a neighbouring barangay is itself a disclosure (spec §11).
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Senior not found")
 
     family = [
@@ -469,7 +469,7 @@ async def barangay_stats(
     db: AsyncSession = Depends(get_db),
     responder: User = Depends(responder_only),
 ) -> BarangayStats:
-    """Numbers for the analytics panel (CLAUDE.md §13, item 13)."""
+    """Numbers for the analytics panel (spec §13, item 13)."""
     barangay = _assigned_barangay(responder)
 
     seniors_result = await db.execute(

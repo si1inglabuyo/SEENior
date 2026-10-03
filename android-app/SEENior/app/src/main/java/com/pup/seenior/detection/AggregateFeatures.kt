@@ -6,7 +6,7 @@ import com.pup.seenior.database.entities.DailyAggregate
 import com.pup.seenior.database.entities.SeniorOnboarding
 
 /**
- * Phase 2 of the Isolation Forest build (CLAUDE.md §5, Layer 2) — turns one real block-day into
+ * Phase 2 of the Isolation Forest build (spec §5, Layer 2) — turns one real block-day into
  * the six-number [DoubleArray] that [IsolationForest] trains and scores on, and decides whether a
  * block-day is trustworthy enough to be used at all.
  *
@@ -108,7 +108,7 @@ object AggregateFeatures {
         expectedSampleCount: Int,
         minimumFraction: Double = 0.8
     ): Boolean {
-        // Null predates the sample_count column entirely: unknown, not zero, and CLAUDE.md's own
+        // Null predates the sample_count column entirely: unknown, not zero, and the spec's own
         // caution about that column applies — null must not be trusted as "empty enough to skip"
         // any more than as "full enough to use".
         val count = aggregate.sampleCount ?: return false
@@ -153,6 +153,6 @@ object AggregateFeatures {
             .firstOrNull { it.block.name.lowercase() == timeBlock }
             ?.let { it.durationMinutes / POLL_INTERVAL_MINUTES }
 
-    /** CLAUDE.md §4's sampling cadence, used to turn a block's length into an expected row count. */
+    /** The spec §4's sampling cadence, used to turn a block's length into an expected row count. */
     private const val POLL_INTERVAL_MINUTES = 5
 }

@@ -1,4 +1,4 @@
-"""Semaphore PH SMS delivery (CLAUDE.md §7/§9) — the fallback channel that reaches a
+"""Semaphore PH SMS delivery (spec §7/§9) — the fallback channel that reaches a
 phone with poor data but a live cellular signal, and currently the ONLY channel a
 barangay responder gets at all: the dashboard is pull (someone has to be looking at
 it), and nothing has sent the SMS half of "web dashboard + SMS" until this module.
@@ -12,7 +12,7 @@ errors and reports them through the return value and the log, never by raising.
 
 **The message body carries alert context only** — for the family tier, the senior's
 first name, risk level and a plain-language reason; for the barangay tier, that plus
-the senior's already-registered address, which CLAUDE.md §11 already permits sharing
+the senior's already-registered address, which the spec §11 already permits sharing
 with the barangay during an active alert under RA 10173 §12(c). No raw sensor data,
 no precise GPS coordinates — the same restraint push.py's payload already keeps.
 """
@@ -32,8 +32,8 @@ logger = logging.getLogger(__name__)
 SEMAPHORE_URL = "https://api.semaphore.co/api/v4/messages"
 
 # Plain-language reason per trigger, for a text a senior's family or a responder reads
-# in a few seconds with no app open. Kept deliberately short (CLAUDE.md's SMS credits
-# are billed per 153-char segment) -- mirrors the trigger_type vocabulary in CLAUDE.md
+# in a few seconds with no app open. Kept deliberately short (the spec's SMS credits
+# are billed per 153-char segment) -- mirrors the trigger_type vocabulary in the spec
 # §8; an unrecognised value (there shouldn't be one) falls back to the raw code rather
 # than failing the message.
 _TRIGGER_LABELS = {

@@ -75,7 +75,7 @@ async def unregister_device(
     """Drops this device's token, called on sign-out.
 
     Without it, signing out of a shared or handed-down phone leaves it receiving the
-    previous account's alerts — a privacy leak of exactly the kind CLAUDE.md §11 rules
+    previous account's alerts — a privacy leak of exactly the kind the spec §11 rules
     out, since alert metadata names the senior.
 
     Scoped to the caller's own rows: a valid token is not authority to delete someone

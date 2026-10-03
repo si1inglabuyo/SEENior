@@ -14,7 +14,7 @@ import com.pup.seenior.database.entities.SensorData
  * downstream of the reading is production code: the z-score, the medium/high cutoff, the dedup
  * against an already-active alert, the row that lands in `Alerts`.
  *
- * CLAUDE.md §10 endorses exactly this — detection accuracy is validated by injecting known sensor
+ * The spec §10 endorses exactly this — detection accuracy is validated by injecting known sensor
  * values, not by waiting for a real emergency. It is also the only practical option: a genuinely
  * stationary test device took ~75 minutes to cross even the moderate threshold during testing.
  *
@@ -121,7 +121,7 @@ object AnomalySimulator {
             // block that has actually elapsed, which is right for a real reading and wrong for an
             // injected one: this reading stands in for hours of stillness the demo cannot wait
             // out, and at night the block is not even long enough to hold the target z-score.
-            // CLAUDE.md §10 endorses the injection; the clip must not quietly undo it.
+            // The spec §10 endorses the injection; the clip must not quietly undo it.
             blockElapsedSeconds = null
         )
 

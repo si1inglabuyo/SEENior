@@ -13,7 +13,7 @@ import java.util.UUID
 /**
  * Phase 5 of the Isolation Forest build — the once-a-day pass that trains Layer 2 on the senior's
  * own trailing fortnight, scores the blocks nobody has scored yet, and raises an `ml_flag` alert
- * when the freshest one looks wrong (CLAUDE.md §5).
+ * when the freshest one looks wrong (spec §5).
  *
  * Called from [com.pup.seenior.aggregation.NightlyAggregationWorker] immediately after
  * `BaselineUpdater`: the aggregates have just been written, the baseline they are scored against is
@@ -184,7 +184,7 @@ object IsolationForestDetector {
 
         if (alertDao.getActiveAlert(seniorId, TRIGGER_TYPE) != null) return Outcome.AlreadyActive
 
-        // Layer 3. deviationScore stays 0.0 — CLAUDE.md §8 forbids putting a path-length score in
+        // Layer 3. deviationScore stays 0.0 — the spec §8 forbids putting a path-length score in
         // the z-score column, and there genuinely is no z-score here. Zero puts Deviation.MILD at
         // full membership, which is what caps a pure Layer 2 finding at Medium.
         val risk = FuzzyRiskClassifier.classify(
@@ -205,7 +205,7 @@ object IsolationForestDetector {
             // The block that scored, not the block it is now. This is what the wellness prompt
             // turns into "your morning looked unusual" rather than a bare question.
             timeBlock = aggregate.timeBlock,
-            // Null, permanently, for this trigger type (CLAUDE.md §8). The path-length score lives
+            // Null, permanently, for this trigger type (spec §8). The path-length score lives
             // in Daily_Aggregates.isolation_forest_score, where it was just written.
             deviationScore = null,
             status = if (risk == FuzzyRiskClassifier.Risk.LOW) STATUS_LOGGED else "pending",

@@ -7,7 +7,7 @@ enough not to matter. On 2026-09-06 (pilot Day 1) they were 47 minutes apart: th
 phone detected a screen_idle anomaly at 09:17 but had Wi-Fi switched off by hand, so
 the POST did not land until 10:02. created_at read 10:02. The 09:17 moment, and the
 47-minute gap itself, existed only in the phone's own local escalation_steps log --
-invisible to the cloud database, the dashboard, the family app, and the CLAUDE.md §10
+invisible to the cloud database, the dashboard, the family app, and the the spec §10
 delivery-time metric, which cannot be computed without a real starting point.
 
 Nullable and client-supplied. Nullable because every row written before this migration,

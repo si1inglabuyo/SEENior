@@ -1,5 +1,5 @@
 // Standard geohash decode (base32, no a/i/l/o). Length-agnostic: a precision-9 cell is
-// ~5 m, a precision-7 cell ~150 m -- older alerts carry the wider ones (root CLAUDE.md §11).
+// ~5 m, a precision-7 cell ~150 m -- older alerts carry the wider ones (spec §11).
 // Returns the cell centre and its half-width in degrees, or null for anything that isn't a
 // valid geohash. The Android app's Geohash.kt is the reference implementation.
 const BASE32 = '0123456789bcdefghjkmnpqrstuvwxyz'

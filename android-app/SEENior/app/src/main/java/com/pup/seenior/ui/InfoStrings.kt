@@ -18,7 +18,7 @@ import com.pup.seenior.ui.wellness.WellnessMessages
  *
  * 1. **The Filipino got a first native-speaker pass on 2026-09-14** — "po"/"pong" removed
  *    throughout (except inside the two places this file quotes the wellness prompt itself
- *    verbatim, which CLAUDE.md §14 pins and this file does not touch), "telepono" changed to
+ *    verbatim, which the spec §14 pins and this file does not touch), "telepono" changed to
  *    "cellphone". It has not been read end-to-end by a native speaker since, and the panel has
  *    already rejected one phrasing in this app as too informal. The legal sections matter most: a
  *    translated privacy notice is the notice the senior is relying on.

@@ -123,7 +123,7 @@ class NightlyAggregationWorker(
     }
 
     /**
-     * Layer 2's once-a-day pass (CLAUDE.md §5), run here because the aggregates were just written
+     * Layer 2's once-a-day pass (spec §5), run here because the aggregates were just written
      * and the baseline it scores against was just refreshed one statement ago.
      *
      * **Wrapped, and deliberately never fatal.** Everything above this line is load-bearing: the

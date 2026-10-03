@@ -98,7 +98,7 @@ class User(Base):
     full_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
     phone: Mapped[str | None] = mapped_column(String(20), nullable=True)
     # Family login identity (barangay responders log in by username instead, per
-    # CLAUDE.md §2 - pre-assigned credentials, so this stays nullable for them).
+    # The spec §2 - pre-assigned credentials, so this stays nullable for them).
     email: Mapped[str | None] = mapped_column(String(255), unique=True, index=True, nullable=True)
     # Google's stable per-account subject ID - set only for Google-linked accounts,
     # used to recognize a returning Google sign-in independent of email changes.
@@ -197,7 +197,7 @@ class Senior(Base):
     # time. Deliberately three scalars rather than a history: the current charge says
     # whether the phone can keep monitoring, while a series of charge readings is
     # behavioural -- when someone plugs in is roughly when they go to bed -- and that is
-    # the routine CLAUDE.md 11 keeps on the device. NULL means never heard from, which is
+    # the routine spec §11 keeps on the device. NULL means never heard from, which is
     # a different answer from 0% and draining.
     last_seen_at: Mapped[datetime | None] = mapped_column(nullable=True)
     battery_percent: Mapped[int | None] = mapped_column(nullable=True)
@@ -205,7 +205,7 @@ class Senior(Base):
 
     # This handset's FCM registration token, and when the server last used it to wake a
     # phone that had gone quiet. On `seniors` rather than in `device_tokens` because that
-    # table is keyed to a users row and a senior has no account (CLAUDE.md 2); see
+    # table is keyed to a users row and a senior has no account (spec §2); see
     # migration 0008 for the full reasoning and the measurements behind it.
     #
     # Refreshed on every heartbeat rather than through its own endpoint, so the token
@@ -219,7 +219,7 @@ class Senior(Base):
     # senior has no users row, so the sync_id is the credential for POST
     # /seniors/{sync_id}/delete; on delete the contacts are soft-unlinked, the push
     # token and invite code are cleared, and the phone wipes its own local database
-    # (where the Routine Fingerprint and raw behaviour actually live, CLAUDE.md §11).
+    # (where the Routine Fingerprint and raw behaviour actually live, the spec §11).
     # Every barangay-dashboard query must exclude deleted_at IS NOT NULL.
     deleted_at: Mapped[datetime | None] = mapped_column(nullable=True)
     deletion_reason: Mapped[str | None] = mapped_column(String(64), nullable=True)
@@ -288,7 +288,7 @@ class Contact(Base):
         """WHERE clause for "this pairing is still live". Every query that decides what a
         user may SEE or DO must include it — a soft-unlinked row is invisible and carries
         no access rights, so omitting it silently re-grants a removed contact access to
-        the senior's alerts (CLAUDE.md §11)."""
+        the senior's alerts (spec §11)."""
         return Contact.unlinked_at.is_(None)
 
 
@@ -321,7 +321,7 @@ class Alert(Base):
     # computed from -- family_deadline()/db_now() in api/escalation.py anchor to created_at
     # (the database's own clock) on purpose, because a client clock cannot be trusted (the
     # whole reason db_now() exists). This column exists only so the delivery-time metric
-    # (CLAUDE.md §10) and the dashboard/family view can show the real moment something went
+    # (spec §10) and the dashboard/family view can show the real moment something went
     # wrong instead of the moment the phone finally reached the network -- on 2026-09-06 those
     # two moments were 47 minutes apart and only created_at was ever recorded.
     triggered_at: Mapped[datetime | None] = mapped_column(nullable=True)

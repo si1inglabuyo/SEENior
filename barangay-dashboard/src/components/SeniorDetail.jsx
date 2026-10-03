@@ -63,7 +63,7 @@ const CATEGORY_CLASS = {
 //   - resolved / false-positive alerts older than ~90 days should be archived out of the
 //     GET /barangay/seniors/{sync_id} response server-side. That purge job belongs to the
 //     `main` lane (it owns the alerts table and the sync pipeline, and this lane may not
-//     add columns or migrations — barangay-dashboard/CLAUDE.md §2); noted here so the
+//     add columns or migrations — dashboard spec §2); noted here so the
 //     policy lives next to the UI that assumes it.
 const DEFAULT_HISTORY_MAX = 3
 const DEFAULT_HISTORY_WINDOW_DAYS = 7

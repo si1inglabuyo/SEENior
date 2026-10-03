@@ -30,7 +30,7 @@ export default function Login({ onSignedIn }) {
         <p className="login-sub">Barangay Responder Dashboard</p>
 
         {/* Username, not email. Responder credentials are issued by the OSCA officer
-            rather than self-registered (CLAUDE.md §2). */}
+            rather than self-registered (spec §2). */}
         <label htmlFor="username">Username</label>
         <input
           id="username"

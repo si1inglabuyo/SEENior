@@ -7,20 +7,20 @@ package com.pup.seenior.detection
  * Until this existed a false alarm was only a status label: nothing read it back, so a senior who
  * is harmlessly still at the same hour every week was asked "Are you safe and well?" at the same
  * hour every week, forever. This closes that loop without touching the baseline. The Median/MAD
- * fingerprint stays exactly what the senior's own days produced (CLAUDE.md §14); only the *gate*
+ * fingerprint stays exactly what the senior's own days produced (spec §14); only the *gate*
  * a reading must clear before Layer 3 is consulted moves, and only for the block that keeps
  * crying wolf.
  *
  * **What counts as evidence** is a z-score from an alert that was later closed as a false alarm --
  * the senior answered "Ligtas po ako", or a family contact or the barangay marked it a false
  * alarm. The caller decides which alerts qualify; this object only turns their scores into a
- * threshold, and has no Android imports so JUnit can drive it directly (CLAUDE.md §10).
+ * threshold, and has no Android imports so JUnit can drive it directly (spec §10).
  *
  * **Every number below is a guard, and the cap is the one that matters:**
  *
  * - [MIN_EVIDENCE] -- one false alarm proves nothing. Two in the same block within the window is
  *   a pattern. Below that, behaviour is byte-for-byte what it was before this existed.
- * - [CAP] -- 3.5 is the "extreme" line (CLAUDE.md §5). A reading at or past it always alerts, no
+ * - [CAP] -- 3.5 is the "extreme" line (spec §5). A reading at or past it always alerts, no
  *   matter how many false alarms came before, so a real emergency deep into the block cannot be
  *   argued away. Only the *moderate* band, 2.5 to 3.5, can ever be loosened.
  * - Evidence at or past [CAP] is discarded rather than clamped. Otherwise a senior cancelling two
@@ -38,7 +38,7 @@ package com.pup.seenior.detection
  */
 object FalseAlarmTolerance {
 
-    /** The moderate threshold of CLAUDE.md §5 -- what every block starts at, and returns to. */
+    /** The moderate threshold of the spec §5 -- what every block starts at, and returns to. */
     const val BASE_THRESHOLD = 2.5
 
     /** The "extreme" line. The threshold can approach it but never exceed it. */

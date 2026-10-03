@@ -57,7 +57,7 @@ async def login(
 
     # OAuth2PasswordRequestForm's field is always named "username" by spec, but family
     # accounts log in by email (matching the Log In screen) while barangay responders
-    # still log in by their pre-assigned username (CLAUDE.md §2) - so this checks both.
+    # still log in by their pre-assigned username (spec §2) - so this checks both.
     result = await db.execute(
         select(User).where((User.email == form_data.username) | (User.username == form_data.username))
     )
@@ -321,7 +321,7 @@ async def delete_current_account(
         seniors stop seeing them and the escalation sweep stops routing to them --
         Contact.is_active() / has_family_tier() both filter on unlinked_at IS NULL;
       * their device tokens are dropped, so this handset stops receiving pushes
-        that name a senior (CLAUDE.md §11);
+        that name a senior (spec §11);
       * username / email / google_sub are tombstoned with a "+del<id>.<ts>" tag
         (front-truncated to the column limit), freeing those unique slots for a
         fresh sign-up later with no schema change.

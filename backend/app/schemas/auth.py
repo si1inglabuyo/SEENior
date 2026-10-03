@@ -68,7 +68,7 @@ class FirebaseSignInRequest(BaseModel):
 
 class LanguagePreferenceUpdate(BaseModel):
     """Family app's Profile -> Language toggle. Same two codes the senior side already
-    writes to Senior_Onboarding.language_preference (CLAUDE.md's WellnessMessages.ENGLISH
+    writes to Senior_Onboarding.language_preference (the spec's WellnessMessages.ENGLISH
     / .FILIPINO), so the vocabulary matches across both apps even though this field has
     no local-SQLite counterpart."""
 

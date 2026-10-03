@@ -14,7 +14,7 @@ class BarangayAlertOut(BaseModel):
 
     Sharing the senior's name, address and alert-time location with the barangay during an
     active alert is permitted under RA 10173 §12(c), the vital-interests provision
-    (CLAUDE.md §11) -- an explicit exception, not a privacy hole. Note what is still absent:
+    (spec §11) -- an explicit exception, not a privacy hole. Note what is still absent:
     no sensor readings, no behavioural history, and no location on an ordinary day -- only
     who, where, and what happened, for this one incident.
     """
@@ -29,7 +29,7 @@ class BarangayAlertOut(BaseModel):
     # The senior's position when the alert fired -- a geohash (precise since 2026-08-31;
     # older rows ~150 m). Captured once at trigger time, never continuously; null if no fix
     # was obtained. The dashboard decodes it to a point on a map. Despite the column name
-    # this is NOT anonymised -- it is held under §12(c) (CLAUDE.md §11).
+    # this is NOT anonymised -- it is held under §12(c) (spec §11).
     location_cluster_id: str | None
 
     senior_sync_id: UUID
@@ -88,7 +88,7 @@ class BarangayContactOut(BaseModel):
 class BarangaySeniorDetail(BaseModel):
     """Full record for one senior: profile, family contacts, and their own alert history.
 
-    Still metadata only (CLAUDE.md §11) -- no sensor readings, no coordinates. `living_
+    Still metadata only (spec §11) -- no sensor readings, no coordinates. `living_
     arrangement` is *derived* from whether an active family contact exists, because the
     onboarding `living_arrangement` answer lives in the phone's local database and never
     syncs; it is display text on this screen and nothing routes on it.
@@ -106,7 +106,7 @@ class BarangaySeniorDetail(BaseModel):
     has_family_contact: bool
     # Device health, same three fields the roster carries -- so the record can tell the
     # responder whether the phone that is supposed to be watching this senior is still
-    # checking in. Not behaviour, not location (CLAUDE.md §11 / BarangaySeniorOut).
+    # checking in. Not behaviour, not location (spec §11 / BarangaySeniorOut).
     last_seen_at: datetime | None
     battery_percent: int | None
     is_charging: bool | None

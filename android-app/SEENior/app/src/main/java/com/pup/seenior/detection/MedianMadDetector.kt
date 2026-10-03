@@ -41,7 +41,7 @@ object MedianMadDetector {
     /**
      * The direction of deviation that means something may be wrong, per feature.
      *
-     * The Modified Z-Score of CLAUDE.md §5 is a distance and carries no sign: `|current - median|`
+     * The Modified Z-Score of the spec §5 is a distance and carries no sign: `|current - median|`
      * scores a senior who is moving *more* than usual exactly as high as one who has stopped
      * moving. Only one of those is a reason to ask if she is safe.
      *
@@ -53,7 +53,7 @@ object MedianMadDetector {
      *
      * The score itself is unchanged, and still stored unchanged on the alert. This decides which
      * half of it is worth acting on, which is a different question from how far from normal the
-     * reading is, and CLAUDE.md §14 requires those to stay separate.
+     * reading is, and the spec §14 requires those to stay separate.
      */
     private val FEATURE_CONCERN = mapOf(
         // Unusually still, and unusually disengaged from the phone.
@@ -85,7 +85,7 @@ object MedianMadDetector {
      * is already running and must not be started a second time, but the cloud copy now says the
      * wrong thing and the caller has to push the new level up (see
      * [com.pup.seenior.alerts.AlertEscalator.syncSeverity]). Low-risk anomalies appear in neither
-     * -- they are recorded and nobody is told (CLAUDE.md §5).
+     * -- they are recorded and nobody is told (spec §5).
      */
     data class Findings(val created: List<Alert>, val upgraded: List<Int>)
 
@@ -100,7 +100,7 @@ object MedianMadDetector {
         /**
          * Seconds of the current time block already elapsed, used to clip
          * [RUNNING_COUNTER_FEATURES]. Defaults to the real elapsed time. [AnomalySimulator]
-         * passes null on purpose: an injected reading (CLAUDE.md §10) stands in for a stretch of
+         * passes null on purpose: an injected reading (spec §10) stands in for a stretch of
          * stillness the demo has no time to wait out, and clipping it to the few real minutes of
          * the block would defeat the injection.
          */
@@ -110,7 +110,7 @@ object MedianMadDetector {
     ): Findings {
         val minuteOfDay = FuzzyRiskClassifier.minuteOfDay(sensorData.timestamp)
 
-        // CLAUDE.md §6: the senior told us they nap here, so stillness is the expected reading and
+        // The spec §6: the senior told us they nap here, so stillness is the expected reading and
         // an alert would be a false positive by construction. Layer 0 and the SOS button do not
         // come through this function and are unaffected — a fall during a nap is still a fall.
         if (FuzzyRiskClassifier.isWithinNapWindow(
@@ -191,7 +191,7 @@ object MedianMadDetector {
             //
             // Asked only here, after the reading has already cleared 2.5, so an ordinary poll
             // never pays for the lookup. The stored score and Layer 3 are untouched: this moves
-            // the gate a reading must clear, not what it is worth once it has (CLAUDE.md §14).
+            // the gate a reading must clear, not what it is worth once it has (spec §14).
             val threshold = FalseAlarmTolerance.thresholdFor(
                 alertDao.getToleratedDeviationScores(
                     seniorId,
@@ -205,7 +205,7 @@ object MedianMadDetector {
                 continue
             }
 
-            // Layer 3 (CLAUDE.md §5). The z-score says how far from normal this reading is; the
+            // Layer 3 (spec §5). The z-score says how far from normal this reading is; the
             // classifier decides what that is worth at this hour of this senior's day. The score
             // itself is stored unchanged alongside it — the two are separate outputs and §14
             // requires them to stay that way.
@@ -247,7 +247,7 @@ object MedianMadDetector {
     }
 
     /**
-     * Records a low-risk anomaly and tells nobody (CLAUDE.md §5).
+     * Records a low-risk anomaly and tells nobody (spec §5).
      *
      * The row is written rather than dropped because the whole case for a graduated response
      * rests on being able to show afterwards what the system saw and chose not to act on. It

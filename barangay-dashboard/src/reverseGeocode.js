@@ -3,7 +3,7 @@
 // alert map tiles already come from. Best-effort only: on any failure we return null and the
 // caller shows the registered address on its own, which is still usable for a responder.
 //
-// Two things worth knowing about what leaves the browser (root CLAUDE.md §11):
+// Two things worth knowing about what leaves the browser (spec §11):
 //  * The coordinates are rounded to 4 decimal places (~11 m) BEFORE the request. The stored fix
 //    is a ~5 m cell; a street name does not need it, and a third-party geocoder has no reason to
 //    receive more precision than it can use. The pin on the map still shows the exact cell.

@@ -15,7 +15,7 @@ import com.pup.seenior.database.entities.Alert
  *
  * The samples carry fabricated timestamps, so a fall whose stillness phase takes twelve seconds
  * of wall-clock time to observe replays instantly. That is also what makes the same generator
- * usable from a JUnit test, which is the only honest way to check a fall detector: CLAUDE.md §10
+ * usable from a JUnit test, which is the only honest way to check a fall detector: the spec §10
  * rules out waiting for a real emergency, and no one is throwing a test phone down the stairs.
  */
 object FallSimulator {

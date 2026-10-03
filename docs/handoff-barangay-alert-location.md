@@ -2,7 +2,7 @@
 
 **Cross-lane note.** This describes a bug whose fix lives entirely in the **dashboard lane**
 (`barangay-dashboard/**`, `backend/app/api/routes/barangay.py`, `backend/app/schemas/barangay.py`
-— see `barangay-dashboard/CLAUDE.md` §1). It is written by the Android/backend lane so the
+— see `barangay-dashboard/the spec` §1). It is written by the Android/backend lane so the
 dashboard lane's context is complete. **No migration, no `db/models.py` change, no change to any
 other backend file is needed** — the data already exists and is already correct.
 
@@ -42,7 +42,7 @@ pin. The barangay dashboard is the only surface that drops it.
 
 `LocationPreview`'s current copy ("anonymous location cluster", "Live GPS isn't stored", "no
 coordinates") and the comment at the top of `AlertDetailsModal.jsx` are **stale**. Root
-`CLAUDE.md` §11 was deliberately reversed on 2026-08-31:
+`the spec` §11 was deliberately reversed on 2026-08-31:
 
 - The stored value is a **precise** precision-9 geohash (~5 m), finer than a phone's own GPS
   error. It identifies a place.
@@ -83,6 +83,6 @@ Quick check: `wdw574372` must decode to roughly **14.6467, 121.0711**.
 
 ## Caution
 
-Per `barangay-dashboard/CLAUDE.md` §4 the dashboard talks to the **production** backend and DB by
+Per `barangay-dashboard/the spec` §4 the dashboard talks to the **production** backend and DB by
 default. Reading alerts to test the map is fine; do not click Acknowledge/Resolve on live
 incidents the other lane is testing against.

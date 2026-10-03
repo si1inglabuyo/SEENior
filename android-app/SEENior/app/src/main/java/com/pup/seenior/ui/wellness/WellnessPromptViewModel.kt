@@ -20,7 +20,7 @@ enum class PromptStage { PROMPT, ACKNOWLEDGED, SENT }
 
 /**
  * Drives one wellness check from the moment an alert appears to the moment the senior is done
- * with it — the human-in-the-loop step of CLAUDE.md §7's escalation chain.
+ * with it — the human-in-the-loop step of the spec §7's escalation chain.
  *
  * Three ways out, and they are not symmetrical:
  * - "I'm safe" closes the alert locally and nothing ever leaves the phone.
@@ -49,7 +49,7 @@ class WellnessPromptViewModel(application: Application) : AndroidViewModel(appli
 
     /** Set when the alert was recorded locally but could not be pushed to the cloud. The senior
      *  is still told help is coming — the alert is real and stored — but we do not claim the
-     *  family was reached when they were not. SMS fallback (CLAUDE.md §7) would cover this case
+     *  family was reached when they were not. SMS fallback (spec §7) would cover this case
      *  and is not built yet. */
     var deliveryWarning by mutableStateOf<String?>(null)
         private set

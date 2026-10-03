@@ -5,7 +5,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Validates Layer 0 by injecting known sensor streams, per CLAUDE.md §10 — the same reason the
+ * Validates Layer 0 by injecting known sensor streams, per the spec §10 — the same reason the
  * detection engine is validated with simulated data rather than by waiting for a real emergency.
  *
  * The negative cases matter more than the positive one. A detector that fires on a real fall but

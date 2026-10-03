@@ -17,7 +17,7 @@ data class AlertDto(
 /**
  * Mirrors backend AlertCreate — the senior's phone pushing one alert's METADATA up.
  *
- * Deliberately carries no sensor readings and no deviation score: CLAUDE.md §11 keeps raw
+ * Deliberately carries no sensor readings and no deviation score: the spec §11 keeps raw
  * behavioural data on the device, and the cloud row exists only so family/barangay can see
  * that something happened, not why in numeric detail.
  *

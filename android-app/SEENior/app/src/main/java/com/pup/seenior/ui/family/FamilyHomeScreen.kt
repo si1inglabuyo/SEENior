@@ -327,7 +327,7 @@ private fun SeniorCard(contact: ContactDto, status: SeniorStatus?) {
             // overwrites the previous value. A single reading is device health — whether the
             // phone can keep monitoring at all — while a series of readings would describe when
             // the senior charges their phone, and so roughly when they sleep, which is the
-            // behavioural data CLAUDE.md §11 keeps on the device. Nothing accumulates.
+            // behavioural data the spec §11 keeps on the device. Nothing accumulates.
             //
             // Still "—" for a senior whose phone has never checked in. That is a real state
             // worth showing as itself rather than dressing up as 0%.

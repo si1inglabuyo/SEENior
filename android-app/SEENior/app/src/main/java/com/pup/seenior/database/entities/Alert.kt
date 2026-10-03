@@ -45,7 +45,7 @@ data class Alert(
      * Where the phone was when this alert fired, as a geohash cell — captured only at
      * alert-trigger time, never continuously, and never stored as raw coordinates.
      *
-     * **Not anonymous** (CLAUDE.md §11): a precision-9 cell is about five metres, finer than the
+     * **Not anonymous** (spec §11): a precision-9 cell is about five metres, finer than the
      * handset's own GPS error, and it identifies a place. It is held under RA 10173 §12(c) vital
      * interests, not under any claim of de-identification. The column keeps its
      * `location_cluster_id` name for historical reasons only — renaming it would cost a migration
@@ -58,7 +58,7 @@ data class Alert(
      * "pending", "logged", "self_cancelled", "acknowledged_family", "escalated_barangay",
      * "resolved", or "false_positive"
      *
-     * "logged" is the low-risk tier of CLAUDE.md §5 — an anomaly the Fuzzy Logic layer judged not
+     * "logged" is the low-risk tier of the spec §5 — an anomaly the Fuzzy Logic layer judged not
      * worth telling anyone about. It is deliberately outside every status set the response chain
      * queries, so such a row raises no prompt, arms no alarm, and cannot dedupe a real alert away.
      * It exists so the record shows what was seen and consciously not acted on.

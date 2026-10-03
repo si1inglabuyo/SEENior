@@ -235,7 +235,7 @@ private fun WillAlertCard(
         }
 
         // The barangay tier is listed whether or not any family is linked — it is the final
-        // escalation step and is always available (CLAUDE.md §7).
+        // escalation step and is always available (spec §7).
         if (barangay.isNotBlank()) {
             WillAlertRow(
                 name = "Brgy. $barangay",

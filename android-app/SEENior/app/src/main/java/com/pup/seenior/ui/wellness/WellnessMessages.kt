@@ -4,10 +4,10 @@ package com.pup.seenior.ui.wellness
  * Every string the senior sees during a wellness check, in both supported languages.
  *
  * Kept out of `strings.xml` on purpose: the language is a per-senior setting stored in
- * `Senior_Onboarding.language_preference` (CLAUDE.md §7), not the device locale, so the
+ * `Senior_Onboarding.language_preference` (spec §7), not the device locale, so the
  * standard resource-qualifier mechanism would pick the wrong one.
  *
- * **The opening question is not free to reword.** CLAUDE.md §14 forbids "Are you okay?" — it was
+ * **The opening question is not free to reword.** The spec §14 forbids "Are you okay?" — it was
  * flagged during panel defence as inappropriate informal slang for elderly Filipino users. The
  * mockup in `designs/senior/prompt_screen/` still shows the old wording; the panel's ruling wins.
  */
@@ -30,7 +30,7 @@ object WellnessMessages {
         /* Lets the senior close an alert that has already gone out. Until this existed, help
          * being on its way was a one-way door: a senior who got up unhurt had no way to say so,
          * and the alert sat in the family app until a relative happened to open it and resolve
-         * it by hand. CLAUDE.md 1 promises the senior stays in the loop, not only until the
+         * it by hand. spec §1 promises the senior stays in the loop, not only until the
          * moment the alert leaves the phone. */
         val standDownButton: String,
         val standDownDone: String,
@@ -70,7 +70,7 @@ object WellnessMessages {
     private fun english(name: String, triggerType: String, timeBlock: String) = Copy(
         headerTitle = "Check-In Required",
         headerSubtitle = englishTrigger(triggerType),
-        // Panel-mandated phrasing. Do not change to "Are you okay?" (CLAUDE.md §14).
+        // Panel-mandated phrasing. Do not change to "Are you okay?" (spec §14).
         question = "Are you safe and well,\n$name?",
         reason = englishReason(triggerType, timeBlock),
         safeButton = "I'M SAFE",
@@ -160,7 +160,7 @@ object WellnessMessages {
     private fun filipino(name: String, triggerType: String, timeBlock: String) = Copy(
         headerTitle = "Kailangan ng Pagtugon",
         headerSubtitle = filipinoTrigger(triggerType),
-        // Panel-approved Filipino equivalent, per CLAUDE.md §14.
+        // Panel-approved Filipino equivalent, per the spec §14.
         question = "Ligtas po ba kayo,\n$name?",
         reason = filipinoReason(triggerType, timeBlock),
         safeButton = "LIGTAS PO AKO",

@@ -21,7 +21,7 @@ import com.pup.seenior.network.dto.HeartbeatRequest
  * the obvious next question — a phone at 3% is about to stop monitoring whatever else is true —
  * and because the family Home tab has had a Battery tile showing "—" since it was built.
  *
- * **Current reading only, never a history** (CLAUDE.md §11). Each call overwrites the last on
+ * **Current reading only, never a history** (spec §11). Each call overwrites the last on
  * the server. A *series* of charge readings would describe when the senior plugs their phone in,
  * and therefore roughly when they sleep, which is the behavioural data §11 keeps on the device.
  * A single current value only describes whether the device can keep working. Do not turn this

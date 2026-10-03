@@ -279,6 +279,3 @@ Detection accuracy is validated via **simulated sensor data injection** in test 
 - Do not design the system to wait for real emergencies to validate detection accuracy — use simulated/injected sensor test data instead.
 - Do not add continuous GPS tracking "for convenience" — location is alert-trigger-only by design.
 
----
-
-*This README is meant to be the single source of context for AI coding agents (Claude Code, Codex, etc.) working on this project. Update it as the system design evolves so agents always have current ground truth.*

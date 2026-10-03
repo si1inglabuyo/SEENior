@@ -68,7 +68,7 @@ private sealed interface MapTarget {
  * Prefers the alert's own captured cell: draws it on the map and reverse-geocodes its centre to a
  * street/area line ("Current location: …") so the family can read the position out to a responder
  * rather than squint at a pin. This is the same precise position the pin already shows — text form
- * of a disclosure already made, lawful during an active alert under RA 10173 §12(c) (CLAUDE.md
+ * of a disclosure already made, lawful during an active alert under RA 10173 §12(c) (the spec
  * §11). Only when no fix was captured does it fall back to placing the senior's registered home
  * address, labelled as such. When neither resolves it shows [MapPlaceholder] — "we do not know"
  * stays a state the screen can be in.

@@ -419,7 +419,7 @@ fun parseServerTime(iso: String): ZonedDateTime? {
 
 /**
  * Plain-language "why we're asking" text derived from Alert.triggerType, mirroring the
- * senior-side wellness-prompt requirement in CLAUDE.md §7 so families get the same context.
+ * senior-side wellness-prompt requirement in the spec §7 so families get the same context.
  *
  * English-only, deliberately: [FamilyAlertNotifier] (a system notification built outside any
  * Composable, from an FCM message) has no access to [LocalFamilyCopy] to translate this with.

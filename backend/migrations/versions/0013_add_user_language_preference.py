@@ -2,14 +2,14 @@
 
 The family app is getting a Tagalog option (Profile -> Language), mirroring the senior
 side's onboarding toggle. Unlike the senior side there is no local SQLite table to hold
-this — a family account has no on-device database at all (CLAUDE.md 2) — so the
+this — a family account has no on-device database at all (spec §2) — so the
 preference lives on the cloud `users` row and follows the account across devices instead
 of being pinned to one handset.
 
 Uses the same two codes the senior app already writes to Senior_Onboarding.language_
 preference ("en" / "fil", WellnessMessages.ENGLISH / .FILIPINO on-device) purely so the
 vocabulary matches across both apps; nothing here reads or writes that table, which stays
-local-only per CLAUDE.md 11.
+local-only per spec §11.
 
 Revision ID: 0013
 Revises: 0012

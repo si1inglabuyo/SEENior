@@ -42,7 +42,7 @@ async def family_device_tokens(db: AsyncSession, senior_id: int) -> list[str]:
 
     `Contact.is_active()` is as load-bearing here as it is on the read paths: a family
     member who was unlinked must stop receiving pushes about that senior immediately,
-    and a push carries the senior's name (CLAUDE.md §11).
+    and a push carries the senior's name (spec §11).
 
     distinct() guards the case where one account somehow holds two live links to the
     same senior — the partial unique index makes that unlikely, but a duplicate here
@@ -191,7 +191,7 @@ async def barangay_phone_numbers(db: AsyncSession, barangay: str) -> list[str]:
     to this barangay.
 
     Scoped by `User.barangay` directly, the same field `_assigned_barangay()` in
-    barangay.py checks — there is no Contact row per senior for this role (CLAUDE.md
+    barangay.py checks — there is no Contact row per senior for this role (the spec
     §2: responders are assigned to a barangay, not paired to individual seniors), so
     every active responder covering that barangay is texted, not just one.
     """
@@ -267,7 +267,7 @@ async def create_alert(
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
 ) -> Alert:
-    # No auth — the senior's phone has no Users account (CLAUDE.md §2) and identifies
+    # No auth — the senior's phone has no Users account (spec §2) and identifies
     # itself only by its own sync_id. Known simplification: nothing here verifies the
     # caller genuinely owns that sync_id. Acceptable for the demo; a per-device secret
     # issued alongside sync_id in POST /seniors would close this if hardened later.
@@ -494,7 +494,7 @@ async def cancel_alert(
     # RESOLVED rather than a new status value: the incident is over, which is what every reader
     # of this column needs to know, and `status` is a native Postgres enum whose vocabulary
     # cannot grow without an ALTER TYPE. *Who* closed it is an audit fact, and escalation_steps
-    # is where audit facts already live (CLAUDE.md 8) -- so the timeline records that this was
+    # is where audit facts already live (spec §8) -- so the timeline records that this was
     # the senior, not a family member, and no migration is needed to say so.
     append_step(alert, "self_cancelled_senior", by=alert.senior.first_name)
     await db.commit()
@@ -560,7 +560,7 @@ async def update_alert_location(
     """Fills in the location of an alert that was posted before its GPS fix arrived.
 
     Set-once: it can only ever fill a blank. Location is read exactly once per alert
-    (CLAUDE.md 11), so a second value is either the same cell arriving twice -- a retry after a
+    (spec §11), so a second value is either the same cell arriving twice -- a retry after a
     lost network -- or something that should not be trusted over the first. Either way the row
     keeps what it has, which is also what makes this idempotent.
 
@@ -600,7 +600,7 @@ async def acknowledge_alert(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> Alert:
-    """First family response tier (CLAUDE.md §7): family taps "Acknowledge Alert",
+    """First family response tier (spec §7): family taps "Acknowledge Alert",
     halting the barangay escalation clock while they follow up directly."""
     alert = await _family_alert(sync_id, db, current_user)
     if alert.status != AlertStatus.PENDING:
@@ -640,7 +640,7 @@ async def dispatch_barangay(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> Alert:
-    """Final escalation tier (CLAUDE.md §7): family requests an official barangay
+    """Final escalation tier (spec §7): family requests an official barangay
     welfare check, same as the automatic no-family-response escalation would."""
     alert = await _family_alert(sync_id, db, current_user)
     if alert.status in (AlertStatus.RESOLVED, AlertStatus.FALSE_POSITIVE):
@@ -693,11 +693,11 @@ async def resolve_alert(
     alert.status = AlertStatus.RESOLVED
     alert.resolved_at = datetime.now(timezone.utc).replace(tzinfo=None)
     # Record WHO closed it, not just that it closed. A senior can have up to five family
-    # contacts (CLAUDE.md §2), so "somebody dealt with it" leaves the next contact to open the
+    # contacts (spec §2), so "somebody dealt with it" leaves the next contact to open the
     # app unable to tell whether that was them or someone else.
     #
     # Written into escalation_steps rather than a new column: that field exists precisely to be
-    # the audit timeline (CLAUDE.md §8), and who closed an incident is an audit fact. It also
+    # the audit timeline (spec §8), and who closed an incident is an audit fact. It also
     # means no migration and no change to the deployed schema.
     #
     # full_name is nullable (a Google account can arrive without one), so fall back to the

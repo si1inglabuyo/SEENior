@@ -13,7 +13,7 @@ import kotlinx.coroutines.launch
  * Fires when an alert's response window runs out, woken by [EscalationScheduler]'s exact alarm.
  *
  * This is the moment the escalation chain moves past the senior and reaches the family
- * (CLAUDE.md §7), and it has to work with the phone asleep on a table and nobody in the room —
+ * (spec §7), and it has to work with the phone asleep on a table and nobody in the room —
  * which is why the deadline is an alarm rather than a deferrable background job.
  */
 class EscalationReceiver : BroadcastReceiver() {

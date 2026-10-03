@@ -11,7 +11,7 @@ import com.pup.seenior.detection.MedianMad
  * Rolls the last 14 days of [com.pup.seenior.database.entities.DailyAggregate] rows into the
  * Routine Fingerprint, blending them against the onboarding seed values as they accumulate.
  *
- * **Blend, not swap.** CLAUDE.md §6 describes real data *progressively* replacing the seed from
+ * **Blend, not swap.** The spec §6 describes real data *progressively* replacing the seed from
  * Day 1 and fully replacing it by Day 14, and that word is doing real work. The previous version
  * swapped outright at three days, which handed detection medians and MADs computed from three
  * partial days of a senior who happened to be holding her phone the whole time. One block came

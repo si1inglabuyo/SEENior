@@ -5,7 +5,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Validates how confirmed false alarms loosen one block's Layer 1 trigger, per CLAUDE.md §10.
+ * Validates how confirmed false alarms loosen one block's Layer 1 trigger, per the spec §10.
  *
  * What matters is what must *not* move: one false alarm changes nothing, an extreme reading can
  * never be argued away, and the demo's injected z = 4.0 reading (see [AnomalySimulator]) cannot

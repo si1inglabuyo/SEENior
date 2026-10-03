@@ -293,7 +293,7 @@ object OnboardingStrings {
         permissionRows = listOf(
             "Motion & Activity" to "Detects movement to track routine",
             // Was "only as an approximate area", which contradicted the design: one precise fix is
-            // captured, and only at the moment an alert fires (CLAUDE.md §11). The protection is
+            // captured, and only at the moment an alert fires (spec §11). The protection is
             // that it is never continuous — say that, rather than claim a vagueness we do not add.
             "Location (Alerts)" to "Only when an alert triggers — one exact location, never continuous tracking",
             "Notifications" to "Safety confirmation prompts & SOS alert",

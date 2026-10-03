@@ -11,7 +11,7 @@ import kotlin.math.abs
  * The codec behind `Alerts.location_cluster_id`.
  *
  * The property under test changed on 2026-08-31. It used to be that the cell had to stay coarse
- * enough not to identify a house; CLAUDE.md §11 now says the opposite, because a barangay
+ * enough not to identify a house; the spec §11 now says the opposite, because a barangay
  * responder has to be able to reach a senior who has fallen and the system already hands that
  * responder her street address. So these assert that a location is resolved finely enough to act
  * on — and, still, that codes written under the old setting keep decoding to what they meant.
@@ -64,7 +64,7 @@ class GeohashTest {
     fun `tells a house apart from its neighbour`() {
         // Two points ~15 m apart. Under the old ~150 m setting these encoded identically, which
         // is what made an alert hard to act on: a responder was handed a block, not a door. The
-        // reversal is deliberate and documented in CLAUDE.md §11 — this test is what would catch
+        // reversal is deliberate and documented in the spec §11 — this test is what would catch
         // a silent revert of it.
         val house = Geohash.encode(PILOT_LATITUDE, PILOT_LONGITUDE)
         val neighbour = Geohash.encode(PILOT_LATITUDE + 0.00013, PILOT_LONGITUDE)

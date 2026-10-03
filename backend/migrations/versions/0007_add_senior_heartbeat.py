@@ -6,7 +6,7 @@ tell a phone that was quietly monitoring from one that was flat, switched off, o
 stopped running the app after a reboot. A monitoring system that can silently stop
 monitoring has to be able to say so, and these three columns are what it says it with.
 
-**Three scalars, deliberately, not a history table.** CLAUDE.md §11 keeps raw sensor data
+**Three scalars, deliberately, not a history table.** The spec §11 keeps raw sensor data
 on the senior's device, and §4 counts battery and charging among the sensors. The line
 this migration draws is between a *reading* and a *record*: the current charge says only
 whether the phone can keep working, while a series of charge readings over time is

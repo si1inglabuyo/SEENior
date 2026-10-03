@@ -104,7 +104,7 @@ class SensorCollectionService : Service(), SensorEventListener
     private lateinit var keyguardManager: KeyguardManager
 
     /**
-     * Layer 0 (CLAUDE.md §5). Confined to the sensor callback thread along with
+     * Layer 0 (spec §5). Confined to the sensor callback thread along with
      * [lastMovementSampleNanos], so unlike the counters above it needs no lock.
      */
     private lateinit var fallDetector: FallDetector
@@ -179,7 +179,7 @@ class SensorCollectionService : Service(), SensorEventListener
      * TYPE_SIGNIFICANT_MOTION is detected inside the sensor hub and is a **wake-up** sensor: it
      * wakes the application processor to deliver, so it reports movement the rest of this class
      * is asleep for. Running in hardware is also why it can be left on permanently against the
-     * ≤10% battery target (CLAUDE.md §10).
+     * ≤10% battery target (spec §10).
      *
      * It deliberately does **not** feed [movementSampleSum]. `movement_score` stays a pure
      * accelerometer statistic, so a baseline built before this change stays comparable with
@@ -232,7 +232,7 @@ class SensorCollectionService : Service(), SensorEventListener
         gyroscope = sensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE)
         significantMotion = sensorManager.getDefaultSensor(Sensor.TYPE_SIGNIFICANT_MOTION)
 
-        // Rotation confirms a fall (CLAUDE.md §4), but not every Android phone ships a gyroscope.
+        // Rotation confirms a fall (spec §4), but not every Android phone ships a gyroscope.
         // On one that does not, demanding rotation would mean never detecting a fall at all.
         // The trace goes to logcat from out here rather than from inside FallDetector, which
         // stays free of Android imports so a JUnit test can drive it. Read with:
@@ -528,7 +528,7 @@ class SensorCollectionService : Service(), SensorEventListener
     }
 
     /**
-     * Layer 0 confirmed a fall. High risk without any fuzzy classification: CLAUDE.md §5 fixes
+     * Layer 0 confirmed a fall. High risk without any fuzzy classification: the spec §5 fixes
      * the risk level for this trigger, and unlike a statistical deviation there is no degree to
      * weigh — either the three-phase signature matched or it did not.
      */
@@ -694,7 +694,7 @@ class SensorCollectionService : Service(), SensorEventListener
      * The step counter is the witness. TYPE_STEP_COUNTER is a hardware counter: it keeps
      * counting through a suspend and reports its running total when the CPU comes back, so
      * a rise across the gap is proof the senior moved during it. That is precisely the
-     * complementary role CLAUDE.md 4 gives it.
+     * complementary role spec §4 gives it.
      *
      * So: **time that could not be measured is not counted as stillness.** If steps rose
      * across a slept gap the reading is capped at the listening window, because the last
@@ -747,7 +747,7 @@ class SensorCollectionService : Service(), SensorEventListener
      * is over in tens; at the old rate the signature falls between samples entirely.
      *
      * Ten times the sample rate running continuously is the single most likely thing to breach
-     * the ≤10% battery target (CLAUDE.md §10), so where the sensor has a hardware FIFO the
+     * the ≤10% battery target (spec §10), so where the sensor has a hardware FIFO the
      * samples are batched: the sensor hub buffers them and the application processor stays
      * asleep between deliveries instead of waking fifty times a second. The cost is up to
      * [BATCH_LATENCY_US] of detection delay, which the compressed fall response window absorbs.

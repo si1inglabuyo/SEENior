@@ -85,7 +85,7 @@ abstract class SeniorAppDatabase : RoomDatabase() {
          * Records how many raw readings each `Daily_Aggregates` row was built from.
          *
          * Urgent in a way most columns are not: raw `Sensor_Data` is purged the same night it is
-         * rolled up (CLAUDE.md §11, data minimisation), so the count exists only in the instant
+         * rolled up (spec §11, data minimisation), so the count exists only in the instant
          * the worker is grouping those rows. A day that passes without this column is a day whose
          * completeness can never be established afterwards -- there is nothing left to count.
          *

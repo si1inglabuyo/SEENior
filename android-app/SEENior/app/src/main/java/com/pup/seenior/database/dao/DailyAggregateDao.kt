@@ -62,7 +62,7 @@ interface DailyAggregateDao {
      * The block [IsolationForestDetector.raise] scored to produce an `ml_flag` alert, recovered
      * for display on the Alerts tab.
      *
-     * `Alert.deviationScore` is null for this trigger type by design (CLAUDE.md §8 — the path-length
+     * `Alert.deviationScore` is null for this trigger type by design (spec §8 — the path-length
      * score is a different measurement and does not belong in the z-score column), so the number
      * lives only here. Matched by time block and the closest aggregate at or before the alert fired,
      * which is exactly how [IsolationForestDetector.run] picked it in the first place.

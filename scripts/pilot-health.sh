@@ -11,7 +11,7 @@
 #   ./scripts/pilot-health.sh 15818705CJ012394 [label]
 #
 # Pulled databases land in ./seenior-db/, which .gitignore already excludes -- they hold raw
-# per-tester behavioural data and must never be committed (CLAUDE.md §11).
+# per-tester behavioural data and must never be committed (spec §11).
 #
 # Requires: adb on PATH, sqlite3 on PATH, USB debugging on the phone, and the "Allow USB
 # debugging?" prompt accepted.

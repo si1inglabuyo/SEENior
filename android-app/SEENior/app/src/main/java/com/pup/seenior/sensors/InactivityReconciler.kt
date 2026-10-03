@@ -5,7 +5,7 @@ package com.pup.seenior.sensors
  * Android types left behind.
  *
  * Extracted so JUnit can drive it, for the same reason [com.pup.seenior.detection.FallDetector]
- * has no Android imports (CLAUDE.md §10). The question it answers has been got wrong twice on real
+ * has no Android imports (spec §10). The question it answers has been got wrong twice on real
  * data and both times it cost a baseline, so it is worth being able to state the three cases as
  * tests rather than reasoning about them in a Service that needs a device to run.
  */

@@ -2,7 +2,7 @@
 
 Adds the table that lets the backend PUSH an alert to a family contact instead of
 waiting for their app to poll for it. Without this the escalation chain only reaches a
-family member who already has the app open (CLAUDE.md §7).
+family member who already has the app open (spec §7).
 
 One row per installed app per device, not a column on `users` — see the DeviceToken
 docstring in app/db/models.py for why that distinction is load-bearing.

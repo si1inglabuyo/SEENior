@@ -220,7 +220,7 @@ private fun FamilyProfileHome(
                     // Clears the session and releases this device's push token, in that
                     // order and on a scope that survives the navigation below. Leaving the
                     // token behind would keep this handset receiving the previous account's
-                    // alerts, which name the senior (CLAUDE.md §11).
+                    // alerts, which name the senior (spec §11).
                     PushTokenRegistrar.signOutAsync(context)
                     onLoggedOut()
                 }) {

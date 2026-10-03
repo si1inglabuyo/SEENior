@@ -6,7 +6,7 @@ import kotlin.math.pow
 import kotlin.random.Random
 
 /**
- * Layer 2 of the detection pipeline (CLAUDE.md §5) — catches the day Layer 1 cannot.
+ * Layer 2 of the detection pipeline (spec §5) — catches the day Layer 1 cannot.
  *
  * Median-MAD (Layer 1) asks, every five minutes, whether *one* signal is unusual for the senior
  * right now. This layer asks a different question, once a day: whether the *combination* of
@@ -46,7 +46,7 @@ class IsolationForest private constructor(
      * the forest — the "unusual combination" case this layer exists for. Around 0.5 is
      * inconclusive. Comfortably below 0.5 is unremarkable. Phase 4's test suite is what turns this
      * into an actual pass/fail threshold (the plan's starting point is 0.62); this class only ever
-     * returns the raw score, never a yes/no, in keeping with CLAUDE.md §14's requirement that this
+     * returns the raw score, never a yes/no, in keeping with the spec §14's requirement that this
      * layer's output stay a distinct thing from Layer 1's z-score and Layer 3's risk level.
      */
     fun score(point: DoubleArray): Double {

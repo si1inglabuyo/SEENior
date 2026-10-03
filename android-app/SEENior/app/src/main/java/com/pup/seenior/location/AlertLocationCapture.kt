@@ -17,7 +17,7 @@ import kotlin.coroutines.resume
 /**
  * The one place this app asks where the senior's phone is.
  *
- * Called at alert-trigger time and nowhere else, which is the whole of CLAUDE.md §11's location
+ * Called at alert-trigger time and nowhere else, which is the whole of the spec §11's location
  * rule: no continuous tracking, no location history, nothing recorded on an ordinary day. The fix
  * is turned into a [Geohash] cell immediately and the [Location] object is dropped — the raw
  * coordinates exist only as locals inside [capture] and are never written anywhere.
@@ -35,7 +35,7 @@ object AlertLocationCapture {
      * Default wait for a live fix, sized for alerts whose response window is short.
      *
      * Bounded by the shortest window in the escalation chain: an SOS notifies everyone almost at
-     * once (CLAUDE.md §7), and a cell that arrives after the alert has already been sent is of no
+     * once (spec §7), and a cell that arrives after the alert has already been sent is of no
      * use to anyone. Callers with a longer window pass a longer budget — see
      * `AlertResponder.locationTimeoutMsFor`.
      */

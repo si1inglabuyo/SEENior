@@ -74,7 +74,7 @@ object PushTokenRegistrar {
      * The JWT is therefore captured BEFORE the clear and handed to the background job,
      * which still needs it: dropping the token server-side is what stops this handset
      * receiving the previous account's alerts, and those name the senior, so leaving it
-     * behind is a disclosure and not merely untidy (CLAUDE.md §11).
+     * behind is a disclosure and not merely untidy (spec §11).
      *
      * Runs on [appScope], not the caller's: the Log Out tap navigates away and destroys
      * the composable immediately, which would cancel a screen-scoped job before the

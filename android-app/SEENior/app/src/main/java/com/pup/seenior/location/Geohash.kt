@@ -8,7 +8,7 @@ package com.pup.seenior.location
  * phone's own GPS error**, so in practice this records where the senior actually was, not a
  * region she was somewhere inside.
  *
- * That is a deliberate reversal of this field's original ~150 m design, and CLAUDE.md §11 carries
+ * That is a deliberate reversal of this field's original ~150 m design, and the spec §11 carries
  * the reasoning: a responder has to be able to reach a senior who has fallen, and the system
  * already discloses her registered street address to that same responder during an active alert,
  * so a coarse cell was withholding far less than it appeared to while making the alert harder to

@@ -17,7 +17,7 @@ import java.io.IOException
 import java.time.Instant
 
 /**
- * The family tier of the escalation chain (CLAUDE.md §7), independent of any screen.
+ * The family tier of the escalation chain (spec §7), independent of any screen.
  *
  * It lives here rather than inside the wellness prompt because the case the product exists for
  * is the senior *not* answering — and a senior who has collapsed is not looking at the app. The
@@ -97,9 +97,9 @@ object AlertEscalator {
      * visibly running.
      */
     fun windowSecondsFor(triggerType: String): Int = when (triggerType) {
-        // A conscious cry for help. Only long enough to catch a pocket press (CLAUDE.md §7).
+        // A conscious cry for help. Only long enough to catch a pocket press (spec §7).
         "sos" -> 10
-        // Layer 0 gets a compressed window (CLAUDE.md §5): a detected fall already carries its
+        // Layer 0 gets a compressed window (spec §5): a detected fall already carries its
         // own evidence that something happened, so waiting the full ten minutes for an answer
         // that may never come costs the one thing an injured person does not have.
         "fall_pattern" -> 60
@@ -133,7 +133,7 @@ object AlertEscalator {
     /**
      * Records the family escalation and pushes the alert's metadata to the cloud.
      *
-     * The status deliberately stays "pending". Per CLAUDE.md §7 a pending alert IS one awaiting
+     * The status deliberately stays "pending". Per the spec §7 a pending alert IS one awaiting
      * the family tier — there is no status meaning "escalated to family" ("escalated_barangay" is
      * the tier after this one), and moving it would drop the alert out of
      * [com.pup.seenior.database.dao.AlertDao.getUnacknowledgedAlerts], which drives the chain.
@@ -171,7 +171,7 @@ object AlertEscalator {
                         riskLevel = current?.riskLevel ?: alert.riskLevel,
                         triggerType = alert.triggerType,
                         // Captured at alert-trigger time only, as a geohash cell, never
-                        // coordinates (CLAUDE.md §11). Null when no fix could be had, which is a
+                        // coordinates (spec §11). Null when no fix could be had, which is a
                         // normal outcome.
                         locationClusterId = current?.locationClusterId,
                         // Not re-read from `current` like the two fields above: unlike risk
@@ -390,7 +390,7 @@ object AlertEscalator {
     }
 
     /**
-     * Appends one entry to the alert's audit timeline (CLAUDE.md §8 `escalation_steps`).
+     * Appends one entry to the alert's audit timeline (spec §8 `escalation_steps`).
      *
      * [extra] carries any keys beyond step/at — the server's own entries already use free-form
      * keys like `reason`, and the risk level the cloud accepted is the same kind of fact.

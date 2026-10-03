@@ -155,7 +155,7 @@ private fun PromptBody(
             }
 
             // Everything below is pinned outside the scrolling area. The reason line is here and
-            // not above because CLAUDE.md §7 requires the prompt to say WHY it is asking — a
+            // not above because the spec §7 requires the prompt to say WHY it is asking — a
             // senior who has to scroll to find that is being shown a bare "are you okay", which
             // is exactly what the panel rejected. The countdown and buttons are pinned for the
             // more obvious reason that an unreachable "I'M SAFE" forces an unwanted escalation.
@@ -329,7 +329,7 @@ private fun AlertSentBody(
                 // it: telling the senior their contacts were notified when the push failed
                 // would be a lie at the worst possible moment. Same reasoning for an empty,
                 // known contact list — this senior has none to notify, only the barangay tier
-                // fires (CLAUDE.md §7's no_family_contact path), so claiming "your contacts
+                // fires (spec §7's no_family_contact path), so claiming "your contacts
                 // have been notified" would be false even though delivery itself succeeded.
                 text = when {
                     viewModel.isDelivering -> copy.delivering

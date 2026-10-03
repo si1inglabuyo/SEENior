@@ -15,7 +15,7 @@ import kotlinx.coroutines.launch
  * Backs the senior's Alerts tab: every alert this device has ever raised, newest first.
  *
  * Deliberately unfiltered here — narrowing to "last 14 days" and excluding low-risk `logged`
- * rows (CLAUDE.md §5: an anomaly nobody was ever told about) is the screen's job, not the
+ * rows (spec §5: an anomaly nobody was ever told about) is the screen's job, not the
  * query's, so the same list can also answer "has anything ever happened" if that's ever needed.
  */
 class AlertsViewModel(application: Application) : AndroidViewModel(application) {
@@ -27,7 +27,7 @@ class AlertsViewModel(application: Application) : AndroidViewModel(application) 
     /**
      * `ml_flag` alerts' Isolation Forest path-length score, keyed by alert id — recovered from
      * [com.pup.seenior.database.entities.DailyAggregate] since `Alert.deviationScore` is null for
-     * this trigger type (CLAUDE.md §8; see [com.pup.seenior.database.dao.DailyAggregateDao
+     * this trigger type (spec §8; see [com.pup.seenior.database.dao.DailyAggregateDao
      * .getMostRecentBefore]'s KDoc for why). Absent from Layer 1 alerts entirely — they show
      * `Alert.deviationScore` directly, no lookup needed.
      */

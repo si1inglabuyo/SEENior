@@ -79,7 +79,7 @@ private enum class ProfilePage {
  * HELP & INFORMATION + ABOUT SEENIOR.
  *
  * Deliberately has no Log Out row, unlike the family Profile tab: the senior has no account
- * to sign out of — it's created locally during onboarding (CLAUDE.md §2) — and the only
+ * to sign out of — it's created locally during onboarding (spec §2) — and the only
  * session on the device belongs to the family app.
  */
 @Composable

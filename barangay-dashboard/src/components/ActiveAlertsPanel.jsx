@@ -44,7 +44,7 @@ export default function ActiveAlertsPanel({ alerts, onViewAll, onShowDetails }) 
               <div className="alert-row-main">
                 <p className="alert-row-name">
                   {alert.senior_name}, {alert.senior_age}
-                  {/* Not a risk level -- amber, never red (CLAUDE.md dashboard §6). It tells
+                  {/* Not a risk level -- amber, never red (dashboard spec §6). It tells
                       the responder nobody else was notified for this senior. Same badge the
                       Alerts-tab rows carry. */}
                   {!alert.senior_has_family_contact && (

@@ -221,7 +221,7 @@ class SeniorProfileViewModel(application: Application) : AndroidViewModel(applic
      * Deletes this senior's account.
      *
      * The cloud call is best-effort: erasing this phone is what actually protects the
-     * senior's data (CLAUDE.md §11), so a failed or offline server call must not block
+     * senior's data (spec §11), so a failed or offline server call must not block
      * the wipe. Known limitation — there is no retry after the wipe, so if the phone is
      * offline the cloud record (name + address only) lingers until it is pruned by hand;
      * a hardened build would need a server-side TTL or an unauthenticated retry token.

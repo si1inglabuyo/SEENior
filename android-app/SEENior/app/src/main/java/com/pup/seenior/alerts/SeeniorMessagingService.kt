@@ -14,7 +14,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
- * Receives alerts pushed from the backend (CLAUDE.md §13 step 11).
+ * Receives alerts pushed from the backend (spec §13 step 11).
  *
  * Before this existed the family app only learned about an alert by polling, which stops
  * the moment the app is closed — so an alert raised while nobody was looking at their

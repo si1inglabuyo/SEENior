@@ -30,7 +30,7 @@ INVITE_CODE_LIFETIME = timedelta(minutes=5)
 @router.post("", response_model=SeniorOut, status_code=status.HTTP_201_CREATED)
 async def create_senior(payload: SeniorCreate, db: AsyncSession = Depends(get_db)) -> Senior:
     # No auth: this is the senior app's one-time "register myself with the cloud"
-    # call during onboarding. Seniors never get a Users account (CLAUDE.md §2) —
+    # call during onboarding. Seniors never get a Users account (spec §2) —
     # the returned sync_id becomes their permanent cloud identity, stored locally.
     senior = Senior(**payload.model_dump())
     db.add(senior)
@@ -52,7 +52,7 @@ async def update_senior(
     sync_id: UUID, payload: SeniorUpdate, db: AsyncSession = Depends(get_db)
 ) -> Senior:
     # No auth, same as every other senior-side endpoint here: the senior has no Users
-    # account (CLAUDE.md §2), so the sync_id itself is the credential. Exists so an
+    # account (spec §2), so the sync_id itself is the credential. Exists so an
     # Edit Profile save on the phone also reaches the cloud copy — otherwise the family
     # app keeps rendering the name/age/gender captured at registration.
     senior = await _get_senior_or_404(sync_id, db)
@@ -69,7 +69,7 @@ async def heartbeat(
 ) -> Senior:
     """Records that this senior's phone is still running, and how much charge it has left.
 
-    The senior has no account to sign in with (CLAUDE.md 2), so the sync_id is the
+    The senior has no account to sign in with (spec §2), so the sync_id is the
     credential here exactly as it is for update_senior and generate_invite.
 
     The *timestamp* is the point of this endpoint. Between alerts nothing in the system
@@ -111,7 +111,7 @@ async def delete_senior(
     """Soft-deletes a senior's cloud record.
 
     No auth, same posture as every other senior-side route here: the senior has no
-    users account (CLAUDE.md §2), so the sync_id is the credential.
+    users account (spec §2), so the sync_id is the credential.
 
     The row is kept (deleted_at / deletion_reason / deletion_note) for audit, but:
 
@@ -191,7 +191,7 @@ async def set_senior_status(
     """Flips a senior between the barangay's active roster and its inactive list.
 
     Lives here rather than in `barangay.py` purely for ownership: that file belongs to the
-    dashboard lane (CLAUDE.md §15) and this one does not, so putting it here is what keeps
+    dashboard lane (spec §15) and this one does not, so putting it here is what keeps
     the two lanes from colliding on the same file. The gating is the same as every route
     over there -- a barangay_responder JWT, scoped to that responder's own barangay.
 

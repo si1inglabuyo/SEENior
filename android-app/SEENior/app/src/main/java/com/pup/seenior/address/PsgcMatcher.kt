@@ -23,7 +23,7 @@ data class PsgcMatch(
  * Reconciles OpenStreetMap's naming with the PSGC dataset the app actually stores.
  *
  * **Why this cannot be skipped.** `Seniors.barangay` is what scopes a barangay responder's
- * dashboard (CLAUDE.md §11, role-based access). If the map wrote OSM's spelling into that field,
+ * dashboard (spec §11, role-based access). If the map wrote OSM's spelling into that field,
  * a senior could be onboarded to a barangay string no responder queries for, and her alerts would
  * reach nobody at tier 3 — silently, with every screen looking correct. So the map never supplies
  * an address; it supplies a guess, and only values found in the dataset survive.

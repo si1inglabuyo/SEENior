@@ -10,15 +10,15 @@ import kotlin.math.abs
  * short note on what the detection math actually found, both in plain language.
  *
  * The "why" half reuses [WellnessMessages.forAlert]'s `reason` field — the same sentence the
- * wellness prompt itself showed at the time (CLAUDE.md §7) — so a senior reading their history
+ * wellness prompt itself showed at the time (spec §7) — so a senior reading their history
  * later sees a consistent story, not a second, differently-worded explanation. Name is passed as
  * empty because `reason` never interpolates it (only `question`/`sosQuestion` do).
  *
- * The "finding" half is new here: a one-clause translation of [Alert.deviationScore] (CLAUDE.md
+ * The "finding" half is new here: a one-clause translation of [Alert.deviationScore] (the spec
  * §5's Median-MAD z-score) into "noticeably" vs. "far" outside normal, using the same 2.5/3.5
  * moderate/extreme boundary the detector itself uses — never the raw number, which means nothing
  * to a non-technical reader. `ml_flag` and `fall_pattern` carry no z-score (Isolation Forest's
- * score is path-length based, not z-score based — CLAUDE.md §14 forbids collapsing the two into
+ * score is path-length based, not z-score based — the spec §14 forbids collapsing the two into
  * one number), so they get their own fixed clause instead.
  */
 object AlertDescriptions {
@@ -59,7 +59,7 @@ object AlertDescriptions {
         }
     }
 
-    /** Matches the moderate/extreme boundary CLAUDE.md §5 documents for Layer 1. */
+    /** Matches the moderate/extreme boundary the spec §5 documents for Layer 1. */
     private const val EXTREME_THRESHOLD = 3.5
 
     /**
@@ -68,7 +68,7 @@ object AlertDescriptions {
      *
      * Deliberately absent for `fall_pattern` (a signature match, not a scored anomaly) and `sos`
      * (the senior's own action) — there is nothing to compute for either, and inventing a number
-     * would misrepresent how they work. CLAUDE.md §14 forbids collapsing the z-score and the
+     * would misrepresent how they work. The spec §14 forbids collapsing the z-score and the
      * path-length score into one figure, so this keeps them on two separate lines with two
      * separate labels rather than a single generic "confidence" reading.
      *

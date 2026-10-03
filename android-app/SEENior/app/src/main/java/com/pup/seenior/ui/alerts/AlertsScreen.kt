@@ -54,7 +54,7 @@ private val AlertAmberBg = Color(0xFFFDF3E7)
 private const val FOURTEEN_DAYS_MS = 14L * 24 * 60 * 60 * 1000
 
 /**
- * The senior's Alerts tab (CLAUDE.md §7/§8): the current open alert, if any, at the top, and the
+ * The senior's Alerts tab (spec §7/§8): the current open alert, if any, at the top, and the
  * last 14 days of alert history below it.
  *
  * "Current" is read from [HomeViewModel.helpDelivery] rather than re-derived here — that
@@ -64,7 +64,7 @@ private const val FOURTEEN_DAYS_MS = 14L * 24 * 60 * 60 * 1000
  * question on two different tabs.
  *
  * History deliberately excludes `status = "logged"` rows: those are Low-risk anomalies the Fuzzy
- * Logic layer judged not worth telling the senior about at the time (CLAUDE.md §5), and surfacing
+ * Logic layer judged not worth telling the senior about at the time (spec §5), and surfacing
  * them now, after the fact, would contradict that decision.
  */
 @Composable

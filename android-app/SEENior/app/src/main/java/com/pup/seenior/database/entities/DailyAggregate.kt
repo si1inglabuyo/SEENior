@@ -52,7 +52,7 @@ data class DailyAggregate(
      * Used to EXCLUDE thin blocks at training time, never as a feature to train on. Fed in as a
      * feature it would have the model learning about handset uptime rather than about the senior.
      *
-     * Expected counts at the 5-minute sampling of CLAUDE.md §4, for wake 10:00 / sleep 23:00:
+     * Expected counts at the 5-minute sampling of the spec §4, for wake 10:00 / sleep 23:00:
      * ~52 for each 260-minute waking block, ~132 for the 660-minute night.
      *
      * Nullable because rows written before this column existed cannot be counted retroactively;

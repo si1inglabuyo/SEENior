@@ -14,7 +14,7 @@
 > browser — see SeniorRoster."*
 
 The column and the endpoint now exist. `db/models.py` and `migrations/` are `main`-owned
-(CLAUDE.md §15), so there was nothing you could do from your side — this was owed to you,
+(spec §15), so there was nothing you could do from your side — this was owed to you,
 not by you.
 
 ## What landed
@@ -98,7 +98,7 @@ Suggested replacement copy:
 )
 ```
 
-- **`deleted_at`** — this one is required by CLAUDE.md §11a and is a correctness fix, not a
+- **`deleted_at`** — this one is required by the spec §11a and is a correctness fix, not a
   preference. Right now a senior who deleted their account still shows on your roster as
   though they were being watched, when their phone has been wiped and nothing is watching
   them at all. **Note you'll need to merge `main` first** — your branch is ~50 commits

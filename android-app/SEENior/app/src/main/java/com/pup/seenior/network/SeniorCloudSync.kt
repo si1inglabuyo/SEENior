@@ -8,7 +8,7 @@ import retrofit2.HttpException
  * Owns the senior's cloud identity (`Seniors.cloud_sync_id`).
  *
  * Registration is lazy — it happens the first time a cloud feature is used, so onboarding stays
- * fully offline-capable per CLAUDE.md §3.
+ * fully offline-capable per the spec §3.
  *
  * The cached id is deliberately NOT treated as permanently valid. It can point at a senior the
  * current backend has never heard of whenever the cloud database it was issued by is no longer

@@ -15,7 +15,7 @@ import com.pup.seenior.ui.wellness.WellnessMessages
  * Filipino here is comfortable with the loanwords Filipino speakers actually use (e.g. "cellphone"
  * rather than "telepono"). **"po" was removed from this file's copy after a native-speaker review
  * on 2026-09-14** — see the tag/history for [[seenior-language]] — except where it quotes the
- * wellness prompt itself ([WellnessMessages]), which CLAUDE.md §14 pins verbatim and this file
+ * wellness prompt itself ([WellnessMessages]), which the spec §14 pins verbatim and this file
  * does not touch.
  *
  * **These translations are a draft pending a further native speaker's review.** The panel has

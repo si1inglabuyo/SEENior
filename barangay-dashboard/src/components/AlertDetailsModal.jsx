@@ -11,7 +11,7 @@ import LocationMap from './LocationMap'
 // "Last Known Location" -- the senior's actual position at the moment the alert fired,
 // captured once (never continuously) and stored as a precision geohash. Since 2026-08-31
 // this is a precise fix, held lawfully under RA 10173 §12(c) during an active emergency,
-// NOT an anonymised cluster (root CLAUDE.md §11 -- do not call it anonymous). Rendered on a
+// NOT an anonymised cluster (spec §11 -- do not call it anonymous). Rendered on a
 // live OpenStreetMap tile via LocationMap -- the same osmdroid-equivalent pin-vs-square map
 // the family app uses, not a static openstreetmap.org iframe embed -- with the registered
 // street address kept alongside because the responder still needs a name to read out. Older
@@ -110,7 +110,7 @@ function LocationPreview({ address, clusterId }) {
 
 // The full escalation history for this incident: every tier the alert passed through, who
 // acted, and any note they left. Built from `escalation_steps`, the JSON audit trail the
-// phone, the family app and the server-side clock all append to (CLAUDE.md §8). `STEP_LABEL`
+// phone, the family app and the server-side clock all append to (spec §8). `STEP_LABEL`
 // (labels.js) turns each code into a sentence; an unknown code prints as itself rather than
 // vanishing. This is where a responder sees *why* an alert reached them -- and, once closed,
 // how it was resolved and by whom.

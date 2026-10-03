@@ -5,7 +5,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Validates the gap-reconciliation rule by driving it with known inputs, per CLAUDE.md §10.
+ * Validates the gap-reconciliation rule by driving it with known inputs, per the spec §10.
  *
  * The claim is that a flat step counter means two opposite things depending on whether anything
  * was feeding it, so the tests that matter are the pair: identical readings, identical flat step

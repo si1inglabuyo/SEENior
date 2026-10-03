@@ -32,7 +32,7 @@ export function currentUserId() {
 export async function login(username, password) {
   // /auth/login speaks OAuth2's form encoding, not JSON. The field is named "username"
   // by that spec; family accounts put an email in it, but a barangay responder types
-  // their pre-assigned username (CLAUDE.md §2 and §14).
+  // their pre-assigned username (spec §2 and §14).
   const res = await fetch(`${BASE}/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },

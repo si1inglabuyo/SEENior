@@ -302,7 +302,7 @@ async def list_contacts(
     if senior is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Senior not found")
 
-    # Role-based access (CLAUDE.md §11): only a CURRENTLY linked contact may view this
+    # Role-based access (spec §11): only a CURRENTLY linked contact may view this
     # list — an unlinked one has no standing here any more.
     link_result = await db.execute(
         select(Contact).where(

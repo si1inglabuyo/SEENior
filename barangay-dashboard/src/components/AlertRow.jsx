@@ -40,7 +40,7 @@ export default function AlertRow({ alert, onShowDetails }) {
 
       <div className="queue-row-side">
         <div className="queue-row-badges">
-          {/* Not a risk level -- CLAUDE.md is explicit this stays amber, never the
+          {/* Not a risk level -- the design spec says this stays amber, never the
               risk-level red, so it can't be mistaken for a fourth severity tier. Kept on
               the row because "nobody else was notified" is context the responder needs
               before they even open the incident. */}

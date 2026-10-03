@@ -30,7 +30,7 @@ import java.util.concurrent.TimeUnit
  * `BOOT_COMPLETED` below the level Android itself controls, and the autostart list that decides
  * this is owned by `com.transsion.phonemaster` and is neither readable nor settable over adb. So
  * the app was simply *not monitoring* after a restart until somebody opened it by hand — which
- * contradicts the "fully passive" claim in CLAUDE.md §1 and belongs in §12 as well.
+ * contradicts the "fully passive" claim in the spec §1 and belongs in §12 as well.
  *
  * A **persisted** JobScheduler job is a different road to the same place. The system writes it to
  * its own store, outside this app, and restores and runs it after a reboot — starting this process

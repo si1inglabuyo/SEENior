@@ -3,7 +3,7 @@ package com.pup.seenior.detection
 import kotlin.math.abs
 
 /**
- * Layer 0 of the detection pipeline (CLAUDE.md §5) — real-time fall detection.
+ * Layer 0 of the detection pipeline (spec §5) — real-time fall detection.
  *
  * Unlike Layers 1-3 this compares against nothing. There is no baseline, no z-score and no
  * 14-day warm-up: a fall looks like a fall on the senior's first day with the app, which is
@@ -25,7 +25,7 @@ import kotlin.math.abs
  *
  * Deliberately free of Android imports. It is fed timestamped magnitudes and nothing else, so
  * the whole state machine can be driven from a synthetic sample stream in a JUnit test — the
- * validation approach CLAUDE.md §10 requires, since real falls cannot be collected on demand.
+ * validation approach the spec §10 requires, since real falls cannot be collected on demand.
  *
  * **Timestamps must come from `SensorEvent.timestamp`, not the wall clock.** The service batches
  * sensor samples to protect the battery target, so a whole second of readings can arrive in one
@@ -71,7 +71,7 @@ class FallDetector(
         val stillnessMs: Long = 8_000,
         /** How far from one g a sample may drift and still count as "not moving". */
         val stillnessTolerance: Float = 2.5f,
-        /** Peak angular speed expected as the body rotates during the fall (CLAUDE.md §4). */
+        /** Peak angular speed expected as the body rotates during the fall (spec §4). */
         val rotationMin: Float = 2.0f,
         /** How far either side of impact a rotation peak still counts as part of this event. */
         val rotationMemoryMs: Long = 3_000,

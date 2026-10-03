@@ -126,7 +126,7 @@ object EscalationScheduler {
      * and an entry in the clock app — and that visibility is the price of the Doze and Battery
      * Saver exemption. It is spent usefully rather than merely tolerated: the tap lands on the
      * wellness prompt, so the icon is a second route for the senior to answer and self-cancel
-     * before anyone else is told (CLAUDE.md §7). It is only ever on screen while an alert is
+     * before anyone else is told (spec §7). It is only ever on screen while an alert is
      * genuinely open, alongside the prompt and the ongoing notification.
      *
      * Deliberately the same target and request code as [AlertNotifier]'s content intent: both

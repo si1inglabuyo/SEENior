@@ -4,7 +4,7 @@ import kotlin.math.ln
 import kotlin.random.Random
 
 /**
- * One random-split tree in an [IsolationForest] (CLAUDE.md §5, Layer 2).
+ * One random-split tree in an [IsolationForest] (spec §5, Layer 2).
  *
  * The idea, plainly: pick a random feature and a random split point between its min and max in
  * the current subsample, and recurse on both halves. A point sitting apart from the rest of the
@@ -13,7 +13,7 @@ import kotlin.random.Random
  * many cuts before it stands alone, because most random cuts fall between other points instead of
  * near it. Path length — how many cuts it took to isolate a point — is therefore an anomaly signal
  * on its own, with no notion of "normal" ever having to be defined up front. That is what makes
- * the whole forest unsupervised (CLAUDE.md §5, §10): it needs no labelled emergencies to train on,
+ * the whole forest unsupervised (spec §5, §10): it needs no labelled emergencies to train on,
  * only the senior's own block-days.
  *
  * Deliberately free of Android imports, like [FallDetector] and [FuzzyRiskClassifier] — a tree can

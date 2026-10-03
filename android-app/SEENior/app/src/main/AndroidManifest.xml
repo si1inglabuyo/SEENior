@@ -18,7 +18,7 @@
          day to be this grant, not the health-only try/catch fallback in
          SensorCollectionService.kt, that actually kept monitoring alive on the retest (that
          fallback fired zero times; see seenior-fgs-location-crash). AlertLocationCapture still
-         takes exactly one fix per alert and none at all on an ordinary day, as CLAUDE.md 11
+         takes exactly one fix per alert and none at all on an ordinary day, as spec §11
          requires; this line only ever affects whether a background service start is allowed
          to ask, never how often it does.
 
@@ -42,7 +42,7 @@
          Without this, Android 14+ refuses every location request a passive alert makes - measured
          2026-09-04, a fall alert refused at 13:04:03.5 and permitted only at 13:04:06.9 once the
          prompt reached the screen. That is why inactivity alerts reached the barangay with no
-         pin (CLAUDE.md §11). -->
+         pin (spec §11). -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <!-- Held only for the seconds a server-woken sample takes: without it the handset may

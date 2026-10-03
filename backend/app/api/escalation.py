@@ -12,7 +12,7 @@ the API process, which no handset can freeze. FCM delivery was never the problem
 Services holds an exemption the app cannot get); the *timer* was.
 
 The phone's own timer is deliberately kept as well. It is faster and works with no signal,
-which is what CLAUDE.md §1 promises. This module waits a grace period longer than the
+which is what the spec §1 promises. This module waits a grace period longer than the
 phone does, so it only acts when the phone did not.
 """
 
@@ -54,8 +54,8 @@ _family_sms_tasks: set[asyncio.Task] = set()
 # disagree, the server could escalate while the senior's own countdown is still visibly
 # running: exactly the bug that table was written to prevent on the device side.
 SENIOR_WINDOW_SECONDS = {
-    "sos": 10,           # long enough to catch a pocket press, no longer (CLAUDE.md §7)
-    "fall_pattern": 60,  # Layer 0 gets a compressed window (CLAUDE.md §5)
+    "sos": 10,           # long enough to catch a pocket press, no longer (spec §7)
+    "fall_pattern": 60,  # Layer 0 gets a compressed window (spec §5)
 }
 DEFAULT_SENIOR_WINDOW_SECONDS = 600
 
@@ -127,7 +127,7 @@ def barangay_deadline(alert: Alert, has_family: bool) -> datetime:
     the middle tier to add:
 
     An SOS is not a guess. The senior has consciously said they need help, so once the
-    pocket-press window closes, everyone is told at once (CLAUDE.md §7). Making someone who
+    pocket-press window closes, everyone is told at once (spec §7). Making someone who
     has already pressed the button wait another two minutes while the system re-establishes
     what they just told it is the opposite of what the button is for.
 
@@ -173,7 +173,7 @@ async def sweep_overdue_alerts(db: AsyncSession) -> tuple[int, int]:
     the senior's own "I'm safe" resolves it; family acknowledge/dispatch/resolve all move
     it -- so there is no separate flag to keep in step with reality.
 
-    Low-risk alerts are skipped. CLAUDE.md §5 says low risk is logged only, and sending a
+    Low-risk alerts are skipped. The spec §5 says low risk is logged only, and sending a
     responder to someone's house over an alert the system itself judged not worth a
     notification is how a barangay learns to stop reading the dashboard.
 
@@ -333,7 +333,7 @@ async def nudge_quiet_devices(db: AsyncSession) -> int:
     showed the persisted fifteen-minute watchdog running three times in thirteen and a
     half hours -- nothing at all between 00:30 and 13:00. Passive monitoring was therefore
     not running overnight, which is precisely when a senior living alone is least observed
-    and the claim in CLAUDE.md 1 matters most.
+    and the claim in spec §1 matters most.
 
     It is the same answer the escalation deadline reached at the top of this module, applied
     to sampling instead of to escalation: the phone cannot hold a clock, so the server holds
@@ -341,7 +341,7 @@ async def nudge_quiet_devices(db: AsyncSession) -> int:
 
     **A healthy phone is never nudged.** The condition is silence, not a schedule -- a
     handset checking in every fifteen minutes never crosses `device_quiet_after_seconds`
-    and costs nothing. That is what keeps this inside the CLAUDE.md 10 battery budget: the
+    and costs nothing. That is what keeps this inside the spec §10 battery budget: the
     push is spent only on the case where monitoring has already stopped.
 
     Returns how many were nudged, so a caller can log it. Never raises: this shares a loop

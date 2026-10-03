@@ -60,7 +60,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         private set
 
     /** Who the SOS screen says it will alert. Read from the device's own Contacts table, not
-     *  from the network: SOS has to work with no connectivity at all (CLAUDE.md §1), and this
+     *  from the network: SOS has to work with no connectivity at all (spec §1), and this
      *  list is the senior's reassurance that someone is actually being called. An empty list
      *  still shows the barangay tier, which is available regardless of whether any family is
      *  linked. */
@@ -319,7 +319,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     /**
      * SOS. Raised directly instead of going through a detector: this is a conscious request for
      * help, not a statistical deviation, so there is nothing to score. Always high risk, and
-     * works from day one regardless of baseline status (CLAUDE.md §6).
+     * works from day one regardless of baseline status (spec §6).
      *
      * [AlertResponder.raise] returns null when an SOS is already open, so a repeated swipe joins
      * the alert already in flight rather than stacking duplicates — and lands on that alert's

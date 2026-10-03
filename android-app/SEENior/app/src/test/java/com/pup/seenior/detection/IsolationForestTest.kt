@@ -9,7 +9,7 @@ import org.junit.Ignore
 import org.junit.Test
 
 /**
- * Phase 4 of the Isolation Forest build (CLAUDE.md §5, Layer 2; §10) — the nine cases from the
+ * Phase 4 of the Isolation Forest build (spec §5, Layer 2; §10) — the nine cases from the
  * published plan, validating [IsolationForest] + [AggregateFeatures] together against
  * [AggregateSimulator]'s fabricated block-days. No real senior, no Room, no Android import
  * anywhere in the chain being tested.

@@ -73,7 +73,7 @@ class FamilyHomeViewModel(application: Application) : AndroidViewModel(applicati
      * could press SOS while their family member sat looking at this very screen and nothing
      * would change until they navigated away and back.
      *
-     * This is a foreground stopgap, not the notification channel: CLAUDE.md §9 specifies FCM
+     * This is a foreground stopgap, not the notification channel: the spec §9 specifies FCM
      * push (build-order step 11), which isn't built, so none of this reaches a family member
      * whose app is closed.
      */
@@ -165,4 +165,4 @@ class FamilyHomeViewModel(application: Application) : AndroidViewModel(applicati
 //
 // Note the design mock's example row ("Alfreda replied 'I'm okay'") cannot occur here: a senior
 // who answers "I'M SAFE" closes the alert locally as `self_cancelled` and nothing is ever
-// uploaded (CLAUDE.md §11), so the cloud only ever holds alerts that actually escalated.
+// uploaded (spec §11), so the cloud only ever holds alerts that actually escalated.

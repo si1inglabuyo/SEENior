@@ -28,7 +28,7 @@ import androidx.compose.ui.unit.sp
  * Google never gives us a phone number, and the password Sign Up screen collects one as a
  * required field — so without this step Google accounts were the only ones landing in the
  * system unreachable by SMS, which is the fallback the family escalation tier depends on
- * (CLAUDE.md §7). There is no "skip": the number is the point of the screen. Backing out
+ * (spec §7). There is no "skip": the number is the point of the screen. Backing out
  * still leaves Profile -> Edit profile as the way to set it later.
  */
 @Composable

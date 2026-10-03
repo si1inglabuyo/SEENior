@@ -162,7 +162,7 @@ private fun SeniorTab.label(copy: SeniorStrings.Copy): String = when (this) {
  * And the moment someone does pair, HomeViewModel.restoreFamilyTabsIfPaired() flips the
  * stored answer and all five tabs come back on their own.
  *
- * Alerts sits in the middle of both lists on purpose (CLAUDE.md request: "an alert tab in
+ * Alerts sits in the middle of both lists on purpose (the original brief: "an alert tab in
  * the middle") — index 1 of 3, index 2 of 5 — so it lands in the same physical spot on the
  * bar regardless of which list a senior has.
  */
@@ -294,7 +294,7 @@ private fun RepairAlertPermissions(copy: SeniorStrings.Copy) {
  * looking normal and monitoring quietly less.
  *
  * What this is NOT: a lock on the app. The SOS button works from day one regardless of what the
- * baseline or the permissions are doing (CLAUDE.md 6), and a dialog the senior cannot get past
+ * baseline or the permissions are doing (spec §6), and a dialog the senior cannot get past
  * would take away the one thing that always works, at the exact moment the passive half is
  * already degraded. So the dashboard stays reachable behind it.
  */

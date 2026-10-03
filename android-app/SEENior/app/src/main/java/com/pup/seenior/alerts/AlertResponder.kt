@@ -120,7 +120,7 @@ object AlertResponder {
     }
 
     /**
-     * Asks where the phone is and stores the answer as this alert's location cell (CLAUDE.md §11).
+     * Asks where the phone is and stores the answer as this alert's location cell (spec §11).
      *
      * Launched rather than awaited. A fix can take twenty seconds, and this runs on the sensor
      * service's thread and on the SOS button's — neither can be made to wait on a radio for a
@@ -155,7 +155,7 @@ object AlertResponder {
      * alert has ten minutes before the family tier even begins — and on 2026-09-01 the first real
      * one of those went to the family and then the barangay with no location at all, because the
      * phone was indoors with a cold GPS and twenty seconds was not enough. A responder sent to a
-     * street address instead of a pin is the exact cost CLAUDE.md §11 was rewritten to avoid.
+     * street address instead of a pin is the exact cost the spec §11 was rewritten to avoid.
      *
      * Still best effort. Nothing waits on this: the capture runs in its own scope and the
      * escalation sends whatever has landed by then.

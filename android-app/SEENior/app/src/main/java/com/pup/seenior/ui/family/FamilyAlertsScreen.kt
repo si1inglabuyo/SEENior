@@ -491,7 +491,7 @@ private fun AlertLocationContent(alert: AlertDto, senior: SeniorDto, onBack: () 
                 interactive = true
             )
             Spacer(Modifier.height(20.dp))
-            // Routes to the location captured for THIS alert when there is one (CLAUDE.md §11 —
+            // Routes to the location captured for THIS alert when there is one (spec §11 —
             // one fix per alert, decoded here from its geohash cell), so help goes where the
             // senior actually was. Falls back to the registered home address only when no fix
             // was captured. The map above already draws the same cell.

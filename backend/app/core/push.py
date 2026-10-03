@@ -1,4 +1,4 @@
-"""Firebase Cloud Messaging delivery for alerts (CLAUDE.md §13 step 11).
+"""Firebase Cloud Messaging delivery for alerts (spec §13 step 11).
 
 The family tier of the escalation chain used to depend on the family app asking the
 backend whether anything had happened. That only works while someone is holding the
@@ -12,7 +12,7 @@ an emergency. If FCM is slow, misconfigured, or down, the alert must still commi
 still be visible to the family app's polling. Every entry point below therefore swallows
 its own errors and reports them through the return value and the log, never by raising.
 
-**The payload carries alert metadata only** (CLAUDE.md §11) — no sensor readings, no
+**The payload carries alert metadata only** (spec §11) — no sensor readings, no
 coordinates. It is the same privacy-stripped subset the cloud `alerts` table already
 holds, plus the senior's first name so the family knows who it is about.
 """
@@ -223,7 +223,7 @@ def send_wake(token: str) -> PushResult:
     is the one thing Android does not defer in Doze, so it is the only remaining clock.
 
     Carries NOTHING but the word "wake". There is no senior name, no alert, no reading --
-    the phone already knows who it is, and the whole point of CLAUDE.md 11 is that what it
+    the phone already knows who it is, and the whole point of spec §11 is that what it
     then measures never leaves it. This push is a tap on the shoulder, not a message.
 
     Returns rather than raises, like everything else here: a phone that could not be woken

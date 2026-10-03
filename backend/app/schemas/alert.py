@@ -36,7 +36,7 @@ class AlertCancel(BaseModel):
     """The senior's own phone closing an alert it raised.
 
     Carries the senior's sync_id as well as the alert's. The senior has no account to sign in
-    with (CLAUDE.md 2), so a UUID in the path is the only credential available -- and unlike
+    with (spec §2), so a UUID in the path is the only credential available -- and unlike
     generating an invite code, this one closes an emergency. Requiring both ids means a caller
     has to hold the alert's id *and* prove it belongs to the senior they claim, which is what
     the senior's own device is the only thing that naturally does.
@@ -54,7 +54,7 @@ class AlertSeverityUpdate(BaseModel):
     phone now calls High -- measured on 2026-09-01, five hours apart.
 
     Carries the senior's sync_id for the same reason AlertCancel does: the senior has no account
-    (CLAUDE.md 2), so holding both ids is the only credential available.
+    (spec §2), so holding both ids is the only credential available.
     """
 
     senior_sync_id: UUID
@@ -65,13 +65,13 @@ class AlertLocationUpdate(BaseModel):
     """The senior's phone reporting where an already-sent alert happened.
 
     The fix and the deadline are two clocks that do not wait for each other. An SOS posts at the
-    end of its ten-second cancel window (CLAUDE.md 7 -- that window is the senior's, not ours to
+    end of its ten-second cancel window (spec §7 -- that window is the senior's, not ours to
     lengthen), while the GPS is allowed twenty. A cold GPS indoors routinely answers in between,
     and before this the cell it produced stayed on the phone permanently: the family's map and
     the barangay dashboard showed no pin for the two alert types where a responder most needs one.
 
     Carries the senior's sync_id for the same reason AlertCancel does: the senior has no account
-    (CLAUDE.md 2), so holding both ids is the only credential available.
+    (spec §2), so holding both ids is the only credential available.
     """
 
     senior_sync_id: UUID

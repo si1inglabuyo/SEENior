@@ -17,7 +17,7 @@
 // WHERE THE LOG LIVES: this build appends to localStorage on the responder's own machine.
 // A centrally-held, tamper-evident audit trail needs a server table (`barangay_audit_log`)
 // and a `POST /barangay/audit` route — both are schema/route changes owned by the `main`
-// lane (barangay-dashboard/CLAUDE.md §2), so they are deliberately NOT part of this change.
+// lane (dashboard spec §2), so they are deliberately NOT part of this change.
 // Once that endpoint exists, add the one fetch marked below; this file then keeps working
 // as the offline fallback and nothing else changes.
 

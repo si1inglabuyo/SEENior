@@ -27,7 +27,7 @@ object RetrofitClient {
         // BODY only in a debug build. This interceptor writes every request and response in
         // full to logcat, which on this API means bearer tokens, the password posted to
         // /auth/login, senior names and addresses, and an alert's precise geohash -- exactly
-        // the material CLAUDE.md §11 keeps off the wire and out of logs. A debug build is
+        // the material the spec §11 keeps off the wire and out of logs. A debug build is
         // already readable over adb by anyone holding the handset, so it changes nothing
         // there; a release build must never carry it.
         .addInterceptor(

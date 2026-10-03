@@ -33,7 +33,7 @@ class Settings:
     # over a notification channel. push.py logs loudly instead.
     firebase_credentials: str | None = os.environ.get("FIREBASE_CREDENTIALS")
 
-    # Semaphore PH SMS fallback (CLAUDE.md §7/§9) -- the channel that reaches a family
+    # Semaphore PH SMS fallback (spec §7/§9) -- the channel that reaches a family
     # contact or barangay responder with poor data but a live cellular signal, and
     # currently the ONLY channel a barangay responder gets at all beyond the dashboard.
     #
@@ -45,7 +45,7 @@ class Settings:
     # a custom one has to be registered and approved with Semaphore first.
     semaphore_sender_name: str | None = os.environ.get("SEMAPHORE_SENDER_NAME")
 
-    # --- Escalation clock (CLAUDE.md 7) ----------------------------------------
+    # --- Escalation clock (spec §7) ----------------------------------------
     # These run the server-side countdown that moves an unanswered alert up the
     # chain. They exist because no on-device timer can be trusted on this handset:
     # Transsion's "Hiber" layer freezes the app after the screen goes off and takes
@@ -65,7 +65,7 @@ class Settings:
     # How long a family contact's phone has to confirm it received the alert push before
     # the server texts them instead. A phone with data confirms within seconds and is never
     # texted; a phone without data cannot confirm, so it gets the SMS. Kept inside the
-    # CLAUDE.md §10 30-second alert-delivery target.
+    # The spec §10 30-second alert-delivery target.
     family_sms_grace_seconds: int = int(os.environ.get("FAMILY_SMS_GRACE_SECONDS", "30"))
 
     # How long a senior's phone may go without checking in before the server pushes it

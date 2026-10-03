@@ -9,7 +9,7 @@ import org.junit.Test
 import java.util.Calendar
 
 /**
- * Validates Layer 3 by driving it with known inputs, per CLAUDE.md §10.
+ * Validates Layer 3 by driving it with known inputs, per the spec §10.
  *
  * The claim this layer makes is that the *same* deviation deserves a different answer depending on
  * when it arrives, so the tests that matter are the pairs: one z-score, two hours, two verdicts.
@@ -39,7 +39,7 @@ class FuzzyRiskClassifierTest {
 
     @Test
     fun `a mild deviation still asks the senior during waking hours`() {
-        // CLAUDE.md §5: 2.5 <= z < 3.5 is a moderate anomaly and triggers the wellness prompt.
+        // The spec §5: 2.5 <= z < 3.5 is a moderate anomaly and triggers the wellness prompt.
         // Context may quieten it at night, but it must not be silent in the middle of the day.
         assertEquals(FuzzyRiskClassifier.Risk.MEDIUM, classify(2.6, rest = 0.0))
     }

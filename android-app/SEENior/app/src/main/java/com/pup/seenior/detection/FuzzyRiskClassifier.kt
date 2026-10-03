@@ -5,7 +5,7 @@ import java.util.Calendar
 import kotlin.math.min
 
 /**
- * Layer 3 of the detection pipeline (CLAUDE.md §5): turns an anomaly signal into a proportionate
+ * Layer 3 of the detection pipeline (spec §5): turns an anomaly signal into a proportionate
  * response rather than a binary alarm.
  *
  * This replaces a straight cutoff — `if (z >= 3.5) "high" else "medium"` — which could only ever
@@ -18,11 +18,11 @@ import kotlin.math.min
  * defuzzified by centroid. A nest of if-statements would land on the same three words most of the
  * time and would not be fuzzy logic; near a boundary the two disagree, and it is exactly at the
  * boundaries that a graduated response earns its place. It also keeps the layer's output a
- * *separate* thing from the z-score and from Isolation Forest's path-length score, which CLAUDE.md
+ * *separate* thing from the z-score and from Isolation Forest's path-length score, which the spec
  * §14 requires and which a single blended number would destroy.
  *
  * No Android imports, so JUnit can drive it directly — the same reason [FallDetector] has none, and
- * what makes CLAUDE.md §10's simulated-data validation possible for this layer.
+ * what makes the spec §10's simulated-data validation possible for this layer.
  *
  * **Layer 2 is wired in** (build-order step 7, Phase 6). Isolation Forest's path-length score
  * enters as a third antecedent — an `ml_flag` membership alongside [deviation] and [rest] — which
@@ -45,7 +45,7 @@ import kotlin.math.min
  */
 object FuzzyRiskClassifier {
 
-    /** The three levels of CLAUDE.md §5. [stored] is the `Alerts.risk_level` value. */
+    /** The three levels of the spec §5. [stored] is the `Alerts.risk_level` value. */
     enum class Risk(val stored: String) {
         LOW("low"),
         MEDIUM("medium"),
@@ -68,7 +68,7 @@ object FuzzyRiskClassifier {
          *
          * Deliberately a *separate* input from [deviationScore] and never blended into it: they
          * are different measurements of different things (a z-score against a median, versus how
-         * few random splits isolated the day), and CLAUDE.md §14 requires the three layers to
+         * few random splits isolated the day), and the spec §14 requires the three layers to
          * keep three distinct outputs.
          */
         val mlFlagScore: Double = 0.0
@@ -285,7 +285,7 @@ object FuzzyRiskClassifier {
      * Whether [minuteOfDay] falls inside the senior's declared nap.
      *
      * A nap is the one stretch of daytime stillness the senior told us to expect, so an alert
-     * raised inside it would be a false positive by construction (CLAUDE.md §6). Detection is
+     * raised inside it would be a false positive by construction (spec §6). Detection is
      * suppressed outright here rather than merely downgraded — the window is the senior's own
      * statement about their day, not a judgement call for the rule base.
      *

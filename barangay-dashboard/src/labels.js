@@ -89,7 +89,7 @@ export const statusLabel = (status) => STATUS_LABEL[status] || status
 //
 // "Potential Fall" is split out of "Anomaly" because a fall is not a deviation from the
 // senior's routine: Layer 0 fires on the accelerometer/gyroscope fall signature from Day 1,
-// independent of the baseline (root CLAUDE.md §5). Lumping it in with Median-MAD /
+// independent of the baseline (spec §5). Lumping it in with Median-MAD /
 // Isolation Forest hits would tell the responder the wrong story about what happened.
 export const CATEGORY_LABEL = {
   anomaly: 'Anomaly',

@@ -7,7 +7,7 @@ import kotlin.math.round
 import kotlin.random.Random
 
 /**
- * Phase 3 of the Isolation Forest build (CLAUDE.md §5, Layer 2; §10's simulated-data mandate) —
+ * Phase 3 of the Isolation Forest build (spec §5, Layer 2; §10's simulated-data mandate) —
  * the [FallSimulator] counterpart for this layer.
  *
  * Generates real [DailyAggregate] rows — not pre-computed feature vectors — scaled against a real

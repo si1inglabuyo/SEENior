@@ -111,7 +111,7 @@ interface ApiService {
     )
 
     // No auth, same posture as the other senior-side routes — the senior has no account
-    // (CLAUDE.md §2) and is identified purely by sync_id.
+    // (spec §2) and is identified purely by sync_id.
     @POST("alerts")
     suspend fun postAlert(@Body body: CreateAlertRequest): AlertDto
 

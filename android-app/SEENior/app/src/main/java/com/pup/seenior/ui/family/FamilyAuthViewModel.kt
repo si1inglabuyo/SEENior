@@ -233,7 +233,7 @@ class FamilyAuthViewModel(application: Application) : AndroidViewModel(applicati
      * Google's ID token carries no phone number — it only ever gives us sub/email/name — so a
      * brand-new Google account is created with phone = NULL. That number is not cosmetic: the
      * senior's Contacts list displays it, and the family tier of the escalation chain needs it
-     * for the SMS fallback (CLAUDE.md §7). Leaving it blank silently makes a family contact
+     * for the SMS fallback (spec §7). Leaving it blank silently makes a family contact
      * unreachable at exactly the moment the system is trying to reach them.
      */
     fun onGoogleIdToken(idToken: String, onSuccess: (needsPhone: Boolean) -> Unit) {

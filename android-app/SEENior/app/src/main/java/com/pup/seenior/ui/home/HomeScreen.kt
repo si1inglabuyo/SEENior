@@ -331,7 +331,7 @@ private fun EmergencyCard(barangay: String, onSosConfirmed: () -> Unit, copy: Se
 
 /**
  * Swipe-to-send, not tap-to-send. A single mis-tap on the senior's main screen should not be able
- * to summon a barangay responder, and CLAUDE.md §7 describes SOS as one-swipe throughout.
+ * to summon a barangay responder, and the spec §7 describes SOS as one-swipe throughout.
  */
 @Composable
 private fun SosSwipe(onConfirmed: () -> Unit, copy: SeniorStrings.Copy) {

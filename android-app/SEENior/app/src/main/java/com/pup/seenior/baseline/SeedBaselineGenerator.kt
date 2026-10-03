@@ -6,7 +6,7 @@ import java.util.Calendar
 /**
  * Converts onboarding questionnaire answers into conservative, wide-margin seed
  * Baseline rows (warm-start) so detection can run before 14 days of real sensor
- * data exist. See CLAUDE.md section 6.
+ * data exist. See the spec section 6.
  */
 object SeedBaselineGenerator {
 
