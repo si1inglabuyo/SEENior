@@ -87,6 +87,18 @@ async def check(bucket: str, key: str, limit: int, window_seconds: float) -> Non
         stamps.append(now)
 
 
+def per_ip(bucket: str, limit: int, window_seconds: float):
+    """A route dependency that limits each client address to `limit` calls per window.
+
+    Use it as `dependencies=[Depends(ratelimit.per_ip("register", 10, 3600))]`.
+    """
+
+    async def dependency(request: Request) -> None:
+        await check(bucket, client_ip(request), limit=limit, window_seconds=window_seconds)
+
+    return dependency
+
+
 def reset() -> None:
     """Clear all counters. For tests only."""
     _hits.clear()

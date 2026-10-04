@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.api.deps import get_current_user
-from app.core import push, sms
+from app.core import push, ratelimit, sms
 from app.core.config import settings
 from app.db.models import (
     Alert,
@@ -246,6 +246,10 @@ async def create_alert(
     if senior is None or senior.deleted_at is not None:
         # A deleted senior's phone is wiped, so a stale queued alert belongs to no one.
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Senior not found")
+
+    # Per senior, not per address: a real phone raises far fewer alerts than this, and a
+    # per-IP cap could block a genuine emergency from a shared network.
+    await ratelimit.check("create-alert", str(payload.senior_sync_id), limit=30, window_seconds=3600)
 
     # Convert to naive UTC to match the timestamp columns. A value with no offset is
     # treated as already UTC.

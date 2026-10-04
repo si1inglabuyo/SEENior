@@ -81,7 +81,12 @@ async def login(
     return Token(access_token=token)
 
 
-@router.post("/register", response_model=Token, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/register",
+    response_model=Token,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(ratelimit.per_ip("register", 10, 3600))],
+)
 async def register(payload: RegisterRequest, db: AsyncSession = Depends(get_db)) -> Token:
     """Family app's Sign Up. Creates the account before pairing with any senior."""
     existing = await db.execute(select(User).where(User.email == payload.email))
@@ -104,7 +109,11 @@ async def register(payload: RegisterRequest, db: AsyncSession = Depends(get_db))
     return Token(access_token=token)
 
 
-@router.post("/google", response_model=Token)
+@router.post(
+    "/google",
+    response_model=Token,
+    dependencies=[Depends(ratelimit.per_ip("google-sign-in", 20, 300))],
+)
 async def google_sign_in(payload: GoogleSignInRequest, db: AsyncSession = Depends(get_db)) -> Token:
     if not settings.google_client_id:
         raise HTTPException(
@@ -155,7 +164,11 @@ async def google_sign_in(payload: GoogleSignInRequest, db: AsyncSession = Depend
     return Token(access_token=token)
 
 
-@router.post("/firebase", response_model=Token)
+@router.post(
+    "/firebase",
+    response_model=Token,
+    dependencies=[Depends(ratelimit.per_ip("firebase-sign-in", 20, 300))],
+)
 async def firebase_sign_in(payload: FirebaseSignInRequest, db: AsyncSession = Depends(get_db)) -> Token:
     # Uses the same Firebase Admin connection as push.py (same service account).
     if not push.is_configured():

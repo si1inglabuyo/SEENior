@@ -1,5 +1,4 @@
-import random
-import string
+import secrets
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
@@ -8,6 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import require_role
+from app.core import ratelimit
 from app.db.models import Alert, AlertStatus, Contact, Senior, SeniorStatus, UnlinkActor, User, UserRole
 from app.db.session import get_db
 from app.schemas.contact import InviteCodeOut
@@ -27,7 +27,12 @@ router = APIRouter(prefix="/seniors", tags=["seniors"])
 INVITE_CODE_LIFETIME = timedelta(minutes=5)
 
 
-@router.post("", response_model=SeniorOut, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "",
+    response_model=SeniorOut,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(ratelimit.per_ip("create-senior", 10, 3600))],
+)
 async def create_senior(payload: SeniorCreate, db: AsyncSession = Depends(get_db)) -> Senior:
     # No auth: the senior has no account, and the returned sync_id becomes their cloud identity.
     senior = Senior(**payload.model_dump())
@@ -197,7 +202,7 @@ async def generate_invite(sync_id: UUID, db: AsyncSession = Depends(get_db)) -> 
             detail="An invite code is still active. Wait for it to expire before generating a new one.",
         )
 
-    code = "".join(random.choices(string.digits, k=6))
+    code = f"{secrets.randbelow(10**6):06d}"
     senior.invite_code = code
     senior.invite_code_expires_at = now + INVITE_CODE_LIFETIME
     await db.commit()
