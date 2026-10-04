@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 import httpx
 
@@ -70,11 +70,39 @@ def is_configured() -> bool:
     return bool(settings.semaphore_api_key)
 
 
+# Recipients texted so far on one Manila calendar day. Kept in memory, so a restart resets it;
+# it exists to bound cost, not to be an exact ledger.
+_budget_day: date | None = None
+_budget_used = 0
+
+
+def _reserve_budget(wanted: int) -> int:
+    """Counts up to `wanted` recipients against today's limit and returns how many fit.
+
+    Reserved when the send is attempted, whether or not Semaphore accepts it, since a
+    failing gateway can still bill. Runs without awaiting, so asyncio tasks can't interleave.
+    """
+    global _budget_day, _budget_used
+    today = datetime.now(_PH_TZ).date()
+    if _budget_day != today:
+        _budget_day, _budget_used = today, 0
+    granted = max(0, min(wanted, settings.sms_daily_limit - _budget_used))
+    _budget_used += granted
+    return granted
+
+
+def reset_budget() -> None:
+    """Forget today's count. For tests only."""
+    global _budget_day, _budget_used
+    _budget_day, _budget_used = None, 0
+
+
 async def send_sms(numbers: list[str], message: str) -> SmsResult:
     """Sends one message to every number supplied, in a single Semaphore call.
 
-    Numbers are deduplicated so nobody is texted or billed twice. Safe with an empty
-    list. Never raises.
+    Numbers are deduplicated so nobody is texted or billed twice. Once the daily limit
+    (`SMS_DAILY_LIMIT`) is reached, the rest are not sent and count as failed; if only some
+    fit, the earlier numbers in the list are texted first. Safe with an empty list. Never raises.
     """
     deduped = list(dict.fromkeys(n.strip() for n in numbers if n and n.strip()))
     if not deduped:
@@ -83,6 +111,19 @@ async def send_sms(numbers: list[str], message: str) -> SmsResult:
     if not is_configured():
         logger.warning("SEMAPHORE_API_KEY is not set — SMS delivery is DISABLED.")
         return SmsResult(failed=len(deduped))
+
+    allowed = _reserve_budget(len(deduped))
+    if allowed < len(deduped):
+        logger.warning(
+            "SMS daily limit of %d reached; not sending to %d of %d recipient(s)",
+            settings.sms_daily_limit, len(deduped) - allowed, len(deduped),
+        )
+        if allowed == 0:
+            return SmsResult(failed=len(deduped))
+        skipped = len(deduped) - allowed
+        deduped = deduped[:allowed]
+    else:
+        skipped = 0
 
     payload = {
         "apikey": settings.semaphore_api_key,
@@ -105,25 +146,25 @@ async def send_sms(numbers: list[str], message: str) -> SmsResult:
     except Exception:
         # Logged, never raised: the alert is already committed.
         logger.exception("Semaphore SMS send failed for %d number(s)", len(deduped))
-        return SmsResult(failed=len(deduped))
+        return SmsResult(failed=len(deduped) + skipped)
 
     try:
         body = response.json()
     except Exception:
         logger.warning("Semaphore returned a non-JSON response: %s", response.text[:200])
-        return SmsResult(failed=len(deduped))
+        return SmsResult(failed=len(deduped) + skipped)
 
     # Success is a JSON array with one object per recipient; an error is a JSON object.
     # A 200 status alone doesn't tell them apart.
     if not isinstance(body, list):
         logger.warning("Semaphore rejected the request: %s", body)
-        return SmsResult(failed=len(deduped))
+        return SmsResult(failed=len(deduped) + skipped)
 
     sent = len(body)
     failed = len(deduped) - sent
     if failed:
         logger.warning("Semaphore accepted %d/%d number(s)", sent, len(deduped))
-    return SmsResult(sent=sent, failed=failed)
+    return SmsResult(sent=sent, failed=failed + skipped)
 
 
 _PH_TZ = timezone(timedelta(hours=8))  # Philippines has no DST, so a fixed offset is exact.

@@ -57,6 +57,10 @@ class Settings:
         os.environ.get("DEVICE_NUDGE_EVERY_SECONDS", "900")
     )
 
+    # Most SMS recipients the server will text in one Manila day. A safety limit on cost if the
+    # API key is misused or a bug loops; set well above normal use and raise it for a pilot.
+    sms_daily_limit: int = int(os.environ.get("SMS_DAILY_LIMIT", "300"))
+
     # Browser origins allowed to call this API (the barangay dashboard).
     cors_origins: list[str] = [
         origin.strip()

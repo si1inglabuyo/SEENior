@@ -24,6 +24,13 @@ class _Response:
         return self._body
 
 
+@pytest.fixture(autouse=True)
+def _fresh_daily_count():
+    sms.reset_budget()
+    yield
+    sms.reset_budget()
+
+
 @pytest.fixture
 def semaphore(monkeypatch):
     """Configures an API key and captures each request sent to the gateway."""
@@ -92,6 +99,52 @@ def test_gateway_errors_never_raise(semaphore, response):
     _, reply = semaphore
     reply["response"] = response
     assert _send(["0917"]).failed == 1
+
+
+# --------------------------------------------------------------- daily limit
+
+def test_nothing_is_sent_once_the_daily_limit_is_used_up(semaphore, monkeypatch):
+    calls, reply = semaphore
+    monkeypatch.setattr(settings, "sms_daily_limit", 2)
+    reply["response"] = _Response([{}, {}])
+
+    assert _send(["0917", "0918"]).sent == 2
+    blocked = _send(["0919"])
+
+    assert (blocked.sent, blocked.failed) == (0, 1)
+    assert len(calls) == 1  # the blocked send never reached the gateway
+
+
+def test_a_send_that_only_partly_fits_texts_the_first_numbers(semaphore, monkeypatch):
+    calls, reply = semaphore
+    monkeypatch.setattr(settings, "sms_daily_limit", 2)
+    reply["response"] = _Response([{}, {}])
+
+    result = _send(["0917", "0918", "0919"])
+
+    assert calls[0]["number"] == "0917,0918"
+    assert (result.sent, result.failed) == (2, 1)
+
+
+def test_the_count_starts_over_on_a_new_manila_day(semaphore, monkeypatch):
+    calls, reply = semaphore
+    monkeypatch.setattr(settings, "sms_daily_limit", 1)
+    reply["response"] = _Response([{}])
+    days = iter([datetime(2026, 10, 1, 9, tzinfo=sms._PH_TZ), datetime(2026, 10, 2, 9, tzinfo=sms._PH_TZ)])
+
+    class _Clock(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return next(days)
+
+    monkeypatch.setattr(sms, "datetime", _Clock)
+    assert _send(["0917"]).sent == 1
+    assert _send(["0918"]).sent == 1  # next day, fresh allowance
+    assert len(calls) == 2
+
+
+def test_the_default_limit_is_well_above_normal_use():
+    assert settings.sms_daily_limit >= 100
 
 
 # ------------------------------------------------------------------- wording
