@@ -49,3 +49,28 @@ def test_short_passwords_are_rejected_everywhere_a_password_is_set():
 def test_a_password_at_the_minimum_is_accepted():
     ok = "x" * MIN_PASSWORD_LENGTH
     assert RegisterRequest(full_name="A", phone="0917", email="a@example.com", password=ok).password == ok
+
+
+# ------------------------------------------------------------------ token lifetime
+
+def test_family_tokens_last_days_and_responder_tokens_last_minutes():
+    from datetime import timedelta
+
+    from app.core.config import settings
+    from app.core.security import token_lifetime
+
+    assert token_lifetime("family_contact") == timedelta(days=settings.family_token_expire_days)
+    assert token_lifetime("barangay_responder") == timedelta(minutes=settings.access_token_expire_minutes)
+    assert token_lifetime("family_contact") > token_lifetime("barangay_responder")
+
+
+def test_the_expiry_inside_the_token_follows_the_role():
+    import time
+
+    from app.core.security import create_access_token, decode_access_token
+
+    now = time.time()
+    family = decode_access_token(create_access_token("1", "family_contact"))["exp"] - now
+    responder = decode_access_token(create_access_token("2", "barangay_responder"))["exp"] - now
+    assert family > 7 * 24 * 3600
+    assert responder < 24 * 3600

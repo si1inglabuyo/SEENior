@@ -18,6 +18,11 @@ class Settings:
     access_token_expire_minutes: int = int(
         os.environ.get("ACCESS_TOKEN_EXPIRE_MINUTES", "60")
     )
+    # Family contacts stay signed in this long, so they can still act on an alert days after
+    # logging in. Barangay responders keep the short lifetime above, since the dashboard runs on
+    # shared computers. A deactivated or deleted account is refused on every request regardless.
+    family_token_expire_days: int = int(os.environ.get("FAMILY_TOKEN_EXPIRE_DAYS", "14"))
+
     # The "Web application" OAuth Client ID from Google Cloud Console. Used as the audience
     # for the Android ID token and to verify it. POST /auth/google returns 503 if unset.
     google_client_id: str | None = os.environ.get("GOOGLE_CLIENT_ID")
