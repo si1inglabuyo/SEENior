@@ -6,6 +6,7 @@ import android.os.Bundle
 import android.util.Log
 import com.pup.seenior.database.SeniorAppDatabase
 import com.pup.seenior.diagnostics.CrashReporting
+import com.pup.seenior.network.DeviceKeyStore
 import com.pup.seenior.network.HeartbeatReporter
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -40,6 +41,7 @@ class SeniorApplication : Application() {
         super.onCreate()
         // First, so a crash in anything below it is still reported.
         CrashReporting.start(this)
+        DeviceKeyStore.init(this)
         scheduleNightlyAggregation()
         scheduleMonitoringWatchdog()
         trackForegroundState()

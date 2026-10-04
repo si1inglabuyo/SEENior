@@ -10,6 +10,7 @@ import com.pup.seenior.network.dto.HeartbeatRequest
 import com.pup.seenior.network.dto.ContactDto
 import com.pup.seenior.network.dto.CreateAlertRequest
 import com.pup.seenior.network.dto.CreateSeniorRequest
+import com.pup.seenior.network.dto.DeviceKeyDto
 import com.pup.seenior.network.dto.DeviceDto
 import com.pup.seenior.network.dto.FamilyContactDto
 import com.pup.seenior.network.dto.FirebaseSignInRequest
@@ -43,10 +44,14 @@ import retrofit2.http.Query
 
 interface ApiService {
 
-    // ---- Senior side (no auth — identified by sync_id) ----
+    // ---- Senior side (no login; the phone proves itself with its device key) ----
 
     @POST("seniors")
     suspend fun createSenior(@Body body: CreateSeniorRequest): SeniorDto
+
+    // Issues a device key to a phone that registered before keys existed. Works once; 409 after.
+    @POST("seniors/{syncId}/device-key")
+    suspend fun claimDeviceKey(@Path("syncId") syncId: String): DeviceKeyDto
 
     @PATCH("seniors/{syncId}")
     suspend fun updateSenior(

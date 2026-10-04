@@ -3,7 +3,7 @@ import contextlib
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.escalation import escalation_sweep_loop
@@ -24,7 +24,31 @@ async def lifespan(app: FastAPI):
         await task
 
 
-app = FastAPI(title="SEENior API", lifespan=lifespan)
+app = FastAPI(
+    title="SEENior API",
+    lifespan=lifespan,
+    docs_url="/docs" if settings.enable_api_docs else None,
+    redoc_url="/redoc" if settings.enable_api_docs else None,
+    openapi_url="/openapi.json" if settings.enable_api_docs else None,
+)
+
+SECURITY_HEADERS = {
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "no-referrer",
+    "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+    # Responses can hold personal data, so keep browsers and proxies from caching them.
+    "Cache-Control": "no-store",
+}
+
+
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    for name, value in SECURITY_HEADERS.items():
+        response.headers.setdefault(name, value)
+    return response
+
 
 # Browsers need the server to allow the origin; the barangay dashboard is the only browser client.
 app.add_middleware(

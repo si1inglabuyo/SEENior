@@ -171,9 +171,12 @@ class Senior(Base):
     push_token: Mapped[str | None] = mapped_column(String(255), nullable=True)
     last_nudge_at: Mapped[datetime | None] = mapped_column(nullable=True)
 
-    # Soft deletion (migration 0010): a null deleted_at means a live record. The sync_id is
-    # the credential for POST /seniors/{sync_id}/delete. Barangay dashboard queries must
-    # exclude rows where deleted_at is set.
+    # SHA-256 of the key this senior's phone sends in X-Device-Key (migration 0014; see
+    # app/core/device_key.py). Null until the phone has claimed a key.
+    device_key_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+
+    # Soft deletion (migration 0010): a null deleted_at means a live record. Barangay
+    # dashboard queries must exclude rows where deleted_at is set.
     deleted_at: Mapped[datetime | None] = mapped_column(nullable=True)
     deletion_reason: Mapped[str | None] = mapped_column(String(64), nullable=True)
     deletion_note: Mapped[str | None] = mapped_column(String(500), nullable=True)

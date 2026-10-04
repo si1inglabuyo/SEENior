@@ -137,11 +137,11 @@ class FamilyProfileViewModel(application: Application) : AndroidViewModel(applic
         private set
 
     val isPasswordFormValid: Boolean
-        get() = currentPassword.isNotBlank() && newPassword.length >= 4 && newPassword == confirmPassword
+        get() = currentPassword.isNotBlank() && newPassword.length >= MIN_PASSWORD_LENGTH && newPassword == confirmPassword
 
     /** The set-password form has no current-password field. */
     val isSetPasswordFormValid: Boolean
-        get() = newPassword.length >= 4 && newPassword == confirmPassword
+        get() = newPassword.length >= MIN_PASSWORD_LENGTH && newPassword == confirmPassword
 
     fun changePassword() {
         val token = token() ?: return

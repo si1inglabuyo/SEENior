@@ -56,5 +56,10 @@ data class SeniorDto(
      */
     val lastSeenAt: String? = null,
     val batteryPercent: Int? = null,
-    val isCharging: Boolean? = null
+    val isCharging: Boolean? = null,
+    /** The device key. Sent only when the senior registers, and kept in [com.pup.seenior.network.DeviceKeyStore]. */
+    val deviceKey: String? = null
 )
+
+/** Mirrors backend DeviceKeyOut: a key issued to a phone that registered before keys existed. */
+data class DeviceKeyDto(val deviceKey: String)

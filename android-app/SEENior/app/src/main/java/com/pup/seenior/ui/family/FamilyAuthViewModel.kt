@@ -33,6 +33,9 @@ private suspend fun <T> Task<T>.awaitResult(): T = suspendCancellableCoroutine {
     }
 }
 
+/** Shortest password the app accepts. Matches Firebase Auth and the backend. */
+internal const val MIN_PASSWORD_LENGTH = 6
+
 private val EMAIL_PATTERN = Regex("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$")
 
 /** Drives the family app's Sign Up and Log In screens. Both end with a saved token and the
@@ -55,7 +58,7 @@ class FamilyAuthViewModel(application: Application) : AndroidViewModel(applicati
             signUpLastName.isNotBlank() &&
             PhilippinePhone.isValid(signUpPhone) &&
             EMAIL_PATTERN.matches(signUpEmail.trim()) &&
-            signUpPassword.length >= 4
+            signUpPassword.length >= MIN_PASSWORD_LENGTH
 
     fun signUp(onSuccess: () -> Unit) {
         if (!isSignUpValid || isSigningUp) return

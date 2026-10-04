@@ -54,19 +54,8 @@ def test_invite_codes_are_six_digits_and_come_from_a_secure_source():
             self.committed = True
 
     senior = SimpleNamespace(invite_code=None, invite_code_expires_at=None, deleted_at=None)
+    invite = asyncio.run(seniors.generate_invite(senior, _Db()))
 
-    async def run():
-        async def fake_get(_sync_id, _db):
-            return senior
-
-        original = seniors._get_senior_or_404
-        seniors._get_senior_or_404 = fake_get
-        try:
-            return await seniors.generate_invite(object(), _Db())
-        finally:
-            seniors._get_senior_or_404 = original
-
-    invite = asyncio.run(run())
     assert re.fullmatch(r"\d{6}", invite.code)
     assert senior.invite_code == invite.code
 

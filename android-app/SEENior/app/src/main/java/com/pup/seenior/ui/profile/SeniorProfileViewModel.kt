@@ -10,6 +10,7 @@ import com.pup.seenior.address.AddressForm
 import com.pup.seenior.alerts.EscalationScheduler
 import com.pup.seenior.database.SeniorAppDatabase
 import com.pup.seenior.database.entities.Senior
+import com.pup.seenior.network.DeviceKeyStore
 import com.pup.seenior.network.RetrofitClient
 import com.pup.seenior.network.SeniorCloudSync
 import com.pup.seenior.network.dto.AccountDeletionRequest
@@ -233,6 +234,7 @@ class SeniorProfileViewModel(application: Application) : AndroidViewModel(applic
 
             // 3. Erase the local database (all ten tables). clearAllTables() blocks and must run off the main thread.
             withContext(Dispatchers.IO) { db.clearAllTables() }
+            DeviceKeyStore.clear()
 
             isDeleting = false
             onDeleted()

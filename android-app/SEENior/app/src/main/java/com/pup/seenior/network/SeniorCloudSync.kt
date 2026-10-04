@@ -3,6 +3,7 @@ package com.pup.seenior.network
 import com.pup.seenior.database.SeniorAppDatabase
 import com.pup.seenior.network.dto.CreateSeniorRequest
 import retrofit2.HttpException
+import java.io.IOException
 
 /**
  * Owns the senior's cloud identity (`Seniors.cloud_sync_id`). Registration is lazy, on first
@@ -31,7 +32,24 @@ class SeniorCloudSync(private val db: SeniorAppDatabase) {
             )
         )
         db.seniorDao().updateCloudSyncId(senior.seniorId, created.syncId)
+        created.deviceKey?.let { DeviceKeyStore.save(created.syncId, it) }
         return created.syncId
+    }
+
+    /**
+     * Gets a device key for a senior who registered before keys existed, once. Offline it just
+     * tries again on the next call. If the server says a key was already issued and this phone
+     * doesn't have it, retrying can't help, so it stops asking.
+     */
+    private suspend fun ensureDeviceKey(syncId: String) {
+        if (DeviceKeyStore.hasKeyFor(syncId) || syncId in refusedClaims) return
+        try {
+            DeviceKeyStore.save(syncId, RetrofitClient.api.claimDeviceKey(syncId).deviceKey)
+        } catch (e: HttpException) {
+            if (e.code() == 409) refusedClaims += syncId
+        } catch (_: IOException) {
+            // No connection; the next call will try again.
+        }
     }
 
     private suspend fun cachedSyncId(): String? =
@@ -48,6 +66,7 @@ class SeniorCloudSync(private val db: SeniorAppDatabase) {
     suspend fun <T> withSyncId(block: suspend (String) -> T): T {
         val existing = cachedSyncId()
         if (existing == null) return block(register())
+        ensureDeviceKey(existing)
         return try {
             block(existing)
         } catch (e: HttpException) {
@@ -65,9 +84,15 @@ class SeniorCloudSync(private val db: SeniorAppDatabase) {
     suspend fun <T> withCachedSyncId(block: suspend (String) -> T): T {
         val existing = cachedSyncId()
             ?: throw IllegalStateException("No cloud sync_id; this alert cannot have been synced.")
+        ensureDeviceKey(existing)
         return block(existing)
     }
 
     /** For read paths that should stay silent when the senior never used a cloud feature: returns null instead of registering. */
     suspend fun withSyncIdOrNull(): String? = cachedSyncId()
+
+    private companion object {
+        /** Identities the server refused to issue a key to, so we don't ask on every call. */
+        val refusedClaims: MutableSet<String> = java.util.concurrent.ConcurrentHashMap.newKeySet()
+    }
 }

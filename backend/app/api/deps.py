@@ -1,10 +1,14 @@
-from fastapi import Depends, HTTPException, status
+from uuid import UUID
+
+from fastapi import Depends, Header, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core import device_key
+from app.core.config import settings
 from app.core.security import decode_access_token
-from app.db.models import User, UserRole
+from app.db.models import Senior, User, UserRole
 from app.db.session import get_db
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
@@ -49,3 +53,39 @@ def require_role(role: UserRole):
         return user
 
     return _check
+
+
+def check_device_key(senior: Senior, presented: str | None) -> None:
+    """Raises 401 unless `presented` is this senior's device key.
+
+    A senior whose phone hasn't claimed a key yet is accepted unless REQUIRE_DEVICE_KEY is on.
+    """
+    stored = senior.device_key_hash
+    if stored is None:
+        if settings.require_device_key:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="This app version must be updated to keep working.",
+                headers={"WWW-Authenticate": "DeviceKey"},
+            )
+        return
+    if not presented or not device_key.matches(presented, stored):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid device key.",
+            headers={"WWW-Authenticate": "DeviceKey"},
+        )
+
+
+async def get_authenticated_senior(
+    sync_id: UUID,
+    x_device_key: str | None = Header(default=None),
+    db: AsyncSession = Depends(get_db),
+) -> Senior:
+    """The senior named in the path, once their phone has proved it holds the device key."""
+    result = await db.execute(select(Senior).where(Senior.sync_id == sync_id))
+    senior = result.scalar_one_or_none()
+    if senior is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Senior not found")
+    check_device_key(senior, x_device_key)
+    return senior

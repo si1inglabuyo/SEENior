@@ -4,6 +4,9 @@ from pydantic import BaseModel, EmailStr, Field
 
 from app.db.models import UserRole
 
+# Matches the 6-character minimum Firebase Auth already enforces on the family app.
+MIN_PASSWORD_LENGTH = 6
+
 
 class Token(BaseModel):
     access_token: str
@@ -34,12 +37,12 @@ class UserUpdate(BaseModel):
 
 class PasswordChangeRequest(BaseModel):
     current_password: str
-    new_password: str
+    new_password: str = Field(min_length=MIN_PASSWORD_LENGTH)
 
 
 class PasswordSetRequest(BaseModel):
     """Add a password to a Google-only account. No current password is needed."""
-    new_password: str = Field(min_length=4)
+    new_password: str = Field(min_length=MIN_PASSWORD_LENGTH)
 
 
 class RegisterRequest(BaseModel):
@@ -47,7 +50,7 @@ class RegisterRequest(BaseModel):
     full_name: str
     phone: str
     email: EmailStr
-    password: str
+    password: str = Field(min_length=MIN_PASSWORD_LENGTH)
 
 
 class GoogleSignInRequest(BaseModel):

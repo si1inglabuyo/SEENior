@@ -3,12 +3,12 @@ import logging
 from datetime import datetime, timezone
 from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, status
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.api.deps import get_current_user
+from app.api.deps import check_device_key, get_current_user
 from app.core import push, ratelimit, sms
 from app.core.config import settings
 from app.db.models import (
@@ -233,10 +233,10 @@ async def deliver_alert_push(tokens: list[str], payload: push.AlertPush) -> None
 async def create_alert(
     payload: AlertCreate,
     background_tasks: BackgroundTasks,
+    x_device_key: str | None = Header(default=None),
     db: AsyncSession = Depends(get_db),
 ) -> Alert:
-    # No auth: the senior's phone has no account and identifies itself by sync_id.
-    # Known simplification: nothing checks that the caller owns that sync_id.
+    # No JWT, since the senior's phone has no account; it proves itself with its device key.
     result = await db.execute(
         select(Senior)
         .where(Senior.sync_id == payload.senior_sync_id)
@@ -246,6 +246,7 @@ async def create_alert(
     if senior is None or senior.deleted_at is not None:
         # A deleted senior's phone is wiped, so a stale queued alert belongs to no one.
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Senior not found")
+    check_device_key(senior, x_device_key)
 
     # Per senior, not per address: a real phone raises far fewer alerts than this, and a
     # per-IP cap could block a genuine emergency from a shared network.
@@ -402,11 +403,14 @@ def append_step(alert: Alert, step: str, **extra: str | None) -> None:
 
 @router.patch("/{sync_id}/cancel", response_model=AlertOut)
 async def cancel_alert(
-    sync_id: UUID, payload: AlertCancel, db: AsyncSession = Depends(get_db)
+    sync_id: UUID,
+    payload: AlertCancel,
+    x_device_key: str | None = Header(default=None),
+    db: AsyncSession = Depends(get_db),
 ) -> Alert:
     """The senior answers the wellness prompt, closing the incident.
 
-    No JWT, since the senior has no account; both sync_ids are required instead.
+    No JWT, since the senior has no account; both sync_ids and the device key are required.
     Idempotent, so a phone retrying after a lost connection gets the closed alert back.
     """
     result = await db.execute(
@@ -419,6 +423,8 @@ async def cancel_alert(
     if alert.senior is None or alert.senior.sync_id != payload.senior_sync_id:
         # Same 404 as above so we don't reveal that the alert exists.
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Alert not found")
+
+    check_device_key(alert.senior, x_device_key)
 
     if alert.status in (AlertStatus.RESOLVED, AlertStatus.FALSE_POSITIVE):
         return alert
@@ -438,12 +444,14 @@ RISK_ORDER = [RiskLevel.LOW, RiskLevel.MEDIUM, RiskLevel.HIGH]
 
 @router.patch("/{sync_id}/severity", response_model=AlertOut)
 async def update_alert_severity(
-    sync_id: UUID, payload: AlertSeverityUpdate, db: AsyncSession = Depends(get_db)
+    sync_id: UUID,
+    payload: AlertSeverityUpdate,
+    x_device_key: str | None = Header(default=None),
+    db: AsyncSession = Depends(get_db),
 ) -> Alert:
     """Raises an open alert's risk level after the phone re-classified it.
 
-    Upgrade-only and idempotent. Closed alerts are left alone. No JWT; the pair of
-    sync_ids is the credential.
+    Upgrade-only and idempotent. Closed alerts are left alone. No JWT; needs the device key.
     """
     result = await db.execute(
         select(Alert).where(Alert.sync_id == sync_id).options(selectinload(Alert.senior))
@@ -455,6 +463,8 @@ async def update_alert_severity(
     if alert.senior is None or alert.senior.sync_id != payload.senior_sync_id:
         # Same 404 as the cancel route so we don't reveal that the alert exists.
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Alert not found")
+
+    check_device_key(alert.senior, x_device_key)
 
     if alert.status in (AlertStatus.RESOLVED, AlertStatus.FALSE_POSITIVE):
         return alert
@@ -473,13 +483,15 @@ async def update_alert_severity(
 
 @router.patch("/{sync_id}/location", response_model=AlertOut)
 async def update_alert_location(
-    sync_id: UUID, payload: AlertLocationUpdate, db: AsyncSession = Depends(get_db)
+    sync_id: UUID,
+    payload: AlertLocationUpdate,
+    x_device_key: str | None = Header(default=None),
+    db: AsyncSession = Depends(get_db),
 ) -> Alert:
     """Fills in the location of an alert posted before its GPS fix arrived.
 
     Set-once and idempotent: a second value is ignored. Closed alerts are still accepted,
-    since an SOS can be resolved before its location arrives. No JWT; the pair of
-    sync_ids is the credential.
+    since an SOS can be resolved before its location arrives. No JWT; needs the device key.
     """
     result = await db.execute(
         select(Alert).where(Alert.sync_id == sync_id).options(selectinload(Alert.senior))
@@ -491,6 +503,8 @@ async def update_alert_location(
     if alert.senior is None or alert.senior.sync_id != payload.senior_sync_id:
         # Same 404 as the routes above so we don't reveal that the alert exists.
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Alert not found")
+
+    check_device_key(alert.senior, x_device_key)
 
     if alert.location_cluster_id is not None:
         return alert

@@ -61,6 +61,14 @@ class Settings:
     # API key is misused or a bug loops; set well above normal use and raise it for a pilot.
     sms_daily_limit: int = int(os.environ.get("SMS_DAILY_LIMIT", "300"))
 
+    # When set, a senior with no device key is refused instead of accepted the old way. Turn on
+    # (REQUIRE_DEVICE_KEY=1) once every senior's phone has claimed a key.
+    require_device_key: bool = os.environ.get("REQUIRE_DEVICE_KEY") == "1"
+
+    # Interactive API docs (/docs, /redoc, /openapi.json) are off unless ENABLE_API_DOCS=1,
+    # so production doesn't publish a map of every endpoint.
+    enable_api_docs: bool = os.environ.get("ENABLE_API_DOCS") == "1"
+
     # Browser origins allowed to call this API (the barangay dashboard).
     cors_origins: list[str] = [
         origin.strip()

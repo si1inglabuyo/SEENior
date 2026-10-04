@@ -6,7 +6,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.api.deps import get_current_user
+from app.api.deps import get_authenticated_senior, get_current_user
 from app.core import ratelimit
 from app.core.security import create_access_token
 from app.db.models import Contact, ContactType, DeviceToken, Senior, UnlinkActor, User
@@ -191,13 +191,9 @@ async def unlink_senior(
 
 
 @router.get("/seniors/{sync_id}/family-contacts", response_model=list[FamilyContactOut])
-async def list_family_contacts(sync_id: UUID, db: AsyncSession = Depends(get_db)) -> list[FamilyContactOut]:
-    # No auth: the senior app has no account and identifies by sync_id, like POST /alerts.
-    result = await db.execute(select(Senior).where(Senior.sync_id == sync_id))
-    senior = result.scalar_one_or_none()
-    if senior is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Senior not found")
-
+async def list_family_contacts(
+    senior: Senior = Depends(get_authenticated_senior), db: AsyncSession = Depends(get_db)
+) -> list[FamilyContactOut]:
     contacts_result = await db.execute(
         select(Contact)
         .where(
@@ -238,15 +234,11 @@ async def list_family_contacts(sync_id: UUID, db: AsyncSession = Depends(get_db)
 
 @router.delete("/seniors/{sync_id}/family-contacts/{contact_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def remove_family_contact(
-    sync_id: UUID, contact_id: int, db: AsyncSession = Depends(get_db)
+    contact_id: int,
+    senior: Senior = Depends(get_authenticated_senior),
+    db: AsyncSession = Depends(get_db),
 ) -> None:
-    # No auth: the senior's "Remove Contact" button, scoped to this senior's sync_id.
-    # Soft, like the family-side unlink above.
-    result = await db.execute(select(Senior).where(Senior.sync_id == sync_id))
-    senior = result.scalar_one_or_none()
-    if senior is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Senior not found")
-
+    # The senior's "Remove Contact" button. Soft, like the family-side unlink above.
     contact_result = await db.execute(
         select(Contact).where(
             Contact.id == contact_id,

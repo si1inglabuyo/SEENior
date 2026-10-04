@@ -84,6 +84,18 @@ class SeniorOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class SeniorRegistered(SeniorOut):
+    """Returned once, when a senior registers: the record plus the device key for the phone to keep."""
+
+    device_key: str
+
+
+class DeviceKeyOut(BaseModel):
+    """A device key issued to a phone that registered before keys existed."""
+
+    device_key: str
+
+
 class ClosedAlertOut(BaseModel):
     """One of this senior's alerts that family or the barangay has closed.
 

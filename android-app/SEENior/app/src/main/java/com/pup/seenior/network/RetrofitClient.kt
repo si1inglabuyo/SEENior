@@ -22,10 +22,13 @@ object RetrofitClient {
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(60, TimeUnit.SECONDS)
         .writeTimeout(30, TimeUnit.SECONDS)
-        // BODY only in debug. It logs every request and response in full (bearer tokens, the
-        // login password, names, addresses, geohashes), which a release build must never carry.
+        .addInterceptor(DeviceKeyInterceptor())
+        // BODY only in debug. It logs every request and response in full (names, addresses,
+        // geohashes), which a release build must never carry. Credentials are redacted.
         .addInterceptor(
             HttpLoggingInterceptor().apply {
+                redactHeader("Authorization")
+                redactHeader(DeviceKeyInterceptor.HEADER)
                 level = if (BuildConfig.DEBUG) {
                     HttpLoggingInterceptor.Level.BODY
                 } else {

@@ -6,17 +6,19 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import require_role
-from app.core import ratelimit
+from app.api.deps import get_authenticated_senior, require_role
+from app.core import device_key, ratelimit
 from app.db.models import Alert, AlertStatus, Contact, Senior, SeniorStatus, UnlinkActor, User, UserRole
 from app.db.session import get_db
 from app.schemas.contact import InviteCodeOut
 from app.schemas.senior import (
     ClosedAlertOut,
+    DeviceKeyOut,
     SeniorCreate,
     SeniorDeletionRequest,
     SeniorHeartbeat,
     SeniorOut,
+    SeniorRegistered,
     SeniorStatusOut,
     SeniorStatusUpdate,
     SeniorUpdate,
@@ -29,17 +31,39 @@ INVITE_CODE_LIFETIME = timedelta(minutes=5)
 
 @router.post(
     "",
-    response_model=SeniorOut,
+    response_model=SeniorRegistered,
     status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(ratelimit.per_ip("create-senior", 10, 3600))],
 )
-async def create_senior(payload: SeniorCreate, db: AsyncSession = Depends(get_db)) -> Senior:
-    # No auth: the senior has no account, and the returned sync_id becomes their cloud identity.
-    senior = Senior(**payload.model_dump())
+async def create_senior(payload: SeniorCreate, db: AsyncSession = Depends(get_db)) -> SeniorRegistered:
+    """Registers a senior. The device key in the response is shown once and only its hash is kept."""
+    key = device_key.generate()
+    senior = Senior(**payload.model_dump(), device_key_hash=device_key.hash_key(key))
     db.add(senior)
     await db.commit()
     await db.refresh(senior)
-    return senior
+    return SeniorRegistered(**SeniorOut.model_validate(senior).model_dump(), device_key=key)
+
+
+@router.post(
+    "/{sync_id}/device-key",
+    response_model=DeviceKeyOut,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(ratelimit.per_ip("claim-device-key", 30, 3600))],
+)
+async def claim_device_key(sync_id: UUID, db: AsyncSession = Depends(get_db)) -> DeviceKeyOut:
+    """Issues a device key to a senior registered before keys existed.
+
+    Works once, while the senior has no key; after that it returns 409 and the existing key
+    is needed for everything. The updated app calls this on first use.
+    """
+    senior = await _get_senior_or_404(sync_id, db)
+    if senior.device_key_hash is not None or senior.deleted_at is not None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="A device key was already issued.")
+    key = device_key.generate()
+    senior.device_key_hash = device_key.hash_key(key)
+    await db.commit()
+    return DeviceKeyOut(device_key=key)
 
 
 async def _get_senior_or_404(sync_id: UUID, db: AsyncSession) -> Senior:
@@ -52,11 +76,11 @@ async def _get_senior_or_404(sync_id: UUID, db: AsyncSession) -> Senior:
 
 @router.patch("/{sync_id}", response_model=SeniorOut)
 async def update_senior(
-    sync_id: UUID, payload: SeniorUpdate, db: AsyncSession = Depends(get_db)
+    payload: SeniorUpdate,
+    senior: Senior = Depends(get_authenticated_senior),
+    db: AsyncSession = Depends(get_db),
 ) -> Senior:
-    # No auth: the sync_id is the credential. Lets an Edit Profile save reach the cloud copy
-    # the family app shows.
-    senior = await _get_senior_or_404(sync_id, db)
+    # Lets an Edit Profile save reach the cloud copy the family app shows.
     for field, value in payload.model_dump().items():
         setattr(senior, field, value)
     await db.commit()
@@ -66,16 +90,15 @@ async def update_senior(
 
 @router.post("/{sync_id}/heartbeat", response_model=SeniorOut)
 async def heartbeat(
-    sync_id: UUID, payload: SeniorHeartbeat, db: AsyncSession = Depends(get_db)
+    payload: SeniorHeartbeat,
+    senior: Senior = Depends(get_authenticated_senior),
+    db: AsyncSession = Depends(get_db),
 ) -> Senior:
     """Records that the senior's phone is still running, with its battery level.
 
-    The sync_id is the credential. The timestamp is the point: it shows monitoring hasn't
-    stopped. Each call overwrites the last values, since a battery history would reveal
-    when the senior sleeps.
+    The timestamp is the point: it shows monitoring hasn't stopped. Each call overwrites
+    the last values, since a battery history would reveal when the senior sleeps.
     """
-    senior = await _get_senior_or_404(sync_id, db)
-
     # Naive UTC to match the column type, same convention as generate_invite below.
     senior.last_seen_at = datetime.now(timezone.utc).replace(tzinfo=None)
     # Only overwrite a reading the phone actually sent.
@@ -94,15 +117,15 @@ async def heartbeat(
 
 @router.post("/{sync_id}/delete", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_senior(
-    sync_id: UUID, payload: SeniorDeletionRequest, db: AsyncSession = Depends(get_db)
+    payload: SeniorDeletionRequest,
+    senior: Senior = Depends(get_authenticated_senior),
+    db: AsyncSession = Depends(get_db),
 ) -> None:
     """Soft-deletes a senior's cloud record.
 
-    No auth; the sync_id is the credential. The row is kept for audit, contacts are
-    soft-unlinked, and push_token / last_nudge_at / invite_code are cleared. The phone
-    wipes its own database separately. Idempotent.
+    The row is kept for audit, contacts are soft-unlinked, and push_token / last_nudge_at /
+    invite_code are cleared. The phone wipes its own database separately. Idempotent.
     """
-    senior = await _get_senior_or_404(sync_id, db)
     if senior.deleted_at is not None:
         return
 
@@ -134,13 +157,13 @@ _CLOSED_ALERTS_WINDOW = timedelta(days=7)
 
 
 @router.get("/{sync_id}/closed-alerts", response_model=list[ClosedAlertOut])
-async def closed_alerts(sync_id: UUID, db: AsyncSession = Depends(get_db)) -> list[Alert]:
+async def closed_alerts(
+    senior: Senior = Depends(get_authenticated_senior), db: AsyncSession = Depends(get_db)
+) -> list[Alert]:
     """Which of this senior's recent alerts a family contact or the barangay has closed.
 
-    Lets the phone stop showing a closed alert as open. Uses the sync_id as the
-    credential and returns only sync ids and a status.
+    Lets the phone stop showing a closed alert as open. Returns only sync ids and a status.
     """
-    senior = await _get_senior_or_404(sync_id, db)
     since = datetime.now(timezone.utc).replace(tzinfo=None) - _CLOSED_ALERTS_WINDOW
     result = await db.execute(
         select(Alert)
@@ -190,9 +213,9 @@ async def set_senior_status(
 
 
 @router.post("/{sync_id}/invite", response_model=InviteCodeOut)
-async def generate_invite(sync_id: UUID, db: AsyncSession = Depends(get_db)) -> InviteCodeOut:
-    senior = await _get_senior_or_404(sync_id, db)
-
+async def generate_invite(
+    senior: Senior = Depends(get_authenticated_senior), db: AsyncSession = Depends(get_db)
+) -> InviteCodeOut:
     # Naive UTC, to match the column type.
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     if senior.invite_code_expires_at is not None and senior.invite_code_expires_at > now:
