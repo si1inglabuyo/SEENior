@@ -62,9 +62,10 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
-      # Installs the Android command-line tools and accepts the licences, so Gradle can fetch
-      # the SDK platform the app compiles against.
-      - uses: android-actions/setup-android@v3
+      # The runner already has the Android SDK. Accepting its licences lets Gradle download the
+      # platform the app compiles against. `|| true` because `yes` exits when the pipe closes.
+      - name: Accept Android SDK licences
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
       - uses: gradle/actions/setup-gradle@v4
       - name: Run unit tests
         # gradle.properties pins org.gradle.java.home to a Windows path for local builds; the
