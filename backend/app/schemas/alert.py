@@ -12,9 +12,7 @@ class AlertCreate(BaseModel):
     trigger_type: TriggerType
     location_cluster_id: str | None = None
     escalation_steps: list | None = None
-    # When the phone's own detector actually fired -- see migration 0009. Optional: an older
-    # client that doesn't send it must not fail the request, it just leaves the cloud with
-    # only created_at, same as every row before this field existed.
+    # When the phone's detector actually fired (migration 0009). Optional for older clients.
     triggered_at: datetime | None = None
 
 
@@ -35,26 +33,17 @@ class AlertOut(BaseModel):
 class AlertCancel(BaseModel):
     """The senior's own phone closing an alert it raised.
 
-    Carries the senior's sync_id as well as the alert's. The senior has no account to sign in
-    with (spec §2), so a UUID in the path is the only credential available -- and unlike
-    generating an invite code, this one closes an emergency. Requiring both ids means a caller
-    has to hold the alert's id *and* prove it belongs to the senior they claim, which is what
-    the senior's own device is the only thing that naturally does.
+    Carries both sync_ids, since the senior has no account and holding both is the only
+    credential.
     """
 
     senior_sync_id: UUID
 
 
 class AlertSeverityUpdate(BaseModel):
-    """The senior's phone reporting that an already-sent alert has got worse.
+    """The senior's phone reporting that an open alert has got worse (re-classified).
 
-    Layer 1 re-scores every sample, so an alert posted as Medium can be re-classified High
-    minutes later while it is still open. Without this the cloud copy keeps the level it was
-    created with, and the family app and the barangay dashboard show Medium for an incident the
-    phone now calls High -- measured on 2026-09-01, five hours apart.
-
-    Carries the senior's sync_id for the same reason AlertCancel does: the senior has no account
-    (spec §2), so holding both ids is the only credential available.
+    Carries both sync_ids, like AlertCancel.
     """
 
     senior_sync_id: UUID
@@ -64,14 +53,8 @@ class AlertSeverityUpdate(BaseModel):
 class AlertLocationUpdate(BaseModel):
     """The senior's phone reporting where an already-sent alert happened.
 
-    The fix and the deadline are two clocks that do not wait for each other. An SOS posts at the
-    end of its ten-second cancel window (spec §7 -- that window is the senior's, not ours to
-    lengthen), while the GPS is allowed twenty. A cold GPS indoors routinely answers in between,
-    and before this the cell it produced stayed on the phone permanently: the family's map and
-    the barangay dashboard showed no pin for the two alert types where a responder most needs one.
-
-    Carries the senior's sync_id for the same reason AlertCancel does: the senior has no account
-    (spec §2), so holding both ids is the only credential available.
+    An SOS posts when its cancel window ends, which can be before the GPS fix arrives, so
+    the location is sent afterwards. Carries both sync_ids, like AlertCancel.
     """
 
     senior_sync_id: UUID

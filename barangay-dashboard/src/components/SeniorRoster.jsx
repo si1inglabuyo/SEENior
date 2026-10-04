@@ -20,9 +20,8 @@ export default function SeniorRoster({ onSessionLost }) {
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState(null) // sync_id of the senior being viewed
 
-  // Deactivation is saved on the server (PATCH /seniors/{sync_id}/status), so it survives a
-  // cleared browser and is the same on every machine. Rejects on failure so the caller can say
-  // so; the list only changes once the server has agreed.
+    // Saved on the server (PATCH /seniors/{sync_id}/status) so it is the same on every
+    // machine. Rejects on failure; the list only changes once the server agrees.
   async function setDeactivatedFor(syncId, value) {
     const updated = await api(`/seniors/${syncId}/status`, {
       method: 'PATCH',

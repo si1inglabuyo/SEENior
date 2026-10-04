@@ -16,9 +16,8 @@ data class VerifyCodeResponse(
     val senior: SeniorDto
 )
 
-/** Mirrors backend PairRequest. Requires the caller to already be logged in (via
- *  /auth/register, /auth/login, or /auth/google) - this only links that account to
- *  a senior. relationshipLabel is chosen on the Connected screen. */
+/** Mirrors backend PairRequest. Requires a logged-in caller; this only links that account to a
+ *  senior. relationshipLabel is chosen on the Connected screen. */
 data class PairRequest(
     val inviteCode: String,
     val relationshipLabel: String
@@ -52,7 +51,6 @@ data class FamilyContactDto(
     val relationshipLabel: String?,
     val contactType: String,
     val createdAt: String,
-    /** When this contact's app last registered (i.e. last launched). Null if never; the
-     *  Contacts screen shows it as "Active … ago". Against an older backend it stays null. */
+    /** When this contact's app last registered (its last launch). Null if never; shown as "Active ... ago". Stays null against an older backend. */
     val lastActiveAt: String? = null
 )

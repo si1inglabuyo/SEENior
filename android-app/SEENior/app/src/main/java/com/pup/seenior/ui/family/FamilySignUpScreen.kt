@@ -34,8 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 
-/** Family Sign Up (designs/family_contact/account_setup/Sign Up Screen.png). Creates the
- *  account up front, before any senior is paired - pairing happens later via the Link tab. */
+/** Family Sign Up. Creates the account before any senior is paired (pairing happens later via the Link tab). */
 @Composable
 fun FamilySignUpScreen(
     viewModel: FamilyAuthViewModel,
@@ -45,8 +44,7 @@ fun FamilySignUpScreen(
     onGoToLogin: () -> Unit
 ) {
     val launchGoogleSignIn = rememberGoogleSignInLauncher(
-        // Google gives us no phone number, so a new Google account needs one collected before
-        // it's usable as a family contact — see FamilyAuthViewModel.onGoogleIdToken.
+        // Google gives no phone number, so a new Google account needs one collected (see FamilyAuthViewModel.onGoogleIdToken).
         onIdToken = { token ->
             viewModel.onGoogleIdToken(token) { needsPhone ->
                 if (needsPhone) onNeedsPhone() else onSignedUp()
@@ -74,8 +72,7 @@ fun FamilySignUpScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 24.dp)
                 .navigationBarsPadding()
-                // Keeps the focused field (Email/Password sit at the bottom) above the keyboard —
-                // enableEdgeToEdge() stops adjustResize from shrinking the window for the IME.
+                // Keeps the focused field above the keyboard; enableEdgeToEdge() stops adjustResize from doing it.
                 .imePadding()
         ) {
             Text(
@@ -180,8 +177,7 @@ fun FamilySignUpScreen(
     }
 }
 
-/** Google's official multi-color "G" mark, per Google Identity branding guidelines for
- *  "Sign in with Google" buttons. */
+/** Google's multi-color "G" mark, per its branding guidelines for "Sign in with Google" buttons. */
 @Composable
 fun GoogleGlyph() {
     androidx.compose.foundation.Image(

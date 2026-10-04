@@ -8,8 +8,7 @@ import {
 } from '../icons'
 import logoUrl from '../assets/logo.png'
 
-// The nav is the same on every screen, so it lives in one place. `id` matches the view
-// keys App.jsx switches on.
+// The nav, shared by every screen. `id` matches the view keys in App.jsx.
 const NAV = [
   { id: 'dashboard', label: 'Dashboard', Icon: IconDashboard },
   { id: 'alerts', label: 'Alerts', Icon: IconAlerts },

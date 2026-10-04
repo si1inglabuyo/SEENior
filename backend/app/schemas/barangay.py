@@ -9,14 +9,9 @@ from app.db.models import AlertStatus, RiskLevel, SeniorStatus, TriggerType
 class BarangayAlertOut(BaseModel):
     """One incident, shaped for the responder's screen.
 
-    Wider than AlertOut on purpose. A family member already knows who their senior is and
-    where they live; a responder is being asked to go to a house and has to be told.
-
-    Sharing the senior's name, address and alert-time location with the barangay during an
-    active alert is permitted under RA 10173 §12(c), the vital-interests provision
-    (spec §11) -- an explicit exception, not a privacy hole. Note what is still absent:
-    no sensor readings, no behavioural history, and no location on an ordinary day -- only
-    who, where, and what happened, for this one incident.
+    Wider than AlertOut because the responder has to be told who and where. Sharing the
+    senior's name, address and alert-time location is allowed during an active alert
+    (RA 10173 12(c), vital interests). Still no sensor readings or behavioural history.
     """
 
     sync_id: UUID
@@ -26,25 +21,21 @@ class BarangayAlertOut(BaseModel):
     escalation_steps: list | None
     created_at: datetime
     resolved_at: datetime | None
-    # The senior's position when the alert fired -- a geohash (precise since 2026-08-31;
-    # older rows ~150 m). Captured once at trigger time, never continuously; null if no fix
-    # was obtained. The dashboard decodes it to a point on a map. Despite the column name
-    # this is NOT anonymised -- it is held under §12(c) (spec §11).
+    # Position when the alert fired, as a geohash (precise since 2026-08-31; older rows
+    # ~150 m). Captured once at trigger time; null if no fix. Not anonymised, despite the
+    # column name; it is held under RA 10173 12(c).
     location_cluster_id: str | None
 
     senior_sync_id: UUID
     senior_name: str
     senior_age: int
-    # None when the senior skipped gender at onboarding (older rows carry the "unknown"
-    # server default); the responder screen simply omits the line in that case.
+    # None if the senior skipped gender; the dashboard then omits the line.
     senior_gender: str | None
     senior_address: str
     senior_mobile: str
 
-    # Whether anyone sits on the family tier for this senior. Not a privacy field -- it
-    # says nothing about who the family are -- but it changes what the incident means to
-    # the responder. False is "there is nobody else, this is on you"; True is "the family
-    # have had their turn and did not answer". Same signal the escalation clock uses.
+    # Whether the senior has any family contact. False means nobody else was notified.
+    # Same signal the escalation clock uses.
     senior_has_family_contact: bool
 
 
@@ -58,11 +49,10 @@ class BarangaySeniorOut(BaseModel):
     gender: str
     address: str
     mobile_number: str
-    # The responder's own roster bookkeeping (PATCH /seniors/{sync_id}/status). An inactive
-    # senior is still listed -- the dashboard badges it -- and their alerts still arrive.
+    # The responder's own roster state. Inactive seniors are still listed and their alerts
+    # still arrive.
     status: SeniorStatus
-    # Device health, not behaviour. Null means the phone has never checked in at all,
-    # which is a different answer from "checked in, battery at 0".
+    # Device health, not behaviour. Null means the phone never checked in.
     last_seen_at: datetime | None
     battery_percent: int | None
     is_charging: bool | None
@@ -72,11 +62,10 @@ class BarangaySeniorOut(BaseModel):
 
 
 class BarangayContactOut(BaseModel):
-    """One family contact on a senior's record, for the responder's Senior Details page.
+    """One family contact on a senior's record, for the Senior Details page.
 
-    Name/phone/email come from the linked Users row; the relationship label ("daughter",
-    "son", ...) from the pairing. Barangay-responder contacts are not included -- the
-    responder is looking at who ELSE can be called, and that is the family.
+    Name/phone/email come from the Users row, the relationship label from the pairing.
+    Barangay responders are not included.
     """
 
     name: str
@@ -86,12 +75,10 @@ class BarangayContactOut(BaseModel):
 
 
 class BarangaySeniorDetail(BaseModel):
-    """Full record for one senior: profile, family contacts, and their own alert history.
+    """Full record for one senior: profile, family contacts and alert history.
 
-    Still metadata only (spec §11) -- no sensor readings, no coordinates. `living_
-    arrangement` is *derived* from whether an active family contact exists, because the
-    onboarding `living_arrangement` answer lives in the phone's local database and never
-    syncs; it is display text on this screen and nothing routes on it.
+    Metadata only. `living_arrangement` is derived from whether an active family contact
+    exists (the onboarding answer never syncs), and is display text only.
     """
 
     sync_id: UUID
@@ -104,9 +91,7 @@ class BarangaySeniorDetail(BaseModel):
     status: SeniorStatus
     living_arrangement: str
     has_family_contact: bool
-    # Device health, same three fields the roster carries -- so the record can tell the
-    # responder whether the phone that is supposed to be watching this senior is still
-    # checking in. Not behaviour, not location (spec §11 / BarangaySeniorOut).
+    # Device health, same fields as the roster.
     last_seen_at: datetime | None
     battery_percent: int | None
     is_charging: bool | None
@@ -115,8 +100,8 @@ class BarangaySeniorDetail(BaseModel):
 
 
 class ResponderAction(BaseModel):
-    """What a responder types when acting on an incident. Optional -- an urgent dispatch
-    must never be blocked behind a required text box."""
+    """What a responder types when acting on an incident. Optional, so an urgent dispatch
+    is never blocked."""
 
     notes: str | None = None
 
@@ -130,24 +115,19 @@ class BarangayStats(BaseModel):
     seniors_monitored: int
     open_incidents: int
     alerts_this_week: list[DayCount]
-    # Keyed by alert status, plus a derived `attending` key: escalated alerts a responder has
-    # acknowledged are counted there instead of under `escalated`.
+    # Keyed by alert status, plus `attending` (acknowledged escalated alerts, counted
+    # there instead of under `escalated`).
     outcomes: dict[str, int]
 
-    # This week's alerts grouped into the four responder-facing categories -- `anomaly`
-    # (passive detection), `potential_fall` (Layer 0 fall signature), `sos` (senior pressed
-    # the button), `dispatch_family` (a relative asked for a welfare check). Same week window and same non-pending rows the bar chart
-    # and outcome donut use. Backs the dashboard's clickable "Alerts by Type" donut.
+    # This week's alerts by category: `anomaly`, `potential_fall`, `sos`, `dispatch_family`.
+    # Same rows as the bar chart and outcome donut. Backs the "Alerts by Type" donut.
     alert_categories: dict[str, int] = {}
 
-    # Dashboard stat-card figures. All scoped to this responder's barangay and reckoned
-    # against the database clock (see db_now) so "today" means the same day the stored
-    # timestamps were written in.
+    # Dashboard stat-card figures, scoped to this barangay and the database clock.
     resolved_today: int = 0
     sos_today: int = 0
     sos_last_at: datetime | None = None
     seniors_added_this_month: int = 0
-    # Non-pending alert counts for the two days, backing the "N from yesterday" delta on
-    # the Active Alerts card. A per-day volume, not a snapshot of how many were open.
+    # Non-pending alert counts for two days, for the "N from yesterday" delta.
     alerts_today_total: int = 0
     alerts_yesterday_total: int = 0

@@ -21,9 +21,8 @@ data class Senior(
     @ColumnInfo(name = "created_at") val createdAt: Long = System.currentTimeMillis(),
     @ColumnInfo(name = "is_onboarding_complete") val isOnboardingComplete: Boolean = false,
     /**
-     * UUID assigned by the cloud backend on POST /seniors. Null until the senior is first
-     * registered with the cloud — registration is LAZY (done the first time an invite code
-     * is generated), so onboarding still works fully offline.
+     * UUID assigned by the backend on POST /seniors. Null until first registered with the
+     * cloud, which is lazy (first invite code), so onboarding works offline.
      */
     @ColumnInfo(name = "cloud_sync_id") val cloudSyncId: String? = null
 )

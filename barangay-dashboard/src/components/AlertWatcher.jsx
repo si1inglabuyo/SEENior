@@ -2,17 +2,9 @@ import { useEffect, useRef } from 'react'
 import { api, POLL_MS } from '../api'
 import { triggerLabel } from '../labels'
 
-// Always mounted while signed in (App.jsx), independent of which tab is open. It polls the
-// active queue on the shared interval and, when an incident appears that wasn't there on
-// the previous poll, it alerts the responder three ways so a barangay hall PC that nobody
-// is staring at still gets noticed:
-//
-//   - a short chime (Web Audio, no bundled sound file)
-//   - a browser notification, if the responder has granted permission
-//   - a count badge on the browser-tab title, cleared when they return to the tab
-//
-// The first poll after a page load adopts whatever is already open silently -- a reload is
-// not "new alerts arrived".
+// Always mounted while signed in. Polls the active queue and, when a new incident appears,
+// alerts the responder with a chime, a browser notification (if permitted) and a count in
+// the tab title. The first poll after a page load adopts existing alerts silently.
 
 function ensureNotificationPermission() {
   if (typeof Notification === 'undefined') return
@@ -21,9 +13,8 @@ function ensureNotificationPermission() {
   }
 }
 
-// Two quick rising tones. Wrapped in try/catch and a capability check because the browser's
-// autoplay policy may refuse audio until the page has had a user gesture -- the notification
-// and the title badge still fire in that case.
+// Two rising tones. Wrapped in try/catch because autoplay policy may block audio until the
+// page has had a user gesture; the notification and title badge still fire.
 function playChime() {
   try {
     const Ctx = window.AudioContext || window.webkitAudioContext

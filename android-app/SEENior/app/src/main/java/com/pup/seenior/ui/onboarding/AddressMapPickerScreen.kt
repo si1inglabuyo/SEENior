@@ -79,19 +79,15 @@ private class MapHandle {
 }
 
 /**
- * Lets a senior set their address by dragging a map instead of working through four dropdowns.
+ * Lets a senior set their address by dragging a map instead of four dropdowns.
  *
- * **The pin does not move; the map does.** A marker the senior has to grab and drop is a small
- * touch target and an easy thing to fling off-screen — and this app's users are the reason that
- * matters. Here the pin is painted at the centre of the frame and the tiles slide underneath it,
- * so a drag anywhere on the map is a correct gesture and the target cannot be missed.
+ * The pin stays at the centre of the frame and the map moves under it, so a drag anywhere is
+ * a correct gesture and the target can't be missed. The result is a suggestion: only values
+ * that exist in the PSGC dataset (see [PsgcMatcher]) come back, with the dropdowns filled in
+ * and still editable.
  *
- * What this screen produces is a *suggestion*. It hands back only values that exist in the PSGC
- * dataset (see [PsgcMatcher]) and returns the senior to the form with the dropdowns filled in and
- * still editable, rather than committing an address on their behalf.
- *
- * Used by sign-up and by Edit Profile; [onApply] is where the result goes, and [showStepDots]
- * turns off the onboarding progress dots for the latter.
+ * Used by sign-up and Edit Profile; [onApply] receives the result and [showStepDots] turns
+ * off the onboarding progress dots for Edit Profile.
  */
 @Composable
 fun AddressMapPickerScreen(
@@ -106,8 +102,7 @@ fun AddressMapPickerScreen(
     val mapHandle = remember { MapHandle() }
 
     var pinAddress by remember { mutableStateOf<PinAddress>(PinAddress.Unknown) }
-    // Held so a drag landing while an older lookup is still in flight cancels it. Without this a
-    // slow reply can arrive after a newer one and describe a spot the pin has already left.
+    // Held so a new drag cancels an older lookup still in flight, which could arrive late and describe the wrong spot.
     var lookupJob by remember { mutableStateOf<Job?>(null) }
 
     var findingMe by remember { mutableStateOf(false) }
@@ -128,8 +123,7 @@ fun AddressMapPickerScreen(
         }
     }
 
-    /** Centres on the phone and says so when it cannot: a tap that silently does nothing reads as
-     *  a broken button, and the live-fix wait can be many seconds indoors. */
+    /** Centres on the phone and says so when it can't, since a silent tap looks broken and the live-fix wait can be long indoors. */
     fun findMe() {
         if (findingMe) return
         findingMe = true
@@ -163,9 +157,8 @@ fun AddressMapPickerScreen(
                     .background(SeniorColors.FieldBackground, RoundedCornerShape(16.dp))
             ) {
                 AndroidView(
-                    // Clipped on the view itself, as the alert map is: Compose's AndroidView holder
-                    // does not clip its children, and osmdroid paints its tiles at a scrolled
-                    // offset, so an unclipped MapView draws the dragged world outside its box.
+                    // Clipped on the view itself, as the alert map is: Compose's AndroidView
+                    // doesn't clip children, and osmdroid draws tiles at a scrolled offset.
                     modifier = Modifier
                         .fillMaxSize()
                         .clip(RoundedCornerShape(16.dp)),
@@ -177,9 +170,8 @@ fun AddressMapPickerScreen(
                             zoomController.setVisibility(CustomZoomButtonsController.Visibility.NEVER)
                             controller.setZoom(START_ZOOM)
                             controller.setCenter(GeoPoint(START_LATITUDE, START_LONGITUDE))
-                            // Nominatim allows one request a second and a drag emits events
-                            // continuously, so the lookup waits for the map to fall still. This
-                            // delay is the difference between one request per gesture and dozens.
+                            // Nominatim allows one request a second, so the lookup waits for the
+                            // map to settle instead of firing during the drag.
                             addMapListener(
                                 DelayedMapListener(
                                     object : MapListener {
@@ -204,9 +196,8 @@ fun AddressMapPickerScreen(
                     }
                 )
 
-                // Painted over the map rather than added as an overlay, so it stays nailed to the
-                // centre of the frame while the tiles move beneath it. Lifted by half its height
-                // so the point of the pin, not its middle, marks the spot.
+                // Painted over the map, not added as an overlay, so it stays at the centre. Lifted
+                // by half its height so the pin's point marks the spot.
                 Icon(
                     imageVector = Icons.Filled.LocationOn,
                     contentDescription = copy.mapPinDescription,
@@ -226,9 +217,7 @@ fun AddressMapPickerScreen(
                             if (hasAnyLocationPermission(context)) {
                                 findMe()
                             } else {
-                                // Location is normally asked for two screens later. Asking here
-                                // costs the senior nothing extra: granting now means the later
-                                // request finds it already held and shows no second dialog.
+                                // Location is normally asked two screens later; granting now means no second dialog.
                                 LocationPermissionState.markAsked(context)
                                 locationPermission.launch(
                                     arrayOf(
@@ -327,8 +316,7 @@ private fun AddressPreviewBody(state: PinAddress) {
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    // Said plainly rather than hidden. The barangay is the one field tier 3 of the
-                    // escalation chain depends on, and a wrong one fails silently.
+                    // Said plainly: the barangay is what tier 3 depends on, and a wrong one fails silently.
                     if (state.match.barangay == null) copy.mapNoBarangay else copy.mapCheckThis,
                     color = SeniorColors.TextSecondary,
                     fontSize = 14.sp,
@@ -345,11 +333,9 @@ private fun hasAnyLocationPermission(context: Context): Boolean = listOf(
 ).any { ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED }
 
 /**
- * Moves the map to wherever the phone currently is, then looks that spot up.
- *
- * Goes through [AlertLocationCapture] rather than reading the providers again, so there stays
- * exactly one place in this app that asks where the senior's phone is. The round trip through a
- * geohash costs a couple of metres, which is nothing against a map the senior is about to drag.
+ * Moves the map to the phone's current position, then looks that spot up. Goes through
+ * [AlertLocationCapture] so only one place in the app asks where the phone is. The geohash
+ * round trip costs a couple of metres, which doesn't matter for a map being dragged.
  */
 private suspend fun centreOnSenior(
     context: Context,

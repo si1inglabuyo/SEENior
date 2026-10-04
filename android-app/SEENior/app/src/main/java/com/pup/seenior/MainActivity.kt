@@ -23,10 +23,8 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * Warm path: the Activity is already running (launchMode is singleTop), so Android
-     * delivers the tap here rather than through onCreate. Without this, tapping a
-     * notification while the app was merely backgrounded would bring the dashboard forward
-     * on whatever tab it was left on and quietly ignore which alert was tapped.
+     * Warm path: the Activity is already running (singleTop), so Android delivers a notification
+     * tap here instead of onCreate. Without this the tapped alert would be ignored.
      */
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)

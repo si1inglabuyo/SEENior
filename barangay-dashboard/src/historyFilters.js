@@ -1,6 +1,4 @@
-// Pure filter logic for the Alert History page. Kept dependency-free (a Date goes into
-// withinRange, not a raw server string) so the combining rules can be reasoned about and
-// tested on their own, away from React and the API client.
+// Pure filter logic for Alert History, kept free of React and the API so it is easy to test.
 
 export const TYPE_OPTIONS = ['anomaly', 'potential_fall', 'sos', 'dispatch_family']
 export const DATE_LABELS = {
@@ -10,15 +8,13 @@ export const DATE_LABELS = {
   month: 'This month',
 }
 
-// The Dashboard navigates here carrying a { when, date, status, trigger_type, category,
-// label } object (App.jsx's `navigate`). Translate it into this page's own filter state so
-// the list opens already narrowed to what the responder clicked:
+// Turns the { when, date, status, trigger_type, category, label } object a Dashboard click
+// passes (App.jsx `navigate`) into this page's filter state:
 //   Resolved Today        -> Date Range = Today
 //   SOS Triggered         -> Alert Type = SOS + Date Range = Today
 //   Alerts-by-Type slice  -> Alert Type = that category
 //   Alerts-This-Week bar  -> Date Range = that one day
-//   Alerts-Outcome slice  -> status filter (resolved / false_positive); "active" goes to
-//                            the Alerts tab instead, since it isn't in the log
+//   Alerts-Outcome slice  -> status filter ("active" goes to the Alerts tab instead)
 export function initialFilters(navFilter) {
   const f = { alertType: 'all', dateRange: null }
   if (!navFilter) return f
@@ -29,16 +25,14 @@ export function initialFilters(navFilter) {
   return f
 }
 
-// An alert still open at the barangay tier vs. one that's been closed. Alert History (and
-// the `history` API scope) shows only the closed ones; the Details modal uses this to
-// decide whether to show operational fields like Last Known Location.
+// Whether an alert is still open at the barangay tier. Alert History shows only closed ones;
+// the Details modal uses this to decide whether to show operational fields.
 export function isActiveAlert(alert) {
   return alert.status === 'escalated' || alert.status === 'acknowledged'
 }
 
-// `date` is the alert's created_at already parsed to a real instant. Bounds are reckoned
-// in the viewer's local calendar, matching how the rest of the dashboard treats "today".
-// `end` is exclusive; a custom range includes the whole of its end date.
+// `date` is the alert's created_at as a real instant. Bounds use the viewer's local
+// calendar. `end` is exclusive; a custom range includes its whole end date.
 export function withinRange(date, range) {
   if (!range) return true
   if (!date) return false
@@ -69,10 +63,8 @@ export function withinRange(date, range) {
   return date >= start && date < end
 }
 
-// The same windows as withinRange, but as inclusive YYYY-MM-DD bounds to hand to the API
-// so the server can filter before the row cap applies -- otherwise a barangay with a long
-// history can only ever see (and search) the most recent page. `to` is the last day to
-// include; the backend treats it as "< to + 1 day". Returns null for "no date filter".
+// The same windows as inclusive YYYY-MM-DD bounds for the API, so the server filters before
+// the row cap. Returns null for "no date filter".
 export function rangeBounds(range) {
   if (!range) return null
   const iso = (d) => d.toISOString().slice(0, 10)

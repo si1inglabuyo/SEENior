@@ -6,17 +6,11 @@ import com.pup.seenior.database.SeniorAppDatabase
 import com.pup.seenior.database.entities.Alert
 
 /**
- * Demo and test driver for Layer 0.
- *
- * Like [AnomalySimulator] this fabricates *sensor samples*, never an alert. The stream is fed to
- * a real [FallDetector] with production thresholds, and the alert — if there is one — is written
- * by the same code the live sensor stream uses. What is being demonstrated is the detector, not
- * a screen that can be made to appear on demand.
- *
- * The samples carry fabricated timestamps, so a fall whose stillness phase takes twelve seconds
- * of wall-clock time to observe replays instantly. That is also what makes the same generator
- * usable from a JUnit test, which is the only honest way to check a fall detector: the spec §10
- * rules out waiting for a real emergency, and no one is throwing a test phone down the stairs.
+ * Demo and test driver for Layer 0. Like [AnomalySimulator] it fabricates sensor samples,
+ * never an alert: the stream goes to a real [FallDetector] with production thresholds, and any
+ * alert is written by the same code the live stream uses. The timestamps are fabricated, so
+ * a twelve-second stillness phase replays instantly, which also makes it usable from JUnit
+ * (the spec rules out waiting for a real emergency).
  */
 object FallSimulator {
 
@@ -37,8 +31,7 @@ object FallSimulator {
 
     /**
      * Builds one 50 Hz accelerometer + gyroscope stream. Defaults describe a textbook fall;
-     * every phase is a parameter so the near-misses can be built from the same generator rather
-     * than from hand-written arrays that might quietly disagree with it.
+     * every phase is a parameter so near-misses come from the same generator.
      */
     fun stream(
         freeFallMs: Long = 400,
@@ -96,9 +89,7 @@ object FallSimulator {
         db.seniorDao().getOnboardedSenior() ?: return Result.NoSenior
         if (!replay(stream())) return Result.NotConfirmed
 
-        // No dedup check of its own: AlertResponder.raise already owns that rule and reports it
-        // by returning null. Repeating the check here meant two copies of a policy that has to
-        // agree, and this copy was the unbounded one.
+        // No dedup check here: AlertResponder.raise owns that rule and returns null for it.
 
         val alert = AlertResponder.raise(context, db, "fall_pattern", "high")
             ?: return Result.AlreadyActive

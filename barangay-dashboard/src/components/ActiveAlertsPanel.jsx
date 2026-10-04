@@ -4,9 +4,8 @@ import { IconWarning, IconEye } from '../icons'
 import SectionCard from './SectionCard'
 import StatusPill from './StatusPill'
 
-// A preview of the open incidents -- every alert not resolved or marked a false positive.
-// Newest-first; only the 5 most recent are shown, with "View All" going to the full Alerts
-// tab. The header carries the total count.
+// Preview of open incidents, newest first. Shows the 5 most recent; "View All" opens the
+// Alerts tab. The header shows the total count.
 const MAX_ROWS = 5
 
 export default function ActiveAlertsPanel({ alerts, onViewAll, onShowDetails }) {

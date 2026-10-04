@@ -37,29 +37,20 @@ interface SeniorDao {
     suspend fun updateCloudSyncId(seniorId: Int, cloudSyncId: String)
 
     /**
-     * Moves a senior off "alone" once a family contact actually pairs with them.
-     *
-     * A column write rather than [update] with a whole entity: the caller holds a Senior that
-     * may be seconds stale, and writing all of it back would silently revert an edit the
-     * senior made on the Profile screen in the meantime.
+     * Moves a senior off "alone" once a family contact pairs. A column write instead of
+     * [update] with a whole entity, which could revert a Profile edit made in the meantime.
      */
     @Query("UPDATE Seniors SET living_arrangement = :livingArrangement WHERE senior_id = :seniorId")
     suspend fun updateLivingArrangement(seniorId: Int, livingArrangement: String)
 
     /**
-     * Senior rows other than [keepId] that nothing has ever been recorded against.
+     * Senior rows other than [keepId] that nothing has been recorded against. Cleans up after
+     * the duplicate-onboarding bug fixed in
+     * [com.pup.seenior.ui.onboarding.OnboardingViewModel.submitOnboarding].
      *
-     * Cleans up after the duplicate-onboarding bug fixed in
-     * [com.pup.seenior.ui.onboarding.OnboardingViewModel.submitOnboarding] -- installs that ran
-     * the old build carry the extra rows on disk, and the fix alone does not remove them. Five
-     * of them on the realme tester handset, four of them dead.
-     *
-     * The predicate is deliberately strict: a row is only a duplicate if no Alert and no
-     * Daily_Aggregate names it. Those two are the record of a senior having actually been
-     * monitored, and anything holding either is a real history that must not be deleted to tidy
-     * a table. Sensor_Data is *not* consulted -- raw rows are purged nightly by design (§11), so
-     * a stray one is exactly the debris being cleared, and it would keep the orphan alive
-     * forever on a row that never aggregates.
+     * Strict on purpose: a row is a duplicate only if no Alert and no Daily_Aggregate names it,
+     * since those are the record of real monitoring. Sensor_Data isn't consulted, because raw
+     * rows are purged nightly and a stray one is the debris being cleared.
      */
     @Query("""
         SELECT senior_id FROM Seniors

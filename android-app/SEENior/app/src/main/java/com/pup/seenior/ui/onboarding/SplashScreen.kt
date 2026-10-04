@@ -29,10 +29,8 @@ fun SplashScreen(
     LaunchedEffect(Unit) {
         val db = SeniorAppDatabase.getInstance(context.applicationContext)
         val isOnboarded = db.seniorDao().getOnboardedSenior() != null
-        // A family user counts as set up once they're logged in (sign up / login / Google
-        // all issue a token immediately) — linking a senior is optional, done later from
-        // the dashboard's Link tab. The token must still be LIVE: an expired one would send
-        // them to a dashboard that can only 401, which is what "server error 401" looked like.
+        // A family user is set up once logged in; linking a senior comes later. The token must
+        // still be live, or they'd land on a dashboard that can only 401.
         val isFamily = FamilySession.hasLiveSession(context.applicationContext)
         delay(1400)
         when {

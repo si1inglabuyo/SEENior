@@ -1,11 +1,7 @@
 import { statusLabel } from '../labels'
 
-// Short pill wording for the dashboard's alert rows -- tighter than labels.js's sentence
-// phrasings, which are written for the incident cards where there is room.
-//
-// Callers pass displayStatus(alert) (labels.js), not alert.status, so a responder-claimed
-// incident arrives here as `attending`. `acknowledged` is the *family* having picked it up,
-// which is why it no longer shares the "Attending" wording with the responder case.
+// Short pill wording for alert rows. Callers pass displayStatus(alert) (labels.js), so a
+// responder-claimed incident arrives as `attending`; `acknowledged` means the family did.
 const PILL = {
   escalated: { text: 'Active', cls: 'pill-active' },
   attending: { text: 'Attending', cls: 'pill-attending' },

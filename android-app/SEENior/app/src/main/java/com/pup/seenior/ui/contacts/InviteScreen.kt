@@ -65,10 +65,8 @@ fun InviteScreen(
             onBack = onBack
         )
 
-        // Scrolls; the header does not. The senior's half of the pairing flow, and it grew
-        // the same way LinkScreen did: code card, countdown, instructions and a warning banner
-        // together outrun a short display, and the regenerate control was the part that fell
-        // off the bottom.
+        // Scrolls; the header doesn't. The code card, countdown, instructions and warning
+        // together outrun a short display, and the regenerate control fell off the bottom.
         Column(
             modifier = Modifier
                 .weight(1f)
@@ -188,10 +186,8 @@ fun InviteScreen(
 
 @Composable
 /**
- * @param onBack when non-null, the header grows a back arrow and drops its own padding to
- *   suit it. Null is the tab case, where the bottom bar is the way out and a back arrow
- *   would point nowhere. Same header either way so a screen does not visibly change
- *   identity depending on how it was reached.
+ * @param onBack when non-null, the header gets a back arrow and drops its own padding. Null is
+ *   the tab case, where the bottom bar is the way out. The header is otherwise the same.
  */
 fun GreenHeader(icon: @Composable () -> Unit, title: String, onBack: (() -> Unit)? = null) {
     Row(

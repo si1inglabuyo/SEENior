@@ -28,16 +28,14 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-/** Family Forgot Password — reached from the Log In screen's "Forget Password" link.
- *  One email field; Firebase itself sends the reset email and hosts the reset page, so
- *  there is nothing for this screen to do after the call succeeds except say so. */
+/** Family Forgot Password, reached from the Log In screen. One email field; Firebase sends the
+ *  reset email and hosts the reset page, so success only needs to be acknowledged. */
 @Composable
 fun FamilyForgotPasswordScreen(
     viewModel: FamilyAuthViewModel,
     onBack: () -> Unit
 ) {
-    // Clears any stale sent/error state from a previous visit this session, and again
-    // when the screen is left, so coming back to it starts clean.
+    // Clears stale sent/error state on entry and exit, so coming back starts clean.
     DisposableEffect(Unit) {
         viewModel.resetForgotPasswordState()
         onDispose { viewModel.resetForgotPasswordState() }

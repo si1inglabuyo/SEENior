@@ -46,16 +46,10 @@ import kotlin.math.max
 import kotlin.math.roundToInt
 
 /**
- * What the map is showing, and — just as importantly — what it is entitled to claim.
- *
- * The two are deliberately different things. A [Cluster] is where the phone actually was when the
- * alert fired. [RegisteredAddress] is merely where the senior lives, and is used when no fix was
- * captured. Collapsing them into one "location" would let the screen imply the system knew where
- * someone was on an occasion when it did not.
- *
- * How precisely a [Cluster] is known is read from the cell itself rather than assumed, because
- * both kinds are in the data: alerts raised before 2026-08-31 carry ~150 m cells and newer ones
- * carry ~5 m. The screen draws and captions whichever it is actually holding.
+ * What the map shows, and what it may claim. A [Cluster] is where the phone actually was when
+ * the alert fired; [RegisteredAddress] is only where the senior lives, used when no fix was
+ * captured. Precision is read from the cell itself, since alerts before 2026-08-31 carry
+ * ~150 m cells and newer ones ~5 m.
  */
 private sealed interface MapTarget {
     data class Cluster(val cell: Geohash.Cell) : MapTarget
@@ -63,18 +57,16 @@ private sealed interface MapTarget {
 }
 
 /**
- * The alert map plus a text line for where the senior actually is.
+ * The alert map plus a text line for where the senior is.
  *
- * Prefers the alert's own captured cell: draws it on the map and reverse-geocodes its centre to a
- * street/area line ("Current location: …") so the family can read the position out to a responder
- * rather than squint at a pin. This is the same precise position the pin already shows — text form
- * of a disclosure already made, lawful during an active alert under RA 10173 §12(c) (the spec
- * §11). Only when no fix was captured does it fall back to placing the senior's registered home
- * address, labelled as such. When neither resolves it shows [MapPlaceholder] — "we do not know"
- * stays a state the screen can be in.
+ * Prefers the alert's captured cell: draws it and reverse-geocodes its centre to a street
+ * line so the family can read it out to a responder. This discloses nothing the pin doesn't,
+ * and is allowed during an active alert under RA 10173 section 12(c). With no fix it falls
+ * back to the registered address, labelled as such, and with neither it shows
+ * [MapPlaceholder].
  *
- * @param interactive whether the map takes touch gestures. False on a preview embedded in a
- *   scrolling card — a map that swallows drags there traps the page instead of scrolling it.
+ * @param interactive whether the map takes touch gestures. False in a scrolling card, where a
+ *   map would trap drags.
  */
 @Composable
 fun AlertLocationMap(
@@ -91,9 +83,8 @@ fun AlertLocationMap(
     var fallback by remember(registeredAddress) { mutableStateOf<LatLon?>(null) }
     var resolving by remember(clusterId, registeredAddress) { mutableStateOf(cell == null) }
 
-    // The street/area the CAPTURED fix actually sits in — reverse-geocoded from the cell so the
-    // family reads "she is on X street" rather than her home address, which is a different place
-    // when the alert fired away from home. Null while looking up or when it cannot be resolved.
+    // The street the captured fix is in, so the family reads where the senior is rather than
+    // her home address. Null while looking up or if it can't be resolved.
     var capturedPlace by remember(clusterId) { mutableStateOf(clusterId?.let { reverseCache[it] }) }
 
     LaunchedEffect(clusterId, registeredAddress) {
@@ -147,9 +138,7 @@ fun AlertLocationMap(
 
         when (target) {
             is MapTarget.Cluster -> {
-                // Primary line: where the phone actually was, in words. Falls back to a plain
-                // statement while the reverse lookup is in flight or if it comes back empty —
-                // the pin on the map above still stands either way.
+                // Primary line: where the phone was, in words, or a plain statement while the lookup runs.
                 Text(
                     text = capturedPlace?.let(copy::currentLocationKnown)
                         ?: copy.currentLocationUnknownPlace,
@@ -188,8 +177,7 @@ fun AlertLocationMap(
                 )
             }
 
-            // No cluster, and the address could not be geocoded to a point — still give the
-            // family the address in words rather than a bare placeholder.
+            // No cluster and the address couldn't be geocoded: still show the address in words.
             null -> if (!resolving && registeredAddress.isNotBlank()) {
                 Text(
                     text = copy.homeAddressLine(registeredAddress),
@@ -203,12 +191,9 @@ fun AlertLocationMap(
 }
 
 /**
- * Reverse-geocoded captured locations, keyed by geohash cell, for this process only.
- *
- * The three family alert screens each mount an [AlertLocationMap] for the same alert, and the
- * alerts tab recomposes on its 20-second poll. Without this each would re-hit Nominatim; with it
- * the network is touched once per alert per session. Not persisted: a lookup that failed on a
- * dead network must be free to succeed later.
+ * Reverse-geocoded locations keyed by geohash cell, for this process only. The family alert
+ * screens mount the same map and the alerts tab recomposes every 20 s, so this keeps it to
+ * one Nominatim call per alert per session. Not persisted, so a failed lookup can retry.
  */
 private val reverseCache = java.util.concurrent.ConcurrentHashMap<String, String>()
 
@@ -231,8 +216,7 @@ private fun MapSurface(target: MapTarget, height: Dp, interactive: Boolean) {
             }
         },
         update = { map -> map.render(target) },
-        // Stops the tile threads when the screen goes away. Nothing else holds this view, so
-        // without it every visit to an alert leaves a downloader running for the process's life.
+        // Stops the tile threads when the screen goes away.
         onRelease = { map ->
             map.onPause()
             map.onDetach()
@@ -241,17 +225,12 @@ private fun MapSurface(target: MapTarget, height: Dp, interactive: Boolean) {
 }
 
 /**
- * Draws [target] onto the map, replacing whatever was there.
- *
- * Overlays are cleared first because [AndroidView] reuses the same [MapView] across recompositions
- * — without this, an alert screen revisited with a different alert stacks the old cell under the
- * new one.
+ * Draws [target] onto the map, replacing what was there. Overlays are cleared first because
+ * [AndroidView] reuses the [MapView] across recompositions.
  */
 private fun MapView.render(target: MapTarget) {
-    // AndroidView runs update() on every recomposition, and the alerts screen recomposes every
-    // 20 seconds on its poll. Re-framing each time would drag the map back to centre under the
-    // finger of anyone panning it, so the camera is set once per target and then left alone.
-    // The overlays are still redrawn -- they are cheap, and they must follow a changed target.
+    // update() runs on every recomposition (every 20 s). The camera is set once per target so
+    // it doesn't snap back under a panning finger; overlays are still redrawn.
     val alreadyFramed = tag == target
     overlays.clear()
 
@@ -260,9 +239,8 @@ private fun MapView.render(target: MapTarget) {
             val cell = target.cell
             val centre = GeoPoint(cell.centerLatitude, cell.centerLongitude)
 
-            // Draw what is actually known. A cell finer than GPS error is a position, and a pin
-            // says so; a 150 m cell from an older alert is a region, and a square says that. Using
-            // one shape for both would either overstate the old alerts or understate the new ones.
+            // A cell finer than GPS error is a position, so draw a pin; a ~150 m cell is a
+            // region, so draw a square.
             if (cell.approximateSpanMetres() <= PIN_THRESHOLD_METRES) {
                 overlays.add(
                     Marker(this).apply {
@@ -280,8 +258,7 @@ private fun MapView.render(target: MapTarget) {
                             GeoPoint(cell.northLatitude, cell.eastLongitude),
                             GeoPoint(cell.southLatitude, cell.eastLongitude)
                         )
-                        // The Paint accessors, not the setFillColor/setStrokeColor shorthands —
-                        // osmdroid deprecated those in 6.1.
+                        // The Paint accessors, since osmdroid deprecated the shorthands in 6.1.
                         fillPaint.color = AndroidColor.argb(56, 217, 83, 79)
                         outlinePaint.color = AndroidColor.rgb(217, 83, 79)
                         outlinePaint.strokeWidth = 3f
@@ -319,12 +296,7 @@ private fun MapView.render(target: MapTarget) {
 /** osmdroid's default marker is a pointing figure; this is the plain blue pin instead. */
 private fun bluePin(context: Context) = ContextCompat.getDrawable(context, R.drawable.ic_map_pin_blue)
 
-/**
- * The widest cell still drawn as a point rather than an area.
- *
- * Set above a phone GPS's own error (~5-10 m in the open) and well below the ~150 m cells older
- * alerts carry, so each is drawn as what it is.
- */
+/** The widest cell still drawn as a point: above phone GPS error (~5-10 m) and well below ~150 m. */
 private const val PIN_THRESHOLD_METRES = 30.0
 
 /** Street level, for a cell that names a position. */
@@ -333,12 +305,7 @@ private const val POSITION_ZOOM = 18.5
 /** Roughly frames a 150 m cell from an alert raised before locations were kept precisely. */
 private const val AREA_ZOOM = 17.0
 
-/**
- * The longer side of a cell in metres.
- *
- * Longitude degrees shorten towards the poles, so the east-west side is scaled by the cosine of
- * the latitude; without it a cell would read as far wider than it is.
- */
+/** The longer side of a cell in metres. East-west is scaled by the cosine of latitude. */
 private fun Geohash.Cell.approximateSpanMetres(): Double = max(
     (northLatitude - southLatitude) * 111_320.0,
     (eastLongitude - westLongitude) * 111_320.0 * cos(Math.toRadians(centerLatitude))
@@ -348,11 +315,8 @@ private fun Geohash.Cell.approximateSpanMetres(): Double = max(
 private const val ADDRESS_ZOOM = 16.5
 
 /**
- * A map that declines every touch, so the scrolling card it sits in keeps its gestures.
- *
- * Returning false from [dispatchTouchEvent] — rather than disabling the view — is what lets the
- * drag reach the Compose scroll container above it. [MapView] otherwise consumes the gesture and
- * pans, leaving a senior's family stuck at the bottom of the alert card.
+ * A map that declines every touch so its scrolling card keeps the gestures. Returning false
+ * from [dispatchTouchEvent] lets the drag reach the Compose scroll container.
  */
 private class StaticMapView(context: Context) : MapView(context) {
     override fun dispatchTouchEvent(event: MotionEvent): Boolean = false
@@ -360,12 +324,9 @@ private class StaticMapView(context: Context) : MapView(context) {
 }
 
 /**
- * osmdroid's one-time global setup.
- *
- * Both settings are requirements rather than tuning. The tile server's fair-use policy rejects
- * callers that do not identify themselves, and pointing the cache at app-private storage is what
- * keeps this off `WRITE_EXTERNAL_STORAGE` — a permission this app has no other reason to ask a
- * senior for.
+ * osmdroid's one-time global setup. Both settings are required: the tile server rejects
+ * callers that don't identify themselves, and an app-private cache avoids needing
+ * `WRITE_EXTERNAL_STORAGE`.
  */
 private object OsmdroidSetup {
     @Volatile
@@ -377,8 +338,7 @@ private object OsmdroidSetup {
             if (configured) return
             val app = context.applicationContext
             Configuration.getInstance().apply {
-                // load() overwrites fields from the stored preferences, so it has to run before
-                // the values below are set, not after.
+                // load() overwrites fields from stored preferences, so it must run first.
                 load(app, app.getSharedPreferences("osmdroid", Context.MODE_PRIVATE))
                 userAgentValue = "SEENior/1.0 (PUP capstone; passive senior monitoring)"
                 osmdroidBasePath = File(app.filesDir, "osmdroid").apply { mkdirs() }

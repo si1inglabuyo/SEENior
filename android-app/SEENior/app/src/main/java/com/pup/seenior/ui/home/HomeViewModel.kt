@@ -26,12 +26,9 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
 /**
- * What Home says about an alert the senior has already raised, once the prompt has closed.
- *
- * The two states are not cosmetic variants of each other. [Waiting] means the alert exists only
- * on this phone; nobody has been told. [Delivered] means the cloud accepted it and the family
- * app can see it. Collapsing them would make the app claim help was summoned when it was sitting
- * in a queue — the exact false reassurance the offline path used to give.
+ * What Home says about an alert the senior has already raised. [Waiting] means it exists
+ * only on this phone and nobody has been told; [Delivered] means the cloud accepted it.
+ * They are kept apart so the app never claims help was summoned when it is still queued.
  */
 sealed interface HelpDelivery {
     val alert: Alert
@@ -43,10 +40,7 @@ sealed interface HelpDelivery {
     data class Delivered(override val alert: Alert) : HelpDelivery
 }
 
-/**
- * Backs the senior's Home tab (`designs/senior/home_screen/`) and decides when the wellness
- * prompt takes over the screen.
- */
+/** Backs the senior's Home tab and decides when the wellness prompt takes over the screen. */
 class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     private val db = SeniorAppDatabase.getInstance(application)
@@ -59,46 +53,30 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     var batteryPercent by mutableStateOf(100)
         private set
 
-    /** Who the SOS screen says it will alert. Read from the device's own Contacts table, not
-     *  from the network: SOS has to work with no connectivity at all (spec §1), and this
-     *  list is the senior's reassurance that someone is actually being called. An empty list
-     *  still shows the barangay tier, which is available regardless of whether any family is
-     *  linked. */
+    /** Who the SOS screen says it will alert. Read from the local Contacts table so SOS works
+     *  offline. An empty list still shows the barangay tier. */
     var willAlertContacts by mutableStateOf<List<Contact>>(emptyList())
         private set
 
-    /** Whether [willAlertContacts] being empty is an answer or just an absence.
-     *
-     * False until this install has successfully read the family list from the cloud even once.
-     * The SOS screen only says "no family contacts linked yet" when this is true -- telling a
-     * senior mid-emergency that nobody in her family will be called, when three of them will be
-     * and the phone merely could not reach the server, is the worst moment in the app to be
-     * wrong. Same distinction [com.pup.seenior.ui.contacts.SeniorContactsViewModel] draws with
-     * `loadFailed`. */
+    /** Whether an empty [willAlertContacts] is an answer or just an absence. False until the
+     *  family list has been read from the cloud at least once, so the SOS screen never tells
+     *  a senior nobody will be called just because the phone couldn't reach the server. */
     var willAlertContactsKnown by mutableStateOf(false)
         private set
 
     private var openAlerts by mutableStateOf<List<Alert>>(emptyList())
 
     /**
-     * Alerts the senior has already responded to on this screen.
-     *
-     * Answering "I need help" escalates but deliberately leaves the alert `pending` (that IS the
-     * awaiting-family state), so it never leaves [com.pup.seenior.database.dao.AlertDao
-     * .getUnacknowledgedAlerts] and the prompt would otherwise reappear the instant it closed.
-     * Kept in memory rather than the DB because it is a property of this screen session, not of
-     * the alert — after a restart the alert is genuinely still open and worth showing again.
+     * Alerts the senior has already responded to on this screen. Answering "I need help"
+     * leaves the alert `pending`, so without this the prompt would reappear immediately. Kept
+     * in memory because it only applies to this session.
      */
     private var answeredThisSession by mutableStateOf(emptySet<Int>())
 
     /**
-     * The alert the prompt is currently showing.
-     *
-     * Latched rather than recomputed from [openAlerts] on every emission. "I'm safe" sets the
-     * status to self_cancelled, which immediately removes the alert from the query feeding
-     * [openAlerts] — so a derived value would tear the prompt down the instant it was answered
-     * and the senior would never see the acknowledgement. The prompt keeps its alert until it
-     * reports back through [onAlertAnswered].
+     * The alert the prompt is showing. Latched, not derived from [openAlerts]: "I'm safe"
+     * removes the alert from that query, which would tear the prompt down before the senior
+     * saw the acknowledgement. It is released through [onAlertAnswered].
      */
     private var handling by mutableStateOf<Alert?>(null)
 
@@ -110,18 +88,10 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         get() = handling
 
     /**
-     * What Home reports about help the senior has already asked for, or null when there is
-     * nothing to report.
-     *
-     * Undelivered outranks delivered, always: if anything at all is still stuck on this phone,
-     * that is the fact the senior needs, even when a later alert did get through.
-     *
-     * Neither state retires on a timer. A previous version hid [HelpDelivery.Delivered] after
-     * half an hour, but with no signal to retire *on* the timeout fired just as readily on an
-     * alert nobody had resolved, and Home showed the green "You're Safe" card over a HIGH-risk
-     * alert still genuinely open. It clears when the senior uses "I'm Fine Now" (see
-     * [standDown]) or when a family contact or the barangay closes the alert in the cloud, which
-     * [syncClosedAlerts] now carries back to this phone.
+     * What Home reports about help the senior has asked for, or null if none. Undelivered
+     * outranks delivered. Neither retires on a timer (a timeout once showed "You're Safe" over
+     * an open HIGH alert); it clears when the senior uses "I'm Fine Now" ([standDown]) or a
+     * family contact or the barangay closes it ([syncClosedAlerts]).
      */
     val helpDelivery: HelpDelivery?
         get() {
@@ -144,19 +114,13 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         get() = senior?.barangay.orEmpty()
 
     /**
-     * Whether to hide the pairing tabs. A presentation flag and nothing more.
-     *
-     * It deliberately does NOT decide anything about escalation. The server works that out
-     * from the contact rows on every sweep, so if this ever disagrees with reality the worst
-     * that happens is a tab is in the wrong place -- never an alert sent to the wrong tier.
-     * Keeping the two apart is what makes it safe to drive UI off an answer the senior gave
-     * once during sign-up.
+     * Whether to hide the pairing tabs. Presentation only: the server decides escalation from
+     * the contact rows, so a stale value can only misplace a tab, never misroute an alert.
      */
     val livesAlone: Boolean
         get() = senior?.livingArrangement == OnboardingOptions.LIVING_ALONE
 
-    /** Monitoring degrades on a dying battery, so the status card says so rather than claiming
-     *  everything is fine (`Senior Dashboard - With Family-3.png`). */
+    /** Monitoring degrades on a dying battery, so the status card says so. */
     val isMonitoringAtRisk: Boolean
         get() = batteryPercent <= LOW_BATTERY_PERCENT
 
@@ -167,12 +131,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             db.seniorOnboardingDao().getBySeniorId(loaded.seniorId)?.let {
                 language = it.languagePreference
             }
-            // Collected, not read once. Profile -> Language writes straight through with no Save
-            // button, and everything this view model dresses -- the tabs, Home, and the screens
-            // behind them -- has to change with it rather than at the next app launch.
-            //
-            // Launched in its own coroutine because the alert Flow collected at the end of this
-            // method never returns.
+            // Collected, not read once, because Profile -> Language saves immediately and the
+            // UI must change with it. Launched separately because the alert Flow collected at
+            // the end of this method never returns.
             launch {
                 db.seniorOnboardingDao().observeLanguagePreference(loaded.seniorId)
                     .collect { preference -> preference?.let { language = it } }
@@ -195,17 +156,10 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Retires an alert on this phone once a family contact or the barangay has closed it.
-     *
-     * A family member resolving an alert (or a responder closing it) happens in the cloud, and
-     * nothing carried that back, so the "your request is still open" card stayed up over an
-     * incident that was over -- the only way to clear it was the senior's own "I'm Fine Now".
-     * Asked of the server only while there is an alert that has actually reached it, so an
-     * ordinary day costs no requests. Best-effort: offline, or on any error, the card simply
-     * stays until the next pass, which is the behaviour it always had.
-     *
-     * The local row is closed the same way a self-cancel closes it (status written, queued
-     * alarms cancelled); the status write drops it out of [openAlerts] and the card goes with it.
+     * Retires an alert on this phone once a family contact or the barangay has closed it in
+     * the cloud. Only asks the server while an alert has actually reached it. Best effort:
+     * offline or on error the card stays until the next pass. The local row is closed the way
+     * a self-cancel closes it.
      */
     private suspend fun syncClosedAlerts() {
         val open = openAlerts.filter { it.isSynced }
@@ -225,17 +179,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Fills the SOS screen's "Will Alert" list, cache first.
-     *
-     * The device's own Contacts table is read before anything is asked of the network, because
-     * that read cannot fail and cannot be slow. Only then is the cloud asked, and only a
-     * successful answer replaces the cache -- the cloud is authoritative about who is paired,
-     * so an unlinked contact disappears here too.
-     *
-     * Deliberately silent on failure: a network hiccup must never stop SOS itself from working,
-     * and it no longer empties the list either. Before this, the fetch was the only source, so
-     * an offline phone -- the exact phone SOS exists for -- showed a senior with three paired
-     * children a screen saying no family contact was linked.
+     * Fills the SOS screen's "Will Alert" list, cache first. The local Contacts table is read
+     * before the network, and only a successful cloud answer replaces it. Silent on failure,
+     * so a network problem never stops SOS or empties the list.
      */
     private suspend fun loadWillAlertContacts() {
         val seniorId = senior?.seniorId ?: return
@@ -269,17 +215,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Puts the Invite and Contacts tabs back the moment a family member actually pairs.
-     *
-     * The senior said "lives alone" at sign-up; a daughter has since entered their invite
-     * code. Requiring them to also go and change a dropdown in Edit profile before the app
-     * would show them their own contacts is a step they would never find, and the app would
-     * sit there claiming they have no family while the family app shows the pairing.
-     * Pairing IS the answer to the question, so it updates the answer.
-     *
-     * Only ever in this direction. Removing the last contact does not hide the tabs again:
-     * taking away navigation an elderly user has already learned is worse than leaving one
-     * tab they no longer need, and by then they know what the tab is for.
+     * Puts the Invite and Contacts tabs back as soon as a family member pairs, so the senior
+     * doesn't have to change a setting first. Only in this direction: removing the last
+     * contact doesn't hide the tabs again.
      */
     private suspend fun restoreFamilyTabsIfPaired() {
         val current = senior ?: return
@@ -290,8 +228,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             current.seniorId,
             OnboardingOptions.LIVING_WITH_FAMILY
         )
-        // Mirrored into the in-memory copy as well: nothing re-reads the Senior row until the
-        // next app start, so without this the tabs would only appear tomorrow.
+        // Also updates the in-memory copy, which isn't re-read until the next app start.
         senior = current.copy(livingArrangement = OnboardingOptions.LIVING_WITH_FAMILY)
     }
 
@@ -305,8 +242,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         if (level >= 0 && scale > 0) batteryPercent = (level * 100) / scale
     }
 
-    /** Called by the prompt once it is finished with the current alert, whichever way it ended.
-     *  Moves straight on to the next open alert if there is one. */
+    /** Called by the prompt when it is finished with the current alert. Moves on to the next open one. */
     fun onAlertAnswered() {
         val done = handling ?: return
         answeredThisSession = answeredThisSession + done.alertId
@@ -317,28 +253,20 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         openAlerts.firstOrNull { it.alertId !in answeredThisSession }
 
     /**
-     * SOS. Raised directly instead of going through a detector: this is a conscious request for
-     * help, not a statistical deviation, so there is nothing to score. Always high risk, and
-     * works from day one regardless of baseline status (spec §6).
-     *
-     * [AlertResponder.raise] returns null when an SOS is already open, so a repeated swipe joins
-     * the alert already in flight rather than stacking duplicates — and lands on that alert's
-     * prompt, so the swipe always leads somewhere.
+     * SOS. Raised directly, since it is a conscious request for help and there is nothing to
+     * score. Always high risk and works from day one (spec section 6). [AlertResponder.raise]
+     * returns null when an SOS is already open, so a repeated swipe lands on that alert's prompt.
      */
     fun sendSos() {
         viewModelScope.launch {
             if (AlertResponder.raise(getApplication(), db, "sos", "high") != null) return@launch
 
-            // Inside the dedupe window, so nothing was raised. Doing nothing at all is the worst
-            // available answer to a senior asking for help: from their side a deduplicated swipe
-            // and a broken button look identical. Show them the alert that is already open — it
-            // is the screen where they can answer, self-cancel, or read that help is on its way.
+            // Deduplicated, so nothing was raised. Show the alert already open instead of doing
+            // nothing, which would look like a broken button.
             openAlerts.filter { it.triggerType == "sos" }
                 .maxByOrNull { it.triggeredAt }
                 ?.let { existing ->
-                    // It may have been answered earlier this session, which is what let them back
-                    // to Home to swipe again; clear that so the prompt does not skip straight
-                    // past it when it closes.
+                    // Clear any earlier answer so the prompt doesn't skip past it when it closes.
                     answeredThisSession = answeredThisSession - existing.alertId
                     handling = existing
                 }
@@ -346,15 +274,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * "I'm fine now" from Home — withdraws an alert that has already reached the family.
-     *
-     * The wellness prompt offers the same thing, but that screen closes itself after a few
-     * seconds. This card stands for half an hour, which is the realistic window: a senior who
-     * falls, gets helped up and only then thinks to call it off is not going to manage it inside
-     * five seconds.
-     *
-     * No explicit state clearing is needed afterwards. The status write drops the alert out of
-     * the query feeding [openAlerts], Room re-emits, and the card goes with it.
+     * "I'm fine now" from Home: withdraws an alert that has already reached the family. This
+     * card stays up for half an hour, longer than the prompt's few seconds. The status write
+     * drops the alert from [openAlerts] and the card goes with it.
      */
     fun standDown(alert: Alert) {
         if (standingDownAlertId != null) return

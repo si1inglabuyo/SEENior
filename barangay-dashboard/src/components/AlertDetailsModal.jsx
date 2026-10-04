@@ -8,17 +8,13 @@ import { decodeGeohash, cellSizeMeters } from '../geohash'
 import Modal from './Modal'
 import LocationMap from './LocationMap'
 
-// "Last Known Location" -- the senior's actual position at the moment the alert fired,
-// captured once (never continuously) and stored as a precision geohash. Since 2026-08-31
-// this is a precise fix, held lawfully under RA 10173 §12(c) during an active emergency,
-// NOT an anonymised cluster (spec §11 -- do not call it anonymous). Rendered on a
-// live OpenStreetMap tile via LocationMap -- the same osmdroid-equivalent pin-vs-square map
-// the family app uses, not a static openstreetmap.org iframe embed -- with the registered
-// street address kept alongside because the responder still needs a name to read out. Older
-// alerts carry a ~150 m cell; we say "approximate area" for those.
-// The place name under the pin, looked up once per fix. The answer is stored with the key it
-// was fetched for and only used while that key is still current, so opening a different alert
-// never briefly shows the previous alert's street.
+// "Last Known Location": the senior's position when the alert fired, stored as a geohash.
+// It is a precise fix held under RA 10173 section 12(c), not anonymised. Shown on a live
+// OpenStreetMap map (LocationMap) with the registered address beside it. Older alerts have
+// a ~150 m cell, which is labelled "approximate area".
+//
+// Place name under the pin, looked up once per fix. The result is stored with its key and
+// only used while that key is current, so switching alerts never shows the old street.
 function usePlaceName(cell) {
   const lat = cell ? cell.lat : null
   const lon = cell ? cell.lon : null
@@ -39,11 +35,8 @@ function usePlaceName(cell) {
   return found.key === key ? found.name : null
 }
 
-// Google Maps directions to the senior, the web counterpart of the family app's "Navigate to her
-// location" button. Only the destination is given, so Maps starts from wherever the responder
-// is. The captured fix wins; with none, the registered address is what there is to go on, which
-// is also what the family app falls back to. Opens in the responder's own browser -- nothing
-// here is sent by this app to anyone.
+// Google Maps directions to the senior. Only the destination is given. Uses the captured
+// fix, or the registered address if there is none.
 function navigateUrl(cell, address) {
   const base = 'https://www.google.com/maps/dir/?api=1&destination='
   if (cell) return `${base}${cell.lat.toFixed(6)},${cell.lon.toFixed(6)}`
@@ -108,12 +101,8 @@ function LocationPreview({ address, clusterId }) {
   )
 }
 
-// The full escalation history for this incident: every tier the alert passed through, who
-// acted, and any note they left. Built from `escalation_steps`, the JSON audit trail the
-// phone, the family app and the server-side clock all append to (spec §8). `STEP_LABEL`
-// (labels.js) turns each code into a sentence; an unknown code prints as itself rather than
-// vanishing. This is where a responder sees *why* an alert reached them -- and, once closed,
-// how it was resolved and by whom.
+// The full escalation history for this incident, built from `escalation_steps`. STEP_LABEL
+// (labels.js) turns each code into a sentence; unknown codes print as themselves.
 function EscalationTimeline({ steps }) {
   const entries = Array.isArray(steps) ? steps : []
   if (entries.length === 0) return null
@@ -139,10 +128,8 @@ function EscalationTimeline({ steps }) {
   )
 }
 
-// The responder acts on an incident from here, not from the row: the three buttons sit
-// below the location map so the description, time and place are all in view first. The
-// remarks box is optional for every action -- blank sends exactly the request the row
-// buttons used to (see useAlertActions); a note is saved alongside the status change.
+// The three action buttons sit below the map. The remarks box is optional; a note is
+// saved with the status change.
 function IncidentActions({ alert, onAct, busy }) {
   const [remarks, setRemarks] = useState('')
 

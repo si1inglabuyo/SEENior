@@ -75,12 +75,9 @@ private enum class ProfilePage {
 }
 
 /**
- * Senior "Profile" tab (designs/senior/profile). Account card + MY INFO (Edit profile) +
- * HELP & INFORMATION + ABOUT SEENIOR.
- *
- * Deliberately has no Log Out row, unlike the family Profile tab: the senior has no account
- * to sign out of — it's created locally during onboarding (spec §2) — and the only
- * session on the device belongs to the family app.
+ * Senior "Profile" tab: account card, MY INFO (Edit profile), HELP & INFORMATION and ABOUT
+ * SEENIOR. It has no Log Out row, unlike the family Profile: the senior's account is created
+ * locally during onboarding, so there is nothing to sign out of.
  */
 @Composable
 fun SeniorProfileScreen(onAccountDeleted: () -> Unit) {
@@ -118,9 +115,7 @@ fun SeniorProfileScreen(onAccountDeleted: () -> Unit) {
         ProfilePage.SUPPORT -> SeniorContactSupportScreen { page = ProfilePage.HOME }
         ProfilePage.TERMS -> SeniorTermsScreen { page = ProfilePage.HOME }
         ProfilePage.PRIVACY -> SeniorPrivacyScreen { page = ProfilePage.HOME }
-        // The same two composables the Invite and Contacts tabs use, re-parented rather
-        // than reimplemented — a second copy of the pairing flow is a second place for it
-        // to drift out of step with the family app.
+        // The same two composables the Invite and Contacts tabs use, re-parented so there is one pairing flow.
         ProfilePage.FAMILY -> SeniorContactsScreen(
             onGoToInvite = { page = ProfilePage.FAMILY_INVITE },
             inviteActionLabel = LocalProfileCopy.current.getInviteCode,
@@ -183,9 +178,8 @@ private fun ProfileHome(viewModel: SeniorProfileViewModel, onNavigate: (ProfileP
                 Text(it, color = ErrorRed, fontSize = 15.sp, modifier = Modifier.padding(top = 14.dp))
             }
 
-            // Saving navigates straight back here, so the "saved locally but not in the cloud"
-            // note has to surface on this screen — on the Edit screen alone it would be set
-            // and then immediately dismissed with it, i.e. never actually read. Tap to dismiss.
+            // Saving navigates back here, so the "saved locally but not in the cloud" note must
+            // show on this screen, or it would be dismissed unread. Tap to dismiss.
             viewModel.syncWarning?.let {
                 Text(
                     it,
@@ -213,8 +207,7 @@ private fun ProfileHome(viewModel: SeniorProfileViewModel, onNavigate: (ProfileP
                 )
             }
 
-            // Shown only to seniors living alone, and it is the whole answer to "what if
-            // they get family later". For everyone else this duplicates two bottom tabs.
+            // Only for seniors living alone, as the way to add family later. Others have the two tabs.
             if (viewModel.livesAlone) {
                 SectionLabel(copy.sectionMyContacts)
                 ProfileGroup {
@@ -235,9 +228,8 @@ private fun ProfileHome(viewModel: SeniorProfileViewModel, onNavigate: (ProfileP
                 RowDivider()
                 ProfileRow(Icons.AutoMirrored.Filled.HelpOutline, copy.faqs) { onNavigate(ProfilePage.FAQS) }
                 RowDivider()
-                // Hidden while no support phone or address is configured, so the app never
-                // offers a senior a way to ask for help that quietly goes nowhere. Set either
-                // constant in SeniorInfoScreens.kt to bring the row back.
+                // Hidden while no support phone or address is configured, so the app never offers
+                // a way to ask for help that goes nowhere. Set either constant in SeniorInfoScreens.kt.
                 if (SUPPORT_CONTACT_CONFIGURED) {
                     ProfileRow(Icons.Filled.SupportAgent, copy.contactSupport) { onNavigate(ProfilePage.SUPPORT) }
                 }
@@ -275,8 +267,7 @@ private fun SeniorEditProfileScreen(
 ) {
     val copy = LocalProfileCopy.current
     val form = viewModel.addressForm
-    // The name/age/gender/mobile labels are the sign-up form's, reused rather than
-    // translated a second time — this screen edits the same fields.
+    // The name/age/gender/mobile labels are the sign-up form's, reused since this edits the same fields.
     val formCopy = LocalOnboardingCopy.current
     Column(modifier = Modifier.fillMaxSize().background(Color.White)) {
         GreenBackHeader(title = copy.editProfile, onBack = onBack)
@@ -285,9 +276,8 @@ private fun SeniorEditProfileScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                // Shrinks the scroll viewport by the keyboard height so a focused field (address
-                // sits low on this form) scrolls above the IME instead of hiding behind it — same
-                // fix as SignUpScreen, this screen's onboarding twin.
+                // Shrinks the scroll area by the keyboard height so a focused field (address sits
+                // low) scrolls above the keyboard. Same fix as SignUpScreen.
                 .imePadding()
                 .padding(horizontal = 20.dp, vertical = 20.dp)
         ) {
@@ -364,8 +354,8 @@ private fun SeniorEditProfileScreen(
                 placeholder = formCopy.selectPlaceholder
             )
 
-            // Same address entry as sign-up: the map shortcut above the PSGC dropdowns, typing
-            // stays the guaranteed path. Changing the barangay changes which responder is told.
+            // Same address entry as sign-up. Typing stays the guaranteed path. Changing the
+            // barangay changes which responder is told.
             PickOnMapRow(onPickOnMap)
 
             SearchableDropdownField(

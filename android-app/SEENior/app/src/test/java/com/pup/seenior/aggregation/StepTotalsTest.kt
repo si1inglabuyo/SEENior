@@ -7,7 +7,7 @@ import org.junit.Test
 /**
  * The readings in [creditsNothingForTheVivoReBaseline] and
  * [rejectsTheBlockTotalThePilotHandsetsNeverProduced] are copied from the vivo V2317 tester
- * handset's own database, pulled 2026-09-23. They are the reason this file exists.
+ * handset's database (2026-09-23).
  */
 class StepTotalsTest {
 
@@ -51,20 +51,14 @@ class StepTotalsTest {
         assertEquals(0, StepTotals.forBlock(rows))
     }
 
-    /**
-     * The measured failure. Funtouch re-based the counter down by 49 with no reboot; the old rule
-     * read the fall as a restart-from-zero and credited the whole reading to a seven-minute gap.
-     */
+    /** The measured failure: the counter was re-based down by 49 with no reboot, and the old rule credited the whole reading to a seven-minute gap. */
     @Test
     fun creditsNothingForTheVivoReBaseline() {
         val sevenMinutes = 7 * 60_000L + 10_000L
         assertEquals(0, StepTotals.creditFor(0, 9_231, sevenMinutes, 9_182))
     }
 
-    /**
-     * A reboot is still handled, which is what the old branch was for: the counter restarts at
-     * zero, so whatever it holds one poll later is small enough to have been walked.
-     */
+    /** A reboot is still handled: the counter restarts at zero, so what it holds one poll later is small and plausible. */
     @Test
     fun stillCreditsAPlausibleReadingAfterARealReboot() {
         assertEquals(130, StepTotals.creditFor(0, 12_400, fiveMinutes, 130))
@@ -95,10 +89,7 @@ class StepTotalsTest {
         assertEquals(400, StepTotals.forBlock(rows))
     }
 
-    /**
-     * The shape of the eight poisoned blocks in that handset's history: one bad pair inside an
-     * otherwise ordinary block used to carry the whole block's total on its own.
-     */
+    /** The shape of the eight bad blocks in that handset's history: one bad pair carried the whole block's total. */
     @Test
     fun rejectsTheBlockTotalThePilotHandsetsNeverProduced() {
         val rows = listOf(

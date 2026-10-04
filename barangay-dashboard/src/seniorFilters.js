@@ -1,5 +1,4 @@
-// Pure filter logic for the Seniors list. Kept dependency-free and separate from React so
-// the status + search combining can be reasoned about and tested on its own.
+// Pure filter logic for the Seniors list, kept free of React so it is easy to test.
 
 export const SENIOR_STATUS_OPTIONS = ['active', 'deactivated']
 

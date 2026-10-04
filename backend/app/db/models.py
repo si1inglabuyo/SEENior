@@ -10,9 +10,8 @@ from app.db.session import Base
 
 
 def _enum_values(enum_cls: type[enum.Enum]) -> list[str]:
-    """SQLAlchemy's Enum() persists the member NAME by default; the migration's
-    Postgres enum types were created with the lowercase VALUES, so every Enum()
-    column below must be told to use .value instead."""
+    """Enum() stores member names by default; the Postgres enums use the lowercase values,
+    so every Enum column must be told to use .value."""
     return [member.value for member in enum_cls]
 
 
@@ -34,22 +33,11 @@ class UnlinkActor(str, enum.Enum):
 
 
 class SeniorStatus(str, enum.Enum):
-    """Whether a barangay still carries this senior on its active roster.
+    """Whether a barangay still lists this senior on its active roster.
 
-    **Not a deletion, and not the same axis as `deleted_at`.** The two answer different
-    questions and either can be true without the other:
-
-    * `deleted_at` is the *senior's own* decision, made in their app, which wipes the
-      handset's local database and ends monitoring for real (§11a).
-    * `status` is the *responder's* bookkeeping about their own roster — this person moved
-      away, passed away, or left the programme — and touches nothing on the handset,
-      because the server cannot reach into a phone and switch its monitoring off.
-
-    **Marking a senior INACTIVE does not stop their alerts reaching the barangay, and must
-    not be made to.** A phone that is still running still detects, and the barangay tier is
-    the last one in the chain: if the family contacts are also unlinked, silently dropping
-    tier 3 would mean an alert with nowhere left to go and nobody told it went nowhere.
-    Roster hygiene is worth having; it is not worth a silent hole in the escalation chain.
+    Not the same as `deleted_at`, which is the senior's own decision and wipes the phone.
+    `status` is the responder's bookkeeping and does not touch the phone. Marking a senior
+    INACTIVE must not stop their alerts reaching the barangay, since that is the last tier.
     """
 
     ACTIVE = "active"
@@ -87,76 +75,54 @@ class User(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     username: Mapped[str] = mapped_column(String(64), unique=True, index=True)
-    # Nullable: a Google-only account (no password ever set) has no hash. login()
-    # gives those users a "use Google Sign-In" message instead of a generic 401.
+    # Null for Google-only accounts, which have no password.
     password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
     role: Mapped[UserRole] = mapped_column(
         Enum(UserRole, name="user_role", values_callable=_enum_values)
     )
-    # Family member's display identity, shown on the senior's Contacts screen.
-    # Nullable because barangay-responder accounts are seeded without them.
+    # Display name shown on the senior's Contacts screen. Null for barangay accounts.
     full_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
     phone: Mapped[str | None] = mapped_column(String(20), nullable=True)
-    # Family login identity (barangay responders log in by username instead, per
-    # The spec §2 - pre-assigned credentials, so this stays nullable for them).
+    # Family login identity. Barangay responders log in by username, so this stays null for them.
     email: Mapped[str | None] = mapped_column(String(255), unique=True, index=True, nullable=True)
-    # Google's stable per-account subject ID - set only for Google-linked accounts,
-    # used to recognize a returning Google sign-in independent of email changes.
+    # Google's stable account ID, set only for Google-linked accounts.
     google_sub: Mapped[str | None] = mapped_column(String(255), unique=True, index=True, nullable=True)
-    # Firebase Auth's stable per-account ID (family accounts only) - set once a
-    # family account signs up/in through Firebase email+password, mirrors how
-    # google_sub identifies a Google-linked account.
+    # Firebase Auth's stable account ID (family accounts only).
     firebase_uid: Mapped[str | None] = mapped_column(String(255), unique=True, index=True, nullable=True)
     # Scopes a barangay_responder's dashboard queries; unused for family contacts.
     barangay: Mapped[str | None] = mapped_column(String(128), nullable=True)
-    # "en" / "fil" — same two codes as the senior side's Senior_Onboarding.language_preference
-    # (WellnessMessages.ENGLISH / .FILIPINO on-device), so the vocabulary matches across both
-    # apps even though this column has no local-SQLite counterpart. Drives the family app's
-    # bilingual UI (Profile -> Language); barangay-responder accounts never read it.
+    # "en" / "fil", same codes as the senior app's language preference. Drives the family
+    # app's language; barangay accounts never read it.
     language_preference: Mapped[str] = mapped_column(String(8), server_default="en")
     is_active: Mapped[bool] = mapped_column(default=True)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
-    # Account deletion is soft (migration 0010). NULL deleted_at = live account.
-    # On delete: is_active goes False (login/get_current_user already reject that),
-    # every pairing is soft-unlinked, and username/email/google_sub are tombstoned
-    # with a suffix so those unique slots free up for a fresh sign-up. deletion_reason
-    # is a stable code from the app's reason picker, never the translated label.
+    # Soft deletion (migration 0010): a null deleted_at means a live account. On delete the
+    # account is deactivated, pairings are unlinked and username/email/google_sub are
+    # tombstoned so they can be reused. deletion_reason is a stable code, not the label.
     deleted_at: Mapped[datetime | None] = mapped_column(nullable=True)
     deletion_reason: Mapped[str | None] = mapped_column(String(64), nullable=True)
     deletion_note: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
     contacts: Mapped[list["Contact"]] = relationship(back_populates="user")
-    # delete-orphan: a deactivated account's tokens must not outlive it and keep
-    # receiving pushes for seniors it is no longer linked to.
+    # delete-orphan so a deactivated account's tokens stop receiving pushes.
     device_tokens: Mapped[list["DeviceToken"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
 
     @property
     def has_password(self) -> bool:
-        """A Google-only account has no password. The family app reads this off UserOut to
-        offer "Set a password" (so email + password sign-in also works) instead of the
-        "Change password" flow, which needs a current one."""
+        """True for Google-only accounts. The family app uses it to offer "Set a password"
+        instead of "Change password"."""
         return self.password_hash is not None
 
 
 class DeviceToken(Base):
-    """One FCM registration token — i.e. one installed app on one device — for a user.
+    """One FCM registration token (one app install on one device) for a user.
 
-    A separate table rather than a `users.fcm_token` column, for two reasons that both
-    bite in production:
-
-    * One family member may run the app on a phone AND a tablet. A single column silently
-      overwrites one with the other, so whichever device registered last is the only one
-      that ever rings.
-    * Tokens expire on their own — a reinstall, a "clear data", or a rotation by Google.
-      FCM reports those per-token as UNREGISTERED, and the correct response is to delete
-      that one row, not to blank a user's only column.
-
-    `token` is globally unique, not unique per user: if a device is handed to someone else
-    who signs in, the SAME token must move to the new account or the previous owner keeps
-    receiving a stranger's alerts. See register_device in api/routes/devices.py.
+    Its own table because a user can have several devices, and FCM expires tokens
+    individually. `token` is globally unique so a device handed to someone else moves to
+    the new account. See register_device in api/routes/devices.py.
     """
 
     __tablename__ = "device_tokens"
@@ -166,15 +132,14 @@ class DeviceToken(Base):
     token: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     platform: Mapped[str] = mapped_column(String(16), server_default="android")
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
-    # Refreshed every time the app re-registers, so a token that has gone quiet for months
-    # can be pruned without waiting for FCM to declare it dead.
+    # Refreshed whenever the app re-registers, so stale tokens can be pruned.
     last_seen_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
     user: Mapped["User"] = relationship(back_populates="device_tokens")
 
 
 class Senior(Base):
-    """Privacy-stripped cloud record: identifying info only — the Routine Fingerprint stays on-device."""
+    """Cloud record for a senior: identity only. The Routine Fingerprint stays on the phone."""
 
     __tablename__ = "seniors"
 
@@ -193,53 +158,35 @@ class Senior(Base):
     invite_code_expires_at: Mapped[datetime | None] = mapped_column(nullable=True)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
-    # Device health, written by POST /seniors/{sync_id}/heartbeat and overwritten every
-    # time. Deliberately three scalars rather than a history: the current charge says
-    # whether the phone can keep monitoring, while a series of charge readings is
-    # behavioural -- when someone plugs in is roughly when they go to bed -- and that is
-    # the routine spec §11 keeps on the device. NULL means never heard from, which is
-    # a different answer from 0% and draining.
+    # Device health from POST /seniors/{sync_id}/heartbeat, overwritten each time. Kept as
+    # single values, not a history, because a charge history would reveal routine. Null
+    # means never heard from, which is different from 0%.
     last_seen_at: Mapped[datetime | None] = mapped_column(nullable=True)
     battery_percent: Mapped[int | None] = mapped_column(nullable=True)
     is_charging: Mapped[bool | None] = mapped_column(nullable=True)
 
-    # This handset's FCM registration token, and when the server last used it to wake a
-    # phone that had gone quiet. On `seniors` rather than in `device_tokens` because that
-    # table is keyed to a users row and a senior has no account (spec §2); see
-    # migration 0008 for the full reasoning and the measurements behind it.
-    #
-    # Refreshed on every heartbeat rather than through its own endpoint, so the token
-    # cannot go stale on a schedule different from the check-in that proves the phone is
-    # alive. NULL means this phone cannot be woken -- push is not configured, the token
-    # has not arrived yet, or FCM refused to issue one.
+    # The phone's FCM token, and when the server last used it to wake the phone. Stored on
+    # `seniors` because a senior has no users row (see migration 0008). Refreshed on every
+    # heartbeat. Null means this phone can't be woken.
     push_token: Mapped[str | None] = mapped_column(String(255), nullable=True)
     last_nudge_at: Mapped[datetime | None] = mapped_column(nullable=True)
 
-    # Account deletion is soft (migration 0010). NULL deleted_at = live record. The
-    # senior has no users row, so the sync_id is the credential for POST
-    # /seniors/{sync_id}/delete; on delete the contacts are soft-unlinked, the push
-    # token and invite code are cleared, and the phone wipes its own local database
-    # (where the Routine Fingerprint and raw behaviour actually live, the spec §11).
-    # Every barangay-dashboard query must exclude deleted_at IS NOT NULL.
+    # Soft deletion (migration 0010): a null deleted_at means a live record. The sync_id is
+    # the credential for POST /seniors/{sync_id}/delete. Barangay dashboard queries must
+    # exclude rows where deleted_at is set.
     deleted_at: Mapped[datetime | None] = mapped_column(nullable=True)
     deletion_reason: Mapped[str | None] = mapped_column(String(64), nullable=True)
     deletion_note: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
-    # Barangay roster state (migration 0012). See SeniorStatus for what this is and, more
-    # importantly, what it deliberately is not: it governs whether a responder still counts
-    # this senior among the people they watch, and never whether an alert reaches them.
-    #
-    # Server default "active" rather than nullable, so every existing row and every future
-    # one has an answer. A tri-state where NULL meant "probably active" would put the
-    # guessing in every query that reads it.
+    # Barangay roster state (migration 0012); see SeniorStatus. It controls whether a
+    # responder counts this senior on their roster, never whether an alert reaches them.
+    # Defaults to "active" so no row is left undefined.
     status: Mapped[SeniorStatus] = mapped_column(
         Enum(SeniorStatus, name="senior_status", values_callable=_enum_values),
         server_default=SeniorStatus.ACTIVE.value,
         nullable=False,
     )
-    # Who last flipped it and when. Unlike deleted_at, this is one person acting on another
-    # person's record, so "a responder did this" is not enough -- it has to be answerable
-    # which one. Nullable because rows predating the column were never flipped by anybody.
+    # Who last changed the status and when. Null for rows that were never changed.
     status_changed_at: Mapped[datetime | None] = mapped_column(nullable=True)
     status_changed_by: Mapped[int | None] = mapped_column(
         ForeignKey("users.id"), nullable=True
@@ -252,15 +199,10 @@ class Senior(Base):
 class Contact(Base):
     """Links a Users account (family or barangay responder) to a senior.
 
-    Unlinking is SOFT: the row survives with `unlinked_at`/`unlinked_by` set, so a
-    pairing that ended is still auditable (who dropped whom, and when) instead of
-    vanishing. Everything user-facing must therefore filter on `unlinked_at IS NULL`
-    — see `active_contacts()` in api/routes/contacts.py.
-
-    Uniqueness is enforced by a PARTIAL index (`uq_contact_pair_active`, defined in
-    migration 0005) covering only active rows, not by a plain UniqueConstraint: the
-    same senior and family member may legitimately link, unlink, and link again, and
-    each of those pairings is its own historical row.
+    Unlinking is soft: the row keeps `unlinked_at` / `unlinked_by` for the audit trail, so
+    user-facing queries must filter on `unlinked_at IS NULL` (see `active_contacts()` in
+    api/routes/contacts.py). Uniqueness is a partial index over active rows only
+    (`uq_contact_pair_active`, migration 0005), so a pair can link, unlink and link again.
     """
 
     __tablename__ = "contacts"
@@ -286,9 +228,7 @@ class Contact(Base):
     @staticmethod
     def is_active():
         """WHERE clause for "this pairing is still live". Every query that decides what a
-        user may SEE or DO must include it — a soft-unlinked row is invisible and carries
-        no access rights, so omitting it silently re-grants a removed contact access to
-        the senior's alerts (spec §11)."""
+        user may see or do must include it, or a removed contact keeps access."""
         return Contact.unlinked_at.is_(None)
 
 
@@ -316,14 +256,9 @@ class Alert(Base):
     location_cluster_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     escalation_steps: Mapped[list | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
-    # When the phone's own detector actually fired, client-supplied and nullable (older rows,
-    # and any client that omits it, have none). Deliberately NOT what escalation deadlines are
-    # computed from -- family_deadline()/db_now() in api/escalation.py anchor to created_at
-    # (the database's own clock) on purpose, because a client clock cannot be trusted (the
-    # whole reason db_now() exists). This column exists only so the delivery-time metric
-    # (spec §10) and the dashboard/family view can show the real moment something went
-    # wrong instead of the moment the phone finally reached the network -- on 2026-09-06 those
-    # two moments were 47 minutes apart and only created_at was ever recorded.
+    # When the phone's detector actually fired (sent by the client, null on older rows).
+    # Escalation deadlines still use created_at, since a client clock can't be trusted. This
+    # is only for showing the real time and for the delivery-time metric.
     triggered_at: Mapped[datetime | None] = mapped_column(nullable=True)
     resolved_at: Mapped[datetime | None] = mapped_column(nullable=True)
 

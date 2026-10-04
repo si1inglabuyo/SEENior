@@ -1,10 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { IconChevron } from '../icons'
 
-// A label button that opens a popover panel -- used for both the Alert Type and Date Range
-// dropdowns on Alert History. `children` is a render function given a `close` callback, so
-// a menu option or an "Apply range" button can dismiss the panel after it acts. Closes on
-// an outside click or Escape.
+// A button that opens a popover panel (Alert Type and Date Range filters). `children` is a
+// render function given a `close` callback. Closes on outside click or Escape.
 export default function FilterMenu({ label, active, children }) {
   const [open, setOpen] = useState(false)
   const ref = useRef(null)

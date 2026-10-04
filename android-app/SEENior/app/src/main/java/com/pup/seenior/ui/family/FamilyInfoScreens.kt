@@ -45,19 +45,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 /**
- * Family Profile's HELP & INFORMATION sub-screens. Mirrors `ui/profile/SeniorInfoScreens.kt`'s
- * structure (own InfoScaffold/InfoCard/InfoBody, reusing [BackHeader] from
- * `FamilyComponents.kt` for the header rather than duplicating it).
- *
- * See [FamilyInfoStrings]'s kdoc for the two content corrections made against the
- * `designs/family_contact/infos` mockups (How to use, Terms & Privacy).
+ * Family Profile's HELP & INFORMATION sub-screens. Mirrors `ui/profile/SeniorInfoScreens.kt`
+ * (own InfoScaffold/InfoCard/InfoBody, reusing [BackHeader] from `FamilyComponents.kt`). See
+ * [FamilyInfoStrings] for the two content corrections made against the mockups.
  */
 
 /*
- * Same reasoning as SeniorInfoScreens.kt's SUPPORT_PHONE/SUPPORT_EMAIL: both were left null
- * until real ones existed, because a placeholder number is worse than no button at all --
- * tapping "Call us" and reaching a dead line spends the exact moment someone decided to ask
- * for help. Both are now real and monitored.
+ * Like SUPPORT_PHONE/SUPPORT_EMAIL in SeniorInfoScreens.kt: a placeholder number would waste
+ * the moment someone asks for help, so these are real, monitored contacts.
  */
 private val FAMILY_SUPPORT_PHONE: String? = "0910 358 4546"
 private val FAMILY_SUPPORT_EMAIL: String? = "SEENiorApp@gmail.com"
@@ -188,11 +183,9 @@ fun FamilyFaqsScreen(onBack: () -> Unit) {
 // ---------------------------------------------------------------- Feedback & requests
 
 /**
- * Star rating + free-text feedback (designs/family_contact/infos). The rating is local UI
- * state only — there is no feedback endpoint on the backend (same gap SeniorInfoScreens.kt's
- * Contact support flags), so Send routes through the same mailto pattern as
- * [FamilyContactSupportScreen] and stays disabled until [FAMILY_SUPPORT_EMAIL] is configured,
- * rather than pretending a tap submits anything.
+ * Star rating + free-text feedback. The rating is local UI state only; there is no feedback
+ * endpoint, so Send uses the same mailto pattern as [FamilyContactSupportScreen] and stays
+ * disabled until [FAMILY_SUPPORT_EMAIL] is configured.
  */
 @Composable
 fun FamilyFeedbackScreen(onBack: () -> Unit) {
@@ -309,10 +302,9 @@ fun FamilyContactSupportScreen(onBack: () -> Unit) {
     var message by remember { mutableStateOf("") }
 
     InfoScaffold(title = copy.supportTitle, onBack = onBack) {
-        // Both halves are conditional so this screen degrades to whatever is actually
-        // configured, rather than offering a route that goes nowhere. With neither set the
-        // Profile row is hidden (FAMILY_SUPPORT_CONTACT_CONFIGURED) and this is unreachable;
-        // still written to survive being reached, so a future edit to the menu can't crash it.
+        // Both halves are conditional so this degrades to whatever is configured. With neither
+        // set the Profile row is hidden (FAMILY_SUPPORT_CONTACT_CONFIGURED); this still
+        // survives being reached.
         val supportPhone = FAMILY_SUPPORT_PHONE
         val supportEmail = FAMILY_SUPPORT_EMAIL
 
@@ -365,8 +357,7 @@ fun FamilyContactSupportScreen(onBack: () -> Unit) {
                 colors = feedbackFieldColors()
             )
             Spacer(Modifier.height(16.dp))
-            // No support-ticket endpoint on the backend, same as the senior side -- hands the
-            // text to the phone's mail app rather than pretending to submit it somewhere.
+            // No support-ticket endpoint, so this hands the text to the phone's mail app.
             BluePillButton(
                 text = copy.send,
                 enabled = message.isNotBlank(),
@@ -431,8 +422,7 @@ private fun LegalBody(title: String, sections: List<com.pup.seenior.ui.Onboardin
 
 // ---------------------------------------------------------------- shared bits
 
-/** Blue back-header + scrollable white body, shared by every Profile info sub-screen. Reuses
- *  [BackHeader] from FamilyComponents.kt rather than duplicating it. */
+/** Blue back-header + scrollable white body shared by every Profile info sub-screen. Reuses [BackHeader]. */
 @Composable
 private fun InfoScaffold(title: String, onBack: () -> Unit, content: @Composable () -> Unit) {
     Column(modifier = Modifier.fillMaxSize().background(Color.White)) {

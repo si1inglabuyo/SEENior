@@ -9,11 +9,9 @@ data class UserDto(
     val fullName: String?,
     val phone: String?,
     val email: String? = null,
-    /** False for a Google-only account. Defaults true so the UI never offers "Set a
-     *  password" before a fetch has confirmed there isn't one. */
+    /** False for a Google-only account. Defaults true so the UI doesn't offer "Set a password" before a fetch confirms. */
     val hasPassword: Boolean = true,
-    /** "en" / "fil" — same two codes the senior side already uses (WellnessMessages.ENGLISH
-     *  / .FILIPINO). Defaults "en" until a profile fetch says otherwise. */
+    /** "en" / "fil", the same codes as the senior side. Defaults "en" until a fetch says otherwise. */
     val languagePreference: String = "en"
 )
 

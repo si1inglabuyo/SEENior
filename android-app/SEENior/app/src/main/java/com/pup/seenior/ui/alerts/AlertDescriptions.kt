@@ -6,20 +6,16 @@ import java.util.Locale
 import kotlin.math.abs
 
 /**
- * The senior-facing explanation of a single alert on the Alerts tab: why it triggered, plus a
- * short note on what the detection math actually found, both in plain language.
+ * The senior-facing explanation of one alert on the Alerts tab: why it triggered, and a short
+ * plain-language note on what the detection found.
  *
- * The "why" half reuses [WellnessMessages.forAlert]'s `reason` field — the same sentence the
- * wellness prompt itself showed at the time (spec §7) — so a senior reading their history
- * later sees a consistent story, not a second, differently-worded explanation. Name is passed as
- * empty because `reason` never interpolates it (only `question`/`sosQuestion` do).
+ * The "why" reuses [WellnessMessages.forAlert]'s `reason`, the same sentence the prompt showed
+ * at the time. The name is passed empty since `reason` never uses it.
  *
- * The "finding" half is new here: a one-clause translation of [Alert.deviationScore] (the spec
- * §5's Median-MAD z-score) into "noticeably" vs. "far" outside normal, using the same 2.5/3.5
- * moderate/extreme boundary the detector itself uses — never the raw number, which means nothing
- * to a non-technical reader. `ml_flag` and `fall_pattern` carry no z-score (Isolation Forest's
- * score is path-length based, not z-score based — the spec §14 forbids collapsing the two into
- * one number), so they get their own fixed clause instead.
+ * The "finding" turns [Alert.deviationScore] into "noticeably" vs "far" outside normal, using
+ * the detector's 2.5/3.5 boundary, never the raw number. `ml_flag` and `fall_pattern` have no
+ * z-score (Isolation Forest's score is path-length based and must stay separate), so they
+ * get a fixed clause.
  */
 object AlertDescriptions {
 
@@ -63,18 +59,12 @@ object AlertDescriptions {
     private const val EXTREME_THRESHOLD = 3.5
 
     /**
-     * A one-line "show your work" for the two layers that actually compute a score — the
-     * Median-MAD anomaly detector (Layer 1) and Isolation Forest (Layer 2).
+     * A one-line "show your work" for the two layers that compute a score: Median-MAD
+     * (Layer 1) and Isolation Forest (Layer 2). Absent for `fall_pattern` (a signature match)
+     * and `sos` (the senior's own action). The two scores stay on separate lines with separate labels.
      *
-     * Deliberately absent for `fall_pattern` (a signature match, not a scored anomaly) and `sos`
-     * (the senior's own action) — there is nothing to compute for either, and inventing a number
-     * would misrepresent how they work. The spec §14 forbids collapsing the z-score and the
-     * path-length score into one figure, so this keeps them on two separate lines with two
-     * separate labels rather than a single generic "confidence" reading.
-     *
-     * @param mlFlagScore Isolation Forest's score for the block this `ml_flag` alert was raised
-     *   from, looked up from `Daily_Aggregates` by the caller ([AlertsViewModel.mlFlagScores]) —
-     *   null if it hasn't loaded yet, in which case no line is shown rather than a wrong one.
+     * @param mlFlagScore Isolation Forest's score for the block, looked up by the caller
+     *   ([AlertsViewModel.mlFlagScores]); null if not loaded yet, in which case no line is shown.
      */
     fun computationLine(
         language: String,

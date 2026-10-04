@@ -1,25 +1,12 @@
-// Access audit log — RA 10173 (Data Privacy Act of 2012) §23(a).
+// Access audit log (RA 10173 section 23(a)): records disclosures beyond the default view.
 //
-// §23(a) requires that government agency personnel handling personal (and especially
-// sensitive personal) information have their access to it both *controlled* and *recorded*.
-// The dashboard already does the "controlled" half — a responder only ever sees seniors in
-// their own barangay, enforced server-side. This module adds the "recorded" half for the
-// three disclosures that go BEYOND the always-on default profile view:
+//   - 'senior_phone_reveal'  - un-masking a senior's phone number
+//   - 'active_alert_view'    - opening the active-alert view (full address and contacts)
+//   - 'full_history_view'    - expanding a senior's full alert history
 //
-//   - 'senior_phone_reveal'  — un-masking a senior's phone number
-//   - 'active_alert_view'    — opening the active-alert view (full home address +
-//                              emergency-contact names/relationships/phones)
-//   - 'full_history_view'    — expanding a senior's full alert history
-//
-// It also closes the "no audit logging" gap called out in the thesis's environmental
-// analysis.
-//
-// WHERE THE LOG LIVES: this build appends to localStorage on the responder's own machine.
-// A centrally-held, tamper-evident audit trail needs a server table (`barangay_audit_log`)
-// and a `POST /barangay/audit` route — both are schema/route changes owned by the `main`
-// lane (dashboard spec §2), so they are deliberately NOT part of this change.
-// Once that endpoint exists, add the one fetch marked below; this file then keeps working
-// as the offline fallback and nothing else changes.
+// The log is kept in localStorage on this machine. A central log would need a server table
+// and a POST /barangay/audit route, which belong to the main lane. Once that exists, send
+// each entry there at the marked spot and keep this as the offline fallback.
 
 import { currentUserId } from './api'
 
@@ -34,10 +21,8 @@ export function recordAccess(action, target = {}) {
     target, // { sync_id, ... } — the record that was opened
   }
 
-  // --- once `POST /barangay/audit` exists (owned by the `main` lane), send the
-  //     authoritative copy to the server here; keep the localStorage write below as the
-  //     offline fallback:
-  //     api('/barangay/audit', { method: 'POST', body: JSON.stringify(entry) }).catch(() => {})
+    // Once POST /barangay/audit exists (main lane), send the entry to the server here and
+    // keep the localStorage write below as the offline fallback.
 
   try {
     const log = JSON.parse(localStorage.getItem(KEY) || '[]')
@@ -59,8 +44,7 @@ export function readAccessLog() {
   }
 }
 
-// Human wording for the Settings "Access log" panel -- the "reviewable" half of §23(a):
-// recording access is only half the requirement, someone has to be able to read it back.
+// Wording for the Settings "Access log" panel.
 export const ACCESS_ACTION_LABEL = {
   senior_phone_reveal: 'Revealed a senior’s full phone number',
   active_alert_view: 'Opened the active-alert view (full address + family contacts)',

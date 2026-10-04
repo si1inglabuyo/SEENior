@@ -1,15 +1,13 @@
 package com.pup.seenior.ui.wellness
 
 /**
- * Every string the senior sees during a wellness check, in both supported languages.
+ * Every string the senior sees during a wellness check, in both languages. Kept out of
+ * `strings.xml` because the language is a per-senior setting
+ * (`Senior_Onboarding.language_preference`), not the device locale.
  *
- * Kept out of `strings.xml` on purpose: the language is a per-senior setting stored in
- * `Senior_Onboarding.language_preference` (spec §7), not the device locale, so the
- * standard resource-qualifier mechanism would pick the wrong one.
- *
- * **The opening question is not free to reword.** The spec §14 forbids "Are you okay?" — it was
- * flagged during panel defence as inappropriate informal slang for elderly Filipino users. The
- * mockup in `designs/senior/prompt_screen/` still shows the old wording; the panel's ruling wins.
+ * The opening question can't be reworded: "Are you okay?" was rejected by the panel as
+ * informal slang for elderly Filipino users (spec section 14). The mockup in
+ * `designs/senior/prompt_screen/` still shows the old wording; the panel's ruling wins.
  */
 object WellnessMessages {
 
@@ -27,11 +25,7 @@ object WellnessMessages {
         val acknowledged: String,
         val alertSentTitle: String,
         val alertSentBody: String,
-        /* Lets the senior close an alert that has already gone out. Until this existed, help
-         * being on its way was a one-way door: a senior who got up unhurt had no way to say so,
-         * and the alert sat in the family app until a relative happened to open it and resolve
-         * it by hand. spec §1 promises the senior stays in the loop, not only until the
-         * moment the alert leaves the phone. */
+        /* Lets the senior close an alert that has already gone out, so help on its way isn't a one-way door. */
         val standDownButton: String,
         val standDownDone: String,
         val delivering: String,
@@ -48,13 +42,11 @@ object WellnessMessages {
         val sosCancel: String,
         val sosAutoFooter: String,
         val sosBarangayRole: String,
-        /* Also shown on the non-SOS AlertSentBody screen when willAlertContacts is known-empty —
-         * the wording doesn't mention SOS, so it reads fine there too. Kept as one field rather
-         * than duplicated so the two screens can't drift apart on this claim. */
+        /* Also shown on the non-SOS AlertSentBody screen when willAlertContacts is known-empty.
+         * One field so the two screens can't disagree. */
         val sosNoContacts: String,
-        /* The Home tab's standing report on an alert the senior has already raised. Separate
-         * from alertSentBody, which is a one-off confirmation shown for five seconds on the way
-         * out of the prompt: these two are what Home says for as long as the situation lasts. */
+        /* The Home tab's standing report on an alert already raised. Separate from alertSentBody,
+         * which is a one-off confirmation shown for five seconds. */
         val homePendingTitle: String,
         val homePendingBody: String,
         val homeDeliveredTitle: String,
@@ -78,13 +70,10 @@ object WellnessMessages {
         footer = "If no response, your emergency contacts will be notified immediately.",
         acknowledged = "Response Acknowledged!",
         alertSentTitle = "Alert Sent!",
-        // The mockup also promises "Your current location is being shared". Location capture is
-        // built now (AlertLocationCapture, 2026-08-31) and the cell it stores is precise, so the
-        // line would no longer be false — but it is not restored here, because it is not reliably
-        // true either: the fix is best effort and a real alert on 2026-09-01 went up with no
-        // location at all. Promising it in an emergency and not delivering is worse than not
-        // promising it. Whether to say something honest and softer is a copy decision, not a
-        // code one.
+        // The mockup also says "Your current location is being shared". Location capture exists
+        // now, but it's best effort (one real alert went out with none), so the line isn't
+        // restored: promising it in an emergency and not delivering is worse. Whether to say
+        // something softer is a copy decision.
         alertSentBody = "Your contacts have been notified.",
         standDownButton = "I'M FINE NOW",
         standDownDone = "We have told your family you are fine.",

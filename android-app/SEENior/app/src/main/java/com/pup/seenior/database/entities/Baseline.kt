@@ -22,10 +22,7 @@ data class Baseline(
     @PrimaryKey(autoGenerate = true)
     @ColumnInfo(name = "baseline_id") val baselineId: Int = 0,
     @ColumnInfo(name = "senior_id") val seniorId: Int,
-    /**
-     * One of: "inactivity_duration", "movement_score", "screen_idle_duration",
-     * "screen_unlock_count", "step_count"
-     */
+    /** One of "inactivity_duration", "movement_score", "screen_idle_duration", "screen_unlock_count", "step_count" */
     @ColumnInfo(name = "feature_name") val featureName: String,
     /** "morning", "afternoon", "evening", or "night" */
     @ColumnInfo(name = "time_block") val timeBlock: String,

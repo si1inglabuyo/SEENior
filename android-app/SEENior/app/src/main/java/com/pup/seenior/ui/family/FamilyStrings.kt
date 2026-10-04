@@ -4,22 +4,14 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import com.pup.seenior.ui.wellness.WellnessMessages
 
 /**
- * Family-app copy in the account's stored language ("en" / "fil" — the same two codes the
- * senior side already uses, `WellnessMessages.ENGLISH` / `.FILIPINO`; see backend migration
- * 0013 for why this lives on the cloud `users` row rather than a local table). Mirrors
- * `ui/SeniorStrings.kt`'s Copy-data-class + `forLanguage()` pattern rather than `strings.xml`,
- * for the same reason: language is a per-account *setting*, not the device locale, and it
- * must follow a family member across devices the moment they change it in Profile.
+ * Family-app copy in the account's stored language ("en" / "fil", the same codes as the
+ * senior side). It lives on the cloud `users` row (backend migration 0013) so it follows the
+ * family member across devices. Uses the same Copy data class + `forLanguage()` pattern as
+ * `ui/SeniorStrings.kt` instead of `strings.xml`, because this is an account setting, not
+ * the device locale.
  *
- * **Phase 1 (2026-09-27).** Covers the bottom-nav tabs, Home, the Alerts tab in full, and
- * Profile's top-level chrome (including the new Language row itself). Deliberately NOT yet
- * covered, same staged rollout the senior side went through: the Contacts tab, Edit Profile /
- * change-password / delete-account sub-screens, and the Link/Connected pairing flow — those
- * stay English until a follow-up pass. Pre-auth screens (Login/SignUp/ForgotPassword/
- * CompletePhone) are English by necessity: there is no account yet to hold a preference.
- *
- * **These translations are an agent-written draft and have not been read by a native
- * speaker** — same caveat [[seenior-language]] carries for the senior side's copy.
+ * Pre-auth screens (Login, SignUp, ForgotPassword, CompletePhone) stay English since there
+ * is no account yet. The Filipino translations have not been reviewed by a native speaker.
  */
 object FamilyStrings {
 
@@ -62,8 +54,7 @@ object FamilyStrings {
         val statusAlert: String,
         val statusAllClear: String,
 
-        // Alert status chips + trigger labels (shared between Home's recent-alerts row and
-        // the Alerts tab's own detail screens)
+        // Alert status chips and trigger labels, shared by Home's recent-alerts row and the Alerts tab.
         val statusPending: String,
         val statusAcknowledged: String,
         val statusEscalated: String,
@@ -91,9 +82,7 @@ object FamilyStrings {
         val minAgoSuffix: String,
         val hrAgoSuffix: String,
         val dAgoSuffix: String,
-        // Short forms (no "ago"/"ang nakalipas") for list rows tight on width — mirrors the
-        // old English-only code's `.removeSuffix(" ago")`, which cannot be done generically
-        // once the suffix is translated.
+        // Short forms without the "ago" suffix for tight list rows; can't be derived once the suffix is translated.
         val minShortSuffix: String,
         val hrShortSuffix: String,
         val dShortSuffix: String,
@@ -304,13 +293,10 @@ object FamilyStrings {
         }
 
         /**
-         * Dispatch-reason button label, keyed by the fixed English sentence the button's
-         * `onClick` sends on to `POST /alerts/{id}/dispatch` (`DISPATCH_REASON_CODES` in
-         * FamilyAlertsScreen.kt). Deliberately keeps the *value* in English regardless of
-         * this account's language — that string lands in `escalation_steps` and is read by
-         * the barangay dashboard (a different lane's English-only React app), so only the
-         * on-screen label may change, never what gets sent. Same "code vs. label" split the
-         * account-deletion reason picker already uses.
+         * Dispatch-reason button label. The value sent to `POST /alerts/{id}/dispatch`
+         * (`DISPATCH_REASON_CODES` in FamilyAlertsScreen.kt) stays English regardless of
+         * language, because it lands in `escalation_steps` and is read by the barangay
+         * dashboard. Only the on-screen label changes.
          */
         fun dispatchReasonLabel(code: String): String = when (code) {
             "No movement / unresponsive" -> dispatchReasonNoMovement
@@ -336,8 +322,7 @@ object FamilyStrings {
             else -> "${minutes / (60 * 24)}$dAgoSuffix"
         }
 
-        /** For a list row tight on width (Home's RECENT ALERTS chip line) — same buckets,
-         *  no "ago"/"ang nakalipas" tail. */
+        /** Short form for a tight list row (Home's RECENT ALERTS chip line), without the "ago" tail. */
         fun relativeTimeAgoShort(minutes: Long): String = when {
             minutes < 1 -> justNow
             minutes < 60 -> "$minutes$minShortSuffix"
@@ -379,14 +364,12 @@ object FamilyStrings {
         val navigateToSeniorLocation: String
             get() = if (language == WellnessMessages.FILIPINO) "Pumunta sa kanyang lokasyon" else "Navigate to her location"
 
-        /** [pronoun] is "He" or "She" (from the senior's registered gender) -- meaningless in
-         *  Filipino, where "siya" is gender-neutral, so the Filipino branch ignores it. */
+        /** [pronoun] is "He" or "She" from the senior's gender. Ignored in Filipino, where "siya" is gender-neutral. */
         fun markResolvedSafe(pronoun: String): String =
             if (language == WellnessMessages.FILIPINO) "Markahang naresolba na. Ligtas na siya."
             else "Mark resolved. $pronoun's safe"
 
-        /** For an alert that was raised in error -- the senior was fine and the detection was
-         *  wrong. Distinct from "resolved", which means something happened and is now dealt with. */
+        /** For an alert raised in error. Different from "resolved", which means something happened and was dealt with. */
         val markFalseAlarm: String
             get() = if (language == WellnessMessages.FILIPINO) "Maling alarma lang ito" else "This was a false alarm"
 
@@ -425,8 +408,7 @@ object FamilyStrings {
                 "Are you sure you want to unlink $name? You will no longer receive alerts and " +
                     "updates from this senior."
 
-        /** [email] is shown so the family member knows which sign-in identity a new password
-         *  would attach to -- meaningless to translate, since it's their own literal address. */
+        /** [email] is shown so the family member knows which sign-in a new password attaches to. It isn't translated. */
         fun googleSignupNotice(email: String): String =
             if (language == WellnessMessages.FILIPINO)
                 "Nag-sign up ka gamit ang Google. Magdagdag ng password upang makapag-sign in ka " +
@@ -434,9 +416,8 @@ object FamilyStrings {
             else
                 "You signed up with Google. Add a password to also sign in with $email."
 
-        /** Dispatch-reason-style code/label split: [code] is the stable string the app already
-         *  sends as `deletion_reason` (AccountDeletionRequest.reason in DELETE_REASONS below) --
-         *  never translated, since the backend stores it verbatim for audit. */
+        /** [code] is the stable string sent as `deletion_reason` (AccountDeletionRequest.reason in
+         *  DELETE_REASONS below). It is never translated, since the backend stores it as is. */
         fun deleteReasonLabel(code: String): String = when (code) {
             "senior_no_longer_needs" -> deleteReasonSeniorNoLongerNeeds
             "not_caregiver" -> deleteReasonNotCaregiver
@@ -446,12 +427,9 @@ object FamilyStrings {
             else -> deleteReasonOther
         }
 
-        /** [code] is one of the fixed English values in RELATIONSHIPS (ConnectedScreen.kt),
-         *  stored verbatim as `Contact.relationship_label` and shown on the SENIOR's own
-         *  Contacts screen regardless of the family member's language -- so, same reasoning as
-         *  the dispatch/delete reasons, only the on-screen chip label may vary; the stored value
-         *  never does, or a Filipino chip pick would show untranslated on an English-reading
-         *  senior's screen and vice versa. */
+        /** [code] is one of the English values in RELATIONSHIPS (ConnectedScreen.kt), stored as
+         *  `Contact.relationship_label` and shown on the senior's Contacts screen whatever the
+         *  family member's language. Only the on-screen chip label varies, never the stored value. */
         fun relationshipLabel(code: String): String = when (code) {
             "daughter" -> relationshipDaughter
             "son" -> relationshipSon
@@ -463,17 +441,13 @@ object FamilyStrings {
         }
 
         /**
-         * How the SENIOR relates to this family member, for the family app's own lists.
+         * How the senior relates to this family member, for the family app's own lists.
          *
-         * [label] is stored as `Contact.relationship_label` and answers "you are the senior's ___"
-         * -- it describes the family member, so it reads right on the senior's Contacts screen
-         * ("Reviman -- Son"). The family app shows the senior next to that label, and there
-         * "Son" is backwards: the senior is this person's father or mother. So it is turned
-         * around here, using the senior's gender where the word depends on it.
-         *
-         * A label with no safe reverse (a typed "niece", "pamangkin") falls back to the generic
-         * family label rather than showing the wrong direction; a label that reads the same both
-         * ways (friend, neighbour, cousin, sibling) is shown as typed.
+         * [label] is stored as `Contact.relationship_label` and describes the family member
+         * ("Son"), which is backwards when shown next to the senior. So it is reversed here,
+         * using the senior's gender where needed. A label with no safe reverse (a typed
+         * "niece") falls back to the generic family label, and one that reads the same both
+         * ways (friend, cousin, sibling) is shown as typed.
          */
         fun seniorRelationshipLabel(label: String?, seniorGender: String): String {
             if (label.isNullOrBlank()) return familyFallbackLabel
@@ -522,11 +496,9 @@ object FamilyStrings {
                 "You are now monitoring $name. You'll be alerted right away if anything unusual " +
                     "is detected."
 
-        // -- Error/status messages for the ViewModels below. ViewModels are plain classes, not
-        // Composables, so they cannot read LocalFamilyCopy themselves -- each stores a
-        // FamilyError describing WHAT went wrong (see FamilyError.kt), and the screen calls one
-        // of these to render it in the account's language, same split as nowMonitoring()/
-        // linkedSuccessBody() above already use for ViewModel-sourced data.
+        // -- Error and status messages for the ViewModels below. ViewModels can't read
+        // LocalFamilyCopy, so each stores a FamilyError (see FamilyError.kt) and the screen
+        // calls one of these to render it in the account's language.
         fun couldNotLoadAlerts(code: Int): String =
             if (language == WellnessMessages.FILIPINO) "Hindi ma-load ang mga alerto (server error $code)."
             else "Could not load alerts (server error $code)."
@@ -649,9 +621,7 @@ object FamilyStrings {
         val theSeniorFallback: String
             get() = if (language == WellnessMessages.FILIPINO) "ang senior" else "the senior"
 
-        // -- AlertLocationMap.kt captions. That file draws the map shared by the Active/
-        // Acknowledged/Resolved alert screens above but has no Composable-scoped `copy` of its
-        // own, so it takes one as a parameter instead.
+        // -- AlertLocationMap.kt captions. That file has no Composable-scoped `copy`, so it takes one as a parameter.
         fun currentLocationKnown(place: String): String =
             if (language == WellnessMessages.FILIPINO) "Kasalukuyang lokasyon: $place" else "Current location: $place"
 
@@ -1077,9 +1047,8 @@ object FamilyStrings {
 }
 
 /**
- * Provided in `FamilyDashboard`, sourced from the logged-in account's `UserDto.languagePreference`
- * (default "en" until that fetch lands) — see [FamilyStrings] for why this is per-account rather
- * than per-device.
+ * Provided in `FamilyDashboard` from the logged-in account's `UserDto.languagePreference`
+ * ("en" until that fetch lands). See [FamilyStrings] for why it is per account.
  */
 val LocalFamilyCopy = staticCompositionLocalOf {
     FamilyStrings.forLanguage(WellnessMessages.ENGLISH)

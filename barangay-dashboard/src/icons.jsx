@@ -1,6 +1,4 @@
-// Inline SVG icons. One file, no dependency, no sprite sheet to keep in sync. Every icon
-// draws in `currentColor` and sizes to 1em so it inherits colour and scale from whatever
-// text it sits beside.
+// Inline SVG icons. They use `currentColor` and size to 1em, so they inherit colour and scale.
 
 const base = {
   width: '1em',

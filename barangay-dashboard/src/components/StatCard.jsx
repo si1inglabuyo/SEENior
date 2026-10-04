@@ -1,6 +1,5 @@
-// One figure on the dashboard's top row. `tone` colours the sub-line: 'up' green, 'down'
-// red, 'neutral' muted. When `onClick` is passed the whole card becomes a button that
-// drills into the alert list behind the number (see Dashboard.jsx's onNavigate calls).
+// One figure on the top row. `tone` colours the sub-line (up green, down red, neutral
+// muted). With `onClick` the card opens the alert list behind the number.
 export default function StatCard({ label, value, icon, sub, tone = 'neutral', onClick }) {
   const body = (
     <>

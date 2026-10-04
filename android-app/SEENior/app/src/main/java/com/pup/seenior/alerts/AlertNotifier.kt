@@ -19,16 +19,10 @@ import com.pup.seenior.database.entities.Alert
 import com.pup.seenior.ui.wellness.WellnessMessages
 
 /**
- * Brings an alert to the senior's attention when the app is not on screen.
- *
- * The wellness prompt can only be answered by someone already inside the app, so without this an
- * alert raised while the phone sat locked on a table would run its whole response window unseen.
- * A high-risk alert therefore asks to take over the screen outright (a full-screen intent, the
- * same mechanism an alarm clock uses) rather than settling for a banner an unconscious or
- * distressed person will never tap.
- *
- * The notification says what happened and why, in the senior's own language, because it may be
- * the only thing they read before deciding whether to open the app at all.
+ * Brings an alert to the senior's attention when the app isn't on screen, since the prompt
+ * can only be answered by someone already in the app. A high-risk alert asks to take over the
+ * screen (a full-screen intent, as an alarm clock does) instead of a banner a distressed
+ * person might never tap. The notification says what happened and why, in the senior's language.
  */
 object AlertNotifier {
 
@@ -65,16 +59,14 @@ object AlertNotifier {
             .setCategory(if (isHighRisk) NotificationCompat.CATEGORY_ALARM else NotificationCompat.CATEGORY_REMINDER)
             .setColor(if (isHighRisk) COLOR_HIGH else COLOR_DEFAULT)
             .setContentIntent(openApp)
-            // Never auto-cancel: the alert is closed by answering it, not by brushing the
-            // notification away. AlertNotifier.cancel does that once the prompt is on screen.
+            // Never auto-cancel: the alert is closed by answering it. AlertNotifier.cancel clears it once the prompt is showing.
             .setAutoCancel(false)
             .setOngoing(isHighRisk)
 
         if (isHighRisk) {
-            // Asks to open the prompt immediately over the lock screen. Android may decline —
-            // from API 34 this is reserved for calling and alarm apps — in which case it
-            // degrades to a heads-up banner backed by the same content intent, which is why
-            // setContentIntent above is not conditional.
+            // Asks to open the prompt over the lock screen. Android may decline (from API 34 this
+            // is reserved for calling and alarm apps) and show a heads-up banner with the same
+            // content intent, which is why setContentIntent above is unconditional.
             builder.setFullScreenIntent(openApp, true)
         }
 
@@ -102,8 +94,7 @@ object AlertNotifier {
         ).apply {
             description = "Wellness checks that need your answer."
             enableVibration(true)
-            // Alarm usage on purpose: this is the one thing the app sends that must be heard
-            // through a phone left face-down across the room.
+            // Alarm usage on purpose: this must be heard through a phone left face-down across the room.
             setSound(
                 RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM),
                 AudioAttributes.Builder()

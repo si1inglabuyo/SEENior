@@ -51,27 +51,17 @@ async def verify_code(
     request: Request,
     db: AsyncSession = Depends(get_db),
 ) -> VerifyCodeResponse:
-    """Look-up only: the family's Link screen calls this to show the senior on the
-    Connected screen before committing. Nothing is created and the code is NOT
-    consumed here — it's consumed by POST /contacts/pair.
+    """Look-up only: lets the family's Link screen show the senior before committing.
+    Nothing is created and the code is not consumed (POST /contacts/pair does that).
 
-    Unauthenticated by design (the code is the credential), which makes the six-digit
-    keyspace the whole of the security here: a million codes, live for five minutes, and
-    before this an unthrottled caller could simply enumerate them.
-
-    Both limits are load-bearing and neither is sufficient alone. The per-IP one stops a
-    single host guessing; the global one bounds the endpoint's total throughput, which is
-    what actually caps a search an attacker could otherwise spread over many addresses. At
-    120/min a five-minute window admits ~600 of a million codes -- odds of roughly one in
-    1,700 per window -- while sitting far above any real rate, since pairing is something a
-    family does once and a barangay's worth of them never coincide.
+    Unauthenticated (the code is the credential), so it is rate-limited per IP and
+    globally to make guessing the six-digit codes impractical.
     """
     await ratelimit.check("verify-ip", ratelimit.client_ip(request), limit=10, window_seconds=60)
     await ratelimit.check("verify-all", ratelimit.GLOBAL, limit=120, window_seconds=60)
 
     senior = await _senior_by_valid_code(payload.invite_code, db)
-    # Redacted, not the full record — see InviteSeniorOut. A correct guess must not hand a
-    # stranger a senior's home address.
+    # Redacted record (see InviteSeniorOut) so a correct guess doesn't reveal a home address.
     return VerifyCodeResponse(senior=InviteSeniorOut.redacted(senior))
 
 
@@ -81,14 +71,11 @@ async def pair_contact(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> PairResponse:
-    # Account creation happens up front now (POST /auth/register or /auth/google),
-    # separate from pairing - so this always operates on an already-logged-in user,
-    # whether they're linking their 1st senior or their 3rd.
+    # The account already exists (POST /auth/register or /auth/google); this only pairs it.
     senior = await _senior_by_valid_code(payload.invite_code, db)
 
-    # Every count/duplicate check below is scoped to ACTIVE pairings: a senior who
-    # removed a contact must be able to add a replacement, and a family member who
-    # unlinked a senior must get that slot back.
+    # Counts and duplicate checks only look at active pairings, so removed contacts free
+    # up their slot.
     count_result = await db.execute(
         select(func.count())
         .select_from(Contact)
@@ -131,10 +118,8 @@ async def pair_contact(
     if duplicate_result.scalar_one_or_none() is not None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="You're already linked to this senior")
 
-    # A previously-unlinked pairing is left untouched and a fresh row is inserted, so the
-    # history reads "linked, unlinked, linked again" instead of a single row whose
-    # created_at quietly lies about when the current pairing began. The partial unique
-    # index only covers active rows, so this does not collide.
+    # An old unlinked pairing is left as is and a new row is inserted, so the history shows
+    # link, unlink, link again. The partial unique index only covers active rows.
 
     contact = Contact(
         senior_id=senior.id,
@@ -163,8 +148,7 @@ async def list_my_seniors(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> list[Contact]:
-    """Every senior the current family member is linked to (max MAX_SENIORS_PER_FAMILY) —
-    powers the family app's Home/Contacts tabs."""
+    """Every senior the current family member is linked to (up to MAX_SENIORS_PER_FAMILY)."""
     result = await db.execute(
         select(Contact)
         .where(
@@ -184,12 +168,10 @@ async def unlink_senior(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> None:
-    """Family-side unlink, scoped to the caller's own contact row so one family
-    member can't remove another's link.
+    """Family-side unlink, scoped to the caller's own contact row.
 
-    Soft: the row is marked, not deleted. The senior's app stops listing this family
-    member on its next refresh, because that list filters on Contact.is_active() too —
-    an unlink has always been symmetrical, both sides read the same row."""
+    Soft: the row is marked, not deleted, and both apps stop listing the pairing.
+    """
     result = await db.execute(
         select(Contact).where(
             Contact.id == contact_id,
@@ -199,13 +181,10 @@ async def unlink_senior(
     )
     contact = result.scalar_one_or_none()
     if contact is None:
-        # Covers "never existed", "belongs to someone else" and "already unlinked"
-        # identically — a repeated unlink is a no-op, not an error worth distinguishing.
+        # Same 404 for missing, someone else's and already-unlinked; a repeat is a no-op.
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Contact not found")
 
-    # func.now(), NOT datetime.now(utc): created_at is filled by the database clock, so
-    # a Python-side UTC value would make every unlink look like it happened 8 hours
-    # before the pairing began (the DB runs in Asia/Manila). Same clock, same row.
+    # func.now() so it uses the database clock, same as created_at.
     contact.unlinked_at = func.now()
     contact.unlinked_by = UnlinkActor.FAMILY
     await db.commit()
@@ -213,8 +192,7 @@ async def unlink_senior(
 
 @router.get("/seniors/{sync_id}/family-contacts", response_model=list[FamilyContactOut])
 async def list_family_contacts(sync_id: UUID, db: AsyncSession = Depends(get_db)) -> list[FamilyContactOut]:
-    # No auth: senior-facing (the senior app has no Users account, identifies by sync_id) —
-    # same trust model as POST /alerts and POST /seniors.
+    # No auth: the senior app has no account and identifies by sync_id, like POST /alerts.
     result = await db.execute(select(Senior).where(Senior.sync_id == sync_id))
     senior = result.scalar_one_or_none()
     if senior is None:
@@ -232,9 +210,8 @@ async def list_family_contacts(sync_id: UUID, db: AsyncSession = Depends(get_db)
     )
     contacts = contacts_result.scalars().all()
 
-    # One grouped query for "when did each of these contacts last open their app",
-    # rather than a device lookup per contact. The family app re-registers its token on
-    # every launch, so MAX(last_seen_at) across a contact's devices is that timestamp.
+    # One grouped query for when each contact last opened the app (the family app
+    # re-registers its token on every launch).
     user_ids = [c.user_id for c in contacts]
     last_active: dict[int, object] = {}
     if user_ids:
@@ -263,12 +240,8 @@ async def list_family_contacts(sync_id: UUID, db: AsyncSession = Depends(get_db)
 async def remove_family_contact(
     sync_id: UUID, contact_id: int, db: AsyncSession = Depends(get_db)
 ) -> None:
-    # No auth: senior-facing "Remove Contact" button. Scoped to this senior's own
-    # sync_id so one senior can't delete another's links.
-    #
-    # Soft, and symmetrical with the family-side unlink above: the removed family member
-    # stops seeing this senior in their own app on their next refresh, because
-    # GET /contacts/me filters on Contact.is_active() as well.
+    # No auth: the senior's "Remove Contact" button, scoped to this senior's sync_id.
+    # Soft, like the family-side unlink above.
     result = await db.execute(select(Senior).where(Senior.sync_id == sync_id))
     senior = result.scalar_one_or_none()
     if senior is None:
@@ -302,8 +275,7 @@ async def list_contacts(
     if senior is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Senior not found")
 
-    # Role-based access (spec §11): only a CURRENTLY linked contact may view this
-    # list — an unlinked one has no standing here any more.
+    # Only a currently linked contact may view this list.
     link_result = await db.execute(
         select(Contact).where(
             Contact.senior_id == senior.id,

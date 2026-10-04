@@ -5,11 +5,9 @@ import { IconBuilding, IconLock } from '../icons'
 import SectionCard from './SectionCard'
 import Toast from './Toast'
 
-// Barangay Information. The one value the cloud actually holds is the responder's own
-// `barangay` (GET /auth/me), used to prefill Barangay Name. City/Municipality and Region
-// have no cloud home yet, and PATCH /auth/me (out of this lane) doesn't accept `barangay`
-// anyway -- so Confirm persists to this browser. Swap loadSaved / the save in onConfirm
-// for an endpoint once one exists; the form doesn't change.
+// Barangay Information. The cloud only holds the responder's `barangay` (GET /auth/me),
+// which prefills Barangay Name. City and Region have no cloud home yet, so Confirm saves
+// to this browser. Swap in an endpoint once one exists.
 const KEY = 'seenior.barangayInfo'
 const DEFAULTS = {
   name: 'Barangay',
@@ -29,8 +27,7 @@ export default function Settings({ onSessionLost }) {
   const [saved, setSaved] = useState(loadSaved)
   const [form, setForm] = useState(loadSaved)
   const [toastOpen, setToastOpen] = useState(false)
-  // Newest first. Read once on mount -- the log only grows from this same browser, and a
-  // responder isn't watching it change live.
+    // Newest first, read once on mount.
   const [accessLog] = useState(() => [...readAccessLog()].reverse())
 
   useEffect(() => {

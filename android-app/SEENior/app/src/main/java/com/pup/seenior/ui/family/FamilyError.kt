@@ -1,10 +1,9 @@
 package com.pup.seenior.ui.family
 
 /**
- * What went wrong in a family ViewModel action, kept as data rather than a formatted English
- * string. ViewModels are plain classes, not Composables, so they cannot read `LocalFamilyCopy`
- * themselves to translate a message at the point of failure -- they store one of these instead,
- * and the screen calls [errorMessage] to render it in the account's language.
+ * What went wrong in a family ViewModel action, as data instead of a formatted string.
+ * ViewModels can't read `LocalFamilyCopy`, so they store one of these and the screen calls
+ * [errorMessage] to render it in the account's language.
  */
 sealed interface FamilyError {
 
@@ -14,8 +13,7 @@ sealed interface FamilyError {
         LoadSeniors, Unlink, LoadHomeActivity, VerifyCode, Connect
     }
 
-    /** The four distinct "can't reach the server" wordings already in use across the app --
-     *  kept as-is rather than unified, since that would be a copy change nobody asked for. */
+    /** The four "can't reach the server" wordings already in use, kept as they are. */
     enum class NetworkVariant { Plain, CheckConnection, TryAgain, HasInternet }
 
     data class Server(val action: Action, val code: Int) : FamilyError
@@ -27,8 +25,7 @@ sealed interface FamilyError {
     object CodeExpiredOrLimitReached : FamilyError
 }
 
-/** Null-safe on purpose -- most call sites hold a nullable `error: FamilyError?` and only
- *  render when it's set, so this lets them write `copy.errorMessage(viewModel.error)` directly. */
+/** Null-safe, so call sites can write `copy.errorMessage(viewModel.error)` directly. */
 fun FamilyStrings.Copy.errorMessage(error: FamilyError?): String? = when (error) {
     null -> null
     is FamilyError.Server -> when (error.action) {

@@ -1,8 +1,7 @@
-"""Everything the barangay responder's dashboard calls.
+"""Routes for the barangay responder's dashboard.
 
-Every route here is gated twice: the JWT must belong to a barangay_responder account, and
-the senior in question must sit in that responder's own barangay. Spec §11 requires
-both -- one responder must never see another barangay's seniors.
+Every route requires a barangay_responder JWT, and the senior must be in that responder's
+own barangay.
 """
 
 import logging
@@ -38,15 +37,9 @@ from app.schemas.barangay import (
     ResponderAction,
 )
 
-# created_at / db_now() run on the database's own clock, which is UTC (escalation.py's
-# db_now() docstring). Every barangay responder reads that data from the Philippines. A
-# calendar-day boundary computed straight off the UTC clock -- "today", a week's worth of
-# per-day bar-chart buckets, a clicked day's date_from/date_to -- drifts up to 8 hours from
-# the Manila day a responder actually means, wide enough to put a late-evening or
-# early-morning alert in the wrong day's bucket (or, worse, in a bucket the drill-down query
-# never asked for, so a bar shows a count and the click shows nothing). Every calendar-day
-# boundary below is reckoned in Manila time, then shifted back to the DB's UTC clock only at
-# the point it's compared against a stored timestamp.
+# Server timestamps are UTC but responders read them in Philippine time. Calendar-day
+# boundaries (today, the weekly buckets, a clicked day) are computed in Manila time and
+# shifted back to UTC only when compared against stored timestamps.
 PH_OFFSET = timedelta(hours=8)
 
 logger = logging.getLogger(__name__)
@@ -58,12 +51,8 @@ responder_only = require_role(UserRole.BARANGAY_RESPONDER)
 
 
 def _assigned_barangay(responder: User) -> str:
-    """The responder's barangay, refusing to continue if they have none.
-
-    Failing closed matters here: `barangay` is nullable on users, and an account with a
-    NULL barangay compared against seniors would either match nothing or -- worse, if a
-    senior record were ever saved with a blank barangay -- match someone it should not.
-    """
+    """The responder's barangay. Refuses to continue if they have none, so a missing
+    barangay can never match some other senior."""
     if not responder.barangay:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -73,23 +62,14 @@ def _assigned_barangay(responder: User) -> str:
 
 
 def _display_gender(gender: str | None) -> str | None:
-    """Normalise the stored gender for display, or None if the senior never gave one.
-
-    `seniors.gender` is NOT NULL with a "unknown" server default, so a skipped answer
-    arrives as "unknown" (or blank) rather than NULL -- both mean "not provided" and the
-    responder screen omits the line.
-    """
+    """Gender for display, or None if the senior never gave one."""
     if not gender or gender.strip().lower() in {"unknown", "unspecified", "n/a"}:
         return None
     return gender.strip().capitalize()
 
 
 def _alert_category(trigger_type: TriggerType, escalation_steps: list | None) -> str:
-    """The responder-facing category the dashboard groups alerts by. Mirrors the frontend's
-    alertCategory() (labels.js): SOS if the senior pressed the button, potential_fall if the
-    Layer 0 fall signature fired (not a routine deviation, so not an anomaly), dispatch_family
-    if a relative asked for the welfare check (an `escalated_barangay` step, as opposed to the
-    server's `escalated_barangay_auto`), otherwise a passive-detection anomaly."""
+    """The category the dashboard groups alerts by. Mirrors alertCategory() in labels.js."""
     if trigger_type == TriggerType.SOS:
         return "sos"
     if trigger_type == TriggerType.FALL_PATTERN:
@@ -101,9 +81,8 @@ def _alert_category(trigger_type: TriggerType, escalation_steps: list | None) ->
 
 
 def _is_attending(status: AlertStatus, escalation_steps: list | None) -> bool:
-    """An escalated alert a responder has already acknowledged. Not a stored status -- see
-    acknowledge_incident -- so it is read off the timeline. Mirrors isAttending() in the
-    dashboard's labels.js."""
+    """An escalated alert a responder has already acknowledged, read off the timeline.
+    Mirrors isAttending() in labels.js."""
     return status == AlertStatus.ESCALATED and any(
         isinstance(step, dict) and step.get("step") == "acknowledged_barangay"
         for step in escalation_steps or []
@@ -144,34 +123,11 @@ async def list_barangay_alerts(
     """The incident queue (`active`), the incident log (`history`), today's feed (`today`),
     and every non-pending alert (`all`).
 
-    `active` is the work queue: incidents that have reached this barangay and are not
-    closed. `history` is closed incidents only (resolved or false positive), for the log
-    view -- a still-open alert is live work and belongs on the Alerts tab, not the log.
-    `today` is every non-pending alert raised since local midnight, open or closed, for
-    the dashboard's "Alerts Today" panel. `all` is every non-pending alert regardless of
-    status, for a drill-down that wants one category across the active / attending / closed
-    split (the dashboard's "Alerts by Type" chart links here).
-
-    `q` (matches the senior's name), `date_from` and `date_to` (inclusive, on created_at)
-    filter in SQL so the log's own controls are not limited to the most recent page. They
-    apply to any scope but only the history / drill-down views send them.
-
-    `history` is additionally floored at the last 30 days unless `full=true` or an explicit
-    `date_from` is given. This reflects RA 10173 §11(e) (retain personal data only as long
-    as necessary): pattern review needs a recent window, not an unbounded scroll, and
-    reaching past it is a deliberate, logged action on the client. A true archive -- moving
-    resolved / false-positive rows older than the window out of the hot table -- is a
-    `main`-lane job (it owns the alerts table and the sync pipeline); this floor is the
-    query-level stand-in until then.
-
-    All four deliberately exclude `pending`. An alert still inside the senior's own answer
-    window, or one the family is in the middle of handling, has not reached the barangay
-    yet -- showing it early would both leak an incident that is not theirs and train
-    responders to react to alerts that resolve themselves a minute later.
+    `history` is closed incidents only, floored at the last 30 days unless `full=true` or
+    `date_from` is given (RA 10173 data minimisation). `q`, `date_from` and `date_to` filter
+    in SQL. All scopes exclude `pending`, since those alerts haven't reached the barangay yet.
     """
-    # The same sweep the background loop runs. It is one indexed query, and running it
-    # here means a responder opening the dashboard after the free-tier service was asleep
-    # sees the incident immediately rather than up to a sweep-interval later.
+    # Same sweep as the background loop, so a cold-started service shows incidents at once.
     await sweep_overdue_alerts(db)
 
     barangay = _assigned_barangay(responder)
@@ -190,9 +146,7 @@ async def list_barangay_alerts(
     if scope == "active":
         query = query.where(Alert.status == AlertStatus.ESCALATED)
     elif scope == "today":
-        # The database's clock, for the same reason barangay_stats uses it: created_at is
-        # a naive timestamp Postgres wrote, so "midnight" has to be reckoned the same way --
-        # but "midnight" itself means Manila midnight (PH_OFFSET), not UTC midnight.
+        # Midnight is Manila midnight (PH_OFFSET), reckoned on the database's clock.
         now = await db_now(db)
         start_of_today = (now + PH_OFFSET).replace(
             hour=0, minute=0, second=0, microsecond=0
@@ -204,8 +158,7 @@ async def list_barangay_alerts(
         query = query.where(
             Alert.status.in_((AlertStatus.RESOLVED, AlertStatus.FALSE_POSITIVE))
         ).limit(500)
-        # RA 10173 §11(e): the default log view is the last 30 days. `full=true` (a logged
-        # action on the client) or an explicit date_from lifts the floor.
+        # Default log view is the last 30 days; `full=true` or an explicit date_from lifts it.
         if not full and date_from is None:
             now = await db_now(db)
             query = query.where(Alert.created_at >= now - timedelta(days=30))
@@ -219,9 +172,7 @@ async def list_barangay_alerts(
                 (Senior.first_name + " " + Senior.last_name).ilike(needle),
             )
         )
-    # date_from/date_to are Manila calendar dates (the dashboard's date picker, and the day a
-    # responder clicked on the Alerts-This-Week bar) -- shift by PH_OFFSET to compare them
-    # against created_at's UTC clock, same reasoning as scope="today" above.
+    # date_from / date_to are Manila dates; shift by PH_OFFSET to compare with UTC created_at.
     if date_from is not None:
         query = query.where(
             Alert.created_at >= datetime.combine(date_from, time.min) - PH_OFFSET
@@ -251,15 +202,13 @@ async def _responder_alert(sync_id: UUID, db: AsyncSession, responder: User) -> 
         or alert.senior.barangay != barangay
         or alert.senior.deleted_at is not None  # deleted their own account (spec §11a)
     ):
-        # One 404 for both "no such alert" and "not your barangay". Confirming that an
-        # alert exists but belongs to a neighbouring barangay is itself a disclosure.
+        # Same 404 for "no such alert" and "not your barangay", so existence isn't revealed.
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Alert not found")
     return alert
 
 
 def _responder_name(responder: User) -> str:
-    # full_name is nullable -- barangay accounts are seeded without one -- so fall back to
-    # the username, which is not. Better a login handle in the log than a blank space.
+    # full_name can be null for barangay accounts, so fall back to the username.
     return responder.full_name or responder.username
 
 
@@ -270,16 +219,10 @@ async def acknowledge_incident(
     db: AsyncSession = Depends(get_db),
     responder: User = Depends(responder_only),
 ) -> BarangayAlertOut:
-    """"We have seen this and someone is going." Records who took it, without closing it.
+    """Records who is attending an escalated alert, without closing it.
 
-    The status deliberately stays `escalated` rather than becoming something new. `status`
-    is a native Postgres enum whose vocabulary cannot grow without an ALTER TYPE, and
-    every reader of that column only needs to know the incident is open at the barangay
-    tier. *Who picked it up* is an audit fact, and escalation_steps is where audit facts
-    live (spec §8) -- so no migration is needed to say it.
-
-    Keeping it in the active queue is also correct behaviour: an incident someone is
-    driving to is still an open incident.
+    The status stays `escalated` (the enum can't grow without a migration); who picked it
+    up is recorded in escalation_steps.
     """
     alert = await _responder_alert(sync_id, db, responder)
     if alert.status != AlertStatus.ESCALATED:
@@ -287,8 +230,7 @@ async def acknowledge_incident(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="This incident is not open at the barangay tier",
         )
-    # Once someone is attending, the only moves left are resolve or false positive. A second
-    # acknowledge would just stack a duplicate step onto the audit timeline.
+    # Once someone is attending, a second acknowledge would only duplicate the step.
     if _is_attending(alert.status, alert.escalation_steps):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -296,10 +238,8 @@ async def acknowledge_incident(
         )
     append_step(alert, "acknowledged_barangay", by=_responder_name(responder), notes=payload.notes)
     await db.commit()
-    # Deliberately no db.refresh() here. SessionLocal is configured expire_on_commit=False,
-    # so the values set above survive the commit in memory -- and refresh() would expire the
-    # eagerly-loaded `senior` relationship, leaving _alert_out to trigger a lazy load that
-    # raises MissingGreenlet on an async session.
+    # No db.refresh() here: it would expire the loaded `senior` and make _alert_out lazy-load,
+    # which fails on an async session.
     return _alert_out(alert)
 
 
@@ -318,10 +258,8 @@ async def resolve_incident(
     alert.resolved_at = await db_now(db)  # same clock as created_at -- see db_now()
     append_step(alert, "resolved_barangay", by=_responder_name(responder), notes=payload.notes)
     await db.commit()
-    # Deliberately no db.refresh() here. SessionLocal is configured expire_on_commit=False,
-    # so the values set above survive the commit in memory -- and refresh() would expire the
-    # eagerly-loaded `senior` relationship, leaving _alert_out to trigger a lazy load that
-    # raises MissingGreenlet on an async session.
+    # No db.refresh() here: it would expire the loaded `senior` and make _alert_out lazy-load,
+    # which fails on an async session.
     return _alert_out(alert)
 
 
@@ -334,9 +272,7 @@ async def mark_false_positive(
 ) -> BarangayAlertOut:
     """The senior was fine and the detection was wrong.
 
-    Kept separate from resolve because these two answers mean opposite things about the
-    detection engine. §10 targets a false-positive rate at or under 15%, and that number
-    can only be measured if someone records which alerts were wrong.
+    Separate from resolve so the false-positive rate can be measured.
     """
     alert = await _responder_alert(sync_id, db, responder)
     if alert.status in (AlertStatus.RESOLVED, AlertStatus.FALSE_POSITIVE):
@@ -345,10 +281,8 @@ async def mark_false_positive(
     alert.resolved_at = await db_now(db)  # same clock as created_at -- see db_now()
     append_step(alert, "false_positive_barangay", by=_responder_name(responder), notes=payload.notes)
     await db.commit()
-    # Deliberately no db.refresh() here. SessionLocal is configured expire_on_commit=False,
-    # so the values set above survive the commit in memory -- and refresh() would expire the
-    # eagerly-loaded `senior` relationship, leaving _alert_out to trigger a lazy load that
-    # raises MissingGreenlet on an async session.
+    # No db.refresh() here: it would expire the loaded `senior` and make _alert_out lazy-load,
+    # which fails on an async session.
     return _alert_out(alert)
 
 
@@ -369,8 +303,7 @@ async def list_barangay_seniors(
     if not seniors:
         return []
 
-    # One grouped count rather than a query per senior -- the roster is the screen most
-    # likely to grow, and a per-row query is the classic way a list page gets slow.
+    # One grouped count instead of a query per senior.
     counts_result = await db.execute(
         select(Alert.senior_id, func.count(Alert.id))
         .where(
@@ -406,8 +339,7 @@ async def barangay_senior_detail(
     db: AsyncSession = Depends(get_db),
     responder: User = Depends(responder_only),
 ) -> BarangaySeniorDetail:
-    """One senior's full record for the Senior Details page: profile, family contacts,
-    and that senior's own alert history."""
+    """One senior's full record: profile, family contacts and alert history."""
     barangay = _assigned_barangay(responder)
 
     result = await db.execute(
@@ -420,8 +352,7 @@ async def barangay_senior_detail(
     )
     senior = result.scalar_one_or_none()
     if senior is None or senior.barangay != barangay or senior.deleted_at is not None:
-        # One 404 for "no such senior" and "not your barangay" alike -- confirming a
-        # senior exists in a neighbouring barangay is itself a disclosure (spec §11).
+        # Same 404 for "no such senior" and "not your barangay".
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Senior not found")
 
     family = [
@@ -481,10 +412,7 @@ async def barangay_stats(
             seniors_monitored=0, open_incidents=0, alerts_this_week=[], outcomes={}
         )
 
-    # The database's clock again for the query bound (created_at is compared against
-    # `now_utc`), but every calendar-day figure below -- today, yesterday, the week's bar
-    # buckets -- is reckoned in Manila time (PH_OFFSET) and only shifted back to UTC at the
-    # point it touches a stored timestamp.
+    # Query bound on the database's clock; calendar-day figures are in Manila time.
     now_utc = await db_now(db)
     now_local = now_utc + PH_OFFSET
     today = now_local.date()
@@ -511,11 +439,7 @@ async def barangay_stats(
     )
     rows = alerts_result.all()
 
-    # Every one of the last seven days is filled in, including the empty ones. A bar chart
-    # that silently omits quiet days makes a quiet week look like a busy one. Bucketed by
-    # Manila calendar day, not the raw UTC timestamp, so this lines up with the day a
-    # responder actually clicks (and with what the dashboard's own date filter -- also
-    # Manila calendar dates -- will fetch for that day).
+    # Fill in all seven days, including empty ones, bucketed by Manila calendar day.
     per_day = Counter((row.created_at + PH_OFFSET).date().isoformat() for row in rows)
     days = [
         DayCount(
@@ -527,8 +451,7 @@ async def barangay_stats(
         for offset in range(7)
     ]
 
-    # `attending` is split out of `escalated` here so the outcome donut can show claimed
-    # incidents separately from unclaimed ones; see _is_attending.
+    # `attending` is split out of `escalated` so the donut can show claimed incidents.
     outcomes = Counter(
         "attending"
         if _is_attending(row.status, row.escalation_steps)
@@ -539,8 +462,7 @@ async def barangay_stats(
         _alert_category(row.trigger_type, row.escalation_steps) for row in rows
     )
 
-    # Dashboard stat-card figures, all derived from the same week window already fetched --
-    # today and yesterday both sit inside it, so no extra alert query is needed.
+    # Stat-card figures come from the same week window, so no extra query is needed.
     resolved_today = sum(
         1
         for row in rows

@@ -13,16 +13,10 @@ import android.os.VibratorManager
 import android.util.Log
 
 /**
- * Sounds and vibrates for as long as an alert is waiting on an answer.
- *
- * Deliberately not the notification channel's own sound, which plays once and is finished before
- * a senior in another room has stood up. Held in a process-wide object rather than inside the
- * prompt's Activity, so that backgrounding the prompt — or the screen timing out — cannot silence
- * an alert nobody has answered.
- *
- * USAGE_ALARM throughout. This is the one sound the app makes that has to be heard through a
- * phone left face-down across a room, and alarm usage is what carries it past a silenced ringer
- * and past Do Not Disturb's default allowance for alarms.
+ * Sounds and vibrates while an alert is waiting on an answer. Not the notification channel's
+ * sound, which plays once. Held in a process-wide object so backgrounding the prompt or the
+ * screen timing out can't silence an unanswered alert. Uses USAGE_ALARM so it is heard across
+ * a room and passes a silenced ringer and Do Not Disturb.
  *
  * Read the trace with: adb logcat -s AlertAlarm
  */
@@ -31,12 +25,8 @@ object AlertAlarm {
     private const val TAG = "AlertAlarm"
 
     /**
-     * Hard ceiling, independent of every caller.
-     *
-     * A missed [stop] would otherwise leave an elderly person's phone sounding indefinitely with
-     * no obvious way to quiet it, which is a worse harm than the missed alert this exists to
-     * prevent. By ten minutes the chain has long since reached the barangay and the noise has
-     * nobody left to summon.
+     * Hard ceiling, independent of callers. A missed [stop] would leave an elderly person's
+     * phone sounding indefinitely. By ten minutes the chain has reached the barangay.
      */
     private const val MAX_DURATION_MS = 10 * 60 * 1000L
 
@@ -46,8 +36,7 @@ object AlertAlarm {
     private var player: MediaPlayer? = null
     private var vibrator: Vibrator? = null
 
-    /** Which open alerts are currently claiming the alarm. Silencing must wait until this is
-     *  empty -- answering one alert must never silence a different, still-open one. */
+    /** Open alerts currently claiming the alarm. Silencing waits until this is empty, so answering one alert doesn't silence another. */
     private val activeAlertIds = mutableSetOf<Int>()
 
     private val handler = Handler(Looper.getMainLooper())
@@ -68,8 +57,7 @@ object AlertAlarm {
             .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
             .build()
 
-        // Some handsets ship no default alarm tone at all. The ringtone is the wrong register for
-        // this, and a far better outcome than silence.
+        // Some phones ship no default alarm tone. The ringtone is a better fallback than silence.
         val tone = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
             ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
 
@@ -85,8 +73,7 @@ object AlertAlarm {
             }.onFailure { Log.w(TAG, "alarm tone failed to start", it) }.getOrNull()
         }
 
-        // Not a nicety. A senior with reduced hearing, or a phone in a pocket or under a blanket,
-        // may get nothing else — so this is started even when the tone above failed.
+        // Started even if the tone failed: a senior with reduced hearing may get nothing else.
         vibratorOf(app)?.let { v ->
             val started = runCatching {
                 @Suppress("DEPRECATION")
@@ -100,11 +87,8 @@ object AlertAlarm {
     }
 
     /**
-     * Safe to call when nothing is sounding, and safe to call twice.
-     *
-     * Only silences once every alert claiming the alarm has been stopped -- a second, different
-     * alert can arrive while the first is still being answered, and closing that first one must
-     * not silence the one still genuinely waiting.
+     * Safe to call when nothing is sounding, and twice. Only silences once every alert
+     * claiming the alarm has stopped.
      */
     @Synchronized
     fun stop(alertId: Int) {
@@ -112,9 +96,7 @@ object AlertAlarm {
         if (activeAlertIds.isEmpty()) stopSound()
     }
 
-    /** The safety ceiling's hard stop: independent of every caller and every alert this alarm
-     *  was ever asked to track, per [MAX_DURATION_MS]'s KDoc. Whatever is left in
-     *  [activeAlertIds] at that point is presumed stale rather than trusted. */
+    /** The safety ceiling's hard stop (see [MAX_DURATION_MS]). Whatever is left in [activeAlertIds] is presumed stale. */
     @Synchronized
     private fun forceStopAll() {
         activeAlertIds.clear()

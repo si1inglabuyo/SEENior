@@ -53,11 +53,8 @@ import com.pup.seenior.ui.onboarding.OnboardingOptions
 import androidx.compose.material3.RadioButton
 
 /*
- * These used to ship as "+63 000 000 0000" and "seenior.support@example.com", straight out of
- * designs/senior/profile -- placeholders, deliberately left null (see SUPPORT_CONTACT_CONFIGURED)
- * until real ones existed, because a senior in difficulty tapping Call us and reaching a dead
- * number is worse than not offering the button -- the offer itself is the harm, because it
- * spends the moment they decided to ask for help. Both are now real and monitored.
+ * Real, monitored contacts. These used to be placeholders (left null until real ones existed),
+ * because a senior in difficulty reaching a dead number is worse than no button at all.
  */
 private val SUPPORT_PHONE: String? = "0910 358 4546"
 private val SUPPORT_EMAIL: String? = "SEENiorApp@gmail.com"
@@ -200,16 +197,12 @@ fun SeniorContactSupportScreen(onBack: () -> Unit) {
     var message by remember { mutableStateOf("") }
 
     InfoScaffold(title = copy.supportTitle, onBack = onBack) {
-        // Both halves are conditional so this screen degrades to whatever is actually
-        // configured, rather than offering a route that goes nowhere. With neither set the
-        // Profile row is hidden and this is unreachable; it is still written to survive
-        // being reached, because an unreachable screen that would crash is a trap for
-        // whoever next edits the menu.
+        // Both halves are conditional so this degrades to whatever is configured. With neither
+        // set the Profile row is hidden and this is unreachable, but it still must not crash.
         val supportPhone = SUPPORT_PHONE
         val supportEmail = SUPPORT_EMAIL
 
-        // ACTION_DIAL, not ACTION_CALL: no CALL_PHONE permission needed, and the senior
-        // still confirms the call themselves.
+        // ACTION_DIAL, not ACTION_CALL: no CALL_PHONE permission, and the senior confirms the call.
         if (supportPhone != null) Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -269,8 +262,7 @@ fun SeniorContactSupportScreen(onBack: () -> Unit) {
                 )
             )
             Spacer(Modifier.height(16.dp))
-            // There is no support-ticket endpoint on the backend, so SEND hands the text to the
-            // phone's mail app rather than pretending to submit it somewhere.
+            // No support-ticket endpoint, so SEND hands the text to the phone's mail app.
             PrimaryPillButton(
                 text = copy.send,
                 enabled = message.isNotBlank(),
@@ -337,15 +329,10 @@ private fun LegalBody(title: String, sections: List<OnboardingStrings.Section>) 
 
 /** Green back-header + scrollable white body, shared by every Profile sub-screen. */
 /**
- * Lets the senior change their language after onboarding.
- *
- * This exists as well as the onboarding question, not instead of it. The answer is stored per
- * senior in `Senior_Onboarding.language_preference` and never taken from the device locale, so a
- * handset a relative set up in English would otherwise decide, permanently, what an emergency
- * prompt says to someone who reads only Filipino. Correcting that must not require a reinstall.
- *
- * Each option is written in its own language for the same reason it is in onboarding: a senior
- * looking for Filipino has to be able to recognise the word without reading English first.
+ * Lets the senior change their language after onboarding. It is stored per senior in
+ * `Senior_Onboarding.language_preference`, never taken from the device locale, so a handset
+ * a relative set up in English can be corrected without a reinstall. Each option is written in
+ * its own language so a senior can recognise it.
  */
 @Composable
 fun SeniorLanguageScreen(viewModel: SeniorProfileViewModel, onBack: () -> Unit) {

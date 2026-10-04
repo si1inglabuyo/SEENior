@@ -7,16 +7,10 @@ import androidx.compose.runtime.setValue
 
 /**
  * App-wide signal that the user arrived by tapping an alert notification, so the family
- * dashboard can open that specific alert instead of whatever it would otherwise show.
- *
- * Deliberately mirrors [com.pup.seenior.session.SessionState]: a small observable object
- * rather than navigation arguments threaded through SeniorNavGraph, because the trigger
- * comes from an Activity Intent — which may arrive either at cold start or, thanks to
- * `launchMode="singleTop"`, at onNewIntent on an Activity already composed. Nav arguments
- * cannot express the second case without rebuilding the graph mid-emergency.
- *
- * Single-use by design: [consume] hands the id over exactly once, so returning to the
- * Alerts tab later does not silently re-open an alert the user already dealt with.
+ * dashboard opens that alert. Mirrors [com.pup.seenior.session.SessionState]: a small
+ * observable object, because the Intent can arrive at cold start or, with singleTop, at
+ * onNewIntent on an already composed Activity, which nav arguments can't express. Single use:
+ * [consume] hands the id over once, so the Alerts tab doesn't reopen a handled alert.
  */
 object PendingAlertNavigation {
 
@@ -29,9 +23,7 @@ object PendingAlertNavigation {
         val syncId = intent?.getStringExtra(FamilyAlertNotifier.EXTRA_ALERT_SYNC_ID)
         if (!syncId.isNullOrBlank()) {
             alertSyncId = syncId
-            // Cleared off the Intent itself as well: without this, any later recreation
-            // (a rotation, a process restart) would replay the same extra and yank the
-            // user back to this alert long after they moved on.
+            // Cleared off the Intent too, or a later recreation (rotation, restart) would replay the extra.
             intent.removeExtra(FamilyAlertNotifier.EXTRA_ALERT_SYNC_ID)
         }
     }

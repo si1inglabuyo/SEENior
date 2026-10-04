@@ -1,20 +1,9 @@
-"""Semaphore PH SMS delivery (spec §7/§9) — the fallback channel that reaches a
-phone with poor data but a live cellular signal, and currently the ONLY channel a
-barangay responder gets at all: the dashboard is pull (someone has to be looking at
-it), and nothing has sent the SMS half of "web dashboard + SMS" until this module.
+"""Semaphore PH SMS delivery, the fallback for contacts with poor data but cell signal.
 
-Same two rules as app/core/push.py, and for the same reason: this always runs mid
-escalation, on an alert that is already committed, never on a request whose failure
-the caller can still act on.
-
-**An SMS failure must never fail an alert.** Every entry point below swallows its own
-errors and reports them through the return value and the log, never by raising.
-
-**The message body carries alert context only** — for the family tier, the senior's
-first name, risk level and a plain-language reason; for the barangay tier, that plus
-the senior's already-registered address, which the spec §11 already permits sharing
-with the barangay during an active alert under RA 10173 §12(c). No raw sensor data,
-no precise GPS coordinates — the same restraint push.py's payload already keeps.
+Like push.py, an SMS failure must never fail an alert: errors are logged and reported
+through the return value, never raised. Messages carry alert context only (first name,
+risk level, a plain reason, and for the barangay the registered address). No sensor data
+or precise coordinates.
 """
 
 from __future__ import annotations
@@ -31,11 +20,8 @@ logger = logging.getLogger(__name__)
 
 SEMAPHORE_URL = "https://api.semaphore.co/api/v4/messages"
 
-# Plain-language reason per trigger, for a text a senior's family or a responder reads
-# in a few seconds with no app open. Kept deliberately short (the spec's SMS credits
-# are billed per 153-char segment) -- mirrors the trigger_type vocabulary in the spec
-# §8; an unrecognised value (there shouldn't be one) falls back to the raw code rather
-# than failing the message.
+# Short plain-language reason per trigger. Kept short because SMS credits are billed per
+# 153-character segment. Unknown values fall back to the raw code.
 _TRIGGER_LABELS = {
     "sos": "SOS pressed",
     "fall_pattern": "possible fall",
@@ -57,9 +43,7 @@ _TRIGGER_LABELS_FIL = {
     "ml_flag": "hindi karaniwang gawi ngayong araw",
 }
 
-# Same idea for the barangay tier's escalation reason (escalation.py's three fixed
-# strings) -- the audit-log timeline keeps the full sentence; only the SMS gets the
-# shortened one.
+# Shortened barangay escalation reasons for the SMS; the timeline keeps the full sentence.
 _SHORT_REASONS = {
     "SOS pressed by the senior": "SOS pressed",
     "No family contact is linked to this senior": "no family contact",
@@ -82,18 +66,15 @@ class SmsResult:
 
 
 def is_configured() -> bool:
-    """Whether SMS can actually be sent. Exposed so /health can report it, same reason
-    push.is_configured() exists — a silently SMS-less deployment must not look healthy."""
+    """Whether SMS can be sent. Exposed so /health can report it."""
     return bool(settings.semaphore_api_key)
 
 
 async def send_sms(numbers: list[str], message: str) -> SmsResult:
     """Sends one message to every number supplied, in a single Semaphore call.
 
-    Numbers are deduped (order preserved) before sending — a family member linked
-    twice, or sharing a number with another contact, must not be billed or texted
-    twice for one alert. Safe to call with an empty list. Never raises; see the
-    module docstring for why.
+    Numbers are deduplicated so nobody is texted or billed twice. Safe with an empty
+    list. Never raises.
     """
     deduped = list(dict.fromkeys(n.strip() for n in numbers if n and n.strip()))
     if not deduped:
@@ -115,17 +96,14 @@ async def send_sms(numbers: list[str], message: str) -> SmsResult:
         async with httpx.AsyncClient(timeout=10.0) as client:
             response = await client.post(SEMAPHORE_URL, data=payload)
         if response.status_code >= 400:
-            # Read the body before raising -- Semaphore's actual reason (bad sender
-            # name, insufficient credits, etc.) lives here, and raise_for_status()'s
-            # exception message never includes it, which cost real diagnostic time
-            # the first time this fired (2026-09-14: logs only showed a generic 500).
+            # Read the body before raising, since Semaphore's real reason (bad sender,
+            # no credits) is only there.
             logger.warning(
                 "Semaphore returned %d: %s", response.status_code, response.text[:500]
             )
         response.raise_for_status()
     except Exception:
-        # Network trouble, a bad key, Semaphore down. Logged, never raised: the alert
-        # this SMS was about has already been committed and must not be rolled back.
+        # Logged, never raised: the alert is already committed.
         logger.exception("Semaphore SMS send failed for %d number(s)", len(deduped))
         return SmsResult(failed=len(deduped))
 
@@ -135,10 +113,8 @@ async def send_sms(numbers: list[str], message: str) -> SmsResult:
         logger.warning("Semaphore returned a non-JSON response: %s", response.text[:200])
         return SmsResult(failed=len(deduped))
 
-    # A successful send returns a JSON array, one object per recipient. An error
-    # response (bad key, insufficient credits, invalid number) is a JSON object
-    # instead, never a list — that shape difference is the success signal, since a
-    # 200 status alone does not tell the two apart.
+    # Success is a JSON array with one object per recipient; an error is a JSON object.
+    # A 200 status alone doesn't tell them apart.
     if not isinstance(body, list):
         logger.warning("Semaphore rejected the request: %s", body)
         return SmsResult(failed=len(deduped))
@@ -166,11 +142,10 @@ def family_alert_message(
     at: datetime | None = None,
     language: str = "en",
 ) -> str:
-    """One pattern for every family-tier text: "<KIND> ALERT (time): <what>. Acknowledge
-    immediately in the SEENior app. <what happens if nobody does>." No pronouns for the senior
-    -- their gender isn't on file. The window is read from settings so the text never drifts
-    from the timer that actually escalates. `language` is the family contact's own
-    `users.language_preference` ("en" / "fil"); anything else falls back to English."""
+    """Family-tier text: "<KIND> ALERT (time): <what>. Acknowledge immediately in the SEENior
+    app. <what happens if nobody does>." The window comes from settings so the text matches
+    the real timer. `language` is the contact's language_preference ("en" / "fil"); anything
+    else falls back to English."""
     minutes = max(1, settings.family_response_seconds // 60)
     when = _clock(at)
     if language == "fil":

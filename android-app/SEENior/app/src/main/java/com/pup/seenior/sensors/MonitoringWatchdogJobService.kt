@@ -20,43 +20,24 @@ import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
 
 /**
- * Restarts passive monitoring when it has stopped, on a repeating schedule that survives a reboot.
+ * Restarts passive monitoring when it has stopped, on a repeating job that survives a reboot.
  *
- * This exists because [BootReceiver] does not run on every handset. Measured on an Infinix X6885
- * (Android 15, XOS): after a reboot there is no app process, no sensor service and no `rearmAll`
- * log — twice, the second time with the OEM's own Auto-launch toggle enabled — while every
- * Android-side gate was open (permission declared, receiver registered with the system,
- * `stopped=false`, battery-optimisation whitelisted, standby bucket EXEMPTED). Transsion drops
- * `BOOT_COMPLETED` below the level Android itself controls, and the autostart list that decides
- * this is owned by `com.transsion.phonemaster` and is neither readable nor settable over adb. So
- * the app was simply *not monitoring* after a restart until somebody opened it by hand — which
- * contradicts the "fully passive" claim in the spec §1 and belongs in §12 as well.
+ * [BootReceiver] doesn't run on every handset. On the Infinix X6885 (Android 15, XOS) there
+ * was no app process after a reboot, even with the OEM's Auto-launch toggle on, so the app
+ * wasn't monitoring until someone opened it, which contradicts "fully passive".
  *
- * A **persisted** JobScheduler job is a different road to the same place. The system writes it to
- * its own store, outside this app, and restores and runs it after a reboot — starting this process
- * in order to do so. That restore does not depend on our receiver being allowed to hear the boot
- * broadcast. `setPersisted(true)` requires RECEIVE_BOOT_COMPLETED, which the manifest already
- * declares for [BootReceiver].
+ * A persisted JobScheduler job is stored by the system outside this app and restored after a
+ * reboot, starting this process, with no dependence on the boot broadcast. `setPersisted(true)`
+ * needs RECEIVE_BOOT_COMPLETED, which the manifest already declares.
  *
- * This is deliberately raw JobScheduler rather than WorkManager, which is what the first attempt
- * used. WorkManager does not persist its jobs: `dumpsys jobscheduler` on the same handset showed
- * our `PeriodicWorkRequest` registered with neither the `PERSISTED` nor the `PERIODIC` flag, on a
- * device where 171 other jobs carried `PERSISTED`. It reschedules its own work after a restart
- * from a `BOOT_COMPLETED` receiver of its own — the very broadcast this class exists to route
- * around. Its retry and constraint handling are better than what is here, and irrelevant if the
- * job is gone.
+ * This is raw JobScheduler rather than WorkManager, which doesn't persist its jobs (on the
+ * same handset its periodic request had neither the PERSISTED nor the PERIODIC flag) and
+ * reschedules itself from the very boot broadcast this class routes around.
  *
- * It is a weaker promise than an alarm, and deliberately so: this is a recovery net, not a
- * deadline. The platform may run a periodic job late, and fifteen minutes is the shortest period
- * it accepts, so the worst case is a window of roughly that long with no monitoring after a
- * restart. That is a great deal better than "until the senior happens to open the app", and it
- * costs one short wake-up per quarter hour against the §10 battery budget. The escalation deadline
- * itself stays on [EscalationScheduler]'s alarm clock, which is the one thing a deferrable job is
- * measurably no good at.
- *
- * If a persisted job turns out not to survive a reboot here either, the fallback is an FCM wake
- * from the server, which needs the senior's device to register a push token first — it does not
- * today.
+ * It is a recovery net, not a deadline: the platform may run a periodic job late and 15
+ * minutes is the shortest period, so monitoring can be down for about that long after a
+ * restart. The escalation deadline stays on [EscalationScheduler]'s alarm clock. If a
+ * persisted job doesn't survive a reboot either, the fallback is an FCM wake from the server.
  */
 class MonitoringWatchdogJobService : JobService() {
 
@@ -71,10 +52,7 @@ class MonitoringWatchdogJobService : JobService() {
             } catch (e: Exception) {
                 Log.e(TAG, "Watchdog pass failed", e)
             } finally {
-                // The reschedule flag is ignored for a periodic job: a pass that could not do its
-                // work waits for the next period rather than backing off. Fifteen minutes is an
-                // acceptable wait for a net that only matters when something else has already
-                // gone wrong.
+                // The reschedule flag is ignored for a periodic job; a failed pass waits for the next period.
                 jobFinished(params, false)
             }
         }
@@ -95,8 +73,7 @@ class MonitoringWatchdogJobService : JobService() {
         val app = applicationContext
         val db = SeniorAppDatabase.getInstance(app)
 
-        // Nothing to monitor before onboarding finishes, and starting the service early would put
-        // a permanent notification in front of a senior who has not agreed to anything yet.
+        // Nothing to monitor before onboarding finishes, and starting early would show a permanent notification too soon.
         if (db.seniorDao().getOnboardedSenior() == null) {
             Log.i(TAG, "No onboarded senior; watchdog standing down")
             return
@@ -110,35 +87,27 @@ class MonitoringWatchdogJobService : JobService() {
                 Log.i(TAG, "Sensor service was down; restarted by watchdog")
             } catch (e: IllegalStateException) {
                 // ForegroundServiceStartNotAllowedException (API 31+) is an IllegalStateException,
-                // so catching the parent keeps this compiling at minSdk 26. A running job is a
-                // background proc state, so the start is only permitted because of the
-                // battery-optimisation exemption asked for during onboarding — if the senior
-                // declined, or an OEM ignores it, this is where that shows up. Logged rather than
-                // swallowed: the degradation is otherwise invisible and looks exactly like the
-                // reboot bug this class was written for.
+                // so catching the parent compiles at minSdk 26. A running job is a background
+                // state, so the start only works because of the battery exemption asked for in
+                // onboarding. Logged so a refusal isn't invisible.
                 Log.w(TAG, "Not allowed to start the sensor service from the background", e)
             }
         }
 
-        // Alarms are lost on reboot and on force-stop. Anything still open needs its deadline put
-        // back, or it waits for a wake-up that is never coming.
+        // Alarms are lost on reboot and force-stop, so put back the deadline of anything still open.
         EscalationScheduler.rearmAll(app)
 
-        // Any self-cancel the cloud was never told about, usually because the senior answered
-        // while the phone had no signal. Left alone, the family keeps seeing an alert the senior
-        // has already dismissed.
+        // Retry any self-cancel the cloud was never told about (usually answered with no signal).
         db.seniorDao().getOnboardedSenior()?.let { senior ->
             AlertEscalator.reconcileCancelledAlerts(db, senior.seniorId)
-            // And any severity upgrade the cloud missed, usually for the same reason: the phone
-            // had no signal at the one moment it could have sent it.
+            // And any missed severity upgrade.
             AlertEscalator.reconcileSeverity(db, senior.seniorId)
             // And any location cell that landed after its alert had already gone out.
             AlertEscalator.reconcileLocation(db, senior.seniorId)
         }
 
-        // Last, and deliberately so: this is the only part of the pass that touches the network,
-        // and monitoring must already be restored before anything waits on a radio. It never
-        // throws, so a phone with no signal still completes everything above.
+        // Last, because it is the only part that touches the network and monitoring should be
+        // restored first. It never throws.
         HeartbeatReporter.report(app, db)
     }
 
@@ -151,13 +120,9 @@ class MonitoringWatchdogJobService : JobService() {
         private val INTERVAL_MS = TimeUnit.MINUTES.toMillis(15)
 
         /**
-         * Registers the watchdog, unless an equivalent one is already registered.
-         *
-         * Re-scheduling an existing periodic job restarts its clock, so blindly calling this on
-         * every launch would push the next run fifteen minutes out each time the senior opened
-         * the app. The comparison below leaves a matching job alone and replaces one whose shape
-         * has changed, which is what makes an edit to the interval take effect without leaving a
-         * stale definition behind.
+         * Registers the watchdog unless an equivalent one exists. Rescheduling a periodic job
+         * restarts its clock, so this leaves a matching job alone and replaces one whose
+         * shape changed.
          */
         fun schedule(context: Context) {
             val scheduler =
@@ -177,8 +142,7 @@ class MonitoringWatchdogJobService : JobService() {
                 ComponentName(context, MonitoringWatchdogJobService::class.java)
             )
                 .setPeriodic(INTERVAL_MS)
-                // The whole point. Without this the system drops the job at shutdown and the app
-                // is back to needing a boot broadcast it does not receive.
+                // The point of this class: without it the system drops the job at shutdown.
                 .setPersisted(true)
                 .build()
 

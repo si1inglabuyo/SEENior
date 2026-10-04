@@ -47,12 +47,9 @@ private val SosAvatarBorder = Color(0xFF7A8B3C)
 private val SosBarangayAmber = Color(0xFFE08A1E)
 
 /**
- * The SOS cancellation window (`designs/senior/sos/`).
- *
- * Kept separate from the wellness prompt rather than reusing it with a flag. The wellness prompt
- * is a green "are you alright?" question the senior can answer either way; this is a red
- * "help is on its way unless you stop it" statement with a single escape hatch. Rendering the
- * second in the first's calm green chrome would tell the senior the opposite of what is happening.
+ * The SOS cancellation window. Separate from the wellness prompt: that is a calm green
+ * question the senior can answer either way, while this is a red "help is on its way unless
+ * you stop it" statement, and calm chrome would tell the senior the opposite.
  */
 @Composable
 fun SosCountdownScreen(
@@ -234,8 +231,7 @@ private fun WillAlertCard(
             )
         }
 
-        // The barangay tier is listed whether or not any family is linked — it is the final
-        // escalation step and is always available (spec §7).
+        // The barangay tier is listed whether or not any family is linked; it is always available.
         if (barangay.isNotBlank()) {
             WillAlertRow(
                 name = "Brgy. $barangay",
@@ -245,10 +241,9 @@ private fun WillAlertCard(
             )
         }
 
-        // Only claimed when it is actually known to be true. An empty list on a phone that has
-        // never managed to read its family list is an absence of information, not the absence of
-        // a family, and saying "no family contacts linked yet" to a senior whose three children
-        // are all about to be called would be a lie told at the worst possible moment.
+        // Only claimed when known to be true. An empty list on a phone that never read its
+        // family list is missing information, and saying "no family contacts linked" to a senior
+        // whose children will be called would be false at the worst moment.
         if (contacts.isEmpty() && contactsKnown) {
             Text(
                 text = copy.sosNoContacts,

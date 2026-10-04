@@ -59,12 +59,7 @@ class SensorCollectionService : Service(), SensorEventListener
    private var gyroscope: Sensor? = null
    private var significantMotion: Sensor? = null
 
-    /**
-     * Whether the one-shot trigger below is currently armed.
-     *
-     * Volatile rather than under [stateLock]: it is set from the trigger callback and read from
-     * [collectAndStore] on another thread, and it guards nothing but itself.
-     */
+    /** Whether the one-shot significant-motion trigger is armed. Volatile because it is set from the trigger callback and read on another thread. */
     @Volatile
     private var significantMotionArmed = false
 
@@ -74,45 +69,32 @@ class SensorCollectionService : Service(), SensorEventListener
     private var latestStepCount = 0
 
     /**
-     * Whether [onCreate] ran all the way through.
-     *
-     * False when it bailed on a refused foreground service, in which case no sensor listener,
-     * receiver or trigger was ever registered and [onDestroy] must not try to take them down --
-     * `sensorManager` is not even assigned, and unregistering an unregistered receiver throws.
+     * Whether [onCreate] ran all the way through. False if it stopped early because the
+     * foreground service was refused, so [onDestroy] must not unregister anything.
      */
     private var startedUp = false
 
     /**
-     * Whether TYPE_STEP_COUNTER has delivered anything at all this run.
-     *
-     * Not the same question as `stepCounter != null`. The sensor can be present and still never
-     * report, most commonly because ACTIVITY_RECOGNITION was denied at onboarding -- one tap, and
-     * the witness [reconcileInactivity] depends on goes silent for the life of the install with
-     * nothing in the logs to say so.
+     * Whether TYPE_STEP_COUNTER has delivered anything this run. The sensor can exist and
+     * still never report (for example if ACTIVITY_RECOGNITION was denied), so this differs
+     * from `stepCounter != null`.
      */
     private var stepCounterReported = false
     private var screenUnlockCount = 0
     private var screenOffSince: Long? = null
 
-    /**
-     * Whether the keyguard was up at the previous sample, so a lock-then-unlock across the gap can
-     * be spotted without [Intent.ACTION_USER_PRESENT] ever arriving. See [snapshotAndReset].
-     */
+    /** Whether the keyguard was up at the previous sample, to spot a lock-then-unlock between samples. See [snapshotAndReset]. */
     private var keyguardUpAtLastSample = false
 
     private lateinit var powerManager: PowerManager
     private lateinit var keyguardManager: KeyguardManager
 
-    /**
-     * Layer 0 (spec §5). Confined to the sensor callback thread along with
-     * [lastMovementSampleNanos], so unlike the counters above it needs no lock.
-     */
+    /** Layer 0. Only used on the sensor callback thread, so it needs no lock. */
     private lateinit var fallDetector: FallDetector
     private var lastMovementSampleNanos = 0L
 
-    // onSensorChanged/screenReceiver fire on the main thread (no Handler passed to
-    // registerListener/registerReceiver); collectAndStore() runs on Dispatchers.Default.
-    // All reads/writes of the counters above must go through this lock.
+    // onSensorChanged and screenReceiver run on the main thread; collectAndStore() runs on
+    // Dispatchers.Default. Access the counters above only while holding this lock.
     private val stateLock = Any()
 
     /** Serialises [collectAndStore] so the timer and a server-wake poll cannot interleave. */
@@ -125,21 +107,13 @@ class SensorCollectionService : Service(), SensorEventListener
         val screenUnlockCount: Int,
         val stepCount: Int,
         /**
-         * Whether [movementScore] was measured at all, as opposed to defaulting to zero because
-         * no accelerometer callback had arrived.
-         *
-         * The two are not the same claim and only one of them is evidence. A senior lying
-         * perfectly still still produces callbacks -- gravity keeps the sensor reporting at its
-         * registered rate -- so no callbacks means nobody was listening, not that nobody moved.
+         * Whether [movementScore] was actually measured. With no accelerometer callbacks it
+         * defaults to zero, which is not the same as "didn't move".
          */
         val movementMeasured: Boolean,
         /**
-         * Whether the step counter has ever reported, as opposed to [stepCount] sitting at zero
-         * because nothing is feeding it.
-         *
-         * Same distinction [movementMeasured] draws, for the sensor [reconcileInactivity] leans
-         * on as its witness. A silent counter is not a senior who took no steps, and the two must
-         * not be allowed to look alike -- see [reconcileInactivity] for what happens when they do.
+         * Whether the step counter has ever reported, as opposed to [stepCount] being zero
+         * because nothing feeds it. See [reconcileInactivity].
          */
         val stepCountObserved: Boolean,
     )
@@ -147,12 +121,10 @@ class SensorCollectionService : Service(), SensorEventListener
     private val screenReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             synchronized(stateLock) {
-                // INFO, not DEBUG: this ROM drops DEBUG system-wide (see the FallDetector note in
-                // onCreate). Read with: adb logcat -s SeeniorScreen
+                // INFO, not DEBUG: this ROM drops DEBUG logs. Read with: adb logcat -s SeeniorScreen
                 Log.i(TAG_SCREEN, "screen broadcast: " + intent.action)
                 when (intent.action) {
-                    // Only the first SCREEN_OFF starts the clock. A repeat without an
-                    // intervening SCREEN_ON would restart it and lose the stretch so far.
+                    // Only the first SCREEN_OFF starts the clock; a repeat would restart it.
                     Intent.ACTION_SCREEN_OFF ->
                         if (screenOffSince == null) screenOffSince = System.currentTimeMillis()
                     Intent.ACTION_SCREEN_ON -> screenOffSince = null
@@ -163,39 +135,23 @@ class SensorCollectionService : Service(), SensorEventListener
     }
 
     /**
-     * The one witness to movement that keeps working while this process is frozen.
+     * Detects movement while this process is frozen.
      *
-     * [lastSignificantMovementAt] is otherwise only ever written from an accelerometer callback,
-     * and the accelerometer is a *non-wake-up* sensor: when Doze or the OEM freezer suspends this
-     * process, its samples stop being delivered at all. Inactivity then keeps climbing for a
-     * reason that has nothing to do with the senior — nobody was listening. That is the same
-     * interference already documented as killing the five-minute polling loop and the alarms.
+     * The accelerometer is a non-wake-up sensor, so when Doze or the OEM freezer suspends the
+     * process its samples stop, and inactivity keeps climbing even though the senior may be
+     * moving. TYPE_SIGNIFICANT_MOTION is a wake-up sensor handled by the sensor hub, so it
+     * still reports and is cheap enough to leave on.
      *
-     * Measured on the pilot handset 2026-09-02: alert 25 claimed sixty-eight minutes of stillness
-     * across a period the phone was in use. The step counter, the existing witness in
-     * [reconcileInactivity], could not correct it because the phone was on a desk rather than
-     * carried, so it counted no steps either.
-     *
-     * TYPE_SIGNIFICANT_MOTION is detected inside the sensor hub and is a **wake-up** sensor: it
-     * wakes the application processor to deliver, so it reports movement the rest of this class
-     * is asleep for. Running in hardware is also why it can be left on permanently against the
-     * ≤10% battery target (spec §10).
-     *
-     * It deliberately does **not** feed [movementSampleSum]. `movement_score` stays a pure
-     * accelerometer statistic, so a baseline built before this change stays comparable with
-     * readings taken after it — the same argument [recordMovementSample] makes for decimating
-     * back to 5 Hz.
+     * It does not feed [movementSampleSum], so `movement_score` stays a pure accelerometer
+     * statistic and older baselines remain comparable.
      */
     private val significantMotionListener = object : TriggerEventListener() {
         override fun onTrigger(event: TriggerEvent) {
-            // A one-shot trigger disables itself on firing and reports nothing further until it
-            // is asked again, so this flag drops before anything else can read it.
+            // A one-shot trigger disables itself when it fires, so clear the flag first.
             significantMotionArmed = false
 
-            // System.currentTimeMillis() rather than wallClockOf(event.timestamp): that helper
-            // exists to undo the batching latency on accelerometer samples, which can be seconds
-            // old by the time they arrive. A wake-up trigger has none to undo — it wakes the CPU
-            // to deliver — and reading a HAL timestamp here only adds a way to be wrong.
+            // Use the current time, not wallClockOf(event.timestamp): that helper corrects for
+            // batching delay on accelerometer samples, and a wake-up trigger has none.
             val movedAt = System.currentTimeMillis()
             synchronized(stateLock) { lastSignificantMovementAt = movedAt }
             // Read with: adb logcat -s SensorWake
@@ -208,19 +164,15 @@ class SensorCollectionService : Service(), SensorEventListener
     override fun onCreate() {
         super.onCreate()
         if (!startForegroundWithLocationIfAllowed()) {
-            // Nothing below this line is safe to do without a foreground service, and none of it
-            // has happened yet -- so stop before registering a single listener rather than
-            // running on as a background service Android will kill mid-sample anyway. The app
-            // itself keeps launching, which is the point: the dashboard's permission prompt is
-            // the only route back and it cannot run if the process dies here.
+            // Nothing below is safe without a foreground service, so stop before registering
+            // anything. The app still opens, which lets the dashboard ask for the permission.
             stopSelf()
             return
         }
         isRunning = true
 
-        // The service can start while the screen is already off (boot, or a restart with the
-        // phone in a pocket). Without this the idle clock never starts, because the SCREEN_OFF
-        // that would have started it already happened.
+        // The service can start with the screen already off (boot, or a restart in a pocket),
+        // so the idle clock has to be started here.
         powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
         keyguardManager = getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager
         screenOffSince = if (powerManager.isInteractive) null else System.currentTimeMillis()
@@ -232,32 +184,25 @@ class SensorCollectionService : Service(), SensorEventListener
         gyroscope = sensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE)
         significantMotion = sensorManager.getDefaultSensor(Sensor.TYPE_SIGNIFICANT_MOTION)
 
-        // Rotation confirms a fall (spec §4), but not every Android phone ships a gyroscope.
-        // On one that does not, demanding rotation would mean never detecting a fall at all.
-        // The trace goes to logcat from out here rather than from inside FallDetector, which
-        // stays free of Android imports so a JUnit test can drive it. Read with:
-        //   adb logcat -s FallDetector
+        // Rotation confirms a fall, but not every phone has a gyroscope; without one, don't
+        // require rotation. The trace is logged from here so FallDetector has no Android
+        // imports and can be unit tested. Read with: adb logcat -s FallDetector
         //
-        // INFO rather than DEBUG, and not by preference: the Infinix X6885 this is developed
-        // against ships with log.tag=I and drops every DEBUG line system-wide, so a Log.d
-        // trace is invisible on the one device that matters. A fall candidate is rare and
-        // important enough that INFO is defensible on its own terms anyway.
+        // INFO, not DEBUG, because the test handset drops DEBUG logs.
         fallDetector = FallDetector(
             FallDetector.Config(requireRotation = gyroscope != null),
             trace = { Log.i("FallDetector", it) }
         )
-        // Proves the trace path itself is alive. Without it, an empty log after a drop cannot
-        // be told apart from logging being broken again.
+        // Shows the trace path is alive, so an empty log isn't mistaken for broken logging.
         Log.i("FallDetector", "armed: requireRotation=${gyroscope != null}, accelerometer at 50 Hz")
 
         accelerometer?.let { registerForFallDetection(it) }
         gyroscope?.let { registerForFallDetection(it) }
-        // The step counter is an on-change sensor reporting a running total; it has nothing to
-        // contribute to a fall signature and stays at the low rate.
+        // The step counter reports a running total and isn't needed for fall detection, so it
+        // stays at the low rate.
         stepCounter?.let { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL) }
 
-        // Stated up front so an absent sensor is visible in the log rather than inferred later
-        // from an inactivity reading that never resets. Read with: adb logcat -s SensorWake
+        // Logged so a missing sensor is visible. Read with: adb logcat -s SensorWake
         Log.i(TAG_WAKE, "significant motion available=" + (significantMotion != null))
         armSignificantMotion()
 
@@ -283,82 +228,28 @@ class SensorCollectionService : Service(), SensorEventListener
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        // Re-asserted on every start rather than only in onCreate: onboarding can grant location
-        // after this service is already running, and a service that claimed only "health" at
-        // 06:00 would go on being refused a fix all day. Calling startForeground again on a
-        // service already in the foreground widens the type in place.
-        //
-        // The return value is ignored here on purpose, unlike in onCreate. By this point the
-        // service is already in the foreground with a type that was accepted, and a refusal to
-        // *widen* it costs the alert GPS for this run and nothing else -- which is exactly the
-        // degradation the fallback chain was built to allow.
+        // Re-asserted on every start, because location may be granted after the service is
+        // already running. Calling startForeground again widens the type in place. The return
+        // value is ignored: if widening is refused, only the alert GPS is lost for this run.
         startForegroundWithLocationIfAllowed()
         if (intent?.action == ACTION_POLL_NOW) pollOnce()
         return START_STICKY
     }
 
     /**
-     * Goes to the foreground claiming the `location` service type only when a location
-     * permission is actually held.
+     * Goes to the foreground, claiming the `location` type only when it is allowed.
      *
-     * The manifest declares `health|location`, but the manifest is a ceiling rather than a
-     * promise. From Android 14 a service that claims `location` without holding
-     * ACCESS_COARSE_LOCATION or ACCESS_FINE_LOCATION is refused with a SecurityException, and
-     * that exception would kill monitoring outright for a senior who declined the location
-     * dialog. Narrowing the claim at runtime means declining location costs the alert map and
-     * nothing else.
+     * The manifest declares `health|location`, but from Android 14 claiming `location`
+     * without a location permission throws, and even with a "while using" grant Android only
+     * allows it while the app is in the foreground. So each type is tried in turn
+     * (location, health, then no type), any refusal is caught and logged, and the last
+     * attempt returns false instead of throwing. [onCreate] then stops the service cleanly,
+     * the app still opens, and [MonitoringWatchdogJobService] retries later. On Android 15 the
+     * refusal is a `ForegroundServiceStartNotAllowedException` (an IllegalStateException).
      *
-     * Claiming the type is what the passive alerts were missing. Without it Android treats this
-     * service as background the moment no screen is open, and refuses every location request an
-     * alert makes - see [com.pup.seenior.location.AlertLocationCapture].
-     *
-     * **Holding the permission is not the same as being allowed to claim the type, and asking
-     * [hasLocationPermission] cannot tell the two apart.** A "while using the app" grant answers
-     * GRANTED to `checkSelfPermission` at every moment, but Android only counts it as eligible
-     * while the app is actually foreground. Start this service from a reboot or an FCM nudge on
-     * such a grant and `startForeground` throws, killing the process in `onCreate` before a
-     * single sample is taken. Measured on the pilot handset on 2026-09-05: the phone rebooted at
-     * 15:31 and monitoring stayed dead for five and a half hours, crash-looping every nudge,
-     * with nothing to show for it but a logcat entry nobody was reading.
-     *
-     * So the refusal is caught rather than predicted. Guessing eligibility ahead of time means
-     * reimplementing a rule that varies by Android version and OEM; letting the platform answer
-     * and degrading costs the alert map for that run and keeps every other thing this service
-     * does. An alert with no pin is worth enormously more than no alert, and [onStartCommand]
-     * re-asserts the type on every start, so the next start from an eligible state widens it
-     * back in place with nothing to reset.
-     *
-     * **Why the fallback chain, and not just `location` → `health`.** From the background — a
-     * reboot, the [MonitoringWatchdogJobService] job, an FCM nudge — Android 14+ refuses a
-     * `location` foreground service outright, and on Android 15 it does so by throwing
-     * `ForegroundServiceStartNotAllowedException`, an *IllegalStateException*, not the
-     * SecurityException the old catch here expected. That unhandled throw crashed `onCreate`,
-     * the watchdog crash-looped restarting it, and the pilot handset sat with no monitoring
-     * from a 23:56 reboot until the app was opened by hand the next morning. `health` can be
-     * refused from the background for the same reason. So each type is tried in turn, any
-     * runtime refusal is caught and logged, and the last resort is a *typeless* foreground
-     * service — the most permissive start there is. Passive detection (accelerometer, steps,
-     * screen, fall) runs on any of these; only the alert-time GPS fix needs `location`, and
-     * that is restored the next time [onStartCommand] runs from an eligible state.
-     *
-     * **The final typeless attempt used to be left to throw**, on the reasoning that if the
-     * platform refuses even that there is no foreground service to be had and a silent failure
-     * would hide it. The instinct was right and the mechanism was wrong: it hid nothing from a
-     * log nobody reads, and it crashed the process in `onCreate` -- which is the very failure
-     * the rest of this chain exists to prevent, arrived at one step later.
-     *
-     * Reproduced on the vivo V2317 tester handset on 2026-09-23: with ACTIVITY_RECOGNITION
-     * revoked, every type including typeless was refused and the app died on launch, repeatedly.
-     * A senior in that state sees the app close itself with no explanation, and -- worse --
-     * never reaches the dashboard, where [com.pup.seenior.sensors.DeviceCapabilities] and the
-     * prompt built on it would have told them which permission to turn back on. The one screen
-     * that could end the outage was unreachable because of the outage.
-     *
-     * So the refusal is reported rather than thrown: `false` here, a loud log, and [onCreate]
-     * stops the service cleanly instead of half-starting it. The app then opens normally, the
-     * senior is asked for the permission, and [MonitoringWatchdogJobService] retries the service
-     * from an eligible state. The failure is still visible -- in the log as before, and now on
-     * the screen of the person who can actually fix it.
+     * Without the `location` type Android treats the service as background and refuses
+     * the alert GPS request (see [com.pup.seenior.location.AlertLocationCapture]), so
+     * [onStartCommand] re-asserts the type on every start.
      *
      * @return true if a foreground service of some type was started.
      */
@@ -376,9 +267,7 @@ class SensorCollectionService : Service(), SensorEventListener
                 ServiceCompat.startForeground(this, NOTIFICATION_ID, buildNotification(), type)
                 return true
             } catch (e: RuntimeException) {
-                // SecurityException (missing/limited permission) and
-                // ForegroundServiceStartNotAllowedException (an IllegalStateException — a
-                // background start of a while-in-use type) both land here.
+                // SecurityException and ForegroundServiceStartNotAllowedException both land here.
                 // Read with: adb logcat -s SensorWake
                 Log.w(TAG_WAKE, "foreground service type '$label' refused; trying a plainer one", e)
             }
@@ -393,12 +282,7 @@ class SensorCollectionService : Service(), SensorEventListener
         }
     }
 
-    /**
-     * Either permission will do, matching what
-     * [com.pup.seenior.location.AlertLocationCapture] accepts: coarse still produces a usable
-     * cell, and withholding the service type over it would deny a fix to the senior who gave the
-     * more privacy-conscious answer.
-     */
+    /** Either location permission will do, matching [com.pup.seenior.location.AlertLocationCapture]. */
     private fun hasLocationPermission(): Boolean =
         listOf(
             Manifest.permission.ACCESS_FINE_LOCATION,
@@ -410,17 +294,10 @@ class SensorCollectionService : Service(), SensorEventListener
     /**
      * Takes one sample now, because the server said this phone had gone quiet.
      *
-     * **The listening window is the point of this method.** A frozen process receives no
-     * accelerometer callbacks, so waking and sampling immediately would read `movementScore`
-     * as 0.0 -- indistinguishable from a senior who has not moved a muscle, and pointed at
-     * exactly the half of the distribution [MedianMadDetector] treats as worrying. That
-     * would manufacture the false alarms this app spent 2026-08-29 removing. Listening for
-     * a few seconds first means the number written is one that was actually measured.
-     *
-     * A partial wake lock holds the CPU up for that window. Without it the handset is free
-     * to suspend again the moment FCM's brief allowlist lapses, halfway through the sample.
-     * It is released in `finally`: a leaked wake lock on a senior's phone is a flat battery
-     * by morning, which is a worse failure than the one this is fixing.
+     * It listens for a few seconds first: a frozen process gets no accelerometer callbacks,
+     * so sampling immediately would record a movement score of 0.0, which looks like a
+     * senior who hasn't moved. A partial wake lock keeps the CPU up for that window and is
+     * released in `finally`.
      */
     private fun pollOnce() {
         val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
@@ -431,8 +308,7 @@ class SensorCollectionService : Service(), SensorEventListener
             try {
                 delay(LISTEN_WINDOW_MS)
                 collectAndStore()
-                // Tells the server the nudge worked, which is also what stops it nudging
-                // again on the next sweep.
+                // Tells the server the nudge worked, which stops further nudges.
                 HeartbeatReporter.report(
                     applicationContext,
                     SeniorAppDatabase.getInstance(applicationContext)
@@ -451,14 +327,12 @@ class SensorCollectionService : Service(), SensorEventListener
         // Cleared first, so nothing can read a stale `true` while the service tears down.
         isRunning = false
         if (!startedUp) {
-            // onCreate stopped early: there is nothing registered to unregister, and reaching
-            // for it would turn a handled failure back into the crash this exists to avoid.
+            // onCreate stopped early, so there is nothing to unregister.
             super.onDestroy()
             return
         }
         sensorManager.unregisterListener(this)
-        // A trigger sensor is not covered by unregisterListener; it is cancelled by its own call
-        // or it stays armed against a listener whose service is gone.
+        // A trigger sensor is cancelled by its own call, not by unregisterListener.
         significantMotion?.let { sensorManager.cancelTriggerSensor(significantMotionListener, it) }
         significantMotionArmed = false
         unregisterReceiver(screenReceiver)
@@ -493,14 +367,8 @@ class SensorCollectionService : Service(), SensorEventListener
     }
 
     /**
-     * Feeds the Layer 1 movement signals, decimated back to the 5 Hz this service sampled at
-     * before fall detection raised the accelerometer to 50 Hz.
-     *
-     * Without the decimation the change would quietly reshape the Routine Fingerprint: ten times
-     * as many samples means ten times as many chances to catch a twitch, so `inactivity_duration`
-     * would read shorter and `movement_score` different for reasons that have nothing to do with
-     * how the senior actually behaved. Baselines built before this change would no longer be
-     * comparable with readings taken after it.
+     * Feeds the Layer 1 movement signals, decimated back to the 5 Hz used before fall
+     * detection raised the accelerometer to 50 Hz, so baselines stay comparable.
      */
     private fun recordMovementSample(eventNanos: Long, magnitude: Float) {
         if (eventNanos - lastMovementSampleNanos < MOVEMENT_SAMPLE_INTERVAL_NANOS) return
@@ -516,10 +384,8 @@ class SensorCollectionService : Service(), SensorEventListener
     }
 
     /**
-     * Converts a sensor event's own clock to wall-clock time. Batched samples can be seconds old
-     * by the time they are delivered, and inactivity is measured from this instant — dating a
-     * movement from when the batch arrived rather than when it happened would shorten every
-     * inactivity reading by the batching latency.
+     * Converts a sensor event's clock to wall-clock time. Batched samples can be seconds
+     * old, and inactivity is measured from that instant.
      */
     private fun wallClockOf(eventNanos: Long): Long {
         val ageMillis = ((SystemClock.elapsedRealtimeNanos() - eventNanos) / 1_000_000)
@@ -527,11 +393,7 @@ class SensorCollectionService : Service(), SensorEventListener
         return System.currentTimeMillis() - ageMillis
     }
 
-    /**
-     * Layer 0 confirmed a fall. High risk without any fuzzy classification: the spec §5 fixes
-     * the risk level for this trigger, and unlike a statistical deviation there is no degree to
-     * weigh — either the three-phase signature matched or it did not.
-     */
+    /** Layer 0 confirmed a fall. The risk level is fixed at High, with no fuzzy classification. */
     private fun onFallDetected() {
         serviceScope.launch {
             AlertResponder.raise(
@@ -546,31 +408,20 @@ class SensorCollectionService : Service(), SensorEventListener
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit
 
     private fun snapshotAndReset(now: Long): SensorSnapshot = synchronized(stateLock) {
-        // Ask the system what it is doing rather than trusting that it told us.
-        //
-        // Both screen figures below were kept only by broadcasts, and on 2026-09-01 the pilot
-        // handset produced 55 consecutive rows reading idle = 0 and unlocks = 0 across thirteen
-        // hours -- with the service process alive the whole time and inactivity_duration, kept in
-        // this same object under this same lock, climbing normally. The receiver is registered and
-        // its other counters work; the broadcasts are not arriving. That is the same OEM
-        // interference that took out the alarms and the five-minute polling loop, and it is not
-        // something this app can argue with. It can stop depending on it.
-        //
-        // The receiver stays -- when it fires it is exact, and this only fills the gaps.
+        // Ask the system for the screen state instead of trusting broadcasts, which this ROM
+        // sometimes stops delivering (one run logged 55 rows of idle = 0). The receiver stays,
+        // since it is exact when it fires.
         val interactive = powerManager.isInteractive
         if (interactive) {
             screenOffSince = null
         } else if (screenOffSince == null) {
-            // The screen is off and we never saw it go off, so the honest starting point is now.
-            // Costs at most one sampling interval of idle time and corrects itself next sample.
+            // Screen is off but we never saw it go off, so start counting from now.
             screenOffSince = now
         }
 
-        // A lower bound, deliberately, and never a count: at one sample every fifteen minutes this
-        // can see at most one unlock per sample. Used only when the receiver produced nothing, so
-        // a working USER_PRESENT is never doubled up. isKeyguardLocked rather than isDeviceLocked
-        // because the latter is always false on a handset with no PIN, which would read zero for
-        // exactly the seniors least likely to have one.
+        // A lower bound, not a count: at most one unlock per sample. Only used when the
+        // receiver produced nothing. isKeyguardLocked is used because isDeviceLocked is always
+        // false with no PIN.
         val keyguardUp = keyguardManager.isKeyguardLocked
         if (screenUnlockCount == 0 && keyguardUpAtLastSample && !keyguardUp && interactive) {
             screenUnlockCount = 1
@@ -583,17 +434,9 @@ class SensorCollectionService : Service(), SensorEventListener
         } else 0.0
         val inactivityDurationSeconds = (now - lastSignificantMovementAt) / 1000
 
-        // Seconds since the screen was last on: 0 while it is on, growing for as long as it
-        // stays off. Same running-counter shape as inactivity, and deliberately NOT reset each
-        // poll.
-        //
-        // The per-poll version measured screen-off time *within the window since the last poll*,
-        // which sounds equivalent and is not: this device's power management suspends the polling
-        // loop, so observed windows ranged from five minutes to three and a half hours. The
-        // reading therefore meant "screen-off seconds during however long the OS happened to let
-        // us sleep" -- a scale that changes from one row to the next, compared against a baseline
-        // authored as a fixed number of minutes. A running counter is the same quantity every
-        // time it is read, whenever it is read.
+        // Seconds since the screen was last on: 0 while on, then growing. It is a running
+        // counter and is not reset each poll, so it means the same thing whenever it is read
+        // (a per-poll window varied from five minutes to hours because the OS suspends polling).
         val screenIdleDurationSeconds = screenOffSince?.let { (now - it) / 1000 } ?: 0L
 
         val snapshot = SensorSnapshot(
@@ -614,17 +457,9 @@ class SensorCollectionService : Service(), SensorEventListener
     /**
      * Takes one sample and writes it, unless there is nothing new to say.
      *
-     * Two callers race here in practice: [pollingJob]'s timer and the server-wake [pollOnce].
-     * When a frozen handset thaws, the suspended `delay` completes and the queued FCM nudge runs
-     * within milliseconds of each other. Both used to write, and because [snapshotAndReset] drains
-     * the accelerometer accumulator, the second row always claimed `movement_score = 0.0`.
-     * Measured on the pilot handset on 2026-09-01: **21 of 79 rows** were such phantoms, dragging
-     * every block's average movement toward zero and teaching the baseline a senior who moves half
-     * as much as she does.
-     *
-     * Both guards below are needed. The mutex stops the two collections interleaving; the
-     * interval check stops the second one writing at all; and refusing to store an unmeasured
-     * movement score means that even if a duplicate slips through both, it cannot invent stillness.
+     * [pollingJob] and the server-wake [pollOnce] can both run when a frozen phone thaws.
+     * The mutex stops them interleaving, the interval check stops the second one writing,
+     * and an unmeasured movement score is never stored, so a duplicate can't invent stillness.
      */
     private suspend fun collectAndStore() = collectionMutex.withLock {
         val database = SeniorAppDatabase.getInstance(applicationContext)
@@ -635,14 +470,10 @@ class SensorCollectionService : Service(), SensorEventListener
         val now = System.currentTimeMillis()
         val previous = database.sensorDataDao().getLatest(senior.seniorId)
 
-        // Safety net, not the normal path: the trigger re-arms itself the instant it fires. This
-        // only catches an arming that was refused while the process was in a state the sensor
-        // service would not accept it, which would otherwise leave the witness permanently mute
-        // with nothing but one warning line to say so.
+        // Safety net: the trigger normally re-arms itself. This catches an arming that was refused.
         armSignificantMotion()
 
-        // Checked before the snapshot, never after: snapshotAndReset() drains the accumulator, so
-        // bailing out afterwards would throw away real movement the next sample should have had.
+        // Checked before the snapshot, because snapshotAndReset() drains the accumulator.
         if (previous != null && now - previous.timestamp < MIN_COLLECTION_INTERVAL_MS) {
             return@withLock
         }
@@ -676,57 +507,33 @@ class SensorCollectionService : Service(), SensorEventListener
         findings.created.forEach { alert ->
             AlertResponder.onAlertCreated(applicationContext, database, alert)
         }
-        // An alert that got worse while it was open. Its chain is already running, so nothing is
-        // started again -- but the family app and the barangay dashboard are still showing the
-        // level it was posted with, and only this corrects that.
+        // An alert that got worse while open. Its chain is already running; this only updates
+        // the level the family app and dashboard show.
         findings.upgraded.forEach { alertId -> AlertEscalator.syncSeverity(database, alertId) }
     }
 
     /**
      * Corrects an inactivity reading taken across a gap the process slept through.
      *
-     * `inactivityDuration` is measured from the last accelerometer callback that crossed
-     * [MOVEMENT_THRESHOLD]. While the CPU is suspended there are no callbacks, so after a
-     * two-hour freeze the figure reads 7200 seconds -- not because the senior was still,
-     * but because nobody was listening. Handing that to Layer 1 would raise an inactivity
-     * alert about a period the phone did not observe.
+     * While the CPU is suspended there are no accelerometer callbacks, so a two-hour freeze
+     * reads as 7200 s of inactivity even if the senior was moving. The step counter is the
+     * witness: it keeps counting through a suspend, so a rise across the gap proves movement.
      *
-     * The step counter is the witness. TYPE_STEP_COUNTER is a hardware counter: it keeps
-     * counting through a suspend and reports its running total when the CPU comes back, so
-     * a rise across the gap is proof the senior moved during it. That is precisely the
-     * complementary role spec §4 gives it.
+     * Time that could not be measured is not counted as stillness:
+     * - If steps rose across a slept gap, the reading is capped at the listening window.
+     * - If steps did not rise and the counter was observed, the long reading stands.
+     * - If the counter never reported ([SensorSnapshot.stepCountObserved] is false), the gap
+     *   is capped too, since a flat count then isn't evidence.
      *
-     * So: **time that could not be measured is not counted as stillness.** If steps rose
-     * across a slept gap the reading is capped at the listening window, because the last
-     * proof of movement lies somewhere inside the gap and its exact moment is unknowable.
-     * If steps did not rise the long reading stands, because the counter was awake and
-     * agrees with it.
-     *
-     * Erring towards "she moved" is deliberate. The cost is a detection delayed by one
-     * nudge interval, since the next sample finds the steps flat and the clock running
-     * again from here. The opposite error is an alarm about a senior who was walking
-     * around, and this system has already been measured doing that.
-     *
-     * **When there is no witness at all, the gap is capped rather than believed.** A flat step
-     * count means one of two opposite things -- the counter was awake and saw no steps, or nothing
-     * was ever feeding it -- and only the first is evidence. Without [SensorSnapshot.stepCountObserved]
-     * the two were indistinguishable, so on a handset with no TYPE_STEP_COUNTER, or one where
-     * ACTIVITY_RECOGNITION was denied at onboarding, `stepsDuringGap` was permanently 0 and *every*
-     * slept gap was recorded as stillness that was never observed. That is the contamination that
-     * dragged the pilot's night baseline from 3,717 s to 6,039 s over five frozen nights
-     * (see BaselineUpdater's thin-block filter) arriving by a different road, on a device that is
-     * not misbehaving at all -- it simply lacks the sensor, or was never granted it.
-     *
-     * The rule is the one the whole function already follows: time nobody could measure is not
-     * counted as stillness. A missing witness is the strongest case for it, not an exception.
+     * Erring towards "moved" only delays a detection by one nudge interval; the opposite
+     * error is a false alarm.
      */
     private fun reconcileInactivity(
         now: Long,
         previous: SensorData?,
         snapshot: SensorSnapshot,
     ): Long {
-        // A reboot restarts the counter from zero, so a decrease is a reboot boundary and not a
-        // negative number of steps. Same rule the nightly aggregation applies to the same sensor.
+        // A decrease means the counter restarted at a reboot, not negative steps.
         val stepsDuringGap = previous?.let { snapshot.stepCount - it.stepCount } ?: 0
 
         val verdict = InactivityReconciler.reconcile(
@@ -742,24 +549,14 @@ class SensorCollectionService : Service(), SensorEventListener
     }
 
     /**
-     * Registers a sensor fast enough to see a fall — 50 Hz, against the 5 Hz this service used
-     * before Layer 0 existed. A free fall lasts a few hundred milliseconds and the impact spike
-     * is over in tens; at the old rate the signature falls between samples entirely.
-     *
-     * Ten times the sample rate running continuously is the single most likely thing to breach
-     * the ≤10% battery target (spec §10), so where the sensor has a hardware FIFO the
-     * samples are batched: the sensor hub buffers them and the application processor stays
-     * asleep between deliveries instead of waking fifty times a second. The cost is up to
-     * [BATCH_LATENCY_US] of detection delay, which the compressed fall response window absorbs.
-     * Devices without a FIFO fall back to unbatched delivery.
+     * Registers the accelerometer at 50 Hz so a fall (free fall lasts a few hundred ms) isn't
+     * missed. To protect the battery target, samples are batched in the sensor hub FIFO when
+     * available, up to [BATCH_LATENCY_US] of delay, which the short fall response window
+     * absorbs. Devices without a FIFO use unbatched delivery.
      */
     /**
-     * Arms the one-shot significant-motion trigger, if this handset has one.
-     *
-     * Not every device implements it and there is no fallback worth building: without it the
-     * service behaves exactly as it did before, which is the situation this improves on rather
-     * than depends on. Both failure paths are logged, because a witness that silently stopped
-     * reporting looks identical to a senior who genuinely has not moved.
+     * Arms the one-shot significant-motion trigger, if the phone has one. There is no
+     * fallback; without it the service behaves as before. Failures are logged.
      */
     private fun armSignificantMotion() {
         val sensor = significantMotion ?: return
@@ -807,12 +604,7 @@ class SensorCollectionService : Service(), SensorEventListener
         private const val NOTIFICATION_ID = 1001
         private const val POLL_INTERVAL_MS = 5 * 60 * 1000L
 
-        /**
-         * Shortest gap between two stored samples.
-         *
-         * Well under [POLL_INTERVAL_MS], so it never suppresses a scheduled sample, and far above
-         * the milliseconds that separate a timer poll from a server-wake poll landing together.
-         */
+        /** Shortest gap between two stored samples. */
         private const val MIN_COLLECTION_INTERVAL_MS = 60 * 1000L
         private const val MOVEMENT_THRESHOLD = 0.05
 
@@ -828,14 +620,7 @@ class SensorCollectionService : Service(), SensorEventListener
         /** Keeps the Layer 1 movement signals sampling at their original 5 Hz. */
         private const val MOVEMENT_SAMPLE_INTERVAL_NANOS = 200_000_000L
 
-        /**
-         * Whether this service is alive in the current process.
-         *
-         * Read by [com.pup.seenior.sensors.MonitoringWatchdogJobService] to decide whether
-         * monitoring needs restarting. A process kill resets it to false along with everything
-         * else in the process, which is exactly the answer the watchdog wants: no process, no
-         * monitoring.
-         */
+        /** Whether this service is alive in the current process; read by [com.pup.seenior.sensors.MonitoringWatchdogJobService]. */
         @Volatile
         var isRunning: Boolean = false
             private set
@@ -845,12 +630,7 @@ class SensorCollectionService : Service(), SensorEventListener
 
         const val ACTION_POLL_NOW = "com.pup.seenior.action.POLL_NOW"
 
-        /**
-         * How long to listen to the accelerometer before sampling on a server wake.
-         *
-         * Long enough for the 5 Hz movement sampler to gather a real average, short enough
-         * to finish inside the allowlist a high-priority FCM message grants its receiver.
-         */
+        /** How long to listen to the accelerometer before sampling on a server wake. */
         private const val LISTEN_WINDOW_MS = 12_000L
 
         /** Ceiling on the wake lock, so a sample that hangs cannot hold the CPU up all night. */
@@ -864,23 +644,17 @@ class SensorCollectionService : Service(), SensorEventListener
         }
 
         /**
-         * Stops passive monitoring outright. Used when the senior deletes their account:
-         * the foreground-service notification goes away and no more samples are taken.
-         * The watchdog will not restart it because the wiped database then has no
-         * onboarded senior (see [com.pup.seenior.sensors.MonitoringWatchdogJobService]).
+         * Stops passive monitoring, used when the senior deletes their account. The watchdog
+         * won't restart it because the wiped database has no onboarded senior.
          */
         fun stop(context: Context) {
             context.stopService(Intent(context, SensorCollectionService::class.java))
         }
 
         /**
-         * Asks for one immediate sample, starting the service first if it is not running.
-         *
-         * Called from [com.pup.seenior.alerts.SeeniorMessagingService] when the server says
-         * this phone has gone quiet. Starting a foreground service from the background is
-         * allowed here on two grounds that both have to hold: the battery-optimisation
-         * exemption taken during onboarding, and the temporary allowlist a high-priority
-         * FCM message grants its receiver.
+         * Asks for one immediate sample, starting the service if needed. Called from
+         * [com.pup.seenior.alerts.SeeniorMessagingService] when the server says this phone has
+         * gone quiet.
          */
         fun pollNow(context: Context) {
             val intent = Intent(context, SensorCollectionService::class.java)

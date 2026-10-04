@@ -64,8 +64,7 @@ fun FamilyLoginScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 24.dp)
                 .navigationBarsPadding()
-                // enableEdgeToEdge() means adjustResize no longer lifts the form for the IME —
-                // shrink the scroll viewport so the focused field clears the keyboard.
+                // enableEdgeToEdge() stops adjustResize lifting the form, so shrink the scroll area for the keyboard.
                 .imePadding()
         ) {
             Text(

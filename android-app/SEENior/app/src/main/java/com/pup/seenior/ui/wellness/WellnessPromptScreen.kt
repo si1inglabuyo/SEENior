@@ -47,11 +47,9 @@ private val AlertRedSoftBg = Color(0xFFFBEAEA)
 private val AlertRedText = Color(0xFFB3261E)
 
 /**
- * The senior-facing wellness check (`designs/senior/prompt_screen/`).
- *
- * Full-screen and not dismissible by back press: an unanswered alert is the one thing in this app
- * that must not be swiped away by accident. The only exits are answering it, or the response
- * window running out — both of which resolve the alert one way or another.
+ * The senior-facing wellness check. Full-screen and not dismissible by back press, since an
+ * unanswered alert must not be swiped away by accident. The only exits are answering or the
+ * response window running out.
  */
 @Composable
 fun WellnessPromptScreen(
@@ -128,9 +126,8 @@ private fun PromptBody(
                 )
             }
 
-            // Scrollable because the prompt must never hide its own buttons: on a short screen
-            // the question and reason text alone can fill the viewport, and an unreachable
-            // "I'M SAFE" button would force the senior into an escalation they did not want.
+            // Scrollable so the prompt never hides its buttons on a short screen; an unreachable
+            // "I'M SAFE" would force an unwanted escalation.
             Column(
                 modifier = Modifier
                     .weight(1f)
@@ -140,10 +137,8 @@ private fun PromptBody(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
-                // The mockup shows a decorative avatar above the question. It is dropped here:
-                // on a 720x1280 device it consumed exactly the space the second line of the
-                // greeting needed, clipping the senior's own name mid-word. Nothing in the
-                // prompt is worth less than the name of the person being asked.
+                // The mockup's decorative avatar is dropped: on a 720x1280 phone it clipped the
+                // senior's own name.
                 Text(
                     text = copy.question,
                     color = SeniorColors.TextPrimary,
@@ -154,11 +149,9 @@ private fun PromptBody(
                 )
             }
 
-            // Everything below is pinned outside the scrolling area. The reason line is here and
-            // not above because the spec §7 requires the prompt to say WHY it is asking — a
-            // senior who has to scroll to find that is being shown a bare "are you okay", which
-            // is exactly what the panel rejected. The countdown and buttons are pinned for the
-            // more obvious reason that an unreachable "I'M SAFE" forces an unwanted escalation.
+            // Pinned outside the scrolling area. The reason line is here because the spec
+            // requires the prompt to say why it is asking, and the panel rejected a bare
+            // "are you okay". The countdown and buttons are pinned so "I'M SAFE" stays reachable.
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -325,12 +318,9 @@ private fun AlertSentBody(
             )
             Spacer(Modifier.height(12.dp))
             Text(
-                // The delivery warning replaces the reassuring copy rather than sitting beside
-                // it: telling the senior their contacts were notified when the push failed
-                // would be a lie at the worst possible moment. Same reasoning for an empty,
-                // known contact list — this senior has none to notify, only the barangay tier
-                // fires (spec §7's no_family_contact path), so claiming "your contacts
-                // have been notified" would be false even though delivery itself succeeded.
+                // The delivery warning replaces the reassuring copy, since saying contacts were
+                // notified when the push failed would be false. Same for a known-empty contact
+                // list: only the barangay tier fires then.
                 text = when {
                     viewModel.isDelivering -> copy.delivering
                     else -> viewModel.deliveryWarning
@@ -344,10 +334,8 @@ private fun AlertSentBody(
             )
             Spacer(Modifier.weight(1f))
             if (!viewModel.isDelivering) {
-                // Offered here as well as on Home because this is where the senior is actually
-                // looking at the moment help goes out. Home carries it afterwards — this screen
-                // leaves on its own after a few seconds, which is far too short a window to be
-                // the only chance to say "I'm fine".
+                // Offered here as well as on Home because the senior is looking at this screen
+                // when help goes out. This screen closes after a few seconds, so Home carries it afterwards.
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()

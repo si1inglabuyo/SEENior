@@ -1,5 +1,4 @@
-// The API speaks in short codes. A barangay responder is a community worker, not an
-// engineer, so every code a person can see is translated once, here.
+// Translates the API's short codes into wording a responder can read.
 
 export const TRIGGER_LABEL = {
   inactivity: 'No movement for an unusual stretch',
@@ -11,8 +10,7 @@ export const TRIGGER_LABEL = {
   fall_pattern: 'Possible fall detected',
 }
 
-// Short forms of the same trigger codes, for places too tight for the full sentence above
-// -- the dashboard's "Alerts by Type" chart labels. An unknown code falls back to itself.
+// Short forms of the trigger codes for tight spaces (chart labels). Unknown codes fall back to themselves.
 export const TRIGGER_SHORT = {
   inactivity: 'No movement',
   movement: 'Unusual movement',
@@ -32,9 +30,8 @@ export const STATUS_LABEL = {
   false_positive: 'False Positive',
 }
 
-// Every step name written by any tier: the phone (AlertEscalator), the family app, and
-// the server-side clock. An unknown code falls back to itself rather than vanishing --
-// an audit timeline that quietly drops entries is worse than an ugly one.
+// Every step name written by any tier (phone, family app, server clock). Unknown codes fall
+// back to themselves so the timeline never drops entries.
 export const STEP_LABEL = {
   escalated_family: 'Phone notified the family contact',
   escalated_family_server: 'No answer — server notified the family contact',
@@ -51,12 +48,9 @@ export const STEP_LABEL = {
   false_positive_barangay: 'Marked a false positive by responder',
 }
 
-// `escalated_barangay_auto` is one step code covering three different reasons the server's
-// sweep (backend/app/api/escalation.py, sweep_overdue_alerts/barangay_deadline) can have for
-// jumping straight to the barangay: an SOS press, a senior with no family contact at all, or
-// an ordinary no-response timeout. Those reasons are written into `entry.reason` verbatim, so
-// matching on that text -- rather than collapsing all three into one "no answer from family"
-// label -- is what actually tells a responder why they're looking at this incident.
+// `escalated_barangay_auto` covers three reasons the server jumps to the barangay: an SOS,
+// a senior with no family contact, or no response. The reason is written into `entry.reason`,
+// so matching on that text tells the responder which one it was.
 const ESCALATED_BARANGAY_AUTO_LABEL = [
   ['SOS pressed', 'SOS pressed — escalated to barangay'],
   ['No family contact', 'No family contact — escalated to barangay'],
@@ -67,9 +61,8 @@ function escalatedBarangayAutoLabel(reason) {
   return hit ? hit[1] : 'No answer from family — escalated to barangay'
 }
 
-// Takes a full escalation_steps entry (not just the step code) because a couple of step
-// types need more than their name to say what happened -- see escalatedBarangayAutoLabel
-// above. An unknown step code falls back to itself rather than vanishing.
+// Takes the whole escalation_steps entry because some steps need more than their code to
+// describe (see above). Unknown codes fall back to themselves.
 export function stepLabel(entry) {
   const step = (entry && entry.step) ?? entry
   if (step === 'escalated_barangay_auto') return escalatedBarangayAutoLabel(entry && entry.reason)
@@ -79,18 +72,11 @@ export const triggerLabel = (trigger) => TRIGGER_LABEL[trigger] || trigger
 export const triggerShort = (trigger) => TRIGGER_SHORT[trigger] || trigger
 export const statusLabel = (status) => STATUS_LABEL[status] || status
 
-// The four "alert types" the Alert History filter offers. Three map to a trigger_type; "Dispatch by Family" is not a trigger at all -- it is *how the incident
-// reached the barangay*. The family app writes a real `escalated_barangay` step when a
-// relative asks for a welfare check (as opposed to `escalated_barangay_auto`, which the
-// server writes when nobody answered). So this is derived from data the API already
-// returns -- trigger_type plus the escalation timeline -- not a stored enum value, and not
-// a UI-only invention. Adding it to the TriggerType enum would be wrong twice over: it is
-// not a trigger, and the enum is a Postgres type this lane cannot migrate.
-//
-// "Potential Fall" is split out of "Anomaly" because a fall is not a deviation from the
-// senior's routine: Layer 0 fires on the accelerometer/gyroscope fall signature from Day 1,
-// independent of the baseline (spec §5). Lumping it in with Median-MAD /
-// Isolation Forest hits would tell the responder the wrong story about what happened.
+// The four alert types in the Alert History filter. "Dispatch by Family" is not a trigger;
+// it is how the incident reached the barangay (a real `escalated_barangay` step, as opposed
+// to `escalated_barangay_auto`), so it is derived from trigger_type plus the timeline.
+// "Potential Fall" is separate from "Anomaly" because a fall is not a deviation from the
+// senior's routine; Layer 0 fires from Day 1.
 export const CATEGORY_LABEL = {
   anomaly: 'Anomaly',
   potential_fall: 'Potential Fall',
@@ -107,11 +93,8 @@ export function alertCategory(alert) {
   return 'anomaly'
 }
 
-// "Attending" is not a stored status. The acknowledge endpoint leaves `status` as
-// `escalated` (a Postgres enum this lane cannot migrate -- see acknowledge_incident in
-// backend/app/api/routes/barangay.py) and records the pickup as an `acknowledged_barangay`
-// step instead. So an escalated alert carrying that step is one a responder has already
-// taken: still open, but no longer waiting for someone to claim it.
+// "Attending" is not a stored status. Acknowledging leaves `status` as `escalated` and adds
+// an `acknowledged_barangay` step, so an escalated alert with that step is open but claimed.
 export function isAttending(alert) {
   return (
     alert.status === 'escalated' &&
@@ -119,6 +102,5 @@ export function isAttending(alert) {
   )
 }
 
-// The status to show a person: the stored one, except that a claimed incident reads
-// "attending" rather than "escalated".
+// The status to show: the stored one, except a claimed incident reads "attending".
 export const displayStatus = (alert) => (isAttending(alert) ? 'attending' : alert.status)

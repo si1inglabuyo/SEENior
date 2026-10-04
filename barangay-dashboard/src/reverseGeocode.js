@@ -1,14 +1,10 @@
-// Turns a decoded GPS fix into a human-readable place name (e.g. "Zuzuarregui St, Central
-// Village, Pasig") via Nominatim's reverse endpoint -- OpenStreetMap data, the same source the
-// alert map tiles already come from. Best-effort only: on any failure we return null and the
-// caller shows the registered address on its own, which is still usable for a responder.
+// Turns a decoded GPS fix into a place name (e.g. "Zuzuarregui St, Central Village, Pasig")
+// using Nominatim reverse geocoding. Best effort: on any failure it returns null and the
+// caller shows the registered address.
 //
-// Two things worth knowing about what leaves the browser (spec §11):
-//  * The coordinates are rounded to 4 decimal places (~11 m) BEFORE the request. The stored fix
-//    is a ~5 m cell; a street name does not need it, and a third-party geocoder has no reason to
-//    receive more precision than it can use. The pin on the map still shows the exact cell.
-//  * Nominatim's usage policy is one request a second at most and no bulk use. This is called
-//    once per alert a responder opens, and a successful answer is cached for the session.
+// What leaves the browser: coordinates are rounded to 4 decimals (~11 m) before the request,
+// since a street name doesn't need more. Nominatim allows one request a second; this runs
+// once per opened alert and successful answers are cached for the session.
 const cache = new Map()
 
 function placeLabel(address) {
@@ -36,8 +32,7 @@ export async function reverseGeocode(lat, lon) {
     .catch(() => null)
 
   cache.set(key, promise)
-  // A failure must not be remembered: a dropped connection would otherwise blank this place
-  // for the rest of the session even after the network came back.
+    // Don't cache a failure, or a dropped connection would blank this place for the session.
   promise.then((label) => {
     if (label === null) cache.delete(key)
   })

@@ -1,9 +1,5 @@
-"""Guards the four security fixes applied 2026-09-18, each of which is invisible in normal
-use and would be easy to undo by accident.
-
-Deliberately no database: every one of these is a property of the token format, the rate
-limiter, or the redaction, and none of them needs Postgres to be true.
-"""
+"""Tests for the 2026-09-18 security fixes. No database is needed: each is a property of
+the token format, the rate limiter or the redaction."""
 
 import asyncio
 
@@ -30,11 +26,8 @@ class _FakeSenior:
 # --------------------------------------------------------------- token subject (fix 1)
 
 def test_token_subject_is_the_user_id_not_a_recyclable_string():
-    """The whole point of fix 1: a token names an account by something never reissued.
-
-    Deletion tombstones `username` to free it for a fresh sign-up, so a token carrying a
-    username would keep resolving after that username changed hands.
-    """
+    """Tokens name an account by its id, which is never reissued. A username can be reused
+    after deletion, so a token carrying one would resolve to the wrong account."""
     token = create_access_token(subject="42", role="family_contact")
     payload = decode_access_token(token)
     assert payload["sub"] == "42"
@@ -42,8 +35,8 @@ def test_token_subject_is_the_user_id_not_a_recyclable_string():
 
 
 def test_a_legacy_username_token_no_longer_parses_as_an_identity():
-    """get_current_user int()s the subject, so a pre-fix token fails closed rather than
-    falling back to the username lookup that carried the bug."""
+    """A pre-fix token (subject is a username) must fail rather than fall back to a
+    username lookup."""
     payload = decode_access_token(create_access_token(subject="alice@example.com", role="family_contact"))
     with pytest.raises(ValueError):
         int(payload["sub"])
@@ -72,8 +65,8 @@ def test_invite_lookup_still_carries_what_the_connected_screen_renders():
 
 
 def test_redacted_payload_keeps_every_field_the_installed_android_dto_expects():
-    """SeniorDto declares address/mobileNumber as non-null String. Dropping the keys would
-    hand Gson a null for a non-null field, so they stay present and carry a safe value."""
+    """SeniorDto expects non-null address/mobileNumber, so the keys stay present with a
+    safe value."""
     dumped = InviteSeniorOut.redacted(_FakeSenior()).model_dump()
     for field in ("sync_id", "first_name", "last_name", "age", "gender", "barangay",
                   "address", "mobile_number", "created_at"):
@@ -120,8 +113,8 @@ def test_window_slides_so_an_allowance_returns():
 
 
 def test_global_bucket_bounds_an_attacker_rotating_addresses():
-    """The per-IP limit alone is defeated by a proxy pool; the GLOBAL key is what caps the
-    endpoint's total throughput and therefore the real search rate against a 6-digit code."""
+    """The global key is what caps total throughput; the per-IP limit alone is defeated by
+    a proxy pool."""
     async def run():
         ratelimit.reset()
         for _ in range(120):
@@ -133,8 +126,7 @@ def test_global_bucket_bounds_an_attacker_rotating_addresses():
 
 
 def test_client_ip_prefers_the_forwarded_header_over_the_proxy():
-    """Behind Render, request.client.host is the proxy. Using it would file every caller in
-    the world under one key and throttle all of them together."""
+    """Behind Render, request.client.host is the proxy, so the forwarded header must be used."""
     class _Req:
         headers = {"x-forwarded-for": "203.0.113.7, 10.0.0.1"}
         client = type("C", (), {"host": "10.0.0.1"})()

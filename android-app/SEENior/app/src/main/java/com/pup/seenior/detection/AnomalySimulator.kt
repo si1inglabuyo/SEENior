@@ -6,45 +6,32 @@ import com.pup.seenior.database.entities.Alert
 import com.pup.seenior.database.entities.SensorData
 
 /**
- * Demo trigger for the anomaly-detection pipeline.
+ * Demo trigger for the anomaly-detection pipeline. It doesn't fabricate an alert: it
+ * fabricates one sensor reading (an implausibly long stretch of no movement) and hands it to
+ * the real [MedianMadDetector], which computes a real z-score against this senior's baseline
+ * and writes the alert. This follows the spec's approach of validating detection by injecting
+ * known sensor values; a stationary test phone took ~75 minutes to cross the moderate threshold.
  *
- * This does NOT fabricate an alert. It fabricates a single sensor *reading* — an implausibly long
- * stretch of no movement — and then hands it to the real [MedianMadDetector], which computes a
- * real Modified Z-Score against this senior's real baseline and writes the alert itself. Everything
- * downstream of the reading is production code: the z-score, the medium/high cutoff, the dedup
- * against an already-active alert, the row that lands in `Alerts`.
- *
- * The spec §10 endorses exactly this — detection accuracy is validated by injecting known sensor
- * values, not by waiting for a real emergency. It is also the only practical option: a genuinely
- * stationary test device took ~75 minutes to cross even the moderate threshold during testing.
- *
- * The synthetic reading is deliberately **never written to `Sensor_Data`**. Doing so would let it
- * flow into the nightly aggregation and permanently corrupt the senior's Routine Fingerprint with
- * an event that never happened.
+ * The reading is never written to `Sensor_Data`, or it would corrupt the Routine Fingerprint.
  */
 object AnomalySimulator {
 
-    /** Multiple of the effective MAD to sit above the median. Comfortably past the 3.5 "extreme"
-     *  cutoff so the demo reliably produces a HIGH-risk alert rather than landing near the
-     *  medium/high boundary and varying run to run. */
+    /** Multiple of the effective MAD above the median, comfortably past the 3.5 "extreme" cutoff so the demo reliably gives HIGH. */
     private const val TARGET_Z_SCORE = 4.0
 
     private const val INACTIVITY = "inactivity_duration"
 
     sealed interface Result {
-        /** The detector produced (or upgraded into) an alert. [alert] is null when an existing
-         *  one was upgraded rather than a new row written — that alert's response chain is
-         *  already running and must not be started a second time. */
+        /** The detector produced (or upgraded into) an alert. [alert] is null when an existing one
+         *  was upgraded, whose response chain is already running. */
         data class Triggered(val zScore: Double, val alert: Alert?) : Result
-        /** No baseline exists for this feature in the current time block, so the detector had
-         *  nothing to compare against and correctly did nothing. */
+        /** No baseline for this feature in the current time block, so nothing was compared. */
         data object NoBaseline : Result
-        /** An alert for this trigger type is already working its way through the escalation
-         *  chain. The detector dedups into it by design rather than spawning a duplicate. */
+        /** An alert for this trigger type is already in the escalation chain; the detector dedups into it. */
         data object AlreadyActive : Result
         data object NoSenior : Result
-        /** The reading crossed the threshold and Layer 3 judged it unremarkable for this hour, so
-         *  it was recorded and nobody was told. Not a failure — the graduated response working. */
+        /** The reading crossed the threshold but Layer 3 judged it unremarkable for this hour, so
+         *  it was logged and nobody was told. This is the graduated response working. */
         data class LoggedOnly(val zScore: Double) : Result
         /** Inside the senior's declared nap, where stillness is the expected reading (§6). */
         data object SuppressedByNap : Result
@@ -56,9 +43,7 @@ object AnomalySimulator {
 
         val now = System.currentTimeMillis()
 
-        // Checked here as well as inside the detector so the demo can say *why* nothing happened.
-        // The detector returns an empty list either way, and "no alert" with no reason is the
-        // least useful thing this button could report.
+        // Checked here too, so the demo can say why nothing happened.
         if (FuzzyRiskClassifier.isWithinNapWindow(
                 FuzzyRiskClassifier.minuteOfDay(now),
                 onboarding.napTime.takeIf { onboarding.hasNap },
@@ -81,17 +66,14 @@ object AnomalySimulator {
 
         if (alertDao.getActiveAlert(senior.seniorId, "inactivity") != null) return Result.AlreadyActive
 
-        // Invert the detector's own formula so the reading lands at a known z-score against this
-        // senior's actual baseline, whatever that baseline happens to be. A hardcoded "8 hours
-        // still" would read as extreme for one senior and unremarkable for another.
+        // Invert the detector's formula so the reading lands at a known z-score against this
+        // senior's actual baseline, whatever it is.
         val madFloor = SeedBaselineGenerator.MIN_MAD_FLOOR[INACTIVITY] ?: 1.0
         val effectiveMad = maxOf(inactivityBaseline.madValue, madFloor)
         val inactivitySeconds = inactivityBaseline.medianValue + TARGET_Z_SCORE * effectiveMad
 
-        // Movement and screen-idle are pinned to their own medians (z = 0) so this produces one
-        // clean inactivity alert instead of three simultaneous ones. The detector evaluates every
-        // feature it has a baseline for, and a real "collapsed on the floor" reading would breach
-        // several at once — but one alert at a time is what the wellness prompt is built to show.
+        // Movement and screen-idle are pinned to their medians (z = 0), so this produces one
+        // clean inactivity alert instead of three at once.
         val movementMedian = baselineDao
             .getBaselineByFeatureAndTimeBlock(senior.seniorId, "movement_score", timeBlock)
             ?.medianValue ?: 0.0
@@ -117,20 +99,16 @@ object AnomalySimulator {
             onboarding,
             baselineDao,
             alertDao,
-            // Null on purpose. The detector normally clips a running counter to the part of the
-            // block that has actually elapsed, which is right for a real reading and wrong for an
-            // injected one: this reading stands in for hours of stillness the demo cannot wait
-            // out, and at night the block is not even long enough to hold the target z-score.
-            // The spec §10 endorses the injection; the clip must not quietly undo it.
+            // Null on purpose: the detector normally clips running counters to the elapsed part
+            // of the block, which would undo an injected reading standing in for hours of stillness.
             blockElapsedSeconds = null
         )
 
         return if (alertDao.getActiveAlert(senior.seniorId, "inactivity") != null) {
             Result.Triggered(TARGET_Z_SCORE, findings.created.firstOrNull { it.triggerType == "inactivity" })
         } else {
-            // No open alert, so Layer 3 answered Low: the same z-score, read against the hour it
-            // arrived in, was not worth telling anyone about. Expected at night and during
-            // declared rest — which is the layer doing its job, not the demo failing.
+            // No open alert, so Layer 3 answered Low: the z-score wasn't worth telling anyone at
+            // this hour. Expected at night and during declared rest.
             Result.LoggedOnly(TARGET_Z_SCORE)
         }
     }

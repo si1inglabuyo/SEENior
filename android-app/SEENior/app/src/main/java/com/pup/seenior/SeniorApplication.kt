@@ -20,10 +20,8 @@ import java.util.Calendar
 import java.util.concurrent.TimeUnit
 
 /**
- * Whether any of this app's screens is currently in front of the senior.
- *
- * Read by [com.pup.seenior.alerts.AlertResponder] to decide whether a new alert needs a
- * notification or whether the wellness prompt will surface it on its own.
+ * Whether any of this app's screens is in front of the senior. Read by
+ * [com.pup.seenior.alerts.AlertResponder] to decide whether a new alert needs a notification.
  */
 object AppForeground {
     @Volatile
@@ -33,8 +31,7 @@ object AppForeground {
 
 class SeniorApplication : Application() {
 
-    /** Outlives every screen on purpose — a check-in must not be cancelled by the senior
-     *  navigating away a moment after opening the app. */
+    /** Outlives every screen, so a check-in isn't cancelled when the senior navigates away. */
     private val appScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     private var lastForegroundHeartbeatAt = 0L
@@ -50,23 +47,11 @@ class SeniorApplication : Application() {
     }
 
     /**
-     * Clears the extra senior rows left behind by the duplicate-onboarding bug.
-     *
-     * Onboarding used to insert a new senior every time its final screen re-entered composition,
-     * so a senior who walked back through the permission chain ended up as several people in
-     * their own database -- five, in six minutes, on the realme tester handset on 2026-09-18.
-     * [com.pup.seenior.ui.onboarding.OnboardingViewModel.submitOnboarding] no longer does that,
-     * but every phone already running the old build carries the rows, and each dead one holds
-     * twenty seed Baseline rows and possibly an orphan Sensor_Data row that no nightly pass will
-     * ever roll up, because aggregation only sweeps the senior the app considers current.
-     *
-     * The row kept is whatever `getOnboardedSenior()` returns -- deliberately the same selector
-     * every other caller in the app already follows, so this can never delete the row the rest
-     * of the app is using. Everything with an Alert or a Daily_Aggregate against it is left
-     * alone regardless (see [SeniorDao.findDuplicateSeniorIds]).
-     *
-     * Runs on the app's own scope rather than as a Room migration: it is a data repair, not a
-     * schema change, and it has to be safe to run on every start and do nothing on the second.
+     * Clears the extra senior rows left by an old duplicate-onboarding bug (re-entering the
+     * final screen inserted a new senior each time). The row kept is whatever
+     * `getOnboardedSenior()` returns, the same selector the rest of the app uses. Rows with an
+     * Alert or Daily_Aggregate are left alone (see [SeniorDao.findDuplicateSeniorIds]). It is a
+     * data repair, not a Room migration, and does nothing on later runs.
      */
     private fun removeDuplicateSeniors() {
         appScope.launch {
@@ -84,10 +69,7 @@ class SeniorApplication : Application() {
         }
     }
 
-    /**
-     * Counts started activities rather than using ProcessLifecycleOwner, which would mean pulling
-     * in lifecycle-process for a single boolean this app can observe directly.
-     */
+    /** Counts started activities instead of using ProcessLifecycleOwner, to avoid a dependency for one boolean. */
     private fun trackForegroundState() {
         registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
             private var startedActivities = 0
@@ -113,36 +95,20 @@ class SeniorApplication : Application() {
     }
 
     /**
-     * The recovery net for passive monitoring (see [MonitoringWatchdogJobService]).
-     *
-     * Called from here, which means it runs on every process start — but the job is not
-     * *created* here in any meaningful sense. It is persisted, so JobScheduler already holds it
-     * across reboots, and that is the whole point: it has to be in the system's store before the
-     * reboot that this app's own boot receiver will not survive. [MonitoringWatchdogJobService]
-     * leaves a matching registration alone rather than restarting its clock.
-     *
-     * Note this is raw JobScheduler, not WorkManager like the aggregation job below. That is not
-     * inconsistency: WorkManager does not persist its jobs and recovers them from a
-     * `BOOT_COMPLETED` receiver, which is the mechanism the watchdog exists to route around.
-     * Nightly aggregation has no such requirement — a missed run rolls into the next one.
+     * Schedules the recovery net for passive monitoring (see [MonitoringWatchdogJobService]).
+     * It runs on every process start but the job is persisted, so JobScheduler already holds
+     * it across reboots; a matching registration is left alone. This is raw JobScheduler
+     * rather than WorkManager, which doesn't persist jobs and recovers them from the boot
+     * broadcast the watchdog routes around. Nightly aggregation has no such need.
      */
     private fun scheduleMonitoringWatchdog() {
         MonitoringWatchdogJobService.schedule(this)
     }
 
     /**
-     * Checks in the moment the senior opens the app.
-     *
-     * The watchdog's fifteen-minute pass is the reliable channel and stays the reliable channel;
-     * this exists because fifteen minutes is a long time to wait to find out a phone is at 4%,
-     * and because opening the app is the one moment we know for certain the phone is awake, has
-     * a live process and is probably on a network. It is also what makes the family's view
-     * answer on demand rather than on a timer.
-     *
-     * Rate limited because [android.app.Activity] starts are not rare — a senior flicking
-     * between apps would otherwise post a check-in per flick, and the number will not have
-     * changed. A minute is far below the fifteen the watchdog runs at and far above anything a
-     * person does by hand.
+     * Checks in the moment the senior opens the app. The watchdog's 15-minute pass remains the
+     * reliable channel; this makes the family's view answer on demand. Rate limited to once a
+     * minute, since activity starts are frequent and the value won't have changed.
      */
     private fun reportHeartbeatOnForeground() {
         val now = System.currentTimeMillis()
@@ -155,16 +121,13 @@ class SeniorApplication : Application() {
     }
 
     private fun scheduleNightlyAggregation() {
-        // Twice a day, not once. A night block does not close until wake time, so a single 02:00
-        // run always finds it still open, defers it correctly, and only rolls it up twenty-four
-        // hours later. The second run lands after the senior is up and closes the night the same
-        // day.
+        // Twice a day: the night block doesn't close until wake time, so a single 02:00 run
+        // would only roll it up 24 hours later. The second run closes it the same day.
         val request = PeriodicWorkRequestBuilder<NightlyAggregationWorker>(12, TimeUnit.HOURS)
             .setInitialDelay(millisUntilNext2AM(), TimeUnit.MILLISECONDS)
             .build()
 
-        // UPDATE, not KEEP: the 24-hour version is already enqueued under this name on every
-        // installed build, and KEEP would silently leave it there.
+        // UPDATE, not KEEP: the 24-hour version is already enqueued on installed builds.
         WorkManager.getInstance(this).enqueueUniquePeriodicWork(
             "nightly_aggregation",
             ExistingPeriodicWorkPolicy.UPDATE,

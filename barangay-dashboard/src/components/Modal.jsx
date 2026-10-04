@@ -1,8 +1,7 @@
 import { useEffect } from 'react'
 
-// The one overlay every dialog on this dashboard is built from -- the confirm dialog, the
-// success toast, and the alert details panel are all just different content inside this
-// same shell. Centred card, backdrop click and Escape both close it.
+// The overlay used by every dialog: confirm, toast and details. Backdrop click and Escape
+// close it.
 export default function Modal({ onClose, children, className = '', labelledBy }) {
   useEffect(() => {
     function onKeyDown(event) {

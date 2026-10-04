@@ -19,34 +19,17 @@ import Toast from './Toast'
 import AlertDetailsModal from './AlertDetailsModal'
 import DeviceBadge from './DeviceBadge'
 
-// ---------------------------------------------------------------------------------------
-// RA 10173 (Data Privacy Act of 2012) — why fields on this screen are gated
+// RA 10173 (Data Privacy Act) - why some fields on this screen are gated.
 //
-// This screen is the barangay responder's view of one senior's record. The responder is a
-// government agency worker (§23), so what they can see by default is deliberately narrow:
+// By default a responder sees only what a documented task needs: name, status, a maskable
+// phone number and a count of open incidents (section 11(d)). Gender, living arrangement,
+// full address and the family contact's email are not shown by default.
 //
-//   §11(d) proportionality — a persistent view shows only what a documented responder
-//   function needs: name, status, a maskable phone number to call, and a count of open
-//   incidents. Gender, living arrangement, full home address and the family contact's
-//   email are NOT tied to any standing responder task, so they are not shown by default.
-//
-//   §13 sensitive personal information — kept off the default view for the same reason.
-//
-//   §13(c) vital-interests exception — full home address, and the family contact's
-//   name / relationship / phone, unlock ONLY while this senior has an open (escalated)
-//   alert, i.e. an active emergency. This is an exception, not a standing default: when
-//   the alert closes, the extra fields lock again.
-//
-//   §11(e) retention — the alert-history card defaults to a short window (see
-//   HISTORY_* below); the full list is one explicit, logged click away.
-//
-//   §23(a) access control + recording — every disclosure beyond the default view
-//   (phone reveal, opening the active-alert view, expanding full history) is written to
-//   the access audit log (src/audit.js).
-//
-// The email address is still withheld even in the gated view — no responder task
-// documented so far needs it. Add it here only alongside that documented need.
-// ---------------------------------------------------------------------------------------
+// Full address and the family contact's name/relationship/phone unlock only while the
+// senior has an open escalated alert (vital interests, section 13(c)), and lock again when
+// it closes. The alert-history card defaults to a short window (section 11(e)). Every
+// disclosure beyond the default view is written to the access audit log (src/audit.js),
+// section 23(a). The email stays withheld since no responder task needs it.
 
 const CATEGORY_CLASS = {
   sos: 'type-badge-sos',
@@ -55,23 +38,15 @@ const CATEGORY_CLASS = {
   anomaly: '',
 }
 
-// Retention / data-minimisation for the per-senior alert history (RA 10173 §11(e) — keep
-// data "only for as long as necessary"):
-//   - the default card shows at most DEFAULT_HISTORY_MAX entries AND nothing older than
-//     DEFAULT_HISTORY_WINDOW_DAYS; whichever is the shorter list wins.
-//   - the full list is behind an explicit, audit-logged "View full history" click.
-//   - resolved / false-positive alerts older than ~90 days should be archived out of the
-//     GET /barangay/seniors/{sync_id} response server-side. That purge job belongs to the
-//     `main` lane (it owns the alerts table and the sync pipeline, and this lane may not
-//     add columns or migrations — dashboard spec §2); noted here so the
-//     policy lives next to the UI that assumes it.
+// Retention for the per-senior alert history (RA 10173 section 11(e)): the default card
+// shows at most DEFAULT_HISTORY_MAX entries from the last DEFAULT_HISTORY_WINDOW_DAYS. The
+// full list needs an audited "View full history" click. Purging alerts older than ~90 days
+// server-side is a main-lane job.
 const DEFAULT_HISTORY_MAX = 3
 const DEFAULT_HISTORY_WINDOW_DAYS = 7
 
-// One senior's record. Prefers GET /barangay/seniors/{sync_id} (profile + family contacts
-// + that senior's alert history in one call); if that endpoint isn't deployed yet it
-// degrades to the list row it was handed plus the shared alerts endpoint, so the page is
-// still useful against an older backend -- just without the contacts card.
+// One senior's record. Uses GET /barangay/seniors/{sync_id}; if that isn't deployed it falls
+// back to the list row plus the shared alerts endpoint, without the contacts card.
 export default function SeniorDetail({
   syncId,
   fallbackSenior,
@@ -92,13 +67,11 @@ export default function SeniorDetail({
 
   const accountAction = isDeactivated ? REACTIVATE_ACTION : DEACTIVATE_ACTION
 
-  // Disclosures beyond the default view. Each flips on via an explicit click that also
-  // writes an access-audit entry (RA 10173 §23(a)).
+    // Disclosures beyond the default view, each turned on by a click that writes an audit entry.
   const [phoneRevealed, setPhoneRevealed] = useState(false)
   const [fullHistory, setFullHistory] = useState(false)
   const activeViewLogged = useRef(false)
-  // A single "now" fixed at mount, so the 7-day history window is a pure computation
-  // during render rather than a fresh Date.now() on every re-render.
+    // "Now" fixed at mount so the 7-day window is pure during render.
   const [now] = useState(() => Date.now())
 
   useEffect(() => {
@@ -135,8 +108,7 @@ export default function SeniorDetail({
   }, [syncId, fallbackSenior, onSessionLost])
 
   async function confirmAccountToggle() {
-    // Saved on the server; the callbacks reject if it could not be, in which case nothing has
-    // changed and the responder is told so rather than shown a success that did not happen.
+      // Saved on the server. If that fails nothing changed, and the responder is told.
     const message = accountAction.successMessage
     setConfirming(false)
     try {
@@ -177,8 +149,7 @@ export default function SeniorDetail({
   const openAlerts = alerts.filter((a) => a.status === 'escalated')
   const activeAlert = openAlerts.length > 0
 
-  // Opening the active-alert view discloses the full address + contact details, so it is
-  // itself an audited access (once per mount).
+    // Opening the active-alert view discloses the address and contacts, so it is audited (once per mount).
   useEffect(() => {
     if (!profile || activeViewLogged.current || !activeAlert) return
     activeViewLogged.current = true
@@ -356,11 +327,9 @@ export default function SeniorDetail({
                       <ul className="mini-alert-list">
                         {shownAlerts.map((alert) => {
                           const category = alertCategory(alert)
-                          // The Details modal discloses the home address + last-known
-                          // location for that alert. That is only permitted while the
-                          // emergency is live (RA 10173 §13(c)), so the rows are openable
-                          // only in the active-alert view; otherwise the row shows just
-                          // the trigger and time, which is summary-level detail.
+                            // The Details modal shows the home address and location, which is
+                            // only allowed while the emergency is live (section 13(c)), so rows
+                            // open only in the active-alert view.
                           const openable = activeAlert
                           return (
                             <li

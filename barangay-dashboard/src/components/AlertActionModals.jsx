@@ -3,10 +3,8 @@ import ConfirmDialog from './ConfirmDialog'
 import Toast from './Toast'
 import AlertDetailsModal from './AlertDetailsModal'
 
-// Renders whichever of the three shared overlays the current action state calls for. The
-// Alerts page and Alert History each drop this in once and feed it the object from
-// useAlertActions. There is exactly one ConfirmDialog, one Toast and one AlertDetailsModal
-// in the app; both screens go through these.
+// Renders the shared confirm dialog, toast and details modal for the current action state.
+// Used by both the Alerts page and Alert History.
 export default function AlertActionModals({ actions }) {
   const {
     pending,
@@ -21,9 +19,7 @@ export default function AlertActionModals({ actions }) {
     closeDetails,
   } = actions
 
-  // Details is rendered first so the confirm dialog and toast, which share its z-index,
-  // stack on top of it -- the action buttons live inside Details, so its dialog opens over
-  // it rather than behind it.
+    // Details renders first so the confirm dialog and toast (same z-index) stack above it.
   return (
     <>
       {detailsAlert && (

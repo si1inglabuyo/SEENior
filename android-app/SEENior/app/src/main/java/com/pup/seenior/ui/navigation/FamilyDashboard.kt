@@ -74,8 +74,7 @@ private enum class FamilyTab(val icon: ImageVector) {
     PROFILE(Icons.Outlined.Person)
 }
 
-/** Resolves a tab's translated label from the account's own language setting, mirroring
- *  SeniorTab.label(copy) on the senior side. */
+/** Resolves a tab's translated label from the account's language, like SeniorTab.label(copy). */
 private fun FamilyTab.label(copy: FamilyStrings.Copy): String = when (this) {
     FamilyTab.HOME -> copy.tabHome
     FamilyTab.LINK -> copy.tabLink
@@ -87,30 +86,25 @@ private fun FamilyTab.label(copy: FamilyStrings.Copy): String = when (this) {
 @Composable
 fun FamilyDashboard(onLoggedOut: () -> Unit) {
     var tab by remember { mutableStateOf(FamilyTab.HOME) }
-    // Shared across all tabs so a link/unlink on one tab is reflected on the others
-    // without a re-fetch.
+    // Shared across tabs so a link or unlink on one is reflected on the others without a re-fetch.
     val seniorsViewModel: FamilySeniorsViewModel = viewModel()
     val alertsViewModel: FamilyAlertsViewModel = viewModel()
-    // Hoisted here (rather than let each of Home/Profile create its own) so the account's
-    // language_preference is fetched once and every tab reads the same instance — Home's own
-    // LaunchedEffect(Unit) { profileViewModel.refresh() } below is what actually fires it.
+    // Hoisted so the account's language_preference is fetched once and every tab reads the
+    // same instance. Home's LaunchedEffect below fires the fetch.
     val profileViewModel: FamilyProfileViewModel = viewModel()
     LaunchedEffect(Unit) { profileViewModel.refresh() }
     val copy = FamilyStrings.forLanguage(profileViewModel.language)
     val infoCopy = FamilyInfoStrings.forLanguage(profileViewModel.language)
-    // Re-fetch on every resume and on every tab change. The senior can unlink from their own
-    // phone at any time and there is no push channel to tell us, so a once-per-login fetch
-    // leaves this list frozen at whatever it was when the session started. The senior's own
-    // Contacts screen gets this for free — its LaunchedEffect lives inside the screen, which
-    // leaves composition on each tab switch. This one is hoisted to the dashboard, which never does.
+    // Re-fetch on every resume and tab change. A senior can unlink from their own phone at any
+    // time with no push to tell us, and this list is hoisted to the dashboard, which (unlike a
+    // screen's own LaunchedEffect) never leaves composition.
     LifecycleResumeEffect(tab) {
         seniorsViewModel.refresh()
         onPauseOrDispose { }
     }
 
-    // The token expires server-side and there is no refresh flow, so any 401 raised by a tab
-    // means this login is finished. Leave the dashboard instead of sitting here rendering
-    // "server error 401" on every tab — Log Out in the Profile tab used to be the only way out.
+    // The token expires server-side and there is no refresh flow, so a 401 means this login is
+    // finished. Leave instead of showing "server error 401" on every tab.
     LaunchedEffect(SessionState.expired) {
         if (SessionState.expired) {
             SessionState.consume()
@@ -120,12 +114,9 @@ fun FamilyDashboard(onLoggedOut: () -> Unit) {
 
     val context = LocalContext.current
 
-    // Android 13+ drops every notification silently until this is granted, and the only
-    // existing runtime request lives in the SENIOR onboarding flow (PermissionsScreen),
-    // which a family member never passes through. Asked here because this is the first
-    // screen that exists to show alerts. Guarded by SDK version — the permission does not
-    // exist below 33 and the platform reports it denied regardless of what the user does,
-    // the same trap that once blocked onboarding via ACTIVITY_RECOGNITION.
+    // Android 13+ drops notifications until this is granted, and the only existing request is
+    // in the senior onboarding flow. Asked here as the first screen that shows alerts. Guarded
+    // by SDK version because the permission doesn't exist below 33 and reads as denied.
     val notificationPermission = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { /* Declining is allowed; polling still works, it is just slower and app-only. */ }
@@ -138,15 +129,11 @@ fun FamilyDashboard(onLoggedOut: () -> Unit) {
         ) {
             notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
-        // Re-asserted on every dashboard entry rather than at each of the three login
-        // paths: one call site cannot drift out of step with the others, and this also
-        // repairs a token that rotated while the app was not running.
+        // Re-asserted on every dashboard entry rather than at each login path, which also repairs a rotated token.
         PushTokenRegistrar.syncToken(context)
     }
 
-    // A tapped notification names the alert to open, rather than letting the Alerts tab
-    // settle on "newest open" by itself — the two disagree whenever an older alert is the
-    // one the notification was actually about.
+    // A tapped notification names the alert to open, since "newest open" can be a different alert.
     LaunchedEffect(PendingAlertNavigation.alertSyncId) {
         PendingAlertNavigation.consume()?.let { syncId ->
             alertsViewModel.focusAlert(syncId)
@@ -212,9 +199,8 @@ fun FamilyDashboard(onLoggedOut: () -> Unit) {
 }
 
 /**
- * The pairing flow (code entry -> relationship -> paired), reachable any time to link up to
- * MAX_LINKED_SENIORS seniors. Reusing the same account for senior #2/#3 is handled by
- * FamilyPairingViewModel.pair() sending the existing token.
+ * The pairing flow (code entry, relationship, paired), reachable any time to link up to
+ * MAX_LINKED_SENIORS seniors. FamilyPairingViewModel.pair() reuses the existing token.
  */
 @Composable
 private fun LinkTab(

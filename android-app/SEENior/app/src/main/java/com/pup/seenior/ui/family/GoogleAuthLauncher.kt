@@ -13,10 +13,9 @@ import com.google.android.gms.common.api.ApiException
 import com.pup.seenior.R
 
 /**
- * Returns a function that launches Google's account picker; on success calls [onIdToken]
- * with the ID token to send to POST /auth/google, on failure/cancel calls [onError].
- * Needs `google_web_client_id` in strings.xml set to the "Web application" OAuth Client
- * ID from Google Cloud Console — see the Google Sign-In setup instructions.
+ * Returns a function that launches Google's account picker. On success it calls [onIdToken]
+ * with the ID token to send to POST /auth/google, and on failure or cancel it calls [onError].
+ * Needs `google_web_client_id` in strings.xml (the "Web application" OAuth Client ID).
  */
 @Composable
 fun rememberGoogleSignInLauncher(

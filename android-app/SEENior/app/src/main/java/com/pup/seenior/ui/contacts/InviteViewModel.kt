@@ -30,9 +30,8 @@ class InviteViewModel(application: Application) : AndroidViewModel(application) 
 
     /**
      * The name of a family member who linked with the live code, or null. Set by the pairing
-     * watch below so the screen can show the senior a plain "someone connected" confirmation —
-     * without it the senior has no signal at all that the code worked, since the server clears
-     * the code on their behalf and nothing on this phone was watching for it.
+     * watch so the screen can confirm "someone connected"; the server clears the code, so the
+     * senior otherwise has no signal that it worked.
      */
     var pairedContactName by mutableStateOf<String?>(null)
         private set
@@ -49,8 +48,7 @@ class InviteViewModel(application: Application) : AndroidViewModel(application) 
             error = null
             pairedContactName = null
             try {
-                // withSyncId re-registers and retries if the cached id is unknown to the current
-                // backend, so a recreated/switched cloud DB no longer bricks code generation.
+                // withSyncId re-registers and retries if the cached id is unknown to the backend.
                 val invite = cloudSync.withSyncId { syncId ->
                     RetrofitClient.api.generateInvite(syncId)
                 }
@@ -89,17 +87,15 @@ class InviteViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     /**
-     * Polls the senior's own family-contact list for as long as the code is live. There is no
-     * push to the senior app for a pairing, and the senior is sitting on this screen waiting for
-     * it to happen, so a short poll is the right tool. Stops the moment it sees a new contact,
-     * or when the code expires.
+     * Polls the senior's own family-contact list while the code is live. There is no push to
+     * the senior app for a pairing, so a short poll is the right tool. Stops when it sees a
+     * new contact or the code expires.
      */
     private fun startPairingWatch() {
         pairingWatchJob?.cancel()
         pairingWatchJob = viewModelScope.launch {
-            // Established from the first fetch that actually succeeds, never from a failed one:
-            // a network blip that returned an empty list would otherwise make an already-linked
-            // contact look brand new.
+            // Taken from the first fetch that succeeds, never a failed one, or a network blip
+            // returning an empty list would make an already-linked contact look new.
             var baseline: Set<Int>? = null
 
             while (hasActiveCode) {
@@ -116,8 +112,7 @@ class InviteViewModel(application: Application) : AndroidViewModel(application) 
                         if (newContact != null) {
                             pairedContactName = newContact.fullName?.takeIf { it.isNotBlank() }
                                 ?: "A family member"
-                            // The server already consumed the code on pair; retire it here too so
-                            // the card stops offering a copy button for a dead code.
+                            // The server already consumed the code; retire it here so the card stops offering a dead code.
                             countdownJob?.cancel()
                             inviteCode = null
                             remainingSeconds = 0

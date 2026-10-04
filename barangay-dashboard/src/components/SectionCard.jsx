@@ -1,5 +1,4 @@
-// The orange-header card used three times on the dashboard (Alerts Today, Alerts This
-// Week, Alerts Outcome). Defining the bar once keeps them identical.
+// The orange-header card used on the dashboard, defined once so they stay identical.
 export default function SectionCard({ icon, title, action, children, className = '' }) {
   return (
     <section className={`section-card ${className}`.trim()}>

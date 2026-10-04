@@ -18,65 +18,38 @@ class Settings:
     access_token_expire_minutes: int = int(
         os.environ.get("ACCESS_TOKEN_EXPIRE_MINUTES", "60")
     )
-    # The "Web application" OAuth Client ID from Google Cloud Console — used both as
-    # the audience Android requests an ID token for, and to verify that token here.
-    # POST /auth/google 503s with a clear message if this isn't set.
+    # The "Web application" OAuth Client ID from Google Cloud Console. Used as the audience
+    # for the Android ID token and to verify it. POST /auth/google returns 503 if unset.
     google_client_id: str | None = os.environ.get("GOOGLE_CLIENT_ID")
 
-    # Firebase service-account credentials, used to send FCM pushes. Accepts EITHER the
-    # raw JSON of the key (what you paste into a Render env var) or a filesystem path to
-    # it (convenient locally) — see app/core/push.py, which sniffs which one it got.
-    #
-    # Deliberately NOT fatal when unset, unlike SECRET_KEY: a missing push credential
-    # degrades the system to the pre-FCM behaviour (alerts still record, the family app
-    # still polls), whereas refusing to boot would take the whole escalation chain down
-    # over a notification channel. push.py logs loudly instead.
+    # Firebase service-account credentials for FCM pushes: either the raw JSON or a file
+    # path (see app/core/push.py). Not fatal when unset; pushes are skipped and logged.
     firebase_credentials: str | None = os.environ.get("FIREBASE_CREDENTIALS")
 
-    # Semaphore PH SMS fallback (spec §7/§9) -- the channel that reaches a family
-    # contact or barangay responder with poor data but a live cellular signal, and
-    # currently the ONLY channel a barangay responder gets at all beyond the dashboard.
-    #
-    # Same posture as FIREBASE_CREDENTIALS: not fatal when unset. A missing SMS
-    # credential degrades the chain to push-only for family and dashboard-only for
-    # barangay, not down entirely. app/core/sms.py logs loudly instead.
+    # Semaphore PH SMS fallback. Not fatal when unset; SMS is skipped and logged by
+    # app/core/sms.py.
     semaphore_api_key: str | None = os.environ.get("SEMAPHORE_API_KEY")
-    # Optional. Semaphore falls back to its own default sender name if this is unset;
-    # a custom one has to be registered and approved with Semaphore first.
+    # Optional. A custom sender name must be approved by Semaphore first.
     semaphore_sender_name: str | None = os.environ.get("SEMAPHORE_SENDER_NAME")
 
-    # --- Escalation clock (spec §7) ----------------------------------------
-    # These run the server-side countdown that moves an unanswered alert up the
-    # chain. They exist because no on-device timer can be trusted on this handset:
-    # Transsion's "Hiber" layer freezes the app after the screen goes off and takes
-    # its alarms out of AlarmManager entirely (measured 2026-08-20). A countdown
-    # running here cannot be frozen by the phone it is counting down for.
+    # --- Escalation clock ---
+    # Server-side countdown that moves an unanswered alert up the chain, because phone
+    # timers can be frozen by the OS. Defaults are short so the demo runs quickly; a real
+    # pilot would use 5-10 minutes for family_response_seconds.
     #
-    # Short defaults so the whole three-tier chain can be demonstrated in one
-    # sitting. A real pilot would raise family_response_seconds to 5-10 minutes.
-    #
-    # Grace: how much longer than the phone's own window the server waits before
-    # stepping in. The phone is faster and works offline, so it should win whenever
-    # it is actually running; the server only covers the case where it was frozen.
+    # Grace: how much longer than the phone's own window the server waits, so the phone
+    # wins whenever it is running.
     escalation_grace_seconds: int = int(os.environ.get("ESCALATION_GRACE_SECONDS", "30"))
     family_response_seconds: int = int(os.environ.get("FAMILY_RESPONSE_SECONDS", "120"))
     escalation_sweep_seconds: int = int(os.environ.get("ESCALATION_SWEEP_SECONDS", "20"))
 
-    # How long a family contact's phone has to confirm it received the alert push before
-    # the server texts them instead. A phone with data confirms within seconds and is never
-    # texted; a phone without data cannot confirm, so it gets the SMS. Kept inside the
-    # The spec §10 30-second alert-delivery target.
+    # How long a family phone has to confirm the push before the server texts them instead.
+    # Kept inside the 30-second alert delivery target.
     family_sms_grace_seconds: int = int(os.environ.get("FAMILY_SMS_GRACE_SECONDS", "30"))
 
-    # How long a senior's phone may go without checking in before the server pushes it
-    # awake, and how long it then waits before pushing again.
-    #
-    # Both are generous on purpose. A phone that is awake and polling normally reports
-    # every fifteen minutes and is therefore NEVER nudged -- the nudge exists only for a
-    # handset the OS has frozen. Nudging harder would spend battery on the common case to
-    # fix the rare one. A phone that is genuinely off (flat, or left at home switched off)
-    # cannot be woken at all, so the second knob is what stops the server pushing at a
-    # dead handset every twenty seconds forever.
+    # How long a senior's phone may go without checking in before it is pushed awake, and
+    # how long to wait before pushing again. Both are generous, so a normally polling phone
+    # is never nudged and a switched-off phone isn't pushed constantly.
     device_quiet_after_seconds: int = int(
         os.environ.get("DEVICE_QUIET_AFTER_SECONDS", "900")
     )
@@ -84,9 +57,7 @@ class Settings:
         os.environ.get("DEVICE_NUDGE_EVERY_SECONDS", "900")
     )
 
-    # Browser origins allowed to call this API. The barangay dashboard is the first
-    # part of SEENior that runs in a browser, so it is the first thing this applies
-    # to - the Android apps were never subject to it.
+    # Browser origins allowed to call this API (the barangay dashboard).
     cors_origins: list[str] = [
         origin.strip()
         for origin in os.environ.get(
@@ -98,9 +69,8 @@ class Settings:
 
 settings = Settings()
 
-# The default key is public (it's in this file, in the repo). Refuse to start with it
-# unless the dev opts in explicitly, so a pilot deployment can't silently ship with a
-# JWT signing key anyone can read and forge tokens against.
+# The default key is public, so refuse to start with it unless the dev opts in. This stops
+# a deployment from running with a signing key anyone can read.
 if settings.secret_key == _DEFAULT_SECRET_KEY and os.environ.get("SEENIOR_ALLOW_DEV_SECRET") != "1":
     print(
         "FATAL: SECRET_KEY is unset - refusing to start with the default dev key. "

@@ -90,24 +90,19 @@ class FamilyProfileViewModel(application: Application) : AndroidViewModel(applic
         }
     }
 
-    /** False only for a Google-only account that has not set a password yet — drives the
-     *  "Set a password" vs "Change Password" choice on Edit Profile. Defaults to the DTO's
-     *  own safe default (true) until a profile fetch says otherwise. */
+    /** False only for a Google-only account that hasn't set a password. Drives "Set a password"
+     *  vs "Change Password" on Edit Profile. Defaults to true until a fetch says otherwise. */
     val hasPassword: Boolean
         get() = user?.hasPassword ?: true
 
-    /** "en" / "fil", read live off the fetched profile — defaults "en" until [refresh] lands,
-     *  same as [UserDto.languagePreference]'s own default. Drives [FamilyStrings.forLanguage]
-     *  everywhere this view model is hoisted (FamilyDashboard). */
+    /** "en" / "fil", read from the fetched profile ("en" until [refresh] lands). Drives
+     *  [FamilyStrings.forLanguage] wherever this view model is hoisted (FamilyDashboard). */
     val language: String
         get() = user?.languagePreference ?: "en"
 
     /**
-     * Profile -> Language. Writes through to the server immediately (no Save button — a
-     * half-applied language is worse than either, same call [SeniorProfileViewModel.
-     * chooseLanguage] makes on the senior side) and updates [user] optimistically so every
-     * screen reading [language] switches the instant this returns, without waiting on a
-     * second fetch.
+     * Profile -> Language. Saves to the server immediately (no Save button, as on the senior
+     * side) and updates [user] optimistically so screens switch at once.
      */
     fun setLanguage(code: String) {
         val token = token() ?: return
@@ -123,8 +118,7 @@ class FamilyProfileViewModel(application: Application) : AndroidViewModel(applic
                 if (SessionState.handleIfUnauthorized(getApplication(), e)) {
                     error = FamilyError.SessionExpired
                 }
-                // Otherwise: leave the language as it was: a failed write must not claim
-                // success on a screen the family member is looking straight at.
+                // Otherwise leave the language as it was; a failed write shouldn't look like success.
             } catch (e: IOException) {
                 // Could not reach the server -- same reasoning, no local override.
             }
@@ -179,10 +173,9 @@ class FamilyProfileViewModel(application: Application) : AndroidViewModel(applic
     }
 
     /**
-     * Adds a password to a Google-only account. Same dialog as [changePassword] but without a
-     * current password — there isn't one. On success the account keeps Google Sign-In and now
-     * also accepts email + password, so `user.hasPassword` flips true and Edit Profile shows
-     * "Change Password" from here on.
+     * Adds a password to a Google-only account. Like [changePassword] but with no current
+     * password. The account keeps Google Sign-In and also accepts email + password, so
+     * `user.hasPassword` becomes true.
      */
     fun setPassword() {
         val token = token() ?: return
@@ -230,16 +223,10 @@ class FamilyProfileViewModel(application: Application) : AndroidViewModel(applic
         private set
 
     /**
-     * Soft-deletes this family account server-side, then clears the local session.
-     *
-     * Unlike the senior-side wipe this is NOT best-effort: there is nothing local to
-     * fall back to, so a failed server call leaves the account intact and surfaces
-     * [deleteError] rather than logging the user out of an account that still exists.
-     * On success [PushTokenRegistrar.signOutAsync] releases this device's push token
-     * (so it stops ringing for seniors this account no longer sees) and clears
-     * [FamilySession]; [onDeleted] then navigates back to the pre-auth flow.
-     *
-     * [reason] is a stable code ("duplicate", …), not the on-screen label.
+     * Soft-deletes this family account on the server, then clears the local session. Not best
+     * effort: a failed server call leaves the account intact and sets [deleteError]. On success
+     * [PushTokenRegistrar.signOutAsync] releases the push token and clears [FamilySession], and
+     * [onDeleted] navigates to the pre-auth flow. [reason] is a stable code ("duplicate"), not the label.
      */
     fun deleteAccount(reason: String, note: String?, onDeleted: () -> Unit) {
         val token = token() ?: return

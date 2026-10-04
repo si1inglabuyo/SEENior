@@ -1,9 +1,7 @@
-// The dashboard's donut chart, shared by "Alerts Outcome" and "Alerts by Type" so the two
-// always look and behave the same. `segments` is an ordered list of
+// Donut chart shared by "Alerts Outcome" and "Alerts by Type". `segments` is a list of
 //   { key, label, value, color, onClick? }
-// Zero-value segments are dropped from the ring but kept (greyed) in the legend, so the
-// full set of categories is always listed. A segment with `onClick` becomes a button in
-// the legend and a clickable arc in the ring.
+// Zero-value segments are dropped from the ring but kept (greyed) in the legend. A segment
+// with `onClick` becomes a legend button and a clickable arc.
 const RADIUS = 60
 const CIRC = 2 * Math.PI * RADIUS
 

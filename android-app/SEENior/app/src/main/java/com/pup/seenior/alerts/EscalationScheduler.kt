@@ -14,30 +14,15 @@ import java.util.concurrent.TimeUnit
 /**
  * The response-window deadline, as a real alarm.
  *
- * This used to be a WorkManager job, and that was measurably wrong. WorkManager makes no timing
- * promise by design — Android defers its jobs during Doze and app-standby and batches them into
- * maintenance windows. Measured on an Infinix X6885 (Android 15) with the phone idle: two
- * ten-minute windows escalated **25 minutes late**, and a sixty-second fall window did not
- * escalate *at all* until the device left Doze. The one alert that fired on time did so only
- * because someone happened to be using the phone at that moment.
+ * This used to be a WorkManager job, which Android defers during Doze (on an Infinix X6885,
+ * two 10-minute windows escalated 25 minutes late, and a 60-second fall window not until the
+ * device left Doze). [AlarmManager.setExactAndAllowWhileIdle] was not enough either: it
+ * escalated 10.7 minutes late under deep Doze with Battery Saver on.
  *
- * That is exactly backwards for this product. An unanswered alert is *most* likely to matter
- * when the phone has been left untouched — which is precisely the state in which the old
- * mechanism stopped working.
- *
- * [AlarmManager.setExactAndAllowWhileIdle] was the first attempt and was not enough. Measured on
- * the same handset under natural deep Doze — whitelisted, exact-alarm permission granted, standby
- * bucket EXEMPTED — a ten-minute window escalated **10.7 minutes late**, and `dumpsys alarm` never
- * listed the package under `Allow while idle history` at all: the alarm was not dispatched through
- * that path, it simply waited for the next Doze maintenance window. Battery Saver was on, as it
- * will be on a senior's phone at 15% — which is exactly when an unanswered alert matters most.
- *
- * [AlarmManager.setAlarmClock] is the one alarm Android exempts from *both* Doze and Battery
- * Saver, because it is the contract behind a morning alarm actually going off. It is therefore
- * the only mechanism that can hold the §10 target of a 30-second delivery on an idle phone, so
- * the deadline lives here now. WorkManager is still used, but only for what it is genuinely good
- * at: retrying a *delivery* that failed for want of a network, with backoff, after the deadline
- * itself has already been honoured.
+ * [AlarmManager.setAlarmClock] is the one alarm Android exempts from both Doze and Battery
+ * Saver, so it is the only mechanism that can meet the 30-second delivery target on an idle
+ * phone. WorkManager is still used, only to retry a delivery that failed for want of a
+ * network after the deadline has passed.
  */
 object EscalationScheduler {
 
@@ -47,8 +32,8 @@ object EscalationScheduler {
     const val EXTRA_ALERT_ID = "alert_id"
 
     /**
-     * Arms the deadline for [alert], anchored to when it was raised rather than to now, so a
-     * device that was asleep or rebooting cannot hand the senior a fresh countdown.
+     * Arms the deadline for [alert], anchored to when it was raised so a device that was
+     * asleep or rebooting can't hand the senior a fresh countdown.
      */
     fun arm(context: Context, alert: Alert) {
         val windowMillis = TimeUnit.SECONDS.toMillis(
@@ -58,19 +43,16 @@ object EscalationScheduler {
         val manager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         val intent = pendingIntent(context, alert.alertId, PendingIntent.FLAG_UPDATE_CURRENT)
 
-        // A deadline already in the past fires immediately, which is correct: it means the phone
-        // was off or Doze held us past the window, and the family is overdue being told.
+        // A deadline already in the past fires immediately, which is correct: the family is overdue.
         try {
             manager.setAlarmClock(
                 AlarmManager.AlarmClockInfo(dueAt, showIntent(context, alert.alertId)),
                 intent
             )
         } catch (e: SecurityException) {
-            // USE_EXACT_ALARM is declared and cannot be revoked by the user, so this should not
-            // happen — but an OEM or a future policy change could still refuse. Both rungs below
-            // are subject to the Doze deferral this class exists to fix, so they are a last
-            // resort, not an equivalent: late is better than never. Logged because the
-            // degradation is otherwise invisible and would look exactly like the original bug.
+            // USE_EXACT_ALARM can't be revoked, so this shouldn't happen, but an OEM could still
+            // refuse. The fallbacks below are subject to Doze deferral, so they are a last
+            // resort. Logged so the degradation is visible.
             Log.w(TAG, "Alarm-clock deadline denied; degrading for alert ${alert.alertId}", e)
             try {
                 manager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, dueAt, intent)
@@ -90,24 +72,14 @@ object EscalationScheduler {
     }
 
     /**
-     * Re-arms every open alert whose deadline could still do something.
+     * Re-arms every open alert whose deadline could still do something. Alarms don't survive a
+     * reboot, and on some handsets the boot broadcast never arrives. Called from
+     * [com.pup.seenior.sensors.MonitoringWatchdogJobService] and [com.pup.seenior.sensors.BootReceiver].
      *
-     * Alarms do not survive a reboot, and on handsets where the boot broadcast never arrives
-     * they are not restored at all. Without this, an alert that was open when the phone
-     * restarted would sit `pending` forever, and the senior would never be escalated for it —
-     * a silent failure in the one direction that matters.
-     *
-     * Called from [com.pup.seenior.sensors.MonitoringWatchdogJobService] on a repeating
-     * schedule, and from [com.pup.seenior.sensors.BootReceiver] where the boot broadcast does
-     * arrive.
-     *
-     * The filter is the price of running repeatedly rather than once. [AlertEscalator] leaves
-     * an escalated alert's status as `pending` on purpose, so this query also returns alerts
-     * that are already fully handled; their deadline is in the past, and re-arming one fires
-     * the alarm at once and plants a fresh alarm icon on the lock screen — every period,
-     * indefinitely. Skip an alert only when it has reached the family **and** the cloud has
-     * it: an escalated alert that never synced is precisely the one recovery exists for, and
-     * re-arming it is what drives the retry.
+     * [AlertEscalator] leaves an escalated alert `pending`, so this query also returns
+     * handled alerts, and re-arming one would fire at once and show an alarm icon every
+     * period. So an alert is skipped only when it has reached the family and the cloud has
+     * it; one that never synced is what recovery is for.
      */
     suspend fun rearmAll(context: Context) {
         val db = SeniorAppDatabase.getInstance(context.applicationContext)
@@ -120,17 +92,10 @@ object EscalationScheduler {
     }
 
     /**
-     * What opens when the senior taps the alarm Android now shows while an alert is open.
-     *
-     * [AlarmManager.setAlarmClock] makes the pending deadline visible — a status-bar alarm icon
-     * and an entry in the clock app — and that visibility is the price of the Doze and Battery
-     * Saver exemption. It is spent usefully rather than merely tolerated: the tap lands on the
-     * wellness prompt, so the icon is a second route for the senior to answer and self-cancel
-     * before anyone else is told (spec §7). It is only ever on screen while an alert is
-     * genuinely open, alongside the prompt and the ongoing notification.
-     *
-     * Deliberately the same target and request code as [AlertNotifier]'s content intent: both
-     * mean "open the app for this alert", and Android should treat them as one.
+     * What opens when the senior taps the alarm Android shows while an alert is open.
+     * [AlarmManager.setAlarmClock] makes the deadline visible, and the tap lands on the
+     * wellness prompt, so it's a second way to answer before anyone else is told. Same target
+     * and request code as [AlertNotifier]'s content intent.
      */
     private fun showIntent(context: Context, alertId: Int): PendingIntent =
         PendingIntent.getActivity(
@@ -144,8 +109,7 @@ object EscalationScheduler {
     private fun pendingIntent(context: Context, alertId: Int, flags: Int): PendingIntent {
         val intent = Intent(context, EscalationReceiver::class.java)
             .setAction(ACTION_ESCALATE)
-            // The action alone does not distinguish two alerts; filterEquals() ignores extras,
-            // so without a per-alert data URI the second arm() would overwrite the first.
+            // filterEquals() ignores extras, so without a per-alert data URI the second arm() would overwrite the first.
             .setData(android.net.Uri.parse("seenior://alert/$alertId"))
             .putExtra(EXTRA_ALERT_ID, alertId)
 

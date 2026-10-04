@@ -18,11 +18,9 @@ class UserOut(BaseModel):
     full_name: str | None = None
     phone: str | None = None
     email: str | None = None
-    # False for a Google-only account — the family app shows "Set a password" rather than
-    # "Change password" (read off User.has_password).
+    # False for Google-only accounts; the app then shows "Set a password".
     has_password: bool = False
-    # "en" / "fil" — drives the family app's Profile -> Language toggle. Meaningless for a
-    # barangay responder (that dashboard has no bilingual UI), harmless to include anyway.
+    # "en" / "fil"; drives the family app's language toggle.
     language_preference: str = "en"
 
     model_config = {"from_attributes": True}
@@ -40,14 +38,12 @@ class PasswordChangeRequest(BaseModel):
 
 
 class PasswordSetRequest(BaseModel):
-    """Add a password to a Google-only account so email + password sign-in also works.
-    No current password: there isn't one."""
+    """Add a password to a Google-only account. No current password is needed."""
     new_password: str = Field(min_length=4)
 
 
 class RegisterRequest(BaseModel):
-    """The family app's Sign Up screen — email/password account creation,
-    separate from and prior to pairing with any senior."""
+    """The family app's Sign Up: creates an email/password account before pairing."""
     full_name: str
     phone: str
     email: EmailStr
@@ -60,25 +56,19 @@ class GoogleSignInRequest(BaseModel):
 
 class FirebaseSignInRequest(BaseModel):
     id_token: str
-    # True only from the dedicated Sign Up screen. Default False (log in, or the
-    # Google-linking use case /auth/google already relies on) keeps the existing
-    # "same email, different sign-in method -> same account" merge behavior.
+    # True only from the dedicated Sign Up screen. Default False keeps the existing
+    # "same email, different sign-in method" merge.
     is_sign_up: bool = False
 
 
 class LanguagePreferenceUpdate(BaseModel):
-    """Family app's Profile -> Language toggle. Same two codes the senior side already
-    writes to Senior_Onboarding.language_preference (the spec's WellnessMessages.ENGLISH
-    / .FILIPINO), so the vocabulary matches across both apps even though this field has
-    no local-SQLite counterpart."""
+    """Family app's language toggle. Same codes as the senior side's language preference."""
 
     language: Literal["en", "fil"]
 
 
 class AccountDeletionRequest(BaseModel):
-    """Why an account is being deleted — shown to the user as a required reason
-    picker (`reason` is a stable code, not the localized label) plus an optional
-    free-text note."""
+    """Why an account is being deleted: a stable `reason` code plus an optional note."""
 
     reason: str = Field(min_length=1, max_length=64)
     note: str | None = Field(default=None, max_length=500)

@@ -5,43 +5,23 @@ import java.util.Calendar
 import kotlin.math.min
 
 /**
- * Layer 3 of the detection pipeline (spec §5): turns an anomaly signal into a proportionate
- * response rather than a binary alarm.
+ * Layer 3: turns an anomaly signal into a Low / Medium / High risk level.
  *
- * This replaces a straight cutoff — `if (z >= 3.5) "high" else "medium"` — which could only ever
- * answer "how far from normal is this reading?" and never "how worrying is that, right now, for
- * this person?" Two identical z-scores mean different things at eight in the morning and at three
- * in the morning, and the difference is the whole point of the layer.
+ * Uses Mamdani fuzzy inference (min for AND, max to aggregate, centroid defuzzification),
+ * so the same z-score can mean different things at 8 am and at 3 am, and readings near a
+ * boundary get a graduated answer. Its output stays separate from the z-score and from
+ * Isolation Forest's score.
  *
- * **Mamdani inference, deliberately.** The inputs are fuzzified into overlapping sets, a rule base
- * fires with `min` for AND, the clipped output sets are aggregated with `max`, and the result is
- * defuzzified by centroid. A nest of if-statements would land on the same three words most of the
- * time and would not be fuzzy logic; near a boundary the two disagree, and it is exactly at the
- * boundaries that a graduated response earns its place. It also keeps the layer's output a
- * *separate* thing from the z-score and from Isolation Forest's path-length score, which the spec
- * §14 requires and which a single blended number would destroy.
+ * No Android imports, so JUnit can drive it directly.
  *
- * No Android imports, so JUnit can drive it directly — the same reason [FallDetector] has none, and
- * what makes the spec §10's simulated-data validation possible for this layer.
+ * Isolation Forest's score is a third input (an `ml_flag` membership), giving 27 rules. A
+ * Layer 1 alert has no ml_flag score ([Inputs.mlFlagScore] is 0.0), so the original nine
+ * rules fire unchanged. A Layer 2 finding alone is capped at Medium, because it is a
+ * retrospective judgement; it reaches High only by corroborating a serious Layer 1 deviation.
  *
- * **Layer 2 is wired in** (build-order step 7, Phase 6). Isolation Forest's path-length score
- * enters as a third antecedent — an `ml_flag` membership alongside [deviation] and [rest] — which
- * widens [RULES] from nine rows to twenty-seven. The original nine are unchanged and still fire
- * exactly as they did: a Layer 1 alert carries no ml_flag score, [Inputs.mlFlagScore] defaults to
- * 0.0, and [MlFlag.NONE] then has full membership while the other two have none.
- *
- * **A Layer 2 finding cannot reach High on its own.** It is retrospective — a judgement about a
- * block that has already closed, produced by a job that runs once a day — so it is not the same
- * class of claim as a fall happening now. Alone (deviation 0, so [Deviation.MILD]) its ceiling is
- * Medium, which is the wellness prompt: the senior is asked, and answers, and that is the whole
- * intent. It reaches High only by *corroborating* a Layer 1 deviation that was already serious.
- *
- * **There is deliberately no baseline-confidence input.** The obvious idea — damp risk while the
- * seed baseline is still being replaced (days 1–14) — double-counts caution that is already
- * applied. [com.pup.seenior.baseline.SeedBaselineGenerator] sets `madValue = maxOf(median * 0.4,
- * floor)`, a deliberately wide MAD, and MAD is the divisor of the z-score: wide MAD, smaller z,
- * fewer alerts. Damping again would make the cold-start window quieter still, in precisely the
- * period when least is known about the senior. Do not add it.
+ * There is deliberately no baseline-confidence input. The seed baseline already uses a wide
+ * MAD (see [com.pup.seenior.baseline.SeedBaselineGenerator]), so damping risk again would
+ * double-count the caution.
  */
 object FuzzyRiskClassifier {
 
@@ -53,23 +33,15 @@ object FuzzyRiskClassifier {
     }
 
     /**
-     * @param deviationScore the Modified Z-Score from Layer 1. Only ever at or above the moderate
-     *   threshold, since the detector does not consult this layer below it.
-     * @param restExpectation how much stillness is normal at this moment, 0.0 (fully waking hours)
-     *   to 1.0 (deep in the declared sleep window). See [restExpectation].
+     * @param deviationScore the Layer 1 Modified Z-Score (always at or above the moderate threshold).
+     * @param restExpectation how much stillness is normal now, 0.0 (awake) to 1.0 (asleep). See [restExpectation].
      */
     data class Inputs(
         val deviationScore: Double,
         val restExpectation: Double,
         /**
-         * Isolation Forest's path-length anomaly score for this block, 0.0–1.0, or 0.0 when there
-         * isn't one. Layer 1 alerts leave it at the default, which puts [MlFlag.NONE] at full
-         * membership and reproduces the original nine rules exactly.
-         *
-         * Deliberately a *separate* input from [deviationScore] and never blended into it: they
-         * are different measurements of different things (a z-score against a median, versus how
-         * few random splits isolated the day), and the spec §14 requires the three layers to
-         * keep three distinct outputs.
+         * Isolation Forest's score for this block (0.0-1.0), or 0.0 if there isn't one. It is a
+         * separate input from [deviationScore] and never blended into it.
          */
         val mlFlagScore: Double = 0.0
     )
@@ -82,26 +54,16 @@ object FuzzyRiskClassifier {
     )
 
     /**
-     * The rule base, read as `deviation × rest × ml_flag → risk`.
+     * The rule base, read as `deviation x rest x ml_flag -> risk`.
      *
-     * The rest diagonal is the argument this layer exists to make: the same deviation is High
-     * during waking hours and Medium while the senior is expected to be asleep, because someone
-     * deeply asleep is not an emergency — and a mild deviation at rest is not worth waking anyone
-     * for at all, which is where Low comes from.
+     * The same deviation is High while awake and Medium while expected to be asleep, and a
+     * mild deviation at rest is Low. Two invariants hold across all 27 rows:
+     * 1. Nothing at full rest reaches High (a real emergency keeps growing and escalates
+     *    once the waking hours begin).
+     * 2. ml_flag alone never reaches High (it arrives with deviation 0, so its group tops out
+     *    at Medium). It raises High only by agreeing with a Layer 1 deviation.
      *
-     * **Two invariants hold across all twenty-seven rows, and both are load-bearing:**
-     *
-     * 1. *Nothing at full rest reaches High.* If a genuine emergency begins during sleep, the
-     *    deviation keeps growing and the waking hours that follow escalate it. Silence is bounded,
-     *    not permanent.
-     * 2. *ml_flag alone never reaches High.* A Layer 2 finding arrives with deviation 0 — hence
-     *    [Deviation.MILD] — so its whole row group tops out at Medium however strong the score is.
-     *    Medium is the wellness prompt, which is the proportionate answer to "yesterday looked
-     *    unusual": ask her. It raises High only where a Layer 1 deviation was *already* moderate or
-     *    extreme and Layer 2 independently agrees, which is corroboration rather than a new claim.
-     *
-     * The nine [MlFlag.NONE] rows are the original table, unchanged, and must stay that way — they
-     * are what every Layer 1 alert still runs through.
+     * The nine [MlFlag.NONE] rows are the original table and must not change.
      */
     private val RULES: List<Rule> = listOf(
         // --- no Layer 2 score: the original nine, untouched ---
@@ -116,16 +78,13 @@ object FuzzyRiskClassifier {
         Rule(Deviation.EXTREME, Rest.RESTING, MlFlag.NONE, Risk.MEDIUM),
 
         // --- Layer 2 flagged the block ---
-        // The MILD group is the pure-Layer-2 alert: capped at Medium by invariant 2, and dropped
-        // to Low at rest, so the nightly job cannot wake a sleeping senior to ask about a block
-        // that closed hours ago. The score is still written to the aggregate row either way.
+        // The MILD group is the pure Layer 2 alert: capped at Medium, and Low at rest so the
+        // nightly job can't wake a sleeping senior.
         Rule(Deviation.MILD, Rest.ACTIVE, MlFlag.PRESENT, Risk.MEDIUM),
         Rule(Deviation.MILD, Rest.TRANSITIONAL, MlFlag.PRESENT, Risk.LOW),
         Rule(Deviation.MILD, Rest.RESTING, MlFlag.PRESENT, Risk.LOW),
         Rule(Deviation.MODERATE, Rest.ACTIVE, MlFlag.PRESENT, Risk.HIGH),
-        // Layer 1 called it moderate and Layer 2 independently agrees the whole block was off.
-        // Two different measurements concurring is worth more than either alone, which is the
-        // entire reason for having a second layer.
+        // Layer 1 said moderate and Layer 2 agrees the block was off: worth more than either alone.
         Rule(Deviation.MODERATE, Rest.TRANSITIONAL, MlFlag.PRESENT, Risk.HIGH),
         Rule(Deviation.MODERATE, Rest.RESTING, MlFlag.PRESENT, Risk.MEDIUM),
         Rule(Deviation.EXTREME, Rest.ACTIVE, MlFlag.PRESENT, Risk.HIGH),
@@ -134,8 +93,7 @@ object FuzzyRiskClassifier {
 
         // --- Layer 2 flagged it hard ---
         Rule(Deviation.MILD, Rest.ACTIVE, MlFlag.STRONG, Risk.MEDIUM),
-        // The one place a strong Layer 2 score lifts an otherwise-quiet reading: on the edge of
-        // the sleep window, where Low would mean the finding is never mentioned at all.
+        // A strong Layer 2 score lifts an otherwise quiet reading at the edge of the sleep window.
         Rule(Deviation.MILD, Rest.TRANSITIONAL, MlFlag.STRONG, Risk.MEDIUM),
         Rule(Deviation.MILD, Rest.RESTING, MlFlag.STRONG, Risk.LOW),
         Rule(Deviation.MODERATE, Rest.ACTIVE, MlFlag.STRONG, Risk.HIGH),
@@ -153,10 +111,8 @@ object FuzzyRiskClassifier {
     private enum class MlFlag { NONE, PRESENT, STRONG }
 
     /**
-     * Runs the inference and returns the level to store on the alert.
-     *
-     * The sets overlap on purpose, so a reading near a boundary fires two rules partly rather than
-     * one rule wholly, and the centroid lands between them.
+     * Runs the inference and returns the risk level to store. The sets overlap, so a reading
+     * near a boundary fires two rules partly.
      */
     fun classify(inputs: Inputs): Risk {
         val deviation = Deviation.entries.associateWith { membership(it, inputs.deviationScore) }
@@ -164,8 +120,7 @@ object FuzzyRiskClassifier {
         val mlFlag = MlFlag.entries.associateWith { membership(it, inputs.mlFlagScore) }
 
         val strengths = RULES.map { rule ->
-            // min for AND, across all three antecedents now — the same Mamdani inference, one
-            // dimension wider.
+            // min for AND across the three antecedents.
             rule.risk to min(
                 min(deviation.getValue(rule.deviation), rest.getValue(rule.rest)),
                 mlFlag.getValue(rule.mlFlag)
@@ -181,16 +136,9 @@ object FuzzyRiskClassifier {
     }
 
     /**
-     * Centre of gravity of the aggregated output, or null when no rule fired at all.
-     *
-     * Sampled rather than solved analytically: the aggregate is the max of several clipped
-     * shapes and has no closed form worth deriving. [SAMPLES] over a unit interval is far finer
-     * than three output buckets can resolve.
-     *
-     * A null means the antecedents landed outside every set, which the detector's own moderate
-     * threshold should already prevent. [classify] answers Medium there rather than Low — an
-     * unclassifiable anomaly is still an anomaly, and the failure has to be in the direction of
-     * asking the senior a question they can dismiss.
+     * Centre of gravity of the aggregated output, or null if no rule fired. Sampled rather
+     * than solved analytically. [classify] answers Medium for null, so an unclassifiable
+     * anomaly still asks the senior a question they can dismiss.
      */
     private fun defuzzify(strengths: List<Pair<Risk, Double>>): Double? {
         var weighted = 0.0
@@ -206,8 +154,7 @@ object FuzzyRiskClassifier {
     }
 
     private fun membership(set: Deviation, z: Double): Double = when (set) {
-        // Shouldered at the bottom: everything the detector forwards is at least a mild deviation,
-        // so the set has to stay saturated below its peak rather than falling away to nothing.
+        // Shouldered at the bottom, since every forwarded reading is at least a mild deviation.
         Deviation.MILD -> ramp(z, 3.25, 2.75)
         Deviation.MODERATE -> triangle(z, 2.9, 3.6, 4.4)
         // Shouldered at the top for the same reason in reverse: there is no ceiling on a z-score.
@@ -221,21 +168,13 @@ object FuzzyRiskClassifier {
     }
 
     /**
-     * Where the sets sit relative to [com.pup.seenior.detection.IsolationForestDetector.THRESHOLD]
-     * (0.58), the value tuned against the nine cases in `IsolationForestTest`.
+     * Where the sets sit relative to [com.pup.seenior.detection.IsolationForestDetector.THRESHOLD] (0.58).
      *
-     * [MlFlag.NONE] is shouldered at the bottom so an absent score — 0.0, which is every Layer 1
-     * alert — has full membership and the original nine rules fire untouched. [MlFlag.STRONG] is
-     * shouldered at the top because the score is bounded at 1.0 and anything past ~0.78 is as
-     * isolated as the forest can report.
-     *
-     * **These three must sum to 1.0 at every score, and the edges are chosen for that and nothing
-     * else** — NONE hands over to PRESENT across exactly 0.50–0.62, PRESENT to STRONG across
-     * exactly 0.62–0.78. An earlier version left a gap between where NONE finished falling and
-     * where PRESENT began rising; total firing strength collapsed inside it, and because the Low
-     * and Medium rules shrank at different rates the defuzzified answer *fell* as the score rose.
-     * A senior's day scoring more anomalous produced a calmer verdict. `risk never decreases as
-     * the ml_flag score grows` in the test suite is what caught it and is what keeps it caught.
+     * [MlFlag.NONE] is shouldered at the bottom so an absent score (0.0) has full membership,
+     * and [MlFlag.STRONG] at the top. The three must sum to 1.0 at every score (NONE hands over
+     * to PRESENT across 0.50-0.62, PRESENT to STRONG across 0.62-0.78); a gap once made the
+     * risk fall as the score rose. The test `risk never decreases as the ml_flag score grows`
+     * guards this.
      */
     private fun membership(set: MlFlag, score: Double): Double = when (set) {
         MlFlag.NONE -> ramp(score, 0.62, 0.50)
@@ -250,23 +189,17 @@ object FuzzyRiskClassifier {
     }
 
     /**
-     * How much stillness is expected at [minuteOfDay], from the senior's own declared hours.
+     * How much stillness is expected at [minuteOfDay], from the senior's declared hours.
      *
-     * 0.0 through the waking day, 1.0 once inside the sleep window, and a linear ramp across
-     * [RAMP_MINUTES] either side of waking and of going to bed. The ramps matter: nobody is fully
-     * awake the instant their alarm goes off, and a hard step would put a cliff in the middle of
-     * the two moments a senior is most likely to be lying still for perfectly ordinary reasons.
-     *
-     * Takes the times as the "HH:mm" strings they are stored as, so this stays testable without
-     * building a [com.pup.seenior.database.entities.SeniorOnboarding].
+     * 0.0 while awake, 1.0 inside the sleep window, with a linear ramp of [RAMP_MINUTES] around
+     * waking and bedtime. Takes the "HH:mm" strings as stored, so it is testable on its own.
      */
     fun restExpectation(minuteOfDay: Int, wakeTime: String, sleepTime: String): Double {
         val wake = SeedBaselineGenerator.parseToMinuteOfDay(wakeTime)
         val sleep = SeedBaselineGenerator.parseToMinuteOfDay(sleepTime)
 
         val awakeLength = ((sleep - wake) + MINUTES_PER_DAY) % MINUTES_PER_DAY
-        // A senior who declared identical wake and sleep times has no awake window to speak of;
-        // treat the whole day as waking rather than as permanent sleep, so detection stays on.
+        // Identical wake and sleep times: treat the whole day as waking so detection stays on.
         if (awakeLength == 0) return 0.0
 
         val sinceWake = ((minuteOfDay - wake) + MINUTES_PER_DAY) % MINUTES_PER_DAY
@@ -282,19 +215,10 @@ object FuzzyRiskClassifier {
     }
 
     /**
-     * Whether [minuteOfDay] falls inside the senior's declared nap.
-     *
-     * A nap is the one stretch of daytime stillness the senior told us to expect, so an alert
-     * raised inside it would be a false positive by construction (spec §6). Detection is
-     * suppressed outright here rather than merely downgraded — the window is the senior's own
-     * statement about their day, not a judgement call for the rule base.
-     *
-     * This matters most in the first fortnight. Once real data replaces the seed values, the
-     * afternoon block's own median rises to include the nap and it stops registering as a
-     * deviation at all; the window is chiefly cold-start protection.
-     *
-     * Only Layer 1 and Layer 2 consult this. A fall or an SOS during a nap still raises an alert,
-     * because neither is a statement about how much the senior is moving.
+     * Whether [minuteOfDay] falls inside the senior's declared nap. Alerts inside it would be
+     * false positives by construction, so detection is suppressed there. Mostly useful in the
+     * first two weeks, before real data includes the nap. Only Layers 1 and 2 use this; a
+     * fall or SOS during a nap still alerts.
      */
     fun isWithinNapWindow(minuteOfDay: Int, napTime: String?, napDurationMinutes: Int?): Boolean {
         val start = napTime?.let { SeedBaselineGenerator.parseToMinuteOfDay(it) } ?: return false
@@ -307,29 +231,12 @@ object FuzzyRiskClassifier {
     /**
      * Seconds since the senior's declared nap ended, or null if they declared no nap.
      *
-     * The companion to [isWithinNapWindow], and the reason it is not enough on its own.
-     * [isWithinNapWindow] gates on the *reading's own* timestamp, which is the right test for a
-     * per-sample measurement. But `inactivity_duration` and `screen_idle_duration` are running
-     * counters — "seconds since the last time X happened" — and they keep climbing all through the
-     * nap. The minute the window closes, the counter already holds the whole nap, and
-     * [MedianMadDetector] scores it in full against a block median that expects nothing of the
-     * kind.
-     *
-     * Measured on the pilot handset on 2026-09-16: her nap is declared 14:00 for 60 minutes and
-     * her afternoon block starts 14:20, so alerts 100 and 101 fired at 15:23 and 15:28 at z = 7.26
-     * and z = 8.20 — both `high`, both escalated, both self-cancelled — on a counter reading of
-     * roughly 3,593 s that had been accumulating since about 14:28. Half of that stretch was the
-     * nap she had told us about. Clipped to this value the same reading scores z = 2.13, under the
-     * 2.5 threshold, and neither alert is raised.
-     *
-     * This is the same shape as the wake-time bug that [SeedBaselineGenerator.secondsSinceBlockStart]
-     * exists to fix — a counter judged against a window that did not accumulate it — arriving at
-     * the other end of the nap instead of at the start of the morning.
-     *
-     * Away from the nap the answer is naturally large (it climbs to a full day just before the next
-     * one begins), so a caller taking `min` of this and the block elapsed time is unaffected on
-     * every reading except the ones just after the senior gets up. Inside the nap the question does
-     * not arise: [MedianMadDetector] has already returned by then.
+     * [isWithinNapWindow] checks the reading's own time, but `inactivity_duration` and
+     * `screen_idle_duration` are running counters that keep climbing through the nap, so just
+     * after it ends the counter already holds the whole nap. Clipping the reading to this value
+     * (like [SeedBaselineGenerator.secondsSinceBlockStart] does for block starts) avoids false
+     * alerts right after the senior gets up. Away from the nap the value is large, so taking
+     * `min` with the block elapsed time changes nothing.
      */
     fun secondsSinceNapEnd(timestampMillis: Long, napTime: String?, napDurationMinutes: Int?): Long? {
         val start = napTime?.let { SeedBaselineGenerator.parseToMinuteOfDay(it) } ?: return null
@@ -337,16 +244,13 @@ object FuzzyRiskClassifier {
         if (duration <= 0) return null
         val end = (start + duration) % MINUTES_PER_DAY
         val minutesSince = ((minuteOfDay(timestampMillis) - end) + MINUTES_PER_DAY) % MINUTES_PER_DAY
-        // Plus the seconds inside the current minute, matching [secondsSinceBlockStart] so the two
-        // clips rise at the same rate and neither steps ahead of the other by up to a minute.
+        // Plus seconds in the current minute, matching [secondsSinceBlockStart].
         return minutesSince * 60L + secondOfMinute(timestampMillis)
     }
 
     /**
-     * Minute of the day a timestamp falls on, in the device's own time zone.
-     *
-     * The senior's wake, sleep and nap times are local wall-clock strings they typed during
-     * onboarding, so the reading has to be placed on the same clock to be compared with them.
+     * Minute of the day a timestamp falls on, in the device's time zone, to compare with the
+     * senior's local wake, sleep and nap times.
      */
     fun minuteOfDay(timestampMillis: Long): Int {
         val calendar = Calendar.getInstance().apply { timeInMillis = timestampMillis }

@@ -16,20 +16,14 @@ object RetrofitClient {
         .setFieldNamingPolicy(FieldNamingPolicy.LOWER_CASE_WITH_UNDERSCORES)
         .create()
 
-    // Render's free tier spins the service down after ~15 min idle; the next request has to
-    // wait out a cold start measured at ~40s. OkHttp's 10s defaults cut that off, which made a
-    // waking server look like "your data is gone" (an empty list) on the first call after the
-    // app had been closed for a while. These give the wake-up room to finish.
+    // Render's free tier spins down when idle and a cold start takes ~40 s. OkHttp's 10 s
+    // defaults cut that off and made a waking server look like an empty list, so these allow it to finish.
     private val okHttpClient = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(60, TimeUnit.SECONDS)
         .writeTimeout(30, TimeUnit.SECONDS)
-        // BODY only in a debug build. This interceptor writes every request and response in
-        // full to logcat, which on this API means bearer tokens, the password posted to
-        // /auth/login, senior names and addresses, and an alert's precise geohash -- exactly
-        // the material the spec §11 keeps off the wire and out of logs. A debug build is
-        // already readable over adb by anyone holding the handset, so it changes nothing
-        // there; a release build must never carry it.
+        // BODY only in debug. It logs every request and response in full (bearer tokens, the
+        // login password, names, addresses, geohashes), which a release build must never carry.
         .addInterceptor(
             HttpLoggingInterceptor().apply {
                 level = if (BuildConfig.DEBUG) {

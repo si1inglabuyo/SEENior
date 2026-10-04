@@ -21,22 +21,8 @@ async def register_device(
 ) -> DeviceToken:
     """Records this device's FCM token against the signed-in account.
 
-    Called on every app start, not just after login: FCM rotates tokens on its own
-    schedule, and a token the backend never heard about is a family member who silently
-    stops receiving alerts with nothing on screen to suggest anything is wrong.
-
-    Idempotent by design, and an UPSERT rather than a select-then-insert for two distinct
-    reasons:
-
-    * Re-registering the same token must not accumulate duplicate rows, or one alert
-      produces N identical notifications on the same handset.
-    * `token` is globally unique, so a device handed to a different person who signs in
-      would otherwise collide. Reassigning `user_id` is the correct resolution — the
-      token now belongs to whoever is actually holding the phone, and the previous owner
-      must stop receiving that senior's alerts immediately.
-
-    The select-then-insert version of this races: two app starts in the same second both
-    see "not present" and both insert. ON CONFLICT resolves it in the database.
+    Called on every app start, since FCM rotates tokens. An upsert, so re-registering
+    doesn't create duplicates and a token handed to a new user moves to their account.
     """
     now = datetime.now(timezone.utc).replace(tzinfo=None)
 
@@ -72,15 +58,10 @@ async def unregister_device(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> Response:
-    """Drops this device's token, called on sign-out.
+    """Drops this device's token on sign-out, so a shared phone stops receiving the
+    previous account's alerts.
 
-    Without it, signing out of a shared or handed-down phone leaves it receiving the
-    previous account's alerts — a privacy leak of exactly the kind the spec §11 rules
-    out, since alert metadata names the senior.
-
-    Scoped to the caller's own rows: a valid token is not authority to delete someone
-    else's device. Deleting something already gone still returns 204 — sign-out must
-    never fail because it was retried.
+    Scoped to the caller's own rows. Returns 204 even if the token is already gone.
     """
     await db.execute(
         delete(DeviceToken).where(
@@ -97,8 +78,7 @@ async def list_my_devices(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> list[DeviceToken]:
-    """The caller's registered devices. Exists mainly so "why am I not getting alerts?"
-    is answerable without a database console."""
+    """The caller's registered devices, for debugging missing alerts."""
     result = await db.execute(
         select(DeviceToken)
         .where(DeviceToken.user_id == current_user.id)

@@ -32,10 +32,8 @@ interface ContactDao {
     fun getActiveByType(seniorId: Int, type: String): Flow<List<Contact>>
 
     /**
-     * The paired family, read once rather than observed.
-     *
-     * The SOS screen needs an answer the moment the button is swiped, from whatever is on the
-     * device -- there is no time to wait for a Flow to emit, and no network to wait for either.
+     * The paired family, read once rather than observed. SOS needs an answer the moment it is
+     * swiped, from what's on the device, with no time or network to wait for a Flow.
      */
     @Query(
         "SELECT * FROM Contacts WHERE senior_id = :seniorId AND contact_type = 'family' " +
@@ -50,12 +48,9 @@ interface ContactDao {
     suspend fun deleteFamilyContacts(seniorId: Int)
 
     /**
-     * Makes the cached family list match what the cloud just returned, in one transaction.
-     *
-     * Replace rather than merge: the cloud is authoritative about who is paired, so a contact
-     * the senior unlinked must disappear here too. Doing it in a transaction matters because
-     * the half-state -- deleted, not yet reinserted -- is exactly the state the SOS screen
-     * would read as "nobody will be called".
+     * Makes the cached family list match what the cloud returned, in one transaction. Replace,
+     * not merge, since the cloud is authoritative and an unlinked contact must disappear. The
+     * transaction avoids a deleted-not-reinserted state that SOS would read as "nobody will be called".
      */
     @Transaction
     suspend fun replaceFamilyContacts(seniorId: Int, contacts: List<Contact>) {

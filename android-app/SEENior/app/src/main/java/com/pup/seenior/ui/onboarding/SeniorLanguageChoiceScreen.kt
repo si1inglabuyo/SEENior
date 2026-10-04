@@ -33,17 +33,12 @@ import com.pup.seenior.ui.onboarding.components.PrimaryPillButton
 import com.pup.seenior.ui.theme.SeniorColors
 
 /**
- * The senior's first onboarding choice: the language every screen and every wellness prompt from
- * here on is written in.
- *
- * It used to be one field among nine on the questionnaire, three screens in — so a senior who
- * reads only Filipino had to work through an English sign-up form to reach it. Pulled out to the
- * front instead. The answer lands on [OnboardingViewModel.languageLabel], which `SeniorNavGraph`
- * resolves into `LocalOnboardingCopy` above the NavHost, so choosing here repaints this screen's
- * own button and every screen after it at once.
- *
- * No step dots: this is a single preference set before the numbered flow begins, not step 1 of it.
- * The prompt stays bilingual because the choice has not been made yet.
+ * The senior's first onboarding choice: the language of every later screen and wellness
+ * prompt. It was once one field among nine, three screens in, which made a Filipino-only
+ * reader work through an English form first. The answer lands on
+ * [OnboardingViewModel.languageLabel], which `SeniorNavGraph` resolves into
+ * `LocalOnboardingCopy` above the NavHost. No step dots, since it's a preference set before
+ * the numbered flow, and the prompt stays bilingual because the choice isn't made yet.
  */
 @Composable
 fun SeniorLanguageChoiceScreen(

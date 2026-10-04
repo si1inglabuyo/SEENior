@@ -65,9 +65,8 @@ private val WarningAmber = Color(0xFFE99A20)
 private val WarningAmberBg = Color(0xFFFDF3E7)
 
 /**
- * The Home tab's own content. The wellness prompt is NOT rendered here — an open alert takes over
- * the entire screen including the bottom navigation, so that branch lives one level up in
- * [com.pup.seenior.ui.navigation.SeniorDashboard].
+ * The Home tab's content. The wellness prompt isn't rendered here: an open alert takes over
+ * the whole screen, so that branch is in [com.pup.seenior.ui.navigation.SeniorDashboard].
  */
 @Composable
 fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
@@ -102,18 +101,15 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                 )
 
                 Spacer(Modifier.height(14.dp))
-                // helpPending outranks battery: a HIGH-risk alert still genuinely open must never
-                // read as "You're Safe" just because the phone itself is fine (see
-                // HomeViewModel.helpDelivery's KDoc for why this doesn't retire on a timer).
+                // helpPending outranks battery, so an open HIGH alert never reads "You're Safe".
                 StatusCard(
                     batteryAtRisk = viewModel.isMonitoringAtRisk,
                     helpPending = viewModel.helpDelivery != null,
                     copy = copy
                 )
 
-                // Directly under the status card, because it contradicts it. "You're Safe /
-                // Monitoring is active" is about passive watching; this is about help the senior
-                // has actively asked for and is still waiting on.
+                // Directly under the status card because it contradicts it: that one is about
+                // passive watching, this is about help the senior asked for.
                 viewModel.helpDelivery?.let { delivery ->
                     Spacer(Modifier.height(12.dp))
                     HelpDeliveryCard(
@@ -140,13 +136,9 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
 }
 
 /**
- * Standing confirmation that the senior's own request for help is being carried.
- *
- * Exists because the alert screen closes after five seconds and the senior is then looking at a
- * Home tab that says "You're Safe" — with no sign anywhere that they pressed SOS at all. Offline
- * that was worse than uninformative: the alert really was sitting undelivered on the phone, and
- * nothing on screen said so, so the only honest reading available to them was that nothing had
- * happened.
+ * Standing confirmation that the senior's request for help is being carried. The alert
+ * screen closes after five seconds, and without this Home says "You're Safe" with no sign
+ * the senior pressed SOS (or that, offline, the alert is still undelivered).
  */
 @Composable
 private fun HelpDeliveryCard(
@@ -159,10 +151,9 @@ private fun HelpDeliveryCard(
     val copy = WellnessMessages.forAlert(
         language, firstName, delivery.alert.triggerType, delivery.alert.timeBlock
     )
-    // Delivered means the family HAS been notified of a still-open alert — that's the more
-    // urgent state, not a settled one, so it reads red like the rest of the app's emergency UI
-    // rather than green like "You're Safe". The stand-down button stays green regardless: it's
-    // the senior's own affirmative "I'm fine now" action, not a reflection of alert severity.
+    // Delivered means family were notified of a still-open alert, which is urgent, so it reads
+    // red like other emergency UI. The stand-down button stays green: it's the senior's
+    // "I'm fine now", not a severity indicator.
     val accent = if (waiting) WarningAmber else EmergencyRed
     val bg = if (waiting) WarningAmberBg else EmergencyCardBg
 
@@ -194,10 +185,7 @@ private fun HelpDeliveryCard(
                 modifier = Modifier.padding(top = 2.dp)
             )
 
-            // The way back out. Help being on its way used to be a one-way door: a senior who
-            // got up unhurt had no way to say so, and the alert sat in the family app until a
-            // relative opened it and resolved it by hand. Always green — it's the senior's own
-            // "I'm fine now", not a severity indicator, so it doesn't follow the card's accent.
+            // The way back out: a senior who got up unhurt can say so. Always green.
             Row(
                 modifier = Modifier
                     .padding(top = 12.dp)
@@ -228,8 +216,7 @@ private fun StatusCard(batteryAtRisk: Boolean, helpPending: Boolean, copy: Senio
     val border = if (atRisk) WarningAmber else SeniorColors.GreenBorder
     val dot = if (atRisk) WarningAmber else SeniorColors.Green
 
-    // helpPending takes priority: an open alert is the more urgent fact, and this card must
-    // never claim "You're Safe" while one is outstanding, regardless of battery.
+    // helpPending takes priority: never claim "You're Safe" while an alert is outstanding.
     val title = when {
         helpPending -> copy.helpPendingTitle
         batteryAtRisk -> copy.monitoringAtRisk
@@ -330,8 +317,8 @@ private fun EmergencyCard(barangay: String, onSosConfirmed: () -> Unit, copy: Se
 }
 
 /**
- * Swipe-to-send, not tap-to-send. A single mis-tap on the senior's main screen should not be able
- * to summon a barangay responder, and the spec §7 describes SOS as one-swipe throughout.
+ * Swipe-to-send, not tap, so a mis-tap can't summon a responder. SOS is a one-swipe action
+ * (spec section 7).
  */
 @Composable
 private fun SosSwipe(onConfirmed: () -> Unit, copy: SeniorStrings.Copy) {
@@ -342,22 +329,12 @@ private fun SosSwipe(onConfirmed: () -> Unit, copy: SeniorStrings.Copy) {
     var trackWidthPx by remember { mutableFloatStateOf(0f) }
 
     /*
-     * Plain state, deliberately not an Animatable.
-     *
-     * Animatable is guarded by a MutatorMutex: every snapTo cancels the one before it. Because
-     * snapTo suspends, each drag delta had to be launched into its own coroutine -- and a finger
-     * emits 60-120 deltas a second. Most were cancelled before they ran, and since each one
-     * recomputed `value + delta` at execution time rather than at emission time, every cancelled
-     * delta was silently lost. The knob crawled behind the finger and usually never reached the
-     * confirm threshold, so on a real phone the SOS looked dead while a synthetic adb swipe --
-     * which emits far fewer events -- worked every time.
-     *
-     * The same mutex stranded the knob at the far end of the track: a straggler snapTo still
-     * queued from the last pointer events would outlive onDragStopped and cancel its spring-back,
-     * leaving the control looking already-used until the screen was left and re-entered.
-     *
-     * rememberDraggableState's lambda is not suspend, so assigning here is synchronous and no
-     * delta can be dropped.
+     * Plain state, not an Animatable. Animatable's MutatorMutex cancels each snapTo, and since
+     * snapTo suspends, drag deltas launched into separate coroutines were dropped (a finger
+     * emits 60-120 a second). The knob crawled and often never reached the threshold on a
+     * real phone, though a synthetic adb swipe worked. A straggling snapTo could also cancel
+     * the spring-back and strand the knob. rememberDraggableState's lambda isn't suspend, so
+     * assigning here is synchronous and no delta is lost.
      */
     var knobX by remember { mutableFloatStateOf(0f) }
     val maxOffset = (trackWidthPx - knobSizePx).coerceAtLeast(0f)
@@ -394,8 +371,7 @@ private fun SosSwipe(onConfirmed: () -> Unit, copy: SeniorStrings.Copy) {
                         knobX = (knobX + delta).coerceIn(0f, maxOffset)
                     },
                     onDragStopped = {
-                        // Must reach most of the way across, so a short accidental drag releases
-                        // harmlessly back to the start.
+                        // Must reach most of the way across, so a short accidental drag springs back.
                         if (maxOffset > 0f && knobX >= maxOffset * CONFIRM_FRACTION) onConfirmed()
                         // Always springs back, and now nothing can cancel it.
                         animate(knobX, 0f) { value, _ -> knobX = value }
@@ -409,14 +385,8 @@ private fun SosSwipe(onConfirmed: () -> Unit, copy: SeniorStrings.Copy) {
 }
 
 /**
- * How far across the track the knob must travel to count as a deliberate swipe.
- *
- * Deliberately near the full width. Briefly lowered to 0.7 on the theory that a long drag is
- * hard for elderly hands, then put back: a swipe measured at roughly 75% of the track still did
- * not fire, so the effective threshold was never where the arithmetic said it was, and shipping
- * a number that does not match observed behaviour is worse than shipping a demanding one.
- *
- * A full swipe is also the clearer contract for an emergency control. "Drag it all the way" is
- * something a senior can be told once and get right every time; "drag it most of the way" is not.
+ * How far across the track the knob must travel to count as a swipe. Kept near the full
+ * width: lowering it to 0.7 didn't help (a 75% swipe still didn't fire), and "drag it all
+ * the way" is easier for a senior to learn than "most of the way".
  */
 private const val CONFIRM_FRACTION = 0.9f

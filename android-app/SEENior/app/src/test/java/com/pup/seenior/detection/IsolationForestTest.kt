@@ -9,19 +9,14 @@ import org.junit.Ignore
 import org.junit.Test
 
 /**
- * Phase 4 of the Isolation Forest build (spec §5, Layer 2; §10) — the nine cases from the
- * published plan, validating [IsolationForest] + [AggregateFeatures] together against
- * [AggregateSimulator]'s fabricated block-days. No real senior, no Room, no Android import
- * anywhere in the chain being tested.
+ * The nine cases from the plan, validating [IsolationForest] and [AggregateFeatures] against
+ * [AggregateSimulator]'s fabricated block-days. No real senior, Room or Android import.
  *
- * As in [FallDetectorTest], the negative cases outnumber the positive ones on purpose. A layer
- * that flags real trouble *and* an energetic Tuesday produces alerts a family learns to ignore,
- * which is worse than no layer at all.
+ * As in [FallDetectorTest], the negative cases outnumber the positive on purpose.
  *
- * **Tuning note.** `psi` (32) and `trees` (100) stayed at the plan's starting values — both held
- * up as soon as training used a realistic 56-row fortnight (14 days × 4 blocks) instead of the
- * plan's illustrative "40 normal mornings." [THRESHOLD] moved from the plan's starting 0.62 down
- * to 0.58, the midpoint of what training against real numbers actually produced:
+ * Tuning note: `psi` (32) and `trees` (100) kept the plan's values once training used a
+ * realistic 56-row fortnight (14 days x 4 blocks). [THRESHOLD] moved from 0.62 to 0.58, the
+ * midpoint of what training produced:
  *
  *     total stillness   0.632  \  flag cluster (min 0.607)
  *     combination       0.607  /
@@ -29,10 +24,8 @@ import org.junit.Test
  *     energetic day     0.542   > quiet cluster (max 0.553)
  *     normal night      0.519  /
  *
- * 0.62 sat inside the flag cluster rather than between the two — it would have missed
- * "catches the combination" specifically, the case the plan itself calls out as needing every
- * feature pushed to the edge of what Layer 1 alone would let through (no single z above 2.5) to
- * even register. The two clusters are about 0.054 apart; 0.58 sits roughly centred in that gap.
+ * 0.62 sat inside the flag cluster and would have missed "catches the combination". The
+ * clusters are ~0.054 apart and 0.58 sits roughly centred in the gap.
  */
 class IsolationForestTest {
 
@@ -42,11 +35,7 @@ class IsolationForestTest {
     private val TREES = IsolationForest.DEFAULT_TREES
     private val PSI = IsolationForest.DEFAULT_PSI
 
-    /**
-     * A fabricated "normal" senior's morning and night baselines — real numbers, pulled from the
-     * actual pilot phone on 2026-09-15, not invented. Using her real medians/MADs means a
-     * "moderate" or "extreme" factor below means the same thing it would against her real data.
-     */
+    /** A "normal" senior's morning and night baselines, real numbers from the pilot phone (2026-09-15), so the factors mean the same thing as against real data. */
     private val baselines = listOf(
         Baseline(seniorId = 1, featureName = "movement_score", timeBlock = "morning", medianValue = 0.0346271005188309, madValue = 0.05, sampleCount = 9),
         Baseline(seniorId = 1, featureName = "inactivity_duration", timeBlock = "morning", medianValue = 2753.35714285714, madValue = 1108.28571428571, sampleCount = 9),
@@ -92,11 +81,8 @@ class IsolationForestTest {
     @Test
     fun `catches the combination even when no single feature is extreme`() {
         val forest = forestFor("morning", seed = 3L)
-        // Every factor is a mild move — none of these lands anywhere near Layer 1's own 2.5
-        // moderate cutoff on its own — but all five drift the same direction at once.
-        // Pushed to the edge of "no single z above 2.5" (verified by hand against these baselines)
-        // rather than picked loosely, so this case is the strongest honest version of "mild
-        // everywhere, significant together" rather than an easy one.
+        // Every factor is a mild move, none near Layer 1's 2.5 cutoff alone, but all five drift
+        // the same way. Pushed to the edge of "no single z above 2.5" (checked by hand).
         val mildlyOff = scenario(
             "morning",
             movementFactor = 0.0, stepsFactor = 0.15, stillnessFactor = 1.38,
@@ -122,9 +108,8 @@ class IsolationForestTest {
 
     @Test
     fun `ignores a normal night`() {
-        // Night's raw stillness (median ~11,546s) dwarfs morning's (~2,753s). Training and scoring
-        // both go through z-scores specifically so a normal night is not flagged just for looking
-        // nothing like a morning in raw terms.
+        // A night's raw stillness (~11,546 s) dwarfs a morning's (~2,753 s). Training and scoring
+        // use z-scores so a normal night isn't flagged for looking unlike a morning.
         val forest = forestFor("night", seed = 9L)
         val normalNight = scenario("night", seed = 10L)
         assertFalse("expected quiet, scored ${forest.score(normalNight)}", forest.score(normalNight) >= THRESHOLD)
@@ -157,17 +142,11 @@ class IsolationForestTest {
     }
 
     /**
-     * Belongs to [IsolationForestDetector], not to [IsolationForest] itself.
-     * [IsolationForest.train] only enforces the algorithmic minimum (2 rows — fewer than that,
-     * there is nothing to split); the "~20 usable rows" floor is a product decision about when
-     * enough of a fortnight has been banked to trust a score at all, and
-     * [IsolationForestDetector.MIN_TRAINING_ROWS] is where it lives.
-     *
-     * **That guard now exists and is unverified.** What is missing is only the fixture:
-     * [IsolationForestDetector.run] takes four DAOs, so proving "returns NotEnoughData and writes
-     * nothing" needs fakes for all four — the `DailyAggregateDao` returning a short list, and the
-     * other three throwing on any call, which is what would actually prove nothing was scored,
-     * recorded or raised. `BaselineUpdaterTest.FakeBaselineDao` is the precedent to copy.
+     * Belongs to [IsolationForestDetector], not [IsolationForest]. [IsolationForest.train]
+     * only needs 2 rows; the "~20 usable rows" floor is a product decision in
+     * [IsolationForestDetector.MIN_TRAINING_ROWS]. The guard exists but is untested: proving
+     * "returns NotEnoughData and writes nothing" needs fakes for the four DAOs that throw on
+     * any call. `BaselineUpdaterTest.FakeBaselineDao` is the precedent.
      */
     @Ignore("needs fake DAOs for IsolationForestDetector; the guard itself is built")
     @Test

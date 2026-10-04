@@ -1,12 +1,8 @@
 """A family contact can close an alert as a false alarm (PATCH /alerts/{sync_id}/false-positive).
 
-The phone reads this status back through /seniors/{sync_id}/closed-alerts and treats it as
-evidence for loosening that time block's trigger, so the properties worth pinning are: it needs a
-login, it closes the alert as `false_positive` (not `resolved`), it records who did it, and it
-refuses to reopen or re-close something already closed.
-
-The handler is driven directly with a stand-in for the alert row, so no database is involved --
-the same style as the rest of this suite.
+Checks that it needs a login, closes the alert as `false_positive` (not `resolved`),
+records who did it, and refuses to re-close a closed alert. The handler is driven directly
+with a stand-in alert, so no database is involved.
 """
 
 import asyncio
@@ -86,8 +82,7 @@ def test_refuses_an_alert_that_is_already_closed(monkeypatch, closed):
 
 
 def test_an_escalated_alert_can_still_be_marked_false(monkeypatch):
-    """The barangay may already have been told; the family finding out it was a mistake is
-    exactly when this is needed."""
+    """The barangay may already have been told; this is exactly when family find out it was a mistake."""
     alert = _alert(AlertStatus.ESCALATED)
     result, _ = _run(monkeypatch, alert, _user())
     assert result.status is AlertStatus.FALSE_POSITIVE

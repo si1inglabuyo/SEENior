@@ -1,7 +1,6 @@
 package com.pup.seenior.network.dto
 
-/** Mirrors backend SeniorCreate. Field names are camelCase; Gson maps them to the
- *  backend's snake_case JSON via the naming policy set in RetrofitClient. */
+/** Mirrors backend SeniorCreate. Field names are camelCase; Gson maps them to snake_case via RetrofitClient. */
 data class CreateSeniorRequest(
     val firstName: String,
     val lastName: String,
@@ -12,9 +11,8 @@ data class CreateSeniorRequest(
     val mobileNumber: String
 )
 
-/** Mirrors backend SeniorUpdate. Every field is sent on every save — the backend overwrites
- *  all of them, so this is a full replace despite the PATCH verb (same shape as the family
- *  side's UpdateProfileRequest). */
+/** Mirrors backend SeniorUpdate. Every field is sent on every save, so it is a full replace
+ *  despite the PATCH verb. */
 data class UpdateSeniorRequest(
     val firstName: String,
     val lastName: String,
@@ -26,19 +24,17 @@ data class UpdateSeniorRequest(
 )
 
 /**
- * Mirrors backend SeniorHeartbeat. Both fields are nullable because a reading can genuinely be
- * unavailable, and a check-in that carries nothing but "still running" is still worth sending.
+ * Mirrors backend SeniorHeartbeat. Both fields are nullable since a reading can be
+ * unavailable, and a check-in with nothing but "still running" is still worth sending.
  */
 data class HeartbeatRequest(
     val batteryPercent: Int?,
     val isCharging: Boolean?,
     /**
-     * This handset's FCM token, so the server can wake it when it stops checking in.
-     *
-     * Carried by the heartbeat rather than by a registration call of its own: the senior
-     * has no account to authenticate a separate endpoint with, and refreshing the token on
-     * exactly the schedule that proves the phone is alive means the two can never drift.
-     * Null when a token could not be obtained -- the check-in still counts.
+     * This handset's FCM token, so the server can wake it when it stops checking in. Carried
+     * by the heartbeat because the senior has no account to authenticate a separate endpoint,
+     * and it keeps the token refreshed on the schedule that proves the phone is alive. Null
+     * when none could be obtained.
      */
     val pushToken: String?
 )
@@ -55,9 +51,8 @@ data class SeniorDto(
     val mobileNumber: String,
     val createdAt: String,
     /**
-     * Device health, not behaviour — the current reading only, never a series (spec §11).
-     * All three are null until the senior's phone has checked in at least once, and against an
-     * older backend they simply stay null rather than breaking the parse.
+     * Device health, not behaviour: the current reading only, never a series (spec section 11).
+     * Null until the phone has checked in, and against an older backend.
      */
     val lastSeenAt: String? = null,
     val batteryPercent: Int? = null,

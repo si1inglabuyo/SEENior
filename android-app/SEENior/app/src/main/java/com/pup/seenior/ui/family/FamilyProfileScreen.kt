@@ -57,9 +57,8 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.pup.seenior.network.PushTokenRegistrar
 
-/** Family "Profile" tab (designs/family_contact/profile). Account card + MY INFO (Edit profile,
- *  functional) + HELP & INFORMATION (static rows — no sub-screens built, out of scope here)
- *  + Log Out (clears the session, [onLoggedOut] returns to the pre-auth flow). */
+/** Family "Profile" tab: account card, MY INFO (Edit profile), HELP & INFORMATION and Log Out
+ *  ([onLoggedOut] returns to the pre-auth flow). */
 private enum class FamilyProfilePage {
     HOME, EDIT, DELETE_ACCOUNT, LANGUAGE, ABOUT, HOW_TO_USE, FAQS, FEEDBACK, SUPPORT, TERMS, PRIVACY
 }
@@ -217,10 +216,9 @@ private fun FamilyProfileHome(
             confirmButton = {
                 TextButton(onClick = {
                     showLogoutConfirm = false
-                    // Clears the session and releases this device's push token, in that
-                    // order and on a scope that survives the navigation below. Leaving the
-                    // token behind would keep this handset receiving the previous account's
-                    // alerts, which name the senior (spec §11).
+                    // Clears the session and releases the push token, in that order and on a scope
+                    // that survives the navigation. A left-behind token would keep this phone
+                    // receiving the previous account's alerts, which name the senior.
                     PushTokenRegistrar.signOutAsync(context)
                     onLoggedOut()
                 }) {
@@ -237,10 +235,9 @@ private fun FamilyProfileHome(
 }
 
 /**
- * Profile -> Language. Mirrors the senior side's own picker (SeniorLanguageScreen):
- * writes through immediately via [FamilyProfileViewModel.setLanguage], no Save button,
- * and each option is labelled in its own language so a Filipino-only reader can find
- * their option without reading English first.
+ * Profile -> Language. Mirrors the senior side's picker: saves immediately through
+ * [FamilyProfileViewModel.setLanguage] with no Save button, and each option is labelled in
+ * its own language.
  */
 @Composable
 private fun FamilyLanguageScreen(viewModel: FamilyProfileViewModel, onBack: () -> Unit) {
@@ -387,8 +384,7 @@ private fun FamilyEditProfileScreen(viewModel: FamilyProfileViewModel, onBack: (
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // A Google-only account has no password to change — it sets one instead, which
-                // then also unlocks email + password sign-in.
+                // A Google-only account has no password to change; it sets one, which also enables email sign-in.
                 Text(
                     if (viewModel.hasPassword) copy.changePasswordButton else copy.setAPasswordButton,
                     color = FamilyColors.Blue,
@@ -421,9 +417,8 @@ private fun FamilyEditProfileScreen(viewModel: FamilyProfileViewModel, onBack: (
 @Composable
 private fun ChangePasswordDialog(viewModel: FamilyProfileViewModel, onDismiss: () -> Unit) {
     val copy = LocalFamilyCopy.current
-    // Same dialog, two modes: an account with a password *changes* it (needs the current one);
-    // a Google-only account *sets* one for the first time (no current password, and it also
-    // turns on email + password sign-in).
+    // Same dialog, two modes: an account with a password changes it (needs the current one);
+    // a Google-only account sets one for the first time.
     val setting = !viewModel.hasPassword
     val formValid = if (setting) viewModel.isSetPasswordFormValid else viewModel.isPasswordFormValid
     AlertDialog(
@@ -503,8 +498,7 @@ private fun ChangePasswordDialog(viewModel: FamilyProfileViewModel, onDismiss: (
     )
 }
 
-/** The codes the server stores as `deletion_reason` — never translated. The label shown to
- *  the family member comes from [FamilyStrings.Copy.deleteReasonLabel] instead. */
+/** The codes the server stores as `deletion_reason`, never translated. The label comes from [FamilyStrings.Copy.deleteReasonLabel]. */
 private val DELETE_REASON_CODES = listOf(
     "senior_no_longer_needs", "not_caregiver", "duplicate", "privacy", "not_useful", "other"
 )

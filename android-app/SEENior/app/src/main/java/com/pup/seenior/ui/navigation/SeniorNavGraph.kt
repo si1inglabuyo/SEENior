@@ -52,14 +52,12 @@ object SeniorRoutes {
 @Composable
 fun SeniorNavGraph(navController: NavHostController = rememberNavController()) {
     val onboardingViewModel: OnboardingViewModel = viewModel()
-    // Shared across Sign Up / Log In so switching between them (via their cross-links)
-    // doesn't lose anything already typed.
+    // Shared across Sign Up / Log In so switching between them keeps what was typed.
     val familyAuthViewModel: FamilyAuthViewModel = viewModel()
 
-    // The language answer is the senior's first onboarding choice (SeniorRoutes.LANGUAGE, right
-    // after role selection), so it is resolved here — above the NavHost — and every screen from
-    // sign-up onward is drawn in it. Welcome and role selection, which come before the choice,
-    // stay in English; going back to them after choosing re-renders them translated.
+    // The language is the senior's first onboarding choice, so it is resolved here above the
+    // NavHost and every screen from sign-up onward uses it. Welcome and role selection come
+    // before the choice and stay in English; going back re-renders them translated.
     val onboardingCopy = OnboardingStrings.forLanguage(
         OnboardingOptions.languages
             .firstOrNull { it.first == onboardingViewModel.languageLabel }
@@ -110,8 +108,7 @@ fun SeniorNavGraph(navController: NavHostController = rememberNavController()) {
             AddressMapPickerScreen(
                 onApply = onboardingViewModel::applyPickedAddress,
                 onBack = { navController.popBackStack() },
-                // Returns to the form rather than skipping ahead: the picker fills the fields in,
-                // and the senior still has to see and accept them.
+                // Returns to the form, since the picker fills the fields and the senior must see and accept them.
                 onConfirmed = { navController.popBackStack() }
             )
         }
@@ -144,8 +141,7 @@ fun SeniorNavGraph(navController: NavHostController = rememberNavController()) {
         }
         composable(SeniorRoutes.HOME) {
             SeniorDashboard(
-                // The senior deleted their account: the local database is already wiped,
-                // so drop back to the pre-onboarding welcome screen with nothing behind it.
+                // The local database is already wiped, so go back to the welcome screen with nothing behind it.
                 onAccountDeleted = {
                     navController.navigate(SeniorRoutes.WELCOME) {
                         popUpTo(SeniorRoutes.SPLASH) { inclusive = true }
@@ -155,8 +151,8 @@ fun SeniorNavGraph(navController: NavHostController = rememberNavController()) {
         }
 
         // ---- Family flow ----
-        // Sign up / log in land directly on the family home; linking a senior is optional
-        // and done later from the dashboard's Link tab (or the home screen's empty state).
+        // Sign up and log in land on the family home; linking a senior is optional and done later
+        // from the Link tab or the home screen's empty state.
         composable(SeniorRoutes.FAMILY_SIGNUP) {
             FamilySignUpScreen(
                 viewModel = familyAuthViewModel,
@@ -174,9 +170,8 @@ fun SeniorNavGraph(navController: NavHostController = rememberNavController()) {
                 onGoToLogin = { navController.navigate(SeniorRoutes.FAMILY_LOGIN) }
             )
         }
-        // Only reachable straight after a Google sign-in that left the account without a
-        // mobile number. Cleared off the back stack for the same reason sign-up is: the
-        // account already exists by this point, so there is nothing to go back to.
+        // Only reachable after a Google sign-in left the account without a mobile number.
+        // Cleared off the back stack like sign-up, since the account already exists.
         composable(SeniorRoutes.FAMILY_COMPLETE_PHONE) {
             FamilyCompletePhoneScreen(
                 viewModel = familyAuthViewModel,
@@ -209,9 +204,7 @@ fun SeniorNavGraph(navController: NavHostController = rememberNavController()) {
         composable(SeniorRoutes.FAMILY_HOME) {
             FamilyDashboard(
                 onLoggedOut = {
-                    // familyAuthViewModel is shared across the whole family flow and
-                    // otherwise survives a logout, leaving the next sign-in on this
-                    // device staring at whatever the previous account had typed in.
+                    // familyAuthViewModel survives a logout, so clear it or the next sign-in sees the previous account's typed fields.
                     familyAuthViewModel.clearAuthFields()
                     navController.navigate(SeniorRoutes.WELCOME) {
                         popUpTo(SeniorRoutes.SPLASH) { inclusive = true }

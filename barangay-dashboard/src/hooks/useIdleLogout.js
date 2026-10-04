@@ -1,9 +1,7 @@
 import { useEffect, useRef } from 'react'
 
-// A barangay-hall PC is often shared and rarely locked. Leaving a responder session (and
-// the senior PII it can reach) open indefinitely is the access-control gap RA 10173 §23(b)
-// points at, so the dashboard signs itself out after a stretch of no interaction. The
-// responder signs back in with the OSCA-issued credentials; nothing is lost.
+// Barangay-hall PCs are often shared, so the dashboard signs out after a stretch of no
+// interaction (RA 10173 section 23(b)).
 const IDLE_MS = 20 * 60 * 1000 // 20 minutes
 const CHECK_MS = 30 * 1000
 

@@ -37,9 +37,8 @@ class SeniorProfileViewModel(application: Application) : AndroidViewModel(applic
     var error by mutableStateOf<String?>(null)
         private set
 
-    /** Set when the local save succeeded but the cloud copy could not be updated. Deliberately
-     *  separate from [error]: the senior's own record IS saved, so this is a warning ("your
-     *  family may see your old details"), never a failure. */
+    /** Set when the local save succeeded but the cloud copy couldn't be updated. A warning ("your
+     *  family may see your old details"), separate from [error] because the record is saved. */
     var syncWarning by mutableStateOf<String?>(null)
         private set
 
@@ -51,13 +50,11 @@ class SeniorProfileViewModel(application: Application) : AndroidViewModel(applic
     var mobileNumber by mutableStateOf("")
     var livingArrangementLabel by mutableStateOf<String?>(null)
 
-    /** The senior's chosen language, mirroring `Senior_Onboarding.language_preference`. Held
-     *  here rather than read from the device locale on purpose: a handset set up in English by a
-     *  relative must not decide what an emergency prompt says to the senior. */
+    /** The senior's chosen language (`Senior_Onboarding.language_preference`). Held here, not read
+     *  from the device locale, so a handset set up in English by a relative doesn't decide what an emergency prompt says. */
     var language by mutableStateOf(WellnessMessages.ENGLISH)
         private set
-    /** The structured address being edited -- the same holder sign-up uses, so the map picker and
-     *  the PSGC dropdowns behave identically here. */
+    /** The structured address being edited, the same holder sign-up uses. */
     val addressForm = AddressForm()
     var isSaving by mutableStateOf(false)
         private set
@@ -66,11 +63,8 @@ class SeniorProfileViewModel(application: Application) : AndroidViewModel(applic
         get() = senior?.let { "${it.firstName} ${it.lastName}".trim() } ?: "Senior"
 
     /**
-     * Whether Profile hosts the "Family contacts" row.
-     *
-     * Read from the saved record, not from [livingArrangementLabel]: that one tracks the Edit
-     * Profile form and changes on every keystroke of a dropdown the senior may still abandon.
-     * The row appearing and disappearing under a half-made edit would be its own small bug.
+     * Whether Profile shows the "Family contacts" row. Read from the saved record, not
+     * [livingArrangementLabel], which changes while the senior is still editing.
      */
     val livesAlone: Boolean
         get() = senior?.livingArrangement == OnboardingOptions.LIVING_ALONE
@@ -82,8 +76,7 @@ class SeniorProfileViewModel(application: Application) : AndroidViewModel(applic
             gender != null &&
             PhilippinePhone.isValid(mobileNumber) &&
             livingArrangementLabel != null &&
-            // An older free-text address the senior has not touched is left as it is; once they
-            // start changing it, it has to be a complete PSGC-backed one.
+            // An older free-text address that hasn't been touched is left alone; once edited it must be a complete PSGC address.
             (!addressForm.dirty || addressForm.isComplete)
 
     fun refresh() {
@@ -109,11 +102,8 @@ class SeniorProfileViewModel(application: Application) : AndroidViewModel(applic
     }
 
     /**
-     * Persists a new language choice immediately — there is no Save button on that screen.
-     *
-     * Written straight through to the database rather than held as a draft because this is the
-     * one setting whose only visible effect is on screens the senior may not reach again for
-     * days. A half-applied language is worse than either language.
+     * Saves a new language choice immediately (there is no Save button), since its effect is
+     * on screens the senior may not reach for days.
      */
     fun chooseLanguage(code: String) {
         val id = senior?.seniorId ?: return
@@ -124,8 +114,7 @@ class SeniorProfileViewModel(application: Application) : AndroidViewModel(applic
         }
     }
 
-    /** Discards unsaved edits — called when leaving Edit Profile without saving, so half-typed
-     *  values don't survive into the next visit. */
+    /** Discards unsaved edits when leaving Edit Profile without saving. */
     fun discardEdits() {
         senior?.let { fillFormFrom(it) }
         error = null
@@ -169,17 +158,13 @@ class SeniorProfileViewModel(application: Application) : AndroidViewModel(applic
             db.seniorDao().update(updated)
             senior = updated
 
-            // Then a best-effort cloud push, so the family app stops showing stale details.
-            // Skipped entirely when this senior has never registered with the cloud — no reason
-            // to create a cloud record just because a name was edited.
+            // Then a best-effort cloud push so the family app doesn't show stale details.
+            // Skipped if this senior never registered with the cloud.
             //
-            // Deliberately uses the cached id directly instead of SeniorCloudSync.withSyncId:
-            // that helper re-registers via POST /seniors on ANY 404, and a 404 here is ambiguous
-            // — it means "senior row missing" OR "this backend predates PATCH /seniors/{id}".
-            // In the second case the self-heal would mint a fresh cloud senior on every save and
-            // rotate cloud_sync_id, silently orphaning family contacts already paired to the old
-            // id. A profile edit is not worth that risk; the invite flow still self-heals a
-            // genuinely stale id the next time a code is generated.
+            // Uses the cached id directly instead of SeniorCloudSync.withSyncId, which
+            // re-registers on any 404. Here a 404 can also mean the backend predates
+            // PATCH /seniors/{id}, and re-registering would mint a new cloud senior on every
+            // save and orphan paired family contacts.
             try {
                 val syncId = cloudSync.withSyncIdOrNull()
                 if (syncId != null) {
@@ -218,18 +203,11 @@ class SeniorProfileViewModel(application: Application) : AndroidViewModel(applic
         private set
 
     /**
-     * Deletes this senior's account.
-     *
-     * The cloud call is best-effort: erasing this phone is what actually protects the
-     * senior's data (spec §11), so a failed or offline server call must not block
-     * the wipe. Known limitation — there is no retry after the wipe, so if the phone is
-     * offline the cloud record (name + address only) lingers until it is pruned by hand;
-     * a hardened build would need a server-side TTL or an unauthenticated retry token.
-     *
-     * Order matters: monitoring is stopped and every armed escalation alarm is cancelled
-     * *before* the rows are wiped, then the whole local database goes.
-     *
-     * [reason] is a stable code ("switching_phone", …), not the on-screen label.
+     * Deletes this senior's account. The cloud call is best effort, since erasing the phone is
+     * what protects the data, so an offline server must not block the wipe. Known limitation:
+     * there is no retry after the wipe, so an offline delete leaves the cloud record (name and
+     * address only) until it is pruned by hand. Monitoring is stopped and alarms cancelled
+     * before the rows are wiped. [reason] is a stable code ("switching_phone"), not the label.
      */
     fun deleteAccount(reason: String, note: String?, onDeleted: () -> Unit) {
         if (isDeleting) return
@@ -237,9 +215,8 @@ class SeniorProfileViewModel(application: Application) : AndroidViewModel(applic
         viewModelScope.launch {
             val app = getApplication<Application>()
 
-            // 1. Best-effort cloud soft-delete + contact unlink. Capped so a hung network
-            //    cannot leave the senior staring at "Deleting…" for the full OkHttp timeout —
-            //    the wipe below is the part that matters and must not wait on this.
+            // 1. Best-effort cloud soft-delete and contact unlink, with a time cap so a hung
+            //    network doesn't hold up the wipe.
             runCatching {
                 withTimeoutOrNull(8_000) {
                     cloudSync.withSyncIdOrNull()?.let { syncId ->
@@ -248,15 +225,13 @@ class SeniorProfileViewModel(application: Application) : AndroidViewModel(applic
                 }
             }
 
-            // 2. Stop passive monitoring and cancel any armed escalation deadlines
-            //    while the alert rows still exist to be found.
+            // 2. Stop monitoring and cancel armed escalation deadlines while the alert rows still exist.
             SensorCollectionService.stop(app)
             runCatching {
                 db.alertDao().getAllAlertIds().forEach { EscalationScheduler.cancel(app, it) }
             }
 
-            // 3. Erase the local database — all ten tables, the real personal data.
-            //    clearAllTables() is a blocking call and asserts off the main thread.
+            // 3. Erase the local database (all ten tables). clearAllTables() blocks and must run off the main thread.
             withContext(Dispatchers.IO) { db.clearAllTables() }
 
             isDeleting = false

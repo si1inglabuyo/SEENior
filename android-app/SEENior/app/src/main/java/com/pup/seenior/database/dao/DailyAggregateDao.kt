@@ -59,13 +59,10 @@ interface DailyAggregateDao {
     suspend fun getWithoutIsolationForestScore(seniorId: Int): List<DailyAggregate>
 
     /**
-     * The block [IsolationForestDetector.raise] scored to produce an `ml_flag` alert, recovered
-     * for display on the Alerts tab.
-     *
-     * `Alert.deviationScore` is null for this trigger type by design (spec §8 — the path-length
-     * score is a different measurement and does not belong in the z-score column), so the number
-     * lives only here. Matched by time block and the closest aggregate at or before the alert fired,
-     * which is exactly how [IsolationForestDetector.run] picked it in the first place.
+     * The block [IsolationForestDetector.raise] scored to produce an `ml_flag` alert, for the
+     * Alerts tab. `Alert.deviationScore` is null for this trigger type, so the number only
+     * lives here. Matched by time block and the closest aggregate at or before the alert, as
+     * [IsolationForestDetector.run] picked it.
      */
     @Query("""
         SELECT * FROM Daily_Aggregates

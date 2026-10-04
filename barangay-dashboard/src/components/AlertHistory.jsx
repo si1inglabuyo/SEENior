@@ -20,11 +20,8 @@ import AlertRow from './AlertRow'
 import StatusPill from './StatusPill'
 import AlertActionModals from './AlertActionModals'
 
-// RA 10173 §11(e) (retain personal data only as long as necessary): the log opens on the
-// last 30 days, not an unbounded scroll. "View full history" lifts that floor and is an
-// audited action (recordAccess). The server enforces the same 30-day floor (barangay.py,
-// `full` param). A real archive of resolved / false-positive rows older than the window is
-// a main-lane job -- this window is the stand-in until then.
+// RA 10173 section 11(e): the log opens on the last 30 days. "View full history" lifts the
+// limit and is an audited action. The server enforces the same floor.
 const DEFAULT_WINDOW_DAYS = 30
 
 function DateRangePanel({ value, onPick, onClear }) {
@@ -88,8 +85,7 @@ const ts = (v) => {
   return d ? d.getTime() : 0
 }
 
-// One past alert inside an expanded senior group. Same click-to-open-Details behaviour as
-// AlertRow, but the senior's name is the group header so the line leads with the trigger.
+// One past alert inside an expanded senior group. Opens Details like AlertRow.
 function GroupedAlertLine({ alert, onShowDetails }) {
   const category = alertCategory(alert)
   return (
@@ -120,11 +116,9 @@ export default function AlertHistory({ onSessionLost, navFilter, onClearFilter }
   const [error, setError] = useState('')
   const [filters, setFilters] = useState(() => initialFilters(navFilter))
   const [search, setSearch] = useState('')
-  // The search box updates on every keystroke for the instant client-side filter, but the
-  // server query only follows once typing pauses.
+    // Search filters instantly on the client; the server query follows once typing pauses.
   const [debouncedSearch, setDebouncedSearch] = useState('')
-  // History review is about spotting patterns per senior, so the default is grouped; the
-  // Alerts tab is the opposite (flat, for triage). "flat" here is a recent-activity scan.
+    // History is grouped by senior by default; the Alerts tab is flat for triage.
   const [grouping, setGrouping] = useState('senior') // 'senior' | 'flat'
   const [expanded, setExpanded] = useState(() => new Set())
   // false = last 30 days only (the §11(e) default); true = the whole log, and logged.
@@ -139,23 +133,17 @@ export default function AlertHistory({ onSessionLost, navFilter, onClearFilter }
     return () => clearTimeout(t)
   }, [search])
 
-  // Which scope to fetch depends on what the stat/chart being drilled into actually counts.
-  // "Resolved Today" and an Alerts-Outcome slice (status: resolved / false_positive) only
-  // ever mean closed alerts, so `history` (resolved/false_positive, per barangay.py) is
-  // correct for those. But the Alerts-This-Week bar, "SOS Triggered" and Alerts-by-Type all
-  // come from /barangay/stats counts that include every alert not still `pending` --
-  // escalated and acknowledged included. Routing those through `history` silently drops any
-  // still-open alert, so a bar/slice can show a count with nothing underneath when clicked.
-  // `scope=all` (narrowed client-side, and by date_from/date_to below when a day was
-  // clicked) fixes that by including every status. The page remounts when navFilter changes
-  // (App.jsx key), so reading it here is enough.
+    // Which scope to fetch depends on what is being drilled into. "Resolved Today" and
+    // outcome slices only mean closed alerts, so they use `history`. The weekly bar, "SOS
+    // Triggered" and Alerts-by-Type count every non-pending alert, so they use `all`, or an
+    // open alert would be missing under a non-zero count. The page remounts when navFilter
+    // changes (App.jsx key).
   const scope =
     navFilter && (navFilter.date || navFilter.trigger_type || navFilter.category)
       ? 'all'
       : 'history'
   const navStatus = (navFilter && navFilter.status) || null
-  // Name and date filters go to the server so the log's own controls aren't limited to the
-  // most recent page (the row cap). Bounds is null when no date filter is set.
+    // Name and date filters go to the server so they aren't limited to the latest page.
   const bounds = rangeBounds(dateRange)
   const dateFrom = bounds ? bounds.from : ''
   const dateTo = bounds ? bounds.to : ''
@@ -179,9 +167,7 @@ export default function AlertHistory({ onSessionLost, navFilter, onClearFilter }
     }
   }, [onSessionLost, scope, debouncedSearch, dateFrom, dateTo, fullHistory])
 
-  // Same poll as the Alerts page and the Dashboard: an action taken here (or on either of
-  // those screens) is a real write to the shared alerts table, and the poll is what makes
-  // every open screen converge without a manual refresh.
+    // Same poll as the other screens, so an action taken elsewhere shows up here.
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     load()
@@ -207,8 +193,7 @@ export default function AlertHistory({ onSessionLost, navFilter, onClearFilter }
     [rows, alertType, navStatus, dateRange, search]
   )
 
-  // Grouped by senior, each group sorted newest-first and the groups themselves ordered by
-  // their most recent alert.
+    // Groups sorted newest first, ordered by their most recent alert.
   const groups = useMemo(() => {
     const map = new Map()
     for (const a of visibleRows) {

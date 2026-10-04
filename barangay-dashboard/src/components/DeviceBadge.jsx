@@ -1,18 +1,13 @@
 import { parseServerTime, timeAgo } from '../api'
 
-// Health of the senior's phone *as a monitoring device* -- whether the thing that is
-// supposed to be watching them is still checking in. This is device telemetry, not
-// behaviour and not location (BarangaySeniorOut: "Device health, not behaviour"), and a
-// phone that has gone dark is itself a monitoring failure the barangay needs to see.
-//
-// Thresholds: the sensor service checks in every ~5 minutes, so a gap of hours is already
-// abnormal and a gap of a day means the senior is effectively unmonitored.
+// Health of the senior's phone as a monitoring device: whether it is still checking in.
+// This is device telemetry, not behaviour or location. The phone checks in about every
+// 5 minutes, so a gap of hours is abnormal and a day means the senior is unmonitored.
 const SIX_HOURS = 6 * 60 * 60 * 1000
 const ONE_DAY = 24 * 60 * 60 * 1000
 
 function deviceHealth(senior) {
-  // Old backend that doesn't send any device field yet -- say nothing rather than claim the
-  // phone is dead.
+    // Old backend with no device fields: say nothing rather than claim the phone is dead.
   const hasTelemetry =
     senior &&
     ('last_seen_at' in senior || 'battery_percent' in senior || 'is_charging' in senior)

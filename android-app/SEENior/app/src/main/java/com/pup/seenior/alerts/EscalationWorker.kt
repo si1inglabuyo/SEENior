@@ -14,15 +14,10 @@ import com.pup.seenior.database.SeniorAppDatabase
 import java.util.concurrent.TimeUnit
 
 /**
- * Retries an escalation whose *delivery* failed, after [EscalationScheduler] has already met the
- * deadline.
- *
- * This class used to own the deadline itself, and that was the wrong tool: WorkManager offers no
- * timing guarantee, and Doze was measured deferring a sixty-second fall window indefinitely. The
- * deadline now belongs to an exact alarm; what is left here is the job WorkManager is genuinely
- * good at — waiting for a network to come back and retrying with backoff, across process death.
- *
- * Enqueued only by [EscalationReceiver], never on the happy path.
+ * Retries an escalation whose delivery failed, after [EscalationScheduler] met the deadline.
+ * WorkManager has no timing guarantee, so the deadline belongs to an exact alarm; this does
+ * what WorkManager is good at: waiting for a network and retrying with backoff. Enqueued only
+ * by [EscalationReceiver].
  */
 class EscalationWorker(
     context: Context,
@@ -41,9 +36,7 @@ class EscalationWorker(
 
         return when (AlertEscalator.escalateToFamily(db, alertId)) {
             AlertEscalator.Outcome.Delivered -> Result.success()
-            // Recorded locally, not delivered. Retry with WorkManager's backoff rather than
-            // dropping it — the server sends the SMS fallback (spec §7), but this push is
-            // still the first attempt to reach the family.
+            // Recorded locally, not delivered. Retry with backoff; this push is still the first attempt to reach the family.
             AlertEscalator.Outcome.Offline -> Result.retry()
             AlertEscalator.Outcome.Failed -> Result.retry()
         }
@@ -55,11 +48,9 @@ class EscalationWorker(
         private fun workName(alertId: Int) = "escalation_$alertId"
 
         /**
-         * Queues a retry for an escalation that was due now but could not be delivered.
-         *
-         * Requires connectivity, unlike the old deadline job: there is nothing to do without a
-         * network, and the local audit entry has already been written by
-         * [AlertEscalator.escalateToFamily] regardless of whether the cloud copy landed.
+         * Queues a retry for an escalation that was due but couldn't be delivered. Requires
+         * connectivity; the local audit entry was already written by
+         * [AlertEscalator.escalateToFamily].
          */
         fun enqueueRetry(context: Context, alertId: Int) {
             val request = OneTimeWorkRequestBuilder<EscalationWorker>()
@@ -69,19 +60,15 @@ class EscalationWorker(
                         .setRequiredNetworkType(NetworkType.CONNECTED)
                         .build()
                 )
-                // LINEAR, not the WorkManager default of EXPONENTIAL: doubling from a 30s base
-                // put the 7th retry ~31 minutes after the first, on the one job whose entire
-                // purpose is a 30-second delivery target (spec §10). Linear keeps the same
-                // 30s base but only adds it each time -- 30s, 60s, 90s, ... -- so the 7th retry
-                // lands ~10.5 minutes in instead. Exponential is the right shape for a job
-                // nobody is hurt by waiting an hour on; this is not that job.
+                // LINEAR, not the default EXPONENTIAL: doubling from 30 s put the 7th retry ~31
+                // minutes in, on the job whose purpose is a 30-second delivery target. Linear
+                // (30 s, 60 s, 90 s...) lands it at ~10.5 minutes.
                 .setBackoffCriteria(BackoffPolicy.LINEAR, 30, TimeUnit.SECONDS)
                 .build()
 
             WorkManager.getInstance(context).enqueueUniqueWork(
                 workName(alertId),
-                // KEEP: an already-queued retry is still valid; replacing it would restart its
-                // backoff and delay the delivery further.
+                // KEEP: an already-queued retry is still valid and replacing it would restart its backoff.
                 ExistingWorkPolicy.KEEP,
                 request
             )

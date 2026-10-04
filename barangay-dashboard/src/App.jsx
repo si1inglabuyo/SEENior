@@ -22,10 +22,8 @@ const TITLES = {
 export default function App() {
   const [token, setToken] = useState(getToken())
   const [view, setView] = useState('dashboard')
-  // What a dashboard stat card was clicked for -- e.g. { when: 'today', label: 'Resolved
-  // Today' }. With no router this rides along as in-memory navigation state (the job a
-  // query param would do); AlertHistory reads it on mount and pre-applies the matching
-  // filter.
+    // The stat card that was clicked, e.g. { when: 'today', label: 'Resolved Today' }.
+    // Kept in memory (no router); AlertHistory reads it on mount to pre-apply the filter.
   const [navFilter, setNavFilter] = useState(null)
 
   const signOut = useCallback(() => {
@@ -33,15 +31,13 @@ export default function App() {
     setToken(null)
   }, [])
 
-  // Sign out after a stretch of no interaction -- a shared barangay PC should not hold an
-  // open session (and its senior PII) indefinitely. No-op until signed in.
+    // Sign out after a stretch of no interaction, since this may be a shared PC.
   useIdleLogout(signOut, !!token)
 
   if (!token) return <Login onSignedIn={() => setToken(getToken())} />
 
-  // Sidebar clicks navigate with no filter (an explicit "show me everything"); the
-  // dashboard's stat cards pass one. Both go through this single function so `view` and
-  // `navFilter` can never fall out of step with each other.
+    // Sidebar clicks navigate with no filter; stat cards pass one. One function keeps
+    // `view` and `navFilter` in step.
   function navigate(nextView, filter = null) {
     setNavFilter(filter)
     setView(nextView)
@@ -54,8 +50,7 @@ export default function App() {
       {view === 'alerts' && <IncidentQueue onSessionLost={signOut} />}
       {view === 'history' && (
         <AlertHistory
-          // Remount when the drill-down intent changes so the filters re-seed from the new
-          // navFilter -- clicking a different stat card, or the sidebar item (navFilter null).
+            // Remount when the drill-down changes so the filters re-seed.
           key={navFilter ? JSON.stringify(navFilter) : 'history'}
           onSessionLost={signOut}
           navFilter={navFilter}

@@ -5,12 +5,9 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Validates Layer 0 by injecting known sensor streams, per the spec §10 — the same reason the
- * detection engine is validated with simulated data rather than by waiting for a real emergency.
- *
- * The negative cases matter more than the positive one. A detector that fires on a real fall but
- * also on a phone tossed onto a bed produces alerts the family learns to ignore, which is worse
- * than no detector at all.
+ * Validates Layer 0 by injecting known sensor streams, since real falls can't be collected
+ * on demand. The negative cases matter more: a detector that also fires on a phone tossed
+ * onto a bed produces alerts the family learns to ignore.
  */
 class FallDetectorTest {
 

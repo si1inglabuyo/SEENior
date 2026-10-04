@@ -70,10 +70,8 @@ private fun presenceColor(minutesAgo: Long?): Color = when {
 
 @Composable
 /**
- * @param inviteActionLabel what the empty state's button is called. It says "Invite tab"
- *   when this screen is a tab, because that is literally where it sends you — but a senior
- *   living alone reaches this from Profile and has no Invite tab, and a button naming a
- *   tab that is not on their screen is worse than no button.
+ * @param inviteActionLabel the empty state's button label. It says "Invite tab" when this is a
+ *   tab; a senior living alone reaches this from Profile with no Invite tab, so it differs.
  * @param onBack non-null only when hosted under Profile; see [GreenHeader].
  */
 fun SeniorContactsScreen(
@@ -96,8 +94,7 @@ fun SeniorContactsScreen(
             onBack = onBack
         )
 
-        // Only surface the error inline when there's still a list under it; a failed load with
-        // nothing to show gets the full CouldNotLoadState below instead.
+        // Show the error inline only when a list is still under it; otherwise use CouldNotLoadState.
         viewModel.error?.takeIf { viewModel.contacts.isNotEmpty() }?.let {
             Text(it, color = RemoveRed, fontSize = 14.sp, modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
         }
@@ -106,8 +103,7 @@ fun SeniorContactsScreen(
             viewModel.isLoading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = SeniorColors.Green)
             }
-            // Order matters: a failed load must never fall through to EmptyState, or a
-            // temporary network problem looks like the contacts were deleted.
+        // Order matters: a failed load must not fall through to EmptyState, or a network problem looks like deleted contacts.
             viewModel.loadFailed -> CouldNotLoadState(
                 message = viewModel.error ?: copy.contactsLoadFailedInline,
                 onRetry = { viewModel.refresh() }
@@ -129,8 +125,7 @@ fun SeniorContactsScreen(
 @Composable
 private fun ContactCard(contact: FamilyContactDto, onRemove: () -> Unit) {
     val copy = LocalProfileCopy.current
-    // The family side has always confirmed before unlinking; this side removed on the
-    // raw tap, so one stray touch dropped a family contact with no warning and no undo.
+    // Confirm before removing; a stray tap used to drop a family contact with no warning or undo.
     var showConfirm by remember { mutableStateOf(false) }
 
     Column(
@@ -219,9 +214,8 @@ private fun ContactCard(contact: FamilyContactDto, onRemove: () -> Unit) {
     }
 }
 
-/** Shown when the contact list could not be fetched. Deliberately worded so the senior knows
- *  their family is still linked and only the *loading* failed — the previous behaviour reused
- *  the "no family connected yet" empty state here, which looked like the pairing was lost. */
+/** Shown when the contact list couldn't be fetched, worded so the senior knows their family is
+ *  still linked and only the loading failed. */
 @Composable
 private fun CouldNotLoadState(message: String, onRetry: () -> Unit) {
     val copy = LocalProfileCopy.current
@@ -304,11 +298,8 @@ private fun EmptyState(inviteActionLabel: String, onGoToInvite: () -> Unit) {
                 fontSize = 15.sp,
                 modifier = Modifier.padding(top = 8.dp)
             )
-            // Said plainly rather than left to be inferred. With nobody on the family tier
-            // the escalation chain really does run senior -> barangay, and a senior who is
-            // deciding whether to bother adding a contact deserves to know that is what
-            // happens today — not to be nudged with an implied warning that they are
-            // unprotected. They are not; the barangay tier is always there.
+            // Said plainly: with nobody on the family tier the chain runs senior -> barangay, and
+            // the senior shouldn't be left feeling unprotected. The barangay tier is always there.
             Text(
                 copy.noFamilyBarangayNote,
                 color = SeniorColors.TextSecondary,

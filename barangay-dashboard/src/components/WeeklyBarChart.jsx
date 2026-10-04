@@ -1,11 +1,8 @@
 import { IconCalendar } from '../icons'
 import SectionCard from './SectionCard'
 
-// Plain flex bars, no chart library -- same approach the old Analytics panel used, kept
-// for the same reason: one less dependency to explain or have break at a defense. Each
-// column is clickable (opens Alert History filtered to that day, all statuses). It uses
-// the div + role="button" pattern the alert/senior rows use rather than a real <button>:
-// a <button> is an unreliable flex container for the percentage-height bar inside it.
+// Plain flex bars, no chart library. Each column opens Alert History for that day. It uses
+// div + role="button" because a <button> is unreliable as a flex container for the bar.
 export default function WeeklyBarChart({ days, onSelectDay }) {
   const peak = Math.max(1, ...days.map((d) => d.count))
 

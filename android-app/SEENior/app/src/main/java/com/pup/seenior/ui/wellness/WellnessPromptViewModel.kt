@@ -19,17 +19,11 @@ import kotlinx.coroutines.launch
 enum class PromptStage { PROMPT, ACKNOWLEDGED, SENT }
 
 /**
- * Drives one wellness check from the moment an alert appears to the moment the senior is done
- * with it — the human-in-the-loop step of the spec §7's escalation chain.
+ * Drives one wellness check from the moment an alert appears until the senior is done.
  *
- * Three ways out, and they are not symmetrical:
- * - "I'm safe" closes the alert locally and nothing ever leaves the phone.
- * - "I need help" escalates immediately.
- * - Letting the timer run out escalates too. Silence is the case the whole system exists for.
- *
- * The escalation itself lives in [AlertEscalator] rather than here, because this screen is not
- * the only thing that can escalate: [EscalationScheduler] does the same job when the senior never
- * opens the app at all.
+ * Three ways out: "I'm safe" closes the alert locally; "I need help" escalates immediately;
+ * letting the timer run out escalates too. The escalation itself is in [AlertEscalator],
+ * because [EscalationScheduler] does the same job when the app is never opened.
  */
 class WellnessPromptViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -42,48 +36,36 @@ class WellnessPromptViewModel(application: Application) : AndroidViewModel(appli
     var isSending by mutableStateOf(false)
         private set
 
-    /** True while the cloud push is still in flight. The senior is already on the "Alert Sent"
-     *  screen by then — see [escalate] for why the screen does not wait for the network. */
+    /** True while the cloud push is in flight. The senior is already on the "Alert Sent" screen; see [escalate]. */
     var isDelivering by mutableStateOf(false)
         private set
 
-    /** Set when the alert was recorded locally but could not be pushed to the cloud. The senior
-     *  is still told help is coming — the alert is real and stored — but we do not claim the
-     *  family was reached when they were not. SMS fallback (spec §7) would cover this case
-     *  and is not built yet. */
+    /** Set when the alert was recorded locally but couldn't be pushed to the cloud. The senior
+     *  is still told help is coming, but we don't claim the family was reached. */
     var deliveryWarning by mutableStateOf<String?>(null)
         private set
 
-    /** True once the senior has closed an alert that had already gone out, so the confirmation
-     *  screen can say what actually happened rather than the generic acknowledgement. */
+    /** True once the senior has closed an alert that had already gone out, so the confirmation can say so. */
     var stoodDown by mutableStateOf(false)
         private set
 
     private var alert: Alert? = null
 
-    /**
-     * Starts the response window. [onFinished] fires once the senior is done and the screen
-     * should close, whichever way it ended.
-     */
+    /** Starts the response window. [onFinished] fires once the senior is done, however it ended. */
     fun begin(alert: Alert, onFinished: () -> Unit) {
         if (this.alert?.alertId == alert.alertId && stage != PromptStage.PROMPT) return
         this.alert = alert
         stage = PromptStage.PROMPT
         deliveryWarning = null
 
-        // They are looking at the alert now, so the notification that brought them here has
-        // done its job.
+        // They are looking at the alert now, so the notification has done its job.
         AlertNotifier.cancel(getApplication(), alert.alertId)
 
-        // The background watchdog may have already escalated this while the phone lay
-        // untouched. Re-running the countdown would ask for an answer that can no longer change
-        // anything, and re-escalating would push a second copy of the same alert.
+        // The watchdog may already have escalated this. Don't restart the countdown or push a second copy.
         if (AlertEscalator.hasEscalatedToFamily(alert)) {
             stage = PromptStage.SENT
             // Escalated is not delivered. The audit step is written before the cloud accepts the
-            // alert, so on its own it would have this screen tell the senior their contacts have
-            // been notified while the alert is still sitting on this phone waiting for a network.
-            // That is the one claim this screen must never make falsely.
+            // alert, so this screen must not say contacts were notified while it is still queued.
             if (!alert.isSynced) {
                 deliveryWarning =
                     "You are offline. Your family will be notified once this phone reconnects."
@@ -93,12 +75,9 @@ class WellnessPromptViewModel(application: Application) : AndroidViewModel(appli
         }
 
         viewModelScope.launch {
-            // Anchored to when the alert was raised, not to when this screen opened — and
-            // re-derived from the clock on every tick rather than counted down. A decremented
-            // counter is only honest while the process keeps running: Doze freezes the app, the
-            // ticks stop, the deadline does not, and the screen comes back showing a countdown
-            // minutes behind the alarm it is supposed to mirror. Reading the clock each time
-            // makes the display agree with EscalationScheduler by construction.
+            // Anchored to when the alert was raised, and re-derived from the clock each tick, not
+            // counted down: Doze can freeze the app and the display would fall behind the alarm.
+            // This keeps it in agreement with EscalationScheduler.
             val windowSeconds = AlertEscalator.windowSecondsFor(alert.triggerType).toLong()
             while (stage == PromptStage.PROMPT) {
                 val remaining = windowSeconds - (System.currentTimeMillis() - alert.triggeredAt) / 1000
@@ -114,17 +93,13 @@ class WellnessPromptViewModel(application: Application) : AndroidViewModel(appli
     /** "I'm safe" / SOS "Cancel" — closes the alert without notifying anyone. */
     fun markSafe(onFinished: () -> Unit) {
         val current = alert ?: return
-        // Still the first meaningful action, outside the coroutine on purpose: the senior has
-        // just pressed a button, so the noise for THIS alert stops on that press rather than
-        // when a database write and a network call have finished. Reading `current` above costs
-        // nothing -- it's already-held state, not a DB or network read -- and AlertAlarm needs
-        // the id so a different, still-open alert is not silenced by this one being answered.
+        // Stopped first, outside the coroutine, so the noise for this alert ends on the button
+        // press. The id keeps a different open alert from being silenced.
         AlertAlarm.stop(current.alertId)
         if (stage != PromptStage.PROMPT) return
         stage = PromptStage.ACKNOWLEDGED
 
-        // Nothing is owed on this alert any more, so stop the watchdog before it spends a
-        // wake-up discovering that for itself.
+        // Nothing is owed on this alert, so stop the watchdog.
         EscalationScheduler.cancel(getApplication(), current.alertId)
 
         viewModelScope.launch {
@@ -135,11 +110,8 @@ class WellnessPromptViewModel(application: Application) : AndroidViewModel(appli
             )
             db.alertDao().updateStatus(current.alertId, "self_cancelled", now)
 
-            // The senior's phone is the only thing that knows they answered, so it has to say so.
-            // Before this, "I am safe" was written here and nowhere else, and the alert went on
-            // sitting in the family app as pending — for five days, in the case that prompted the
-            // fix. Swallows its own failure and the watchdog retries; the acknowledgement below
-            // is not held up by a network, because the senior has already answered.
+            // Tell the cloud, or the alert stays pending in the family app. Swallows its own
+            // failure and the watchdog retries; the acknowledgement isn't held up by the network.
             AlertEscalator.cancelInCloud(db, current.alertId)
 
             delay(ACKNOWLEDGED_DISPLAY_MILLIS)
@@ -148,22 +120,13 @@ class WellnessPromptViewModel(application: Application) : AndroidViewModel(appli
     }
 
     /**
-     * "I'm fine now" — closes an alert that has already reached the family.
-     *
-     * [markSafe] cannot serve this: it is gated on the prompt still being unanswered, and by the
-     * time an alert has gone out that gate has closed. Which left the senior with a screen that
-     * told them help was coming and offered them no way to say it was not needed after all.
-     *
-     * The cloud call matters more here than anywhere else in this class. This is the one path
-     * where an alert the family can actually see is being withdrawn, so leaving Render untouched
-     * would leave a relative looking at an emergency the senior has personally called off.
+     * "I'm fine now": closes an alert that has already reached the family. [markSafe] can't be
+     * used because it only works while the prompt is unanswered. The cloud call matters most
+     * here, since a relative could otherwise be looking at an emergency the senior called off.
      */
     fun standDown(onFinished: () -> Unit) {
         val current = alert ?: return
-        // Still the first meaningful action, outside the coroutine on purpose: the senior has
-        // just pressed a button, so the noise for THIS alert stops on that press rather than
-        // when a database write and a network call have finished. See markSafe's comment for
-        // why reading `current` first costs nothing and why AlertAlarm needs the id.
+        // Stopped first, outside the coroutine. See markSafe.
         AlertAlarm.stop(current.alertId)
         if (stage != PromptStage.SENT) return
         stage = PromptStage.ACKNOWLEDGED
@@ -188,11 +151,8 @@ class WellnessPromptViewModel(application: Application) : AndroidViewModel(appli
     /** "I need help", or the response window expiring. */
     fun escalate(onFinished: () -> Unit) {
         val current = alert ?: return
-        // Still the first meaningful action. Unlike the two functions above this is also the
-        // timeout path, so the alarm must stop whether the senior pressed something or simply
-        // never answered — either way the question has been asked for THIS alert and the chain
-        // has moved on to the family. A different, still-open alert must keep sounding, hence
-        // the id (see markSafe's comment for why reading `current` first costs nothing).
+        // Stopped first. This is also the timeout path, so the alarm must stop whether the
+        // senior pressed something or not. See markSafe.
         AlertAlarm.stop(current.alertId)
         if (isSending) return
         isSending = true
@@ -200,27 +160,17 @@ class WellnessPromptViewModel(application: Application) : AndroidViewModel(appli
         EscalationScheduler.cancel(getApplication(), current.alertId)
 
         viewModelScope.launch {
-            // Confirm to the senior BEFORE the network call, not after. The alert is already
-            // recorded on this device, and the backend is a free-tier instance that can take
-            // most of a minute to wake — leaving a frightened person staring at an unchanged
-            // screen, unsure whether their request registered, is the wrong failure mode. The
-            // sent screen shows a "notifying..." line until delivery actually resolves.
+            // Confirm to the senior before the network call: the alert is recorded locally and
+            // the free-tier backend can take a minute to wake. The sent screen shows
+            // "notifying..." until delivery resolves.
             stage = PromptStage.SENT
             isDelivering = true
 
             val outcome = AlertEscalator.escalateToFamily(db, current.alertId)
 
-            // Make the promise on the next screen true. Until now nothing did: this method
-            // cancels the deadline alarm before it posts, and EscalationWorker.enqueueRetry was
-            // only ever called from EscalationReceiver — so a senior who tapped "I need help"
-            // with no signal was told "your family will be notified once this phone reconnects"
-            // while the alert sat pending and unsynced forever, with nothing left to retry it.
-            // On the one path where they consciously asked for help.
-            //
-            // Enqueued for Failed as well as Offline: a backend that refused once may well
-            // accept the retry, and the worker already treats both as retryable. The alert is
-            // recorded locally either way, so a retry can only add delivery, never a duplicate
-            // — escalateToFamily short-circuits on isSynced.
+            // Retry delivery on failure so "notified once reconnected" is true. Enqueued for
+            // Failed as well as Offline, since the server may accept a retry. Can't duplicate,
+            // because escalateToFamily short-circuits on isSynced.
             if (outcome != AlertEscalator.Outcome.Delivered) {
                 EscalationWorker.enqueueRetry(getApplication(), current.alertId)
             }
@@ -239,16 +189,14 @@ class WellnessPromptViewModel(application: Application) : AndroidViewModel(appli
         }
     }
 
-    /** The countdown to close only starts once delivery has resolved, so the outcome — including
-     *  a failure warning — is on screen long enough to be read. */
+    /** The close countdown starts once delivery resolves, so the outcome stays on screen long enough to read. */
     private suspend fun countdownToClose(onFinished: () -> Unit) {
         secondsRemaining = SENT_DISPLAY_SECONDS
         while (secondsRemaining > 0 && stage == PromptStage.SENT) {
             delay(1000)
             secondsRemaining--
         }
-        // [standDown] moves the stage on and owns the close from there. Without this guard both
-        // would call onFinished and the screen would be torn down twice.
+        // standDown moves the stage on and owns the close; this guard stops onFinished firing twice.
         if (stage == PromptStage.SENT) onFinished()
     }
 

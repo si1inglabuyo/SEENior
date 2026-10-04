@@ -15,9 +15,9 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Guards the seed-to-real hand-over, which is otherwise invisible for two weeks: the bug this
- * replaced wrote `median = 0, MAD = 0` from three partial days and no test could see it, because
- * nothing fails until a senior is being asked if she is safe every few minutes.
+ * Guards the seed-to-real hand-over, which is invisible for two weeks. The bug this replaced
+ * wrote `median = 0, MAD = 0` from three partial days, and nothing fails until a senior is
+ * asked if they are safe every few minutes.
  */
 class BaselineUpdaterTest {
 
@@ -34,10 +34,7 @@ class BaselineUpdaterTest {
     private val seedEveningScreenIdle = 30.0 * 60
     private val seedEveningMad = seedEveningScreenIdle * 0.4
 
-    /**
-     * Wake 06:00 / sleep 22:00 gives three 320-minute waking blocks, so a full evening is
-     * 320 / 5 = 64 readings and the usability cutoff sits at 0.8 x 64 = 52.
-     */
+    /** Wake 06:00 / sleep 22:00 gives three 320-minute waking blocks: a full evening is 64 readings and the usability cutoff is 52. */
     private val fullEveningSampleCount = 64
 
     private fun evening(
@@ -70,8 +67,7 @@ class BaselineUpdaterTest {
 
     @Test
     fun `three flat days cannot flatten the baseline`() {
-        // The exact shape that broke Agnes's phone: a handful of days recorded while she happened
-        // to be holding it, so every evening reads "screen never idle, and never varies".
+        // A few days recorded while the phone was being held, so every evening reads "screen never idle, never varies".
         val dao = run((1..3).map { evening(it, 0) })
         val row = requireNotNull(stored(dao, "screen_idle_duration"))
 
@@ -118,10 +114,8 @@ class BaselineUpdaterTest {
 
     @Test
     fun `a block the phone barely sampled never reaches the fingerprint`() {
-        // The pilot handset's 2026-09-06..09-12 nights: frozen by the OS, woken about ten times
-        // out of sixty, and reporting stillness nobody was there to see. `inactivity_duration` is
-        // a running counter, so a freeze inflates it rather than leaving a gap -- which is why
-        // these have to be excluded rather than merely down-weighted.
+        // The pilot's 2026-09-06..09-12 nights: frozen by the OS, woken ~10 times in 60, and
+        // inflated by the running counter. They must be excluded, not just down-weighted.
         val elevenGoodDays = (1..11).map { evening(it, 4000) }
         val threeFrozenDays = (12..14).map { evening(it, 40_000, sampleCount = 10) }
 
@@ -133,11 +127,9 @@ class BaselineUpdaterTest {
 
     @Test
     fun `excluding a day must not slow the hand-over down`() {
-        // The unsafe first cut: weighting the blend on surviving days instead of days lived
-        // through. Dropping days then hands the seed MORE of the answer, and on the pilot's real
-        // night data that pushed the most extreme night physically possible below the z >= 2.5
-        // firing threshold -- excluding bad data switched a detector off. Fourteen days lived
-        // through is a complete hand-over whatever had to be thrown away inside it.
+        // Weighting on surviving days (instead of days lived through) hands the seed more of the
+        // answer, and on the pilot's night data pushed the most extreme night below z = 2.5.
+        // Fourteen days lived through is a complete hand-over whatever was discarded.
         val row = requireNotNull(
             stored(
                 run((1..11).map { evening(it, 4000) } + (12..14).map { evening(it, 40_000, sampleCount = 10) }),
@@ -161,17 +153,14 @@ class BaselineUpdaterTest {
 
     @Test
     fun `too few usable days leaves the stored baseline untouched rather than rewriting it`() {
-        // The property that makes the filter safe to add at all: it can withhold an update, but
-        // it can never replace a good fingerprint with a thin one.
+        // The filter can withhold an update but never replace a good fingerprint with a thin one.
         val dao = run((1..14).map { evening(it, 4000, sampleCount = 10) })
         assertNull(stored(dao, "screen_idle_duration"))
     }
 
     @Test
     fun `a mostly-thin window cannot hand over on the strength of its few good days`() {
-        // Four good days out of fourteen is under half, so the window is refused outright rather
-        // than allowed to claim a near-complete hand-over built on four days -- the flat-baseline
-        // bug arriving by a new road.
+        // Four good days of fourteen is under half, so the window is refused outright.
         val fourGoodDays = (1..4).map { evening(it, 4000) }
         val tenThinDays = (5..14).map { evening(it, 40_000, sampleCount = 10) }
 

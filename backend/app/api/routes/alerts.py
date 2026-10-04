@@ -38,16 +38,7 @@ router = APIRouter(prefix="/alerts", tags=["alerts"])
 
 
 async def family_device_tokens(db: AsyncSession, senior_id: int) -> list[str]:
-    """Every push token belonging to a currently-linked, active family contact.
-
-    `Contact.is_active()` is as load-bearing here as it is on the read paths: a family
-    member who was unlinked must stop receiving pushes about that senior immediately,
-    and a push carries the senior's name (spec §11).
-
-    distinct() guards the case where one account somehow holds two live links to the
-    same senior — the partial unique index makes that unlikely, but a duplicate here
-    would ring the same handset twice for one emergency.
-    """
+    """Push tokens for every active, currently-linked family contact of this senior."""
     result = await db.execute(
         select(DeviceToken.token)
         .join(Contact, Contact.user_id == DeviceToken.user_id)
@@ -64,13 +55,9 @@ async def family_device_tokens(db: AsyncSession, senior_id: int) -> list[str]:
 
 
 async def family_phone_numbers(db: AsyncSession, senior_id: int) -> list[str]:
-    """Every phone number belonging to a currently-linked, active family contact.
+    """Phone numbers of active, currently-linked family contacts.
 
-    Same filters as family_device_tokens for the same reasons — an unlinked contact
-    must stop receiving anything about the senior immediately, including a text.
-    `User.phone` is nullable (a Google-only account can arrive without one, filled in
-    by FamilyCompletePhoneScreen), so accounts that never completed that step are
-    silently skipped rather than crashing the whole send over one missing number.
+    Contacts without a phone number are skipped.
     """
     result = await db.execute(
         select(User.phone)
@@ -88,8 +75,7 @@ async def family_phone_numbers(db: AsyncSession, senior_id: int) -> list[str]:
 
 
 async def family_phone_numbers_by_language(db: AsyncSession, senior_id: int) -> dict[str, list[str]]:
-    """family_phone_numbers, grouped by each contact's own language preference ("en" / "fil")
-    so the SMS can be written once per language. Same filters, same reasons."""
+    """family_phone_numbers grouped by language ("en" / "fil"), so the SMS is written once per language."""
     result = await db.execute(
         select(User.phone, User.language_preference)
         .join(Contact, Contact.user_id == User.id)
@@ -108,9 +94,8 @@ async def family_phone_numbers_by_language(db: AsyncSession, senior_id: int) -> 
     return grouped
 
 
-# Written by POST /alerts/{sync_id}/received when a family phone's FCM handler confirms
-# the push arrived. Carries `user_id` so the delayed SMS below can text only the contacts
-# whose phones did not confirm.
+# Step written when a family phone confirms the push arrived. Its `user_id` lets the delayed
+# SMS skip contacts who already got the push.
 PUSH_RECEIVED_STEP = "push_received_family"
 
 
@@ -134,12 +119,8 @@ async def deliver_family_sms_after_grace(
 ) -> None:
     """Texts the family contacts whose phones never confirmed the push.
 
-    A phone with data confirms within seconds and is never texted; one with no data cannot
-    confirm, so it is. Waits `family_sms_grace_seconds` first. Everything is re-read from
-    the database afterwards rather than captured up front: in those 30 seconds a contact
-    may have confirmed, acknowledged, or the senior may have cancelled.
-
-    Never raises, same posture as deliver_alert_sms -- the alert is already committed.
+    Waits `family_sms_grace_seconds`, then re-reads everything from the database, since
+    contacts may have confirmed or the alert may have closed meanwhile. Never raises.
     """
     try:
         await asyncio.sleep(settings.family_sms_grace_seconds)
@@ -147,9 +128,8 @@ async def deliver_family_sms_after_grace(
             alert = (
                 await db.execute(select(Alert).where(Alert.sync_id == alert_sync_id))
             ).scalar_one_or_none()
-            # A family member who acknowledged has plainly seen it, and a closed alert
-            # needs no text. ESCALATED is deliberately not skipped: an SOS reaches that
-            # state at once, and family still have to be told.
+            # Skip if family acknowledged or the alert is closed. ESCALATED is not skipped,
+            # because an SOS reaches that state immediately and family still need the text.
             if alert is None or alert.status in (
                 AlertStatus.ACKNOWLEDGED,
                 AlertStatus.RESOLVED,
@@ -187,14 +167,7 @@ async def deliver_family_sms_after_grace(
 
 
 async def barangay_phone_numbers(db: AsyncSession, barangay: str) -> list[str]:
-    """Every phone number belonging to an active barangay-responder account assigned
-    to this barangay.
-
-    Scoped by `User.barangay` directly, the same field `_assigned_barangay()` in
-    barangay.py checks — there is no Contact row per senior for this role (the spec
-    §2: responders are assigned to a barangay, not paired to individual seniors), so
-    every active responder covering that barangay is texted, not just one.
-    """
+    """Phone numbers of active barangay responders assigned to this barangay."""
     result = await db.execute(
         select(User.phone).where(
             User.role == UserRole.BARANGAY_RESPONDER,
@@ -208,8 +181,7 @@ async def barangay_phone_numbers(db: AsyncSession, barangay: str) -> list[str]:
 
 
 async def deliver_alert_sms(numbers: list[str], message: str, *, context: str) -> None:
-    """Sends the SMS fallback as a background task. Same posture as deliver_alert_push:
-    failures are logged, never raised — the alert this covers is already committed."""
+    """Sends the SMS fallback as a background task. Failures are logged, never raised."""
     try:
         result = await sms.send_sms(numbers, message)
     except Exception:
@@ -223,14 +195,10 @@ async def deliver_alert_sms(numbers: list[str], message: str, *, context: str) -
 
 
 async def deliver_alert_push(tokens: list[str], payload: push.AlertPush) -> None:
-    """Sends the push and prunes any token FCM declared permanently dead.
+    """Sends the push and prunes any tokens FCM says are permanently dead.
 
-    Runs as a background task, after the response has gone back to the senior's phone.
-    firebase-admin's send is blocking, so it goes to a worker thread rather than
-    stalling the event loop for every other request in flight.
-
-    Failures are logged, never raised: by the time this runs the alert is already
-    committed, and there is no request left to fail.
+    Runs as a background task; the blocking send goes to a worker thread. Failures are
+    logged, never raised.
     """
     try:
         result = await asyncio.to_thread(push.send_alert, tokens, payload)
@@ -267,10 +235,8 @@ async def create_alert(
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
 ) -> Alert:
-    # No auth — the senior's phone has no Users account (spec §2) and identifies
-    # itself only by its own sync_id. Known simplification: nothing here verifies the
-    # caller genuinely owns that sync_id. Acceptable for the demo; a per-device secret
-    # issued alongside sync_id in POST /seniors would close this if hardened later.
+    # No auth: the senior's phone has no account and identifies itself by sync_id.
+    # Known simplification: nothing checks that the caller owns that sync_id.
     result = await db.execute(
         select(Senior)
         .where(Senior.sync_id == payload.senior_sync_id)
@@ -278,16 +244,11 @@ async def create_alert(
     )
     senior = result.scalar_one_or_none()
     if senior is None or senior.deleted_at is not None:
-        # A deleted senior's phone is wiped and should never post again; if a stale
-        # queued alert still arrives, it belongs to no one now.
+        # A deleted senior's phone is wiped, so a stale queued alert belongs to no one.
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Senior not found")
 
-    # Naive UTC, matching every other timestamp column in this schema (TIMESTAMP WITHOUT TIME
-    # ZONE) -- see db_now()'s docstring in api/escalation.py for why comparing a tz-aware and a
-    # naive clock against each other is exactly how a deadline ends up hours off. The client is
-    # expected to send an offset (Java's Instant.toString() always does); a bare value with no
-    # offset at all is treated as already UTC rather than rejected, since that is what every
-    # other client-facing datetime in this codebase already assumes.
+    # Convert to naive UTC to match the timestamp columns. A value with no offset is
+    # treated as already UTC.
     triggered_at = payload.triggered_at
     if triggered_at is not None and triggered_at.tzinfo is not None:
         triggered_at = triggered_at.astimezone(timezone.utc).replace(tzinfo=None)
@@ -302,17 +263,10 @@ async def create_alert(
         triggered_at=triggered_at,
     )
 
-    # A POST /alerts is *always* the senior's phone escalating to the family tier after an
-    # unanswered wellness prompt -- AlertEscalator.escalateToFamily() is the only caller. Record
-    # that tier-2 outcome on the timeline now, for two reasons:
-    #   1. the barangay dashboard's audit trail would otherwise show nothing before
-    #      `escalated_barangay`, and the "Lives alone" badge reads the `no_family_contact` step;
-    #   2. the server sweep (api/escalation.py) treats any of FAMILY_TIER_STEPS as "family tier
-    #      already handled" -- without a step here it re-fires `escalated_family_server` AND a
-    #      second push at family_deadline, so every escalated alert reached the family twice
-    #      (~40 s apart for SOS, ~10 min for inactivity). The push below is the one and only
-    #      family notification for this escalation.
-    # has_family_tier() in api/escalation.py is the canonical form of this check.
+    # A POST /alerts is always the phone escalating to the family tier, so record that step
+    # now. The sweep in api/escalation.py treats these steps as "family tier handled";
+    # without one it would notify family a second time. The "Lives alone" badge also reads
+    # the `no_family_contact` step.
     has_family = any(
         c.contact_type == ContactType.FAMILY and c.unlinked_at is None
         for c in senior.contacts
@@ -330,10 +284,7 @@ async def create_alert(
     await db.commit()
     await db.refresh(alert)
 
-    # Queued only after the commit succeeded, so a push can never announce an alert that
-    # does not exist. Scheduling it as a background task keeps FCM off the critical path:
-    # the senior's phone gets its 201 whether or not Google is reachable, and the family
-    # app's polling remains the fallback it always was.
+    # Queued after the commit, so a push never announces an alert that wasn't saved.
     tokens = await family_device_tokens(db, senior.id)
     if tokens:
         background_tasks.add_task(
@@ -348,20 +299,15 @@ async def create_alert(
             ),
         )
     else:
-        # Worth a log line: an alert for a senior with no reachable family device is the
-        # exact scenario the barangay tier exists for, and it is otherwise invisible.
+        # Worth logging: this is the case the barangay tier exists for.
         logger.warning(
             "Alert %s raised for senior %s with no registered family devices",
             alert.sync_id,
             senior.sync_id,
         )
 
-    # SMS fallback, only for family phones that never confirm the push. Each family app
-    # calls POST /alerts/{sync_id}/received the moment the push arrives; after the grace
-    # period this texts whoever did not. So a family member with data gets the push alone,
-    # and one with no data (or a dead FCM connection) gets the SMS. Nothing to send for a
-    # senior with no family tier: the barangay tier this alert falls straight through to is
-    # texted separately, by the sweep, the moment its own deadline is reached.
+    # SMS fallback only for family phones that don't confirm the push within the grace
+    # period. Seniors with no family go straight to the barangay (texted by the sweep).
     if has_family:
         background_tasks.add_task(
             deliver_family_sms_after_grace,
@@ -387,14 +333,13 @@ async def list_alerts(
     if senior is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Senior not found")
 
-    # A family contact only sees alerts raised on their watch; a barangay responder sees the
-    # senior's full history within their barangay.
+    # Family only see alerts raised since they paired; barangay responders see the full
+    # history within their barangay.
     linked_since: datetime | None = None
     if current_user.role == UserRole.BARANGAY_RESPONDER:
         allowed = current_user.barangay == senior.barangay
     else:
-        # is_active() is load-bearing, not tidiness: without it a soft-unlinked family
-        # member would keep reading their former senior's alerts forever.
+        # is_active() stops an unlinked family member from reading old alerts.
         link_result = await db.execute(
             select(Contact).where(
                 Contact.senior_id == senior.id,
@@ -406,9 +351,7 @@ async def list_alerts(
         link = link_result.scalar_one_or_none()
         allowed = link is not None
         if link is not None:
-            # created_at marks when THIS pairing began -- pair_contact inserts a fresh row
-            # per (re)link, so alerts from before it, or from a since-closed gap, stay the
-            # senior's private history. Same DB clock as Alert.created_at (both func.now()).
+            # created_at is when this pairing began, so earlier alerts stay private.
             linked_since = link.created_at
 
     if not allowed:
@@ -426,9 +369,7 @@ async def list_alerts(
 
 
 async def _family_alert(sync_id: UUID, db: AsyncSession, current_user: User) -> Alert:
-    """Fetches an alert and confirms current_user is a CURRENTLY linked family contact for
-    its senior — the write-side counterpart of list_alerts' read-side authorization.
-    Unlinking revokes the right to acknowledge/dispatch/resolve, not just to read."""
+    """Fetches an alert and checks the user is a currently linked family contact for it."""
     result = await db.execute(select(Alert).where(Alert.sync_id == sync_id))
     alert = result.scalar_one_or_none()
     if alert is None:
@@ -459,20 +400,10 @@ def append_step(alert: Alert, step: str, **extra: str | None) -> None:
 async def cancel_alert(
     sync_id: UUID, payload: AlertCancel, db: AsyncSession = Depends(get_db)
 ) -> Alert:
-    """The senior answers the wellness prompt themselves, closing the incident.
+    """The senior answers the wellness prompt, closing the incident.
 
-    Without this the two databases drifted apart permanently. "I am safe" was written to the
-    phone's own copy and nowhere else, so an alert the senior had already dismissed went on
-    sitting in the family app as pending for as long as the row existed -- five days, in the
-    case of the ones this endpoint was written for. A family member watching a stale alert they
-    cannot clear learns to ignore the screen, which costs more than the alert was worth.
-
-    No JWT, because the senior has no account to hold one. Both sync_ids are required instead
-    and the pairing is checked below.
-
-    Idempotent on purpose. The caller is a phone that may be retrying after a lost network, and
-    an already-closed alert is the outcome it wanted -- answering 400 would turn a successful
-    retry into an error the device would log and abandon.
+    No JWT, since the senior has no account; both sync_ids are required instead.
+    Idempotent, so a phone retrying after a lost connection gets the closed alert back.
     """
     result = await db.execute(
         select(Alert).where(Alert.sync_id == sync_id).options(selectinload(Alert.senior))
@@ -482,8 +413,7 @@ async def cancel_alert(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Alert not found")
 
     if alert.senior is None or alert.senior.sync_id != payload.senior_sync_id:
-        # Deliberately the same 404 as above rather than a 403: telling a caller that an alert
-        # exists but belongs to someone else is itself a disclosure.
+        # Same 404 as above so we don't reveal that the alert exists.
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Alert not found")
 
     if alert.status in (AlertStatus.RESOLVED, AlertStatus.FALSE_POSITIVE):
@@ -491,19 +421,14 @@ async def cancel_alert(
 
     alert.status = AlertStatus.RESOLVED
     alert.resolved_at = datetime.now(timezone.utc).replace(tzinfo=None)
-    # RESOLVED rather than a new status value: the incident is over, which is what every reader
-    # of this column needs to know, and `status` is a native Postgres enum whose vocabulary
-    # cannot grow without an ALTER TYPE. *Who* closed it is an audit fact, and escalation_steps
-    # is where audit facts already live (spec §8) -- so the timeline records that this was
-    # the senior, not a family member, and no migration is needed to say so.
+    # RESOLVED, with the timeline recording that the senior closed it, so no new enum value.
     append_step(alert, "self_cancelled_senior", by=alert.senior.first_name)
     await db.commit()
     await db.refresh(alert)
     return alert
 
 
-# Severity order, so the endpoint below can raise a level but never quietly lower one. Mirrors
-# MedianMadDetector.RISK_ORDER on the device.
+# Severity order, so the endpoint below can raise a level but never lower it.
 RISK_ORDER = [RiskLevel.LOW, RiskLevel.MEDIUM, RiskLevel.HIGH]
 
 
@@ -513,18 +438,8 @@ async def update_alert_severity(
 ) -> Alert:
     """Raises an open alert's risk level after the phone re-classified it.
 
-    Upgrade-only, exactly as the device is (MedianMadDetector.evaluate). An alert somebody is
-    already acting on must never be talked back down by a later, calmer reading, and a retry
-    arriving out of order must not undo an upgrade that already landed.
-
-    Idempotent: re-sending the level the row already holds returns it unchanged rather than
-    erroring, because the caller is a phone that may be retrying after a lost network.
-
-    Closed incidents are left alone. Re-labelling something already resolved changes nothing
-    anyone can act on and would only disturb the audit trail.
-
-    No JWT, same posture as the cancel route above: the senior has no account, and the pairing of
-    the two sync_ids is the credential.
+    Upgrade-only and idempotent. Closed alerts are left alone. No JWT; the pair of
+    sync_ids is the credential.
     """
     result = await db.execute(
         select(Alert).where(Alert.sync_id == sync_id).options(selectinload(Alert.senior))
@@ -534,8 +449,7 @@ async def update_alert_severity(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Alert not found")
 
     if alert.senior is None or alert.senior.sync_id != payload.senior_sync_id:
-        # Deliberately the same 404 as the cancel route: confirming an alert exists but belongs
-        # to somebody else is itself a disclosure.
+        # Same 404 as the cancel route so we don't reveal that the alert exists.
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Alert not found")
 
     if alert.status in (AlertStatus.RESOLVED, AlertStatus.FALSE_POSITIVE):
@@ -557,20 +471,11 @@ async def update_alert_severity(
 async def update_alert_location(
     sync_id: UUID, payload: AlertLocationUpdate, db: AsyncSession = Depends(get_db)
 ) -> Alert:
-    """Fills in the location of an alert that was posted before its GPS fix arrived.
+    """Fills in the location of an alert posted before its GPS fix arrived.
 
-    Set-once: it can only ever fill a blank. Location is read exactly once per alert
-    (spec §11), so a second value is either the same cell arriving twice -- a retry after a
-    lost network -- or something that should not be trusted over the first. Either way the row
-    keeps what it has, which is also what makes this idempotent.
-
-    Unlike the severity route this does not refuse a closed incident. Severity re-labels a
-    judgement somebody may already have acted on; this only adds a fact that was always true and
-    merely arrived late. An SOS can be resolved within twenty seconds -- alert 74 took eighteen --
-    so refusing closed ones would lose the pin in exactly the case it was hardest to get.
-
-    No JWT, same posture as the cancel and severity routes: the senior has no account, and the
-    pairing of the two sync_ids is the credential.
+    Set-once and idempotent: a second value is ignored. Closed alerts are still accepted,
+    since an SOS can be resolved before its location arrives. No JWT; the pair of
+    sync_ids is the credential.
     """
     result = await db.execute(
         select(Alert).where(Alert.sync_id == sync_id).options(selectinload(Alert.senior))
@@ -580,8 +485,7 @@ async def update_alert_location(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Alert not found")
 
     if alert.senior is None or alert.senior.sync_id != payload.senior_sync_id:
-        # Same 404 as the routes above: confirming an alert exists but belongs to somebody else
-        # is itself a disclosure.
+        # Same 404 as the routes above so we don't reveal that the alert exists.
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Alert not found")
 
     if alert.location_cluster_id is not None:
@@ -600,8 +504,7 @@ async def acknowledge_alert(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> Alert:
-    """First family response tier (spec §7): family taps "Acknowledge Alert",
-    halting the barangay escalation clock while they follow up directly."""
+    """Family taps "Acknowledge Alert", which halts the barangay escalation clock."""
     alert = await _family_alert(sync_id, db, current_user)
     if alert.status != AlertStatus.PENDING:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Alert is not pending")
@@ -618,11 +521,10 @@ async def push_received(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> Alert:
-    """A family phone confirms the alert push reached it, so the server need not text them.
+    """A family phone confirms the push reached it, so the server doesn't text them.
 
-    Called from the FCM handler, even with the app closed. Idempotent per user: a retry, or
-    the same push arriving twice, leaves one step. The row is locked for the read-modify-
-    write of the JSON timeline so two contacts confirming at once cannot drop each other.
+    Idempotent per user. The row is locked so two contacts confirming at once don't
+    overwrite each other.
     """
     alert = await _family_alert(sync_id, db, current_user)
     await db.refresh(alert, with_for_update=True)
@@ -640,8 +542,7 @@ async def dispatch_barangay(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> Alert:
-    """Final escalation tier (spec §7): family requests an official barangay
-    welfare check, same as the automatic no-family-response escalation would."""
+    """Family requests a barangay welfare check, same as the automatic escalation."""
     alert = await _family_alert(sync_id, db, current_user)
     if alert.status in (AlertStatus.RESOLVED, AlertStatus.FALSE_POSITIVE):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Alert already closed")
@@ -658,22 +559,17 @@ async def mark_false_positive(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> Alert:
-    """Family says the alert was raised in error: the senior was fine and the detection was wrong.
+    """Family says the alert was raised in error.
 
-    Kept apart from `resolve` because the two answers mean opposite things about the detector.
-    Resolved is an incident that happened and is now dealt with; this is one that never was.
-    §10 targets a false-positive rate at or under 15%, which can only be measured if someone
-    records which alerts were wrong -- and the senior's phone reads this status back (through
-    GET /seniors/{sync_id}/closed-alerts) as evidence for loosening that time block's trigger.
-    The barangay has had the same action from the start (routes/barangay.py).
+    Separate from `resolve` because it counts toward the false-positive rate, and the
+    senior's phone uses it to loosen that time block's trigger.
     """
     alert = await _family_alert(sync_id, db, current_user)
     if alert.status in (AlertStatus.RESOLVED, AlertStatus.FALSE_POSITIVE):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Alert already closed")
     alert.status = AlertStatus.FALSE_POSITIVE
     alert.resolved_at = datetime.now(timezone.utc).replace(tzinfo=None)
-    # Same audit shape as resolved_family: who closed it, by their name or, failing that, the
-    # login handle (full_name is nullable for Google accounts).
+    # Record who closed it (the login handle if there is no full name).
     append_step(alert, "false_positive_family", by=current_user.full_name or current_user.username)
     await db.commit()
     await db.refresh(alert)
@@ -692,16 +588,7 @@ async def resolve_alert(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Alert already closed")
     alert.status = AlertStatus.RESOLVED
     alert.resolved_at = datetime.now(timezone.utc).replace(tzinfo=None)
-    # Record WHO closed it, not just that it closed. A senior can have up to five family
-    # contacts (spec §2), so "somebody dealt with it" leaves the next contact to open the
-    # app unable to tell whether that was them or someone else.
-    #
-    # Written into escalation_steps rather than a new column: that field exists precisely to be
-    # the audit timeline (spec §8), and who closed an incident is an audit fact. It also
-    # means no migration and no change to the deployed schema.
-    #
-    # full_name is nullable (a Google account can arrive without one), so fall back to the
-    # username, which is not — better a login handle than a blank line where a name should be.
+    # Record who closed it (the login handle if there is no full name).
     append_step(alert, "resolved_family", by=current_user.full_name or current_user.username)
     await db.commit()
     await db.refresh(alert)

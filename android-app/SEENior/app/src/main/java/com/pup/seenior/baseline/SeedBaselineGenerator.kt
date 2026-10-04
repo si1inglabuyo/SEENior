@@ -4,9 +4,8 @@ import com.pup.seenior.database.entities.Baseline
 import com.pup.seenior.database.entities.SeniorOnboarding
 import java.util.Calendar
 /**
- * Converts onboarding questionnaire answers into conservative, wide-margin seed
- * Baseline rows (warm-start) so detection can run before 14 days of real sensor
- * data exist. See the spec section 6.
+ * Converts the onboarding answers into conservative, wide-margin seed Baseline rows, so
+ * detection can run before 14 days of real data exist.
  */
 object SeedBaselineGenerator {
 
@@ -15,9 +14,8 @@ object SeedBaselineGenerator {
     private const val NAP_MARGIN_RATIO = 0.6
     private const val SECONDS_PER_MINUTE = 60.0
 
-    // Feature medians above are authored in minutes (matches onboarding questionnaire
-    // units); SensorData/MedianMadDetector work in seconds, so these two need conversion
-    // before landing in the Baseline table.
+    // Medians above are in minutes (matching the questionnaire); the Baseline table stores
+    // seconds, so these two features are converted.
     private val MINUTES_BASED_FEATURES = setOf("inactivity_duration", "screen_idle_duration")
 
     enum class TimeBlock { MORNING, AFTERNOON, EVENING, NIGHT }
@@ -32,16 +30,12 @@ object SeedBaselineGenerator {
         val screenUnlockCount: Double,
     )
 
-    // Conservative per-block expectations by self-reported activity level (waking blocks only).
+    // Conservative per-block expectations by activity level (waking blocks only).
     //
-    // movementScore was originally 0.15/0.30/0.50/0.70 -- authored without a real reading to
-    // check it against. Measured on the pilot handset 2026-09-13: 17 real samples across a
-    // waking block, median movement_score 0.025 (max 0.214, a brief phone pickup), for a senior
-    // who had self-reported "moderate". The old "resting" seed alone was already ~6x that real
-    // median, so every activity level was starting the 14-day blend from a number no real
-    // accelerometer reading was near -- see [[seenior-seed-movement-miscalibration]]. Rescaled
-    // here, keeping the same relative spacing between levels. Anchored to one senior's data;
-    // revisit once more seniors have real numbers to check it against.
+    // movementScore was originally 0.15/0.30/0.50/0.70, authored without a real reading.
+    // On the pilot handset (2026-09-13) the real median was 0.025, so the old values were far
+    // too high. Rescaled keeping the same relative spacing between levels. Anchored to one
+    // senior's data; revisit with more seniors.
     private val ACTIVITY_PROFILES = mapOf(
         "resting" to ActivityProfile(0.02, 100.0, 45.0, 40.0, 3.0),
         "light" to ActivityProfile(0.04, 400.0, 30.0, 30.0, 5.0),
@@ -54,12 +48,9 @@ object SeedBaselineGenerator {
     private val NIGHT_STEP_COUNT = 20.0
     private val NIGHT_UNLOCK_COUNT = 0.5
     /**
-     * Smallest MAD the z-score is allowed to divide by, per feature.
-     *
-     * **In the units the Baseline table stores** -- seconds for the two time-based features, not
-     * the minutes the questionnaire is authored in. [com.pup.seenior.detection.MedianMadDetector]
-     * reads this map straight with no conversion, so a value in any other unit is silently 60x
-     * too small at detection time and every quiet minute reads as an emergency.
+     * Smallest MAD the z-score may divide by, per feature, in the units the Baseline table
+     * stores (seconds for the two time features). [com.pup.seenior.detection.MedianMadDetector]
+     * reads this directly, so a value in minutes would be 60x too small.
      */
     val MIN_MAD_FLOOR = mapOf(
         "inactivity_duration" to 300.0,
@@ -103,76 +94,44 @@ object SeedBaselineGenerator {
     }
 
     /**
-     * How many seconds of the block [timestamp] falls in have already gone by.
+     * How many seconds of the block that [timestamp] falls in have already gone by.
      *
-     * Needed because two of the sensor readings are *running counters* -- `inactivity_duration`
-     * and `screen_idle_duration` both mean "seconds since the last time X happened" and keep
-     * climbing straight across a block boundary -- while the Baseline they are compared against
-     * is written per block. At wake time the night block ends and morning begins, but the
-     * inactivity counter does not restart: a senior who slept normally arrives in the morning
-     * block carrying the whole night's stillness, which is unremarkable against night's median
-     * and enormous against morning's. Nothing about the senior changed; only the yardstick did.
-     *
-     * Measured on the pilot handset on 2026-09-01: alert 20, `inactivity` at z = 31.98, raised
-     * five minutes after wake time on a reading accumulated entirely during the night, escalated
-     * to the family and then to the barangay.
-     *
-     * [com.pup.seenior.detection.MedianMadDetector] clips those two readings to this value, so a
-     * block is only ever judged on stillness that happened inside it.
+     * `inactivity_duration` and `screen_idle_duration` are running counters ("seconds since X")
+     * that keep climbing across a block boundary, while the baseline they're compared with is
+     * per block. At wake time a normal night's stillness would score as enormous against
+     * morning's median (one alert fired at z = 31.98 this way). [com.pup.seenior.detection.MedianMadDetector]
+     * clips those readings to this value so a block is only judged on stillness inside it.
      */
     fun secondsSinceBlockStart(timestamp: Long, wakeTime: String, sleepTime: String): Long {
         val minuteOfDay = minuteOfDayFor(timestamp)
         val blocks = computeTimeBlocks(wakeTime, sleepTime)
         val window = blocks.firstOrNull { minuteWithinWindow(minuteOfDay, it.startMinute, it.durationMinutes) }
-        // Mirrors resolveTimeBlock's own fallback, so a minute no window claims is treated as
-        // night by both functions rather than by only one of them.
+        // Mirrors resolveTimeBlock's fallback: a minute no window claims is night.
             ?: blocks.first { it.block == TimeBlock.NIGHT }
         val minutesIn = ((minuteOfDay - window.startMinute) + MINUTES_PER_DAY) % MINUTES_PER_DAY
-        // Plus the seconds inside the current minute, so the clip rises smoothly instead of in
-        // sixty-second steps.
+        // Plus the seconds in the current minute, so the clip rises smoothly.
         return minutesIn * 60L + secondOfMinuteFor(timestamp)
     }
 
     /**
      * The moment that identifies the "logical day" a sample belongs to.
      *
-     * [com.pup.seenior.aggregation.NightlyAggregationWorker] files samples under a calendar date,
-     * so a block that straddles midnight is torn in half: its first hours land under one date and
-     * the rest under the next, where they are grouped with the FOLLOWING day's first hours of the
-     * same block. Two different blocks in one aggregate row, with most of a day in the gap between
-     * them.
+     * [com.pup.seenior.aggregation.NightlyAggregationWorker] files samples under a calendar
+     * date, so a block that crosses midnight would be split across two dates and grouped with
+     * the following day's start of the same block (which also made the step difference swallow
+     * a whole day: 10,779 steps against an expected 20).
      *
-     * That gap is also why steps went wrong. Steps are summed as differences between consecutive
-     * readings, and the single difference spanning the gap swallows the entire day's walking.
-     * Measured on the pilot handset 2026-09-02: `aggregate_id` 11 ("2026-09-01 / night") reported
-     * 10,779 steps against a seed expectation of 20, while morning reported 0.
+     * Any of the four blocks can be the one that crosses midnight, depending on the senior's
+     * hours, e.g. wake 06:00 / sleep 22:00 -> night; wake 08:00 / sleep 03:00 -> evening.
      *
-     * **Any of the four blocks can be the one that crosses midnight; it depends entirely on the
-     * senior's hours.** The blocks tile the 24-hour clock exactly, so midnight falls inside
-     * precisely one of them -- but which one is not fixed:
-     *
-     * - wake 06:00 / sleep 22:00 -> **night** (22:00-06:00)
-     * - wake 08:00 / sleep 03:00 -> **evening** (20:40-03:00)
-     * - wake 17:00 / sleep 11:00 -> **afternoon** (23:00-05:00)
-     * - wake 20:00 / sleep 14:00 -> **morning** (20:00-02:00)
-     *
-     * An earlier version tested for the night case specifically and disabled itself entirely when
-     * night did not wrap (`if (sleepMinute <= wakeMinute) return timestamp`). That is exactly
-     * backwards for a senior who goes to bed *after* midnight: their night sits inside one date so
-     * the guard bailed out, while their evening was the block being torn in half -- silently,
-     * every night, for as long as the app ran. Late bedtimes are ordinary, so that was a
-     * deployment bug rather than an edge case.
-     *
-     * The general rule needs no special cases. **If the block containing this reading starts at a
-     * later clock time than the reading itself, that block began yesterday**, so the reading is
-     * filed under yesterday. For a block that does not cross midnight the start is at or before
-     * every minute inside it, so the test never fires and the timestamp is returned untouched.
+     * The rule: if the block containing this reading starts at a later clock time than the
+     * reading itself, that block began yesterday, so the reading is filed under yesterday.
+     * For a block that doesn't cross midnight the timestamp is returned unchanged.
      */
     fun logicalDayMillis(timestamp: Long, wakeTime: String, sleepTime: String): Long {
         val minuteOfDay = minuteOfDayFor(timestamp)
         val blocks = computeTimeBlocks(wakeTime, sleepTime)
-        // Mirrors the fallback in [resolveTimeBlock] and [secondsSinceBlockStart], so a minute no
-        // window claims is treated as night by all three rather than by only some of them.
+        // Mirrors the fallback in [resolveTimeBlock] and [secondsSinceBlockStart]: unclaimed minutes are night.
         val window = blocks.firstOrNull {
             minuteWithinWindow(minuteOfDay, it.startMinute, it.durationMinutes)
         } ?: blocks.first { it.block == TimeBlock.NIGHT }
@@ -248,9 +207,8 @@ object SeedBaselineGenerator {
         }
     }
 
-    /** Public because [com.pup.seenior.detection.FuzzyRiskClassifier] places readings on the
-     *  same wall clock these seeds were built from, and two parsers would be two chances to
-     *  disagree about what "22:30" means. */
+    /** Public because [com.pup.seenior.detection.FuzzyRiskClassifier] uses the same parser, so
+     *  both agree on what "22:30" means. */
     fun parseToMinuteOfDay(hhmm: String): Int {
         val (hour, minute) = hhmm.split(":").map { it.toInt() }
         return hour * 60 + minute

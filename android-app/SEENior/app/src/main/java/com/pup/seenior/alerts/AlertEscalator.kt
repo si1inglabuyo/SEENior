@@ -17,67 +17,38 @@ import java.io.IOException
 import java.time.Instant
 
 /**
- * The family tier of the escalation chain (spec §7), independent of any screen.
+ * The family tier of the escalation chain, independent of any screen.
  *
- * It lives here rather than inside the wellness prompt because the case the product exists for
- * is the senior *not* answering — and a senior who has collapsed is not looking at the app. The
- * prompt calls this when they tap "I need help"; [EscalationWorker] calls it when nobody answers
- * at all. Both paths must produce the same audit trail and the same cloud row.
- *
- * The two callers race by design — the senior can tap "I need help" in the same second the
- * response window expires, and the alarm fires on the same deadline the on-screen countdown is
- * counting to — and neither may produce a duplicate timeline entry or a second cloud alert.
+ * The wellness prompt calls this when the senior taps "I need help", and [EscalationWorker]
+ * calls it when nobody answers. Both must produce the same audit trail and cloud row, and
+ * they can race, so neither may create a duplicate timeline entry or a second cloud alert.
  */
 object AlertEscalator {
 
     private const val TAG = "AlertEscalator"
 
     /**
-     * Serialises the whole read-post-mark sequence in [escalateToFamily].
-     *
-     * The `isSynced` check alone was not enough, and this was not theoretical: one SOS swipe
-     * produced two cloud alerts 4 ms apart. Both callers read `isSynced == false` before either
-     * had finished POSTing, so both posted, and the family was notified twice for one emergency.
-     *
-     * It only started happening once the deadline moved to setAlarmClock. While the alarm was
-     * being deferred ten minutes by Doze it could not possibly land on the same instant as the
-     * on-screen countdown; firing on time put it exactly there.
-     *
-     * Mirrors [AlertResponder.raiseLock], which guards the equivalent check-then-insert.
+     * Serialises the read-post-mark sequence in [escalateToFamily]. The `isSynced` check alone
+     * let one SOS swipe create two cloud alerts 4 ms apart. Mirrors [AlertResponder.raiseLock].
      */
     private val escalateLock = Mutex()
 
     /** Marks the point in the audit timeline where the family tier was notified. */
-    /** Written once the cloud has accepted that the senior closed this alert. Its absence is
-     *  what makes a failed cancel retryable rather than lost. */
+    /** Written once the cloud accepted that the senior closed this alert; its absence makes a failed cancel retryable. */
     private const val STEP_CANCEL_SYNCED = "cancel_synced"
 
     private const val STEP_FAMILY = "escalated_family"
 
     /**
-     * Marks the point where the cloud actually accepted the alert.
-     *
-     * Deliberately distinct from [STEP_FAMILY], which records only that this device decided to
-     * escalate. Offline the two can be minutes or hours apart, and the senior's Home tab needs
-     * to tell those states apart to say "waiting for signal" rather than "your family knows".
+     * Marks the point where the cloud accepted the alert. Distinct from [STEP_FAMILY], which
+     * only records that this device decided to escalate; offline the two can be hours apart.
      */
     private const val STEP_DELIVERED = "delivered_family"
 
-    /**
-     * Written once the cloud has accepted a raised risk level, carrying the level it accepted.
-     *
-     * Its absence — or a level that no longer matches the local row — is what makes an upgrade
-     * retryable rather than lost, exactly as [STEP_CANCEL_SYNCED] does for a self-cancel.
-     */
+    /** Written once the cloud accepted a raised risk level (carrying that level), so a failed upgrade is retryable. */
     private const val STEP_SEVERITY_SYNCED = "severity_synced"
 
-    /**
-     * Written once the cloud has accepted this alert's location cell.
-     *
-     * Its absence is what makes a late fix retryable rather than lost. Unlike
-     * [STEP_SEVERITY_SYNCED] it carries no value: the cell is set once and never changes, so
-     * "sent" is the whole question.
-     */
+    /** Written once the cloud accepted this alert's location cell, so a late fix is retryable. */
     private const val STEP_LOCATION_SYNCED = "location_synced"
 
     sealed interface Outcome {
@@ -90,38 +61,25 @@ object AlertEscalator {
     }
 
     /**
-     * How long the senior gets to answer before this fires, by what raised the alert.
-     *
-     * The single source of truth for both the on-screen countdown and the background watchdog —
-     * if these two ever disagreed, an alert could escalate while its own countdown was still
-     * visibly running.
+     * How long the senior gets to answer before this fires, by trigger type. Used by both the
+     * on-screen countdown and the background watchdog so they never disagree.
      */
     fun windowSecondsFor(triggerType: String): Int = when (triggerType) {
         // A conscious cry for help. Only long enough to catch a pocket press (spec §7).
         "sos" -> 10
-        // Layer 0 gets a compressed window (spec §5): a detected fall already carries its
-        // own evidence that something happened, so waiting the full ten minutes for an answer
-        // that may never come costs the one thing an injured person does not have.
+        // Layer 0 gets a compressed window, since a detected fall already shows something happened.
         "fall_pattern" -> 60
         else -> 600
     }
 
     /**
-     * How long an open alert keeps absorbing fresh detections of the same kind instead of letting
-     * them raise a new one.
-     *
-     * This is a different question from [windowSecondsFor] and must not be folded into it. That
-     * one asks how long the senior has to answer; this one asks how long two detections should be
-     * treated as one event. They only look similar for falls by coincidence.
+     * How long an open alert absorbs new detections of the same kind instead of raising
+     * another. Different from [windowSecondsFor], which is how long the senior has to answer.
      */
     fun dedupeSecondsFor(triggerType: String): Int = when (triggerType) {
-        // Someone swiping again while help is already on the way is repeating themselves, not
-        // reporting a second emergency. The response window is only ten seconds, so without a
-        // longer horizon here a frightened senior would file an alert per swipe.
+        // Repeated swipes while help is coming are one emergency, not several.
         "sos" -> 600
-        // Matches FallDetector's own cooldown. Inside it, one fall cannot be reported twice;
-        // past it, the senior has fallen again — which is new information and the family needs
-        // to hear it, even though the first alert is still open.
+        // Matches FallDetector's cooldown. Past it, a new fall is new information.
         "fall_pattern" -> 60
         else -> 600
     }
@@ -133,21 +91,18 @@ object AlertEscalator {
     /**
      * Records the family escalation and pushes the alert's metadata to the cloud.
      *
-     * The status deliberately stays "pending". Per the spec §7 a pending alert IS one awaiting
-     * the family tier — there is no status meaning "escalated to family" ("escalated_barangay" is
-     * the tier after this one), and moving it would drop the alert out of
-     * [com.pup.seenior.database.dao.AlertDao.getUnacknowledgedAlerts], which drives the chain.
+     * The status stays "pending", since a pending alert is one awaiting the family tier and
+     * changing it would drop it from [com.pup.seenior.database.dao.AlertDao.getUnacknowledgedAlerts],
+     * which drives the chain.
      */
     suspend fun escalateToFamily(db: SeniorAppDatabase, alertId: Int): Outcome = escalateLock.withLock {
         val alert = db.alertDao().getById(alertId) ?: return Outcome.Failed
 
-        // The alarm existed to fetch an answer from the senior. That window has closed and the
-        // family is being told instead, so the noise has nobody left to summon for THIS alert --
-        // a different alert can still be open and waiting, and must keep sounding.
+        // The alarm existed to get an answer from the senior; that window has closed. Other
+        // alerts' alarms keep sounding.
         AlertAlarm.stop(alertId)
 
-        // Carried forward rather than re-read from `alert` each time: appending the delivery
-        // step to the stale snapshot below would silently drop the escalation step written here.
+        // Carried forward so appending the delivery step doesn't drop the escalation step.
         var steps = alert.escalationSteps
         if (!hasEscalatedToFamily(alert)) {
             steps = appendStep(steps, STEP_FAMILY, System.currentTimeMillis())
@@ -158,11 +113,8 @@ object AlertEscalator {
         if (alert.isSynced) return Outcome.Delivered
 
         return try {
-            // Re-read immediately before posting. The snapshot at the top of this function can be
-            // stale by now in two different ways: the location capture is asynchronous and usually
-            // lands after it, and Layer 1 can upgrade the severity in between. On 2026-09-01 the
-            // upgrade and this POST happened within the same second, and the family were shown
-            // Medium for an alert the phone had already called High.
+            // Re-read just before posting, since the severity or location may have changed
+            // since the snapshot above.
             val current = db.alertDao().getById(alert.alertId)
             val cloudAlert = SeniorCloudSync(db).withSyncId { seniorSyncId ->
                 RetrofitClient.api.postAlert(
@@ -170,13 +122,9 @@ object AlertEscalator {
                         seniorSyncId = seniorSyncId,
                         riskLevel = current?.riskLevel ?: alert.riskLevel,
                         triggerType = alert.triggerType,
-                        // Captured at alert-trigger time only, as a geohash cell, never
-                        // coordinates (spec §11). Null when no fix could be had, which is a
-                        // normal outcome.
+                        // Geohash cell captured at alert time, never coordinates. Null if no fix.
                         locationClusterId = current?.locationClusterId,
-                        // Not re-read from `current` like the two fields above: unlike risk
-                        // level and location, the trigger moment itself never changes between
-                        // the snapshot at the top of this function and now.
+                        // Not re-read: the trigger moment never changes.
                         triggeredAt = Instant.ofEpochMilli(alert.triggeredAt).toString()
                     )
                 )
@@ -190,32 +138,21 @@ object AlertEscalator {
             )
             Outcome.Delivered
         } catch (e: IOException) {
-            // Expected and common (no signal, DNS not resolving, the Render free-tier instance
-            // waking up) — logged at a level that will not itself page anyone, but this is the
-            // one place the 2026-09-06 47-minute delivery lag could otherwise have left a trace
-            // and did not, because nothing here wrote one.
+            // Expected and common (no signal, server waking up), so logged at a quiet level.
             Log.w(TAG, "escalateToFamily offline for alert ${alert.alertId}", e)
             Outcome.Offline
         } catch (e: Exception) {
-            // Anything else — a malformed response, a server-side rejection, a bug in this
-            // method itself — is the case most worth a stack trace, since "Failed" alone gives
-            // EscalationWorker's retry nothing to diagnose from afterward.
+            // Anything else is worth a stack trace, since "Failed" alone gives the retry nothing to go on.
             Log.e(TAG, "escalateToFamily failed for alert ${alert.alertId}", e)
             Outcome.Failed
         }
     }
 
     /**
-     * Tells the cloud the senior answered the prompt themselves, so the alert stops sitting in
-     * the family app as pending.
-     *
-     * Only alerts that reached the cloud have anything to close — one dismissed before it ever
-     * escalated has no cloud row, which is why this is a no-op for them rather than an error.
-     *
-     * Returns true when the cloud is known to agree, so the caller can tell "done" from "try
-     * again later". The step it writes on success is the only record that the two databases are
-     * in step; without it a phone that was offline at the moment of the cancel would have no way
-     * to know it still owed the server an update.
+     * Tells the cloud the senior answered the prompt themselves, so the family app stops
+     * showing the alert as pending. A no-op for alerts that never reached the cloud. Returns
+     * true when the cloud agrees; the step written on success is the only record that the two
+     * databases are in step.
      */
     suspend fun cancelInCloud(db: SeniorAppDatabase, alertId: Int): Boolean {
         val alert = db.alertDao().getById(alertId) ?: return false
@@ -232,20 +169,12 @@ object AlertEscalator {
             )
             true
         } catch (e: Exception) {
-            // Never rethrown: the senior has already been told they are safe and the local record
-            // is correct. The only casualty is the family's view being briefly stale, which the
-            // watchdog's next pass repairs.
+            // Never rethrown: the local record is correct and the watchdog repairs the family's view.
             false
         }
     }
 
-    /**
-     * Retries every self-cancel the cloud was never told about.
-     *
-     * Called from the watchdog. A senior who dismisses a prompt in a dead spot would otherwise
-     * leave that alert open in the family app permanently — the one moment it was possible to
-     * send the update having passed and nothing remembering it was owed.
-     */
+    /** Retries every self-cancel the cloud was never told about. Called from the watchdog. */
     suspend fun reconcileCancelledAlerts(db: SeniorAppDatabase, seniorId: Int) {
         db.alertDao().getSelfCancelledSyncedAlerts(seniorId)
             .filterNot { hasStep(it, STEP_CANCEL_SYNCED) }
@@ -253,19 +182,10 @@ object AlertEscalator {
     }
 
     /**
-     * Tells the cloud that an already-sent alert has been re-classified as more serious.
-     *
-     * Layer 1 re-scores on every sample, so an alert posted as Medium can become High while it is
-     * still open. [com.pup.seenior.detection.MedianMadDetector] raises the local row; this is the
-     * only thing that carries the change to the copy the family app and the barangay dashboard
-     * actually read. Measured missing on 2026-09-01: alert 20 was posted Medium at 10:21 and
-     * upgraded to High in the same second, and the cloud still said Medium five hours later.
-     *
-     * A no-op for an alert that never reached the cloud. [escalateToFamily] reads the level at the
-     * moment it posts, so one that has not gone up yet carries the current level when it does.
-     *
-     * Returns true when the cloud is known to agree, so [reconcileSeverity] can tell "done" from
-     * "try again later".
+     * Tells the cloud an already-sent alert was re-classified as more serious. Layer 1
+     * re-scores every sample, and [com.pup.seenior.detection.MedianMadDetector] only raises the
+     * local row. A no-op for an alert that never reached the cloud, since
+     * [escalateToFamily] reads the current level when it posts. Returns true when the cloud agrees.
      */
     suspend fun syncSeverity(db: SeniorAppDatabase, alertId: Int): Boolean {
         val alert = db.alertDao().getById(alertId) ?: return false
@@ -290,38 +210,20 @@ object AlertEscalator {
             )
             true
         } catch (e: Exception) {
-            // Never rethrown, for the same reason as cancelInCloud: the local record is right and
-            // the alert is already being acted on. The only casualty is a stale severity in the
-            // family's view, which the watchdog's next pass repairs.
+            // Never rethrown, same as cancelInCloud; the watchdog repairs a stale severity.
             false
         }
     }
 
-    /**
-     * Retries every severity upgrade the cloud was never told about.
-     *
-     * Called from the watchdog, for the same reason [reconcileCancelledAlerts] is: an upgrade that
-     * happened in a dead spot has exactly one chance to be sent, and nothing else remembers it was
-     * owed.
-     */
+    /** Retries every severity upgrade the cloud was never told about. Called from the watchdog. */
     suspend fun reconcileSeverity(db: SeniorAppDatabase, seniorId: Int) {
         db.alertDao().getOpenSyncedAlerts(seniorId).forEach { syncSeverity(db, it.alertId) }
     }
 
     /**
-     * Sends a location cell that arrived after its alert had already been posted.
-     *
-     * [AlertResponder] gives the GPS up to twenty seconds; an SOS goes out at the end of its
-     * ten-second cancel window. Those two numbers do not fit, deliberately — the window belongs
-     * to the senior and is not ours to lengthen — so a slow fix lands after the alert has gone.
-     * Before this it stayed on the phone forever, and the one alert type a responder most needs
-     * a pin for was the one least likely to have one.
-     *
-     * A no-op until there is both a cloud row and a cell. A fix that lands before the post is
-     * carried by the post itself, which is what the re-read in [escalateToFamily] is for.
-     *
-     * Returns true when the cloud is known to have it, so [reconcileLocation] can tell "done"
-     * from "try again later".
+     * Sends a location cell that arrived after its alert had been posted. An SOS goes out at
+     * the end of its 10 s cancel window while GPS gets up to 20 s, so a slow fix lands late.
+     * A no-op until there is both a cloud row and a cell. Returns true when the cloud has it.
      */
     suspend fun syncLocation(db: SeniorAppDatabase, alertId: Int): Boolean {
         val alert = db.alertDao().getById(alertId) ?: return false
@@ -342,19 +244,12 @@ object AlertEscalator {
             )
             true
         } catch (e: Exception) {
-            // Swallowed for the same reason as syncSeverity: the local record is right and the
-            // alert is already being acted on. The casualty is a missing pin, not a missing
-            // alert, and the watchdog's next pass retries it.
+            // Swallowed, same as syncSeverity; the watchdog retries a missing pin.
             false
         }
     }
 
-    /**
-     * Retries every location cell the cloud was never told about.
-     *
-     * Called from the watchdog for the same reason [reconcileSeverity] is: a fix that landed in
-     * a dead spot has exactly one chance to be sent, and nothing else remembers it was owed.
-     */
+    /** Retries every location cell the cloud was never told about. Called from the watchdog. */
     suspend fun reconcileLocation(db: SeniorAppDatabase, seniorId: Int) {
         db.alertDao().getOpenSyncedAlerts(seniorId).forEach { syncLocation(db, it.alertId) }
     }
@@ -390,10 +285,8 @@ object AlertEscalator {
     }
 
     /**
-     * Appends one entry to the alert's audit timeline (spec §8 `escalation_steps`).
-     *
-     * [extra] carries any keys beyond step/at — the server's own entries already use free-form
-     * keys like `reason`, and the risk level the cloud accepted is the same kind of fact.
+     * Appends one entry to the alert's audit timeline (`escalation_steps`). [extra] carries any
+     * keys beyond step/at, like `reason`.
      */
     fun appendStep(
         existing: String,

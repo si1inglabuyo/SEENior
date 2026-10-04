@@ -3,31 +3,18 @@ package com.pup.seenior.ui
 import com.pup.seenior.ui.wellness.WellnessMessages
 
 /**
- * The reading screens behind Profile — About, How to use, FAQs, Contact support, Terms and
- * Privacy — in both supported languages.
+ * The reading screens behind Profile (About, How to use, FAQs, Contact support, Terms,
+ * Privacy) in both languages, served through [LocalInfoCopy], provided in `SeniorDashboard`.
+ * Split from [ProfileStrings] because this is prose and that is chrome. Legal sections reuse
+ * [OnboardingStrings.Section].
  *
- * Served through [LocalProfileCopy]'s neighbour [LocalInfoCopy], provided in `SeniorDashboard`
- * beside the others. Split from [ProfileStrings] because this is prose and that is chrome: these
- * strings are paragraphs a senior reads once, and keeping them apart stops a 60-line legal section
- * from burying the label of a button.
- *
- * Legal sections reuse [OnboardingStrings.Section] rather than declaring a third identical
- * heading/body/bullets triple.
- *
- * **Two warnings before this text is shown to a panel or a real senior.**
- *
- * 1. **The Filipino got a first native-speaker pass on 2026-09-14** — "po"/"pong" removed
- *    throughout (except inside the two places this file quotes the wellness prompt itself
- *    verbatim, which the spec §14 pins and this file does not touch), "telepono" changed to
- *    "cellphone". It has not been read end-to-end by a native speaker since, and the panel has
- *    already rejected one phrasing in this app as too informal. The legal sections matter most: a
- *    translated privacy notice is the notice the senior is relying on.
- * 2. **Fixed 2026-09-27: the offline FAQ used to promise "SEENior will try to send an SMS
- *    instead" with no internet at all.** That was never true and could not be — SMS is sent by
- *    the *backend*, to family/barangay, after it already received the alert over the internet
- *    from this phone. A senior with zero connectivity has no path to report anything, SMS
- *    included. The note now says that plainly instead of promising a fallback that doesn't
- *    exist on this end.
+ * Before showing this to a panel or a real senior:
+ * 1. The Filipino had a native-speaker pass on 2026-09-14 ("po"/"pong" removed except where
+ *    the wellness prompt is quoted verbatim, "telepono" changed to "cellphone"). It hasn't
+ *    been read end to end since, and the legal sections matter most.
+ * 2. Fixed 2026-09-27: the offline FAQ used to promise an SMS fallback with no internet.
+ *    SMS is sent by the backend after it receives the alert, so a phone with no connectivity
+ *    can't report anything. The note now says so.
  */
 object InfoStrings {
 

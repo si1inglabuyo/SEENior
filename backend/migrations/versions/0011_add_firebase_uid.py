@@ -1,8 +1,6 @@
 """add firebase_uid to users, for Firebase Authentication (family accounts)
 
-Mirrors google_sub: a stable per-account ID from the identity provider (here,
-Firebase Auth instead of Google Sign-In directly), used to recognize a
-returning sign-in independent of email changes.
+Works like google_sub: a stable account ID from the identity provider.
 
 Revision ID: 0011
 Revises: 0010

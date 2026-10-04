@@ -68,12 +68,9 @@ abstract class SeniorAppDatabase : RoomDatabase() {
         }
 
         /**
-         * Adds the relationship label to Contacts, so a cached family contact can be shown the
-         * way the SOS screen shows it -- "Agatha A. / Daughter", not a bare name.
-         *
-         * Adding rather than recreating even though the table is empty on every device today:
-         * nothing had ever written to Contacts before this change, but a migration that drops a
-         * table is a migration that can lose data if that ever stops being true.
+         * Adds the relationship label to Contacts, so a cached family contact shows like the SOS
+         * screen does ("Agatha A. / Daughter"). Adds a column rather than recreating the table,
+         * so the migration can't lose data.
          */
         private val MIGRATION_2_3 = object : Migration(2, 3) {
             override fun migrate(db: SupportSQLiteDatabase) {
@@ -82,17 +79,11 @@ abstract class SeniorAppDatabase : RoomDatabase() {
         }
 
         /**
-         * Records how many raw readings each `Daily_Aggregates` row was built from.
+         * Records how many raw readings each `Daily_Aggregates` row was built from. Raw
+         * `Sensor_Data` is purged the night it is rolled up, so the count can only be taken then.
          *
-         * Urgent in a way most columns are not: raw `Sensor_Data` is purged the same night it is
-         * rolled up (spec §11, data minimisation), so the count exists only in the instant
-         * the worker is grouping those rows. A day that passes without this column is a day whose
-         * completeness can never be established afterwards -- there is nothing left to count.
-         *
-         * Nullable, and deliberately not backfilled with a guess. The three rows already on the
-         * pilot handset keep `null`, meaning "unknown". A default of 0 would read as "this block
-         * had no readings" and a default of 52 would be a fabrication; both are worse than an
-         * honest gap. See [com.pup.seenior.database.entities.DailyAggregate.sampleCount].
+         * Nullable and not backfilled: existing rows keep `null` for "unknown", since 0 or 52
+         * would be a fabrication. See [com.pup.seenior.database.entities.DailyAggregate.sampleCount].
          */
         private val MIGRATION_3_4 = object : Migration(3, 4) {
             override fun migrate(db: SupportSQLiteDatabase) {

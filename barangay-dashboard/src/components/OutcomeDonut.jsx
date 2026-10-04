@@ -2,14 +2,10 @@ import { IconChart } from '../icons'
 import SectionCard from './SectionCard'
 import Donut from './Donut'
 
-// This week's alerts by outcome: open and unclaimed at the barangay tier ("Active"), open
-// with a responder already attending, closed as resolved, or closed as a false positive.
-// Each slice drills in -- "Active" / "Attending" to the Alerts tab (open work isn't in the
-// log), "Resolved" / "False Positive" to Alert History filtered to that status.
-//
-// `attending` is a key the stats endpoint derives (an escalated alert with an
-// acknowledged_barangay step); it is not a stored status. Against an API that predates it,
-// those alerts are simply still counted under `escalated`.
+// This week's alerts by outcome: Active (open, unclaimed), Attending, Resolved and False
+// Positive. "Active" and "Attending" open the Alerts tab; the others open Alert History
+// filtered by status. `attending` is derived by the stats endpoint (an escalated alert with
+// an acknowledged_barangay step), not a stored status; older APIs count it as `escalated`.
 const ACTIVE_COLOR = '#c4453c'
 const ATTENDING_COLOR = '#e0a03c'
 const RESOLVED_COLOR = '#5aa666'

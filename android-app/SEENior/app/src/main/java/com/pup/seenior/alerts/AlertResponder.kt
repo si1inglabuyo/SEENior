@@ -18,31 +18,23 @@ import kotlinx.coroutines.sync.withLock
 import java.util.UUID
 
 /**
- * What happens the moment an alert is raised on this device, wherever it came from — Median-MAD,
- * Layer 0 fall detection, or the SOS swipe.
- *
- * Every alert has to do two things beyond existing as a row: get in front of the senior, and
- * start its own clock. Keeping both here means a new detection layer only has to say what it
- * found, instead of re-implementing the response chain and getting it subtly wrong.
+ * What happens when an alert is raised on this device, from any source (Median-MAD, fall
+ * detection or SOS): it gets in front of the senior and starts its own clock. Keeping both
+ * here means a new detection layer only has to say what it found.
  */
 object AlertResponder {
 
-    /** Serialises check-then-insert so two detections in the same instant cannot both pass the
-     *  duplicate check. Falls in particular can be reported by the live sensor stream and a demo
-     *  trigger at once. */
+    /** Serialises check-then-insert so two detections at once can't both pass the duplicate check. */
     private val raiseLock = Mutex()
 
     /** Outlives the caller on purpose: see [captureLocationCluster]. */
     private val locationScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     /**
-     * Raises an alert that carries no deviation score — one where something either happened or
-     * did not, rather than being a matter of degree. Returns null when an alert of the same kind
-     * is already working its way through the escalation chain, or when this phone has no
-     * onboarded senior.
-     *
-     * Median-MAD alerts do not come through here: they arrive already scored and are inserted by
-     * the detector itself, which then hands them to [onAlertCreated].
+     * Raises an alert with no deviation score (something happened or didn't). Returns null if
+     * an alert of the same kind is already in the escalation chain, or the phone has no
+     * onboarded senior. Median-MAD alerts don't come through here; the detector inserts them
+     * and hands them to [onAlertCreated].
      */
     suspend fun raise(
         context: Context,
@@ -54,8 +46,8 @@ object AlertResponder {
         val onboarding = db.seniorOnboardingDao().getBySeniorId(senior.seniorId) ?: return null
 
         val now = System.currentTimeMillis()
-        // Bounded on purpose — see AlertDao.getRecentActiveAlert. An open alert absorbs repeats of
-        // the same event, but must not silence the next real one once that event is over.
+        // Bounded (see AlertDao.getRecentActiveAlert): an open alert absorbs repeats of the
+        // same event but mustn't silence the next real one.
         val notBefore = now - AlertEscalator.dedupeSecondsFor(triggerType) * 1_000L
         if (db.alertDao().getRecentActiveAlert(senior.seniorId, triggerType, notBefore) != null) return null
 
@@ -67,8 +59,7 @@ object AlertResponder {
             timeBlock = SeedBaselineGenerator
                 .resolveTimeBlock(now, onboarding.wakeTime, onboarding.sleepTime)
                 .name.lowercase(),
-            // The column belongs to Median-MAD. A fall and a button press are events, not
-            // deviations, so there is no z-score to record.
+            // That column belongs to Median-MAD; a fall or button press has no z-score.
             deviationScore = null,
             triggeredAt = now
         )
@@ -78,30 +69,22 @@ object AlertResponder {
     }
 
     suspend fun onAlertCreated(context: Context, db: SeniorAppDatabase, alert: Alert) {
-        // Armed before anything else in this function. The deadline is the alert's one hard
-        // guarantee, and nothing added here may ever be able to delay it.
+        // Armed first: the deadline is the alert's hard guarantee and nothing added later may delay it.
         EscalationScheduler.arm(context, alert)
         captureLocationCluster(context, db, alert)
 
-        // After the deadline is armed, never before: the escalation guarantee comes first and
-        // nothing added here may be able to delay it. Low-risk anomalies never reach this
-        // function at all — MedianMadDetector.recordLowRisk writes those straight to the table
-        // and tells nobody — so anything arriving here is owed an answer and may make noise
-        // asking for one.
+        // After the deadline is armed. Low-risk anomalies never reach this function, so
+        // anything here is owed an answer and may make noise asking for one.
         AlertAlarm.start(context, alert.alertId)
 
-        // With the app open the wellness prompt takes over the screen by itself; a notification
-        // on top of it would only be noise.
+        // With the app open the wellness prompt takes over by itself; a notification would be noise.
         if (AppForeground.isForeground) return
 
-        // Two mechanisms, because each covers what the other cannot. The full-screen intent on
-        // the notification below owns the locked or dark screen. This owns the case where the
-        // senior is part-way through another app, where a full-screen intent quietly degrades to
-        // a banner. Both depend on grants Android will not give for a manifest declaration alone
-        // — see [AlertPermissions], and the refusals at 13:04:04 on 2026-09-04 that found this.
-        //
-        // Best effort, and deliberately not fatal: if the launch is refused the notification
-        // still posts underneath, carrying the same content intent.
+        // Two mechanisms: the full-screen intent on the notification covers a locked or dark
+        // screen, and this covers a senior inside another app, where a full-screen intent
+        // degrades to a banner. Both need grants Android won't give from the manifest alone
+        // (see [AlertPermissions]). Best effort: if the launch is refused the notification
+        // still posts.
         if (AlertPermissions.canDrawOverlays(context)) {
             runCatching {
                 context.startActivity(
@@ -120,21 +103,12 @@ object AlertResponder {
     }
 
     /**
-     * Asks where the phone is and stores the answer as this alert's location cell (spec §11).
-     *
-     * Launched rather than awaited. A fix can take twenty seconds, and this runs on the sensor
-     * service's thread and on the SOS button's — neither can be made to wait on a radio for a
-     * field that is metadata.
-     *
-     * The fix can and does arrive after the alert has already been sent: an SOS posts at the end
-     * of its ten-second cancel window, which is the senior's and not ours to lengthen. That is
-     * what [AlertEscalator.syncLocation] exists for, and why it is called here rather than left
-     * to the watchdog — the next pass is fifteen minutes away, and a responder looking for a pin
-     * cannot wait that long.
-     *
-     * Best effort by design: a cell that never arrives costs the family a precise map, not an
-     * alert. [AlertLocationCapture] already returns null for a declined permission or a phone
-     * with every provider off, and the family's map falls back to the registered address.
+     * Asks where the phone is and stores the result as this alert's location cell. Launched
+     * rather than awaited, since a fix can take 20 s. The fix can arrive after the alert was
+     * sent (an SOS posts at the end of its 10 s cancel window), which is why
+     * [AlertEscalator.syncLocation] is called here and not left to the watchdog. Best effort:
+     * a missing cell costs a precise map, not an alert, and the family's map falls back to
+     * the registered address.
      */
     private fun captureLocationCluster(context: Context, db: SeniorAppDatabase, alert: Alert) {
         val appContext = context.applicationContext
@@ -148,17 +122,10 @@ object AlertResponder {
     }
 
     /**
-     * How long this alert can afford to wait for a fix, by what raised it.
-     *
-     * Not one number, because the windows are not one length. An SOS or a fall notifies everyone
-     * in seconds, and a late cell would arrive after the message it belonged on. A Median-MAD
-     * alert has ten minutes before the family tier even begins — and on 2026-09-01 the first real
-     * one of those went to the family and then the barangay with no location at all, because the
-     * phone was indoors with a cold GPS and twenty seconds was not enough. A responder sent to a
-     * street address instead of a pin is the exact cost the spec §11 was rewritten to avoid.
-     *
-     * Still best effort. Nothing waits on this: the capture runs in its own scope and the
-     * escalation sends whatever has landed by then.
+     * How long this alert can wait for a fix, by trigger. An SOS or fall notifies everyone in
+     * seconds, so a late cell would miss the message. A Median-MAD alert has ten minutes
+     * before the family tier starts, and the first real one went out with no location because
+     * 20 s wasn't enough for a cold GPS indoors. Still best effort; nothing waits on this.
      */
     private fun locationTimeoutMsFor(triggerType: String): Long = when (triggerType) {
         "sos", "fall_pattern" -> 20_000L

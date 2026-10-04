@@ -9,10 +9,9 @@ import FilterMenu from './FilterMenu'
 import AlertRow from './AlertRow'
 import AlertActionModals from './AlertActionModals'
 
-// The Alerts tab -- the live queue: every incident open at the barangay tier, regardless
-// of when it was raised. Closed incidents move to their own tab (Alert History). The Alert
-// Type dropdown and the name/age search filter the rows client-side, sharing the exact
-// primitives Alert History uses so the two screens can't drift.
+// The Alerts tab: every incident open at the barangay tier. Closed ones move to Alert
+// History. The type dropdown and search filter rows on the client, using the same
+// primitives as Alert History.
 export default function IncidentQueue({ onSessionLost }) {
   const [alerts, setAlerts] = useState(null)
   const [error, setError] = useState('')
@@ -31,8 +30,7 @@ export default function IncidentQueue({ onSessionLost }) {
     }
   }, [onSessionLost])
 
-  // Polling: an action taken here or on Alert History or the Dashboard is a real write to
-  // the same table; the poll is what converges every open screen without a manual refresh.
+    // Poll so actions taken on other screens show up here.
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     load()

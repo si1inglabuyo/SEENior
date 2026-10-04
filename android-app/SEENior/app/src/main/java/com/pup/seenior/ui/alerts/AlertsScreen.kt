@@ -54,18 +54,10 @@ private val AlertAmberBg = Color(0xFFFDF3E7)
 private const val FOURTEEN_DAYS_MS = 14L * 24 * 60 * 60 * 1000
 
 /**
- * The senior's Alerts tab (spec §7/§8): the current open alert, if any, at the top, and the
- * last 14 days of alert history below it.
- *
- * "Current" is read from [HomeViewModel.helpDelivery] rather than re-derived here — that
- * property already carries the careful Waiting/Delivered distinction and the "never retires on a
- * timer" rule Home's own card depends on (see its KDoc), and this tab has to agree with Home
- * about what counts as still-open or a senior would get two different answers to the same
- * question on two different tabs.
- *
- * History deliberately excludes `status = "logged"` rows: those are Low-risk anomalies the Fuzzy
- * Logic layer judged not worth telling the senior about at the time (spec §5), and surfacing
- * them now, after the fact, would contradict that decision.
+ * The senior's Alerts tab: the current open alert at the top and the last 14 days of history
+ * below it. "Current" comes from [HomeViewModel.helpDelivery], so this tab and Home agree on
+ * what is still open. History excludes `status = "logged"` rows, low-risk anomalies the
+ * senior wasn't told about at the time.
  */
 @Composable
 fun AlertsScreen(homeViewModel: HomeViewModel, viewModel: AlertsViewModel = viewModel()) {
@@ -153,10 +145,9 @@ fun AlertsScreen(homeViewModel: HomeViewModel, viewModel: AlertsViewModel = view
 }
 
 /**
- * The open alert, shown the same way [com.pup.seenior.ui.home.HomeScreen]'s HelpDeliveryCard
- * shows it — red once the family has actually been told, amber while it's still only on this
- * phone — but with the full why-and-what-the-numbers-found description instead of Home's
- * one-line summary, since this tab is where a senior comes to read the detail.
+ * The open alert, shown like [com.pup.seenior.ui.home.HomeScreen]'s HelpDeliveryCard (red
+ * once the family has been told, amber while only on this phone) but with the full why and
+ * what-the-numbers-found description.
  */
 @Composable
 private fun CurrentAlertCard(
@@ -205,8 +196,7 @@ private fun CurrentAlertCard(
         Spacer(Modifier.height(10.dp))
         Text(formatTimestamp(alert.triggeredAt), color = SeniorColors.TextSecondary, fontSize = 12.sp)
 
-        // Same "I'm fine now" action Home offers, always green regardless of the card's own
-        // accent — it's the senior's own affirmative action, not a severity indicator.
+        // The same "I'm fine now" action Home offers, always green since it isn't a severity indicator.
         Spacer(Modifier.height(14.dp))
         Row(
             modifier = Modifier
@@ -276,10 +266,7 @@ private fun HistoryAlertCard(alert: Alert, language: String, copy: SeniorStrings
     }
 }
 
-/**
- * The "show your work" line — set in monospace, distinct from the plain-language description
- * above it, so it visibly reads as a computed figure rather than more prose.
- */
+/** The "show your work" line, in monospace so it reads as a computed figure rather than prose. */
 @Composable
 private fun ComputationLine(text: String) {
     Box(

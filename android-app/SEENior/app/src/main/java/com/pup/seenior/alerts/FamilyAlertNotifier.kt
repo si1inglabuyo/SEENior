@@ -18,17 +18,10 @@ import com.pup.seenior.R
 import com.pup.seenior.ui.family.alertReasonText
 
 /**
- * Puts an incoming alert in front of the family contact when the app is not on screen.
- *
- * Deliberately separate from [AlertNotifier], which is senior-facing: that one speaks to
- * the person in trouble and asks them to answer a wellness prompt, this one tells someone
- * else that a person they care for may need help. Different audience, different wording,
- * and its own channel so a family member can tune the two independently.
- *
- * No full-screen intent, unlike the senior side. From API 34 Android reserves those for
- * calling and alarm apps and would almost certainly refuse ours, degrading to a heads-up
- * banner anyway — so this builds the thing that actually happens rather than depending on
- * a permission that gets denied.
+ * Puts an incoming alert in front of the family contact when the app isn't on screen.
+ * Separate from [AlertNotifier], which speaks to the senior: this tells someone else that a
+ * person they care for may need help, with its own wording and channel. No full-screen
+ * intent, since from API 34 Android would almost certainly refuse it and show a banner anyway.
  */
 object FamilyAlertNotifier {
 
@@ -54,8 +47,7 @@ object FamilyAlertNotifier {
         val isHighRisk = riskLevel == "high" || triggerType == "sos"
         val firstName = seniorName.split(" ").firstOrNull()?.takeIf { it.isNotBlank() } ?: seniorName
 
-        // Same wording the Alerts tab uses, so the notification and the screen it opens
-        // never tell the family two different stories about the same alert.
+        // Same wording as the Alerts tab, so the notification and the screen never disagree.
         val title = if (triggerType == "sos") "$firstName pressed the SOS button."
         else "$firstName may need your attention."
 
@@ -84,15 +76,12 @@ object FamilyAlertNotifier {
             )
             .setColor(if (isHighRisk) COLOR_HIGH else COLOR_DEFAULT)
             .setContentIntent(openAlert)
-            // Swiping it away must not count as dealing with it; the alert is closed by
-            // acknowledging, dispatching or resolving it in the app.
+            // Swiping it away doesn't count as dealing with it; acknowledge, dispatch or resolve in the app.
             .setAutoCancel(false)
             .setOngoing(isHighRisk)
             .build()
 
-        // Keyed on the alert, so a re-delivery of the SAME alert (FCM retries, or the
-        // senior's phone retrying a failed sync) replaces the banner instead of stacking
-        // a second identical one — while a genuinely different alert still gets its own.
+        // Keyed on the alert, so a re-delivery replaces the banner instead of stacking, while a different alert gets its own.
         NotificationManagerCompat.from(context).notify(alertSyncId.hashCode(), notification)
     }
 
@@ -116,8 +105,7 @@ object FamilyAlertNotifier {
         ).apply {
             description = "Alerts about a senior you are monitoring."
             enableVibration(true)
-            // Alarm usage on purpose, matching the senior side: a family member whose
-            // phone is face-down on silent is exactly the person this has to reach.
+            // Alarm usage on purpose, matching the senior side: a family member's phone face-down on silent has to be reached.
             setSound(
                 RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM),
                 AudioAttributes.Builder()

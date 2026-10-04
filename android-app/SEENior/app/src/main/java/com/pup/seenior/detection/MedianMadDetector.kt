@@ -16,13 +16,10 @@ object MedianMadDetector {
     private val RISK_ORDER = listOf("low", "medium", "high")
 
     /**
-     * How long one logged low-risk note stands in for repeats of the same quiet anomaly.
-     *
-     * A senior lying still through the night re-crosses the moderate threshold on every
-     * five-minute poll, and each one would otherwise write its own row — roughly a hundred a
-     * night saying the same unremarkable thing. An hour keeps the record without the noise.
-     * Deliberately longer than [com.pup.seenior.alerts.AlertEscalator.dedupeSecondsFor], which
-     * governs alerts somebody is going to be told about; nobody is waiting on these.
+     * How long one logged low-risk note stands in for repeats of the same quiet anomaly. A
+     * senior lying still re-crosses the threshold every poll, which would write ~100 rows a
+     * night. Longer than [com.pup.seenior.alerts.AlertEscalator.dedupeSecondsFor], since nobody
+     * is waiting on these.
      */
     private const val LOGGED_DEDUPE_SECONDS = 3600L
 
@@ -41,19 +38,11 @@ object MedianMadDetector {
     /**
      * The direction of deviation that means something may be wrong, per feature.
      *
-     * The Modified Z-Score of the spec §5 is a distance and carries no sign: `|current - median|`
-     * scores a senior who is moving *more* than usual exactly as high as one who has stopped
-     * moving. Only one of those is a reason to ask if she is safe.
-     *
-     * It is not a small effect at the margins, either — it is most of the false positives. The
-     * seed baseline sets `madValue = median * 0.4`, so `median / mad` is exactly 2.5 for every
-     * seeded feature, which puts a reading of **zero** precisely on [MODERATE_THRESHOLD]. A
-     * senior holding her phone reads inactivity 0 and screen-idle 0, and the app told her it had
-     * noticed she hadn't moved in a while — while she was moving.
-     *
-     * The score itself is unchanged, and still stored unchanged on the alert. This decides which
-     * half of it is worth acting on, which is a different question from how far from normal the
-     * reading is, and the spec §14 requires those to stay separate.
+     * The z-score has no sign, so a senior moving more than usual scores as high as one who
+     * stopped. Only the second is a reason to ask. This matters because the seed baseline's
+     * `madValue = median * 0.4` puts a reading of zero exactly on [MODERATE_THRESHOLD], so a
+     * senior holding her phone used to be told she hadn't moved. The score itself is stored
+     * unchanged; this only decides which half is worth acting on.
      */
     private val FEATURE_CONCERN = mapOf(
         // Unusually still, and unusually disengaged from the phone.
@@ -64,33 +53,22 @@ object MedianMadDetector {
     )
 
     /**
-     * The features whose readings are running counters rather than per-sample measurements.
-     *
-     * Both mean "seconds since the last time something happened", so they climb straight across a
-     * time-block boundary while the Baseline they are scored against changes at it. See
-     * [SeedBaselineGenerator.secondsSinceBlockStart] for what that did in production and why the
-     * reading is clipped to the part of the streak that belongs to the current block.
-     *
-     * They climb straight across the end of the senior's declared nap for the same reason, which
-     * the nap window alone does not cover — see [FuzzyRiskClassifier.secondsSinceNapEnd] and the
-     * two alerts it was written for.
+     * Features whose readings are running counters ("seconds since X"). They climb straight
+     * across a time-block boundary and across the end of a declared nap while the baseline
+     * changes, so readings are clipped. See [SeedBaselineGenerator.secondsSinceBlockStart] and
+     * [FuzzyRiskClassifier.secondsSinceNapEnd].
      */
     private val RUNNING_COUNTER_FEATURES = setOf("inactivity_duration", "screen_idle_duration")
 
     /**
-     * What one reading produced.
-     *
-     * [created] are alerts whose response chain the caller must start. [upgraded] are ids of
-     * alerts that were already open and have just been re-classified as more serious: their chain
-     * is already running and must not be started a second time, but the cloud copy now says the
-     * wrong thing and the caller has to push the new level up (see
-     * [com.pup.seenior.alerts.AlertEscalator.syncSeverity]). Low-risk anomalies appear in neither
-     * -- they are recorded and nobody is told (spec §5).
+     * What one reading produced. [created] are new alerts whose chain the caller must start.
+     * [upgraded] are ids of open alerts re-classified as more serious: their chain is already
+     * running, but the caller must push the new level to the cloud (see
+     * [com.pup.seenior.alerts.AlertEscalator.syncSeverity]). Low-risk anomalies appear in neither.
      */
     data class Findings(val created: List<Alert>, val upgraded: List<Int>)
 
-    /** Runs Layer 1 and Layer 3 over one reading. See [Findings] for what comes back and what the
-     *  caller owes each part of it. */
+    /** Runs Layer 1 and Layer 3 over one reading. See [Findings] for what the caller owes each part. */
     suspend fun evaluate(
         seniorId: Int,
         sensorData: SensorData,
@@ -99,10 +77,8 @@ object MedianMadDetector {
         alertDao: AlertDao,
         /**
          * Seconds of the current time block already elapsed, used to clip
-         * [RUNNING_COUNTER_FEATURES]. Defaults to the real elapsed time. [AnomalySimulator]
-         * passes null on purpose: an injected reading (spec §10) stands in for a stretch of
-         * stillness the demo has no time to wait out, and clipping it to the few real minutes of
-         * the block would defeat the injection.
+         * [RUNNING_COUNTER_FEATURES]. [AnomalySimulator] passes null so an injected reading
+         * isn't clipped.
          */
         blockElapsedSeconds: Long? = SeedBaselineGenerator.secondsSinceBlockStart(
             sensorData.timestamp, onboarding.wakeTime, onboarding.sleepTime
@@ -110,9 +86,8 @@ object MedianMadDetector {
     ): Findings {
         val minuteOfDay = FuzzyRiskClassifier.minuteOfDay(sensorData.timestamp)
 
-        // The spec §6: the senior told us they nap here, so stillness is the expected reading and
-        // an alert would be a false positive by construction. Layer 0 and the SOS button do not
-        // come through this function and are unaffected — a fall during a nap is still a fall.
+        // The senior declared a nap here, so stillness is expected. Layer 0 and SOS don't come
+        // through this function and are unaffected.
         if (FuzzyRiskClassifier.isWithinNapWindow(
                 minuteOfDay,
                 onboarding.napTime.takeIf { onboarding.hasNap },
@@ -126,16 +101,9 @@ object MedianMadDetector {
             FuzzyRiskClassifier.restExpectation(minuteOfDay, onboarding.wakeTime, onboarding.sleepTime)
 
         /*
-         * How much of a running counter this reading is allowed to be scored on: the part of the
-         * streak that belongs to this block AND happened after the senior's declared nap.
-         *
-         * Two separate stretches of excused stillness, and a counter can be carrying either. The
-         * block clip alone let the whole nap through the moment the window closed; the nap clip
-         * alone would let a streak from an earlier block through. Whichever excuses more of the
-         * reading is the one that applies, so it is `min` and not a choice between them.
-         *
-         * Null when the caller passed null — [AnomalySimulator]'s injected reading is not clipped
-         * at all, and adding a second clip must not quietly start clipping it.
+         * How much of a running counter this reading may be scored on: the part of the streak
+         * in this block and after the declared nap. Whichever excuses more applies, so it is a
+         * min. Null (the simulator) means no clipping.
          */
         val clipCeilingSeconds = blockElapsedSeconds?.let { elapsed ->
             val sinceNapEnd = FuzzyRiskClassifier.secondsSinceNapEnd(
@@ -153,9 +121,8 @@ object MedianMadDetector {
             "movement_score" to sensorData.movementScore,
             "screen_idle_duration" to sensorData.screenIdleDuration.toDouble()
         ).mapValues { (featureName, value) ->
-            // A streak that began in an earlier block, or inside the declared nap, is not
-            // evidence about this one. Only the running counters are clipped; movement_score is
-            // measured fresh every sample and means the same thing wherever it is read.
+            // A streak from an earlier block or the nap isn't evidence about this one. Only
+            // running counters are clipped.
             if (clipCeilingSeconds != null && featureName in RUNNING_COUNTER_FEATURES) {
                 minOf(value, clipCeilingSeconds.toDouble())
             } else {
@@ -168,8 +135,7 @@ object MedianMadDetector {
                 ?: continue
 
             // Deviating the safe way is not an anomaly (see [FEATURE_CONCERN]). Checked before
-            // the score rather than after, so a reading nobody would act on never reaches Layer 3
-            // and never lands in the log as an anomaly that was merely judged unremarkable.
+            // scoring so such a reading never reaches Layer 3 or the log.
             val deviatesTowardConcern = when (FEATURE_CONCERN.getValue(featureName)) {
                 Concern.ABOVE_MEDIAN -> currentValue > baseline.medianValue
                 Concern.BELOW_MEDIAN -> currentValue < baseline.medianValue
@@ -183,15 +149,10 @@ object MedianMadDetector {
 
             val triggerType = FEATURE_TO_TRIGGER.getValue(featureName)
 
-            // This block may have earned a little slack: two or more recent alerts here that the
-            // senior, a family contact or the barangay closed as false alarms (see
-            // [FalseAlarmTolerance]). A reading that clears 2.5 but not the loosened threshold is
-            // written down as a logged note and nobody is asked -- the same treatment Layer 3
-            // gives a Low anomaly, so the record still shows what was seen and not acted on.
-            //
-            // Asked only here, after the reading has already cleared 2.5, so an ordinary poll
-            // never pays for the lookup. The stored score and Layer 3 are untouched: this moves
-            // the gate a reading must clear, not what it is worth once it has (spec §14).
+            // This block may have earned slack from two or more recent false alarms (see
+            // [FalseAlarmTolerance]). A reading above 2.5 but below the loosened threshold is
+            // logged and nobody is asked. Asked only after the reading clears 2.5, so ordinary
+            // polls skip the lookup. The stored score and Layer 3 are unchanged.
             val threshold = FalseAlarmTolerance.thresholdFor(
                 alertDao.getToleratedDeviationScores(
                     seniorId,
@@ -205,10 +166,8 @@ object MedianMadDetector {
                 continue
             }
 
-            // Layer 3 (spec §5). The z-score says how far from normal this reading is; the
-            // classifier decides what that is worth at this hour of this senior's day. The score
-            // itself is stored unchanged alongside it — the two are separate outputs and §14
-            // requires them to stay that way.
+            // Layer 3: the classifier decides what the z-score is worth at this hour. The score
+            // is stored unchanged alongside it; they are separate outputs.
             val risk = FuzzyRiskClassifier.classify(
                 FuzzyRiskClassifier.Inputs(deviationScore = zScore, restExpectation = restExpectation)
             )
@@ -220,13 +179,10 @@ object MedianMadDetector {
 
             val active = alertDao.getActiveAlert(seniorId, triggerType)
             if (active != null) {
-                // Upgrade only. A senior whose situation worsens must be able to move from medium
-                // to high, but an alert already being acted on must never be talked back down by
-                // a later, calmer reading.
+                // Upgrade only: medium can become high, but an open alert is never talked down.
                 if (RISK_ORDER.indexOf(risk.stored) > RISK_ORDER.indexOf(active.riskLevel)) {
                     alertDao.updateSeverity(active.alertId, risk.stored, zScore)
-                    // Reported to the caller so the cloud copy can be corrected. Everyone outside
-                    // this phone is still looking at the level the alert was first sent with.
+                    // Reported so the cloud copy can be corrected.
                     upgraded += active.alertId
                 }
                 continue
@@ -247,15 +203,9 @@ object MedianMadDetector {
     }
 
     /**
-     * Records a low-risk anomaly and tells nobody (spec §5).
-     *
-     * The row is written rather than dropped because the whole case for a graduated response
-     * rests on being able to show afterwards what the system saw and chose not to act on. It
-     * carries [STATUS_LOGGED] rather than "pending", which keeps it out of
-     * [AlertDao.getUnacknowledgedAlerts] — so no wellness prompt — and out of
-     * [AlertDao.getActiveAlert], so a quiet note can never stand in the way of a real alert for
-     * the same signal minutes later. No alarm is armed and no notification is posted, because
-     * this never reaches the caller that would do either.
+     * Records a low-risk anomaly and tells nobody. The row is kept so the record shows what
+     * the system saw and chose not to act on. Its [STATUS_LOGGED] status keeps it out of
+     * [AlertDao.getUnacknowledgedAlerts] (no prompt) and [AlertDao.getActiveAlert].
      */
     private suspend fun recordLowRisk(
         seniorId: Int,
@@ -267,8 +217,7 @@ object MedianMadDetector {
         val notBefore = sensorData.timestamp - LOGGED_DEDUPE_SECONDS * 1000
         val existing = alertDao.getRecentLoggedAlert(seniorId, triggerType, notBefore)
         if (existing != null) {
-            // Keep the worst reading of the hour rather than the newest, so the record reflects
-            // how far the senior actually drifted and not merely where they finished.
+            // Keep the worst reading of the hour, not the newest.
             if (zScore > (existing.deviationScore ?: 0.0)) {
                 alertDao.updateSeverity(existing.alertId, FuzzyRiskClassifier.Risk.LOW.stored, zScore)
             }

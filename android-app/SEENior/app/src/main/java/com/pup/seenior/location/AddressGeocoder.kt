@@ -17,9 +17,8 @@ import java.util.concurrent.TimeUnit
 data class LatLon(val latitude: Double, val longitude: Double)
 
 /**
- * What OpenStreetMap says is at a point, before any attempt to reconcile it with PSGC.
- *
- * The two name lists are in narrowest-first order; see [AddressGeocoder.reverse].
+ * What OpenStreetMap says is at a point, before reconciling with PSGC. The two name lists are
+ * narrowest first; see [AddressGeocoder.reverse].
  */
 data class OsmPlace(
     val houseNumber: String,
@@ -33,28 +32,18 @@ data class OsmPlace(
 }
 
 /**
- * Turns a senior's registered address into a point, so the alert map has something to show when
- * no cluster was captured.
- *
- * This is the fallback tier, not the primary one, and the difference matters to what the map is
- * allowed to claim. A cluster says *where the phone was when the alert fired*; this says only
- * *where the senior lives*, which is a fact already stored in plain text in the cloud
- * (`Seniors.address`) and already used by the existing "Navigate here" button. Geocoding it adds
- * no disclosure — it re-expresses something the family can already read on screen. The map must
- * label the two differently all the same; see [com.pup.seenior.ui.family.AlertLocationMap].
- *
- * Uses OpenStreetMap's Nominatim service, matching the osmdroid tile choice: free, no API key, no
- * second Google Cloud billing dependency.
+ * Turns a senior's registered address into a point, so the alert map has something to show
+ * when no cluster was captured. This is the fallback: a cluster says where the phone was when
+ * the alert fired, while this says only where the senior lives, which is already stored in
+ * the cloud (`Seniors.address`) and used by the "Navigate here" button. The map must still
+ * label the two differently (see [com.pup.seenior.ui.family.AlertLocationMap]). Uses
+ * OpenStreetMap's Nominatim, matching the osmdroid tiles: free, no API key.
  */
 object AddressGeocoder {
 
     private const val CACHE_NAME = "geocoded_addresses"
 
-    /**
-     * Nominatim's usage policy caps callers at one request a second and requires an identifying
-     * User-Agent. Both are honoured below rather than treated as advisory — the alternative is
-     * having the project's traffic blocked during a panel demo.
-     */
+    /** Nominatim's policy: at most one request a second and an identifying User-Agent. Both are honoured. */
     private const val MIN_REQUEST_INTERVAL_MS = 1_100L
     private const val USER_AGENT = "SEENior/1.0 (PUP capstone; passive senior monitoring)"
 
@@ -62,10 +51,8 @@ object AddressGeocoder {
     private var lastRequestAt = 0L
 
     /**
-     * Addresses that came back with no match, for this process only.
-     *
-     * Not written to the cache: a failure can be a dead network as easily as a bad address, and a
-     * persisted "no" would make one flight-mode moment permanently blank the map for that senior.
+     * Addresses that came back with no match, for this process only. Not persisted, since a
+     * failure can be a dead network and a stored "no" would blank the map for good.
      */
     private val unresolvable: MutableSet<String> = ConcurrentHashMap.newKeySet()
 
@@ -83,8 +70,7 @@ object AddressGeocoder {
             @Query("lon") longitude: Double,
             @Query("format") format: String = "jsonv2",
             @Query("addressdetails") addressDetails: Int = 1,
-            // Street level. Finer than this returns the building, whose name is not part of an
-            // address a senior would recognise; coarser loses the road.
+            // Street level: finer returns a building name, coarser loses the road.
             @Query("zoom") zoom: Int = 18
         ): NominatimReverse
     }
@@ -118,11 +104,8 @@ object AddressGeocoder {
     }
 
     /**
-     * Resolves [address] to a point, or null if it cannot be resolved.
-     *
-     * Cached permanently once found: a registered address does not move, and the family app opens
-     * the same senior's alert screen repeatedly. The cache is what keeps this inside Nominatim's
-     * fair-use policy in normal running — the network is touched roughly once per senior, ever.
+     * Resolves [address] to a point, or null. Cached permanently once found, since a
+     * registered address doesn't move; this keeps it within Nominatim's fair-use policy.
      */
     suspend fun resolve(context: Context, address: String): LatLon? {
         val key = address.trim()
@@ -157,18 +140,13 @@ object AddressGeocoder {
     }
 
     /**
-     * Looks up what is at a point — used by the map-drag address picker during onboarding and by
-     * the family alert map to name a captured alert location.
+     * Looks up what is at a point, used by the onboarding map picker and the family alert map.
+     * Returns OpenStreetMap's own naming, unresolved against PSGC (that is
+     * [com.pup.seenior.address.PsgcMatcher]'s job).
      *
-     * Returns OpenStreetMap's own naming, deliberately unresolved against the PSGC dataset —
-     * [com.pup.seenior.address.PsgcMatcher] does that, and keeping the two apart means the
-     * matching rules can be reasoned about and corrected without touching the network layer.
-     *
-     * Candidates are returned as ordered lists rather than single fields because OSM has no one
-     * key for either level. Checked against the pilot barangay on 2026-08-31, a point in Central
-     * Signal Village comes back with `quarter` = "South Signal Village" (a real barangay) *and*
-     * `suburb` = "Signal Village" (an informal area that is not one) — so the order below is
-     * load-bearing, not a guess: the narrowest naming wins.
+     * Candidates are ordered lists because OSM has no single key per level. In the pilot
+     * barangay a point returns `quarter` = "South Signal Village" (a real barangay) and
+     * `suburb` = "Signal Village" (not one), so the narrowest naming wins and the order matters.
      */
     suspend fun reverse(latitude: Double, longitude: Double): OsmPlace? {
         val address = requestGate.withLock {

@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react'
 import Sidebar from './Sidebar'
 
-// The header subtitle in the design is a live clock ("Wednesday, June 4, 2026 · 9:14 AM").
-// One interval, updated once a minute -- seconds would just be visual noise.
+// Live clock for the header subtitle, updated once a minute.
 function useNow() {
   const [now, setNow] = useState(() => new Date())
   useEffect(() => {

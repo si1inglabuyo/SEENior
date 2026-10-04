@@ -23,13 +23,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 /**
- * Shown once, straight after a Google sign-in that produced an account with no mobile number.
- *
- * Google never gives us a phone number, and the password Sign Up screen collects one as a
- * required field — so without this step Google accounts were the only ones landing in the
- * system unreachable by SMS, which is the fallback the family escalation tier depends on
- * (spec §7). There is no "skip": the number is the point of the screen. Backing out
- * still leaves Profile -> Edit profile as the way to set it later.
+ * Shown once after a Google sign-in that produced an account with no mobile number. Google
+ * never gives a phone number, and without one the contact can't be reached by the SMS
+ * fallback. There is no "skip"; Profile -> Edit profile remains the way to set it later.
  */
 @Composable
 fun FamilyCompletePhoneScreen(
@@ -49,8 +45,7 @@ fun FamilyCompletePhoneScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 24.dp)
                 .navigationBarsPadding()
-                // Keeps the number field above the keyboard — enableEdgeToEdge() means
-                // adjustResize no longer resizes the window for the IME.
+                // Keeps the number field above the keyboard; enableEdgeToEdge() stops adjustResize from doing it.
                 .imePadding()
         ) {
             Spacer(Modifier.height(24.dp))

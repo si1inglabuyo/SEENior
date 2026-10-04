@@ -6,17 +6,11 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
- * What the map is allowed to put in a senior's address.
- *
- * This is the highest-stakes matching in the app and the stakes are not obvious: `Seniors.barangay`
- * scopes a barangay responder's dashboard, so a plausible-but-wrong value here would file a senior
- * under a barangay nobody queries for. Her sign-up would look perfect and tier 3 of her escalation
- * chain would reach nobody. Every case below is about refusing to guess.
- *
- * The fixture mirrors the real `ph_locations.json` structure, including the shapes that actually
- * bite: a PSGC province ("TAGUIG - PATEROS") no map service returns, "CITY OF"/"CITY" wording that
- * differs between sources, parenthetical barangay qualifiers, and a municipality name that repeats
- * across provinces.
+ * What the map is allowed to put in a senior's address. `Seniors.barangay` scopes a
+ * responder's dashboard, so a plausible-but-wrong value would leave tier 3 reaching nobody.
+ * Every case is about refusing to guess. The fixture mirrors the real `ph_locations.json`,
+ * including a PSGC province no map service returns ("TAGUIG - PATEROS"), differing "CITY OF"
+ * wording, parenthetical barangay qualifiers, and a municipality name repeated across provinces.
  */
 class PsgcMatcherTest {
 
@@ -80,9 +74,8 @@ class PsgcMatcherTest {
 
     @Test
     fun `derives province and region that the map service never returns`() {
-        // The exact reply live Nominatim gave for the pilot barangay on 2026-08-31. OSM offered
-        // region "Metro Manila" and no province at all; both PSGC values below had to come from
-        // the dataset, keyed off the city.
+        // The exact reply live Nominatim gave for the pilot barangay on 2026-08-31: region
+        // "Metro Manila" and no province, so both PSGC values must come from the dataset via the city.
         val match = PsgcMatcher.matchIn(
             dataset,
             place(
@@ -99,8 +92,7 @@ class PsgcMatcherTest {
 
     @Test
     fun `prefers the narrower name when OSM offers an area that is not a barangay`() {
-        // "Signal Village" is a real place and not a barangay; "South Signal Village" is the
-        // barangay. Order matters here, and getting it backwards produces no match at all.
+        // "Signal Village" is a place, not a barangay; "South Signal Village" is the barangay. Order matters.
         val match = PsgcMatcher.matchIn(
             dataset,
             place(
@@ -128,8 +120,7 @@ class PsgcMatcherTest {
             place(barangays = listOf("Adams"), cities = listOf("Adams"))
         )!!
 
-        // The stored value keeps the dataset's exact spelling, qualifier included — it has to be
-        // selectable in the dropdown that is rebuilt from the same file.
+        // The stored value keeps the dataset's exact spelling so it is selectable in the dropdown.
         assertEquals("ADAMS (POB.)", match.barangay)
     }
 
@@ -146,8 +137,7 @@ class PsgcMatcherTest {
 
     @Test
     fun `refuses to guess between identically named municipalities`() {
-        // Two SAN ISIDROs, nothing to separate them. Picking either would file the senior in the
-        // wrong province; returning nothing sends her to the dropdowns, which is the safe failure.
+        // Two SAN ISIDROs with nothing to separate them: returning nothing sends the senior to the dropdowns, the safe failure.
         assertNull(PsgcMatcher.matchIn(dataset, place(cities = listOf("San Isidro"))))
     }
 

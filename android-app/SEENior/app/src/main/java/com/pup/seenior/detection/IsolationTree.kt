@@ -4,21 +4,15 @@ import kotlin.math.ln
 import kotlin.random.Random
 
 /**
- * One random-split tree in an [IsolationForest] (spec §5, Layer 2).
+ * One random-split tree in an [IsolationForest] (Layer 2).
  *
- * The idea, plainly: pick a random feature and a random split point between its min and max in
- * the current subsample, and recurse on both halves. A point sitting apart from the rest of the
- * data gets separated onto its own branch after only a handful of these random cuts, because
- * almost any cut nearby lands on the correct side of it; a point buried in a dense cluster needs
- * many cuts before it stands alone, because most random cuts fall between other points instead of
- * near it. Path length — how many cuts it took to isolate a point — is therefore an anomaly signal
- * on its own, with no notion of "normal" ever having to be defined up front. That is what makes
- * the whole forest unsupervised (spec §5, §10): it needs no labelled emergencies to train on,
- * only the senior's own block-days.
+ * Pick a random feature and a random split point between its min and max, then recurse on
+ * both halves. A point far from the rest is isolated after few cuts, while one in a dense
+ * cluster needs many, so path length is an anomaly signal without defining "normal" up
+ * front. That makes the forest unsupervised: it needs no labelled emergencies.
  *
- * Deliberately free of Android imports, like [FallDetector] and [FuzzyRiskClassifier] — a tree can
- * be built and queried from a plain JUnit test with fabricated feature vectors, which is the whole
- * point of the Isolation Forest test suite that follows in Phase 4.
+ * No Android imports, like [FallDetector] and [FuzzyRiskClassifier], so a tree can be tested
+ * with fabricated vectors.
  */
 class IsolationTree private constructor(private val root: Node) {
 
@@ -35,14 +29,9 @@ class IsolationTree private constructor(private val root: Node) {
     }
 
     /**
-     * How many splits it took to isolate [point] on its own, plus a correction for the rows still
-     * bundled together at the leaf it landed on.
-     *
-     * A leaf holding more than one row means splitting stopped early — hitting the tree's height
-     * limit, or every remaining row in that branch being identical — not that isolation actually
-     * finished there. Those rows are not "more anomalous than they look"; they are exactly as
-     * anomalous as a leaf of that size implies, which [averagePathLengthCorrection] estimates
-     * rather than silently treating them as if they had isolated down to one row at depth zero.
+     * How many splits it took to isolate [point], plus a correction for the rows still bundled
+     * at the leaf it landed on. A leaf with several rows means splitting stopped early (height
+     * limit, or identical rows), so [averagePathLengthCorrection] estimates the missing depth.
      */
     fun pathLength(point: DoubleArray): Double = pathLength(point, root, depth = 0)
 
@@ -59,14 +48,11 @@ class IsolationTree private constructor(private val root: Node) {
     companion object {
 
         /**
-         * Grows one tree from [data] — already the per-tree subsample [IsolationForest] drew, not
-         * the full training set.
+         * Grows one tree from [data], the per-tree subsample [IsolationForest] drew.
          *
-         * @param heightLimit Splitting stops at this depth regardless of what is left to isolate.
-         *   Anomalies isolate near the root; a tree does not need to be tall enough to fully
-         *   isolate every ordinary row to be useful, and letting it try would cost time for no
-         *   signal. [IsolationForest] passes `ceil(log2(subsampleSize))`, the original paper's
-         *   value.
+         * @param heightLimit splitting stops at this depth. Anomalies isolate near the root, so
+         *   a tree needn't isolate every ordinary row. [IsolationForest] passes
+         *   `ceil(log2(subsampleSize))`, the original paper's value.
          */
         fun build(data: List<DoubleArray>, heightLimit: Int, random: Random): IsolationTree =
             IsolationTree(buildNode(data, depth = 0, heightLimit, random))
@@ -82,10 +68,8 @@ class IsolationTree private constructor(private val root: Node) {
             }
 
             val dimensions = data[0].size
-            // A feature that happens to be constant across this subsample can't split anything —
-            // e.g. is_charging is 0 for an entire subsample far more often than not. Try a few
-            // other random features before giving up and leafing here; one failed attempt does
-            // not mean this branch is done isolating.
+            // A feature that is constant in this subsample can't split anything (is_charging
+            // often is). Try a few other features before making a leaf.
             repeat(MAX_SPLIT_ATTEMPTS) {
                 val featureIndex = random.nextInt(dimensions)
                 val values = data.map { it[featureIndex] }
@@ -112,14 +96,10 @@ class IsolationTree private constructor(private val root: Node) {
             data.all { it.contentEquals(data[0]) }
 
         /**
-         * Average path length of an unsuccessful search in a binary search tree of [size] items —
-         * the standard correction (Liu, Ting & Zhou, 2008; the same formula scikit-learn's
-         * `IsolationForest` uses) for a leaf that stopped early rather than isolating down to a
-         * single row. `size <= 1` needs no correction; `size == 2` uses the exact value (`H(1) =
-         * 1`) rather than the log approximation below it, matching scikit-learn's own special case.
-         *
-         * `internal` rather than `private`: [IsolationForest] also calls this, on the subsample
-         * size, to normalise a forest's raw average path length into the final 0-1 score.
+         * Average path length of an unsuccessful search in a binary search tree of [size] items
+         * (Liu, Ting & Zhou, 2008; the formula scikit-learn uses), as the correction for a leaf
+         * that stopped early. `size <= 1` needs none and `size == 2` uses the exact value.
+         * `internal` because [IsolationForest] also uses it to normalise the final 0-1 score.
          */
         internal fun averagePathLengthCorrection(size: Int): Double = when {
             size <= 1 -> 0.0

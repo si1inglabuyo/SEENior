@@ -70,13 +70,9 @@ import com.pup.seenior.ui.ProfileStrings
 import com.pup.seenior.ui.SeniorStrings
 
 /**
- * Lets the wellness prompt appear over the keyguard and wake the screen, for as long as it is on
- * screen and no longer.
- *
- * Set here rather than as `showWhenLocked` in the manifest deliberately: that would put the whole
- * app — the senior's name, contacts and alert history — in front of anyone who picks up the
- * locked phone. An unanswered alert is worth bypassing the lock screen for; the Contacts tab is
- * not.
+ * Lets the wellness prompt appear over the lock screen and wake the screen, only while it is
+ * showing. Set here, not as `showWhenLocked` in the manifest, which would expose the whole
+ * app to anyone holding the locked phone.
  */
 @Composable
 private fun ShowOverLockScreen() {
@@ -86,16 +82,13 @@ private fun ShowOverLockScreen() {
             .filterIsInstance<Activity>()
             .firstOrNull()
 
-        // The window flags are the only mechanism that exists on this project's minSdk (26);
-        // the Activity methods replaced them in 27. Without the older path a fall detected
-        // while the phone slept would launch the prompt behind a screen that never lit up.
+        // Window flags are the only option on minSdk 26 (the Activity methods arrived in 27).
         if (activity != null) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
                 activity.setShowWhenLocked(true)
                 activity.setTurnScreenOn(true)
-                // Not covered by setTurnScreenOn, which wakes the screen once and then lets it
-                // sleep again on the normal timeout with the prompt still up and still counting
-                // down. The legacy branch below has always set this; the modern one did not.
+                // setTurnScreenOn wakes the screen once and lets it time out; this keeps it on
+                // while the prompt counts down.
                 activity.window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             } else {
                 @Suppress("DEPRECATION")
@@ -125,8 +118,7 @@ private fun ShowOverLockScreen() {
     }
 }
 
-/** The shared icon slot every bottom-tab icon is centered in, so the Alerts tab's bigger glyph
- *  doesn't shift its label out of line with the other four. */
+/** The icon slot every bottom-tab icon is centered in, so the bigger Alerts glyph doesn't shift its label. */
 private val TAB_ICON_SLOT = 34.dp
 private val TAB_ICON_DEFAULT_SIZE = 24.dp
 private val TAB_ICON_ALERTS_SIZE = 32.dp
@@ -139,8 +131,7 @@ private enum class SeniorTab(val icon: ImageVector) {
     PROFILE(Icons.Outlined.Person)
 }
 
-/** The label is looked up rather than held on the entry: it changes with the senior's chosen
- *  language, and an enum constant is created once per process. */
+/** Looked up here because the label changes with the senior's language. */
 private fun SeniorTab.label(copy: SeniorStrings.Copy): String = when (this) {
     SeniorTab.HOME -> copy.tabHome
     SeniorTab.INVITE -> copy.tabInvite
@@ -150,41 +141,20 @@ private fun SeniorTab.label(copy: SeniorStrings.Copy): String = when (this) {
 }
 
 /**
- * The tabs this senior actually gets.
- *
- * A senior who told us at sign-up that they live alone has no use for Invite (a code for
- * nobody) or Contacts (a list that stays empty) — two of their five tabs would be dead
- * weight on a screen designed to be scanned quickly. They get Home, Alerts and Profile —
- * Alerts stays, because it's about their own detection history, not about family pairing.
- *
- * Nothing is deleted: both screens still exist and are reachable from Profile → Family
- * contacts, so a senior whose situation changes can pair without reinstalling anything.
- * And the moment someone does pair, HomeViewModel.restoreFamilyTabsIfPaired() flips the
- * stored answer and all five tabs come back on their own.
- *
- * Alerts sits in the middle of both lists on purpose (the original brief: "an alert tab in
- * the middle") — index 1 of 3, index 2 of 5 — so it lands in the same physical spot on the
- * bar regardless of which list a senior has.
+ * The tabs this senior gets. A senior who lives alone has no use for Invite or Contacts, so
+ * they get Home, Alerts and Profile; both screens stay reachable from Profile -> Family
+ * contacts. When someone pairs, HomeViewModel.restoreFamilyTabsIfPaired() brings all five
+ * tabs back. Alerts is always the middle tab.
  */
 private fun tabsFor(livesAlone: Boolean): List<SeniorTab> =
     if (livesAlone) listOf(SeniorTab.HOME, SeniorTab.ALERTS, SeniorTab.PROFILE)
     else SeniorTab.entries
 
 /**
- * Asks for location once on an install that was upgraded rather than onboarded.
- *
- * [com.pup.seenior.ui.onboarding.PermissionsScreen] runs only during onboarding, so a senior who
- * set the app up before it captured an alert's location is never asked for it — installing a new
- * APK does not re-open that screen. Their alerts then arrive with no cluster and the family's map
- * silently falls back to the registered address, with nothing on any screen to explain why.
- *
- * Asked at most once, and only where [LocationPermissionState] holds no record of the question
- * ever being put — so a senior who was asked and chose Approximate is left alone. Nagging on
- * every launch would be a poor trade for a map pin in an app whose whole promise is to sit
- * quietly, and nothing in the escalation chain depends on the answer.
- *
- * Deliberately placed after the wellness prompt's early return: a permission dialog must never
- * appear on top of an alert that is counting down for an answer.
+ * Asks for location once on an install that was upgraded rather than onboarded, since
+ * [com.pup.seenior.ui.onboarding.PermissionsScreen] only runs during onboarding. Asked at most
+ * once, and only if [LocationPermissionState] has no record of the question. Placed after the
+ * wellness prompt's early return so a dialog never covers a counting-down alert.
  */
 @Composable
 private fun RepairLocationPermission() {
@@ -198,8 +168,7 @@ private fun RepairLocationPermission() {
         LocationPermissionState.markAsked(context)
         if (LocationPermissionState.hasPrecise(context)) return@LaunchedEffect
 
-        // Both, so Android 12+ offers the Precise/Approximate choice rather than silently
-        // treating this as a coarse-only request.
+        // Both, so Android 12+ offers the Precise/Approximate choice.
         launcher.launch(
             arrayOf(
                 Manifest.permission.ACCESS_FINE_LOCATION,
@@ -210,16 +179,10 @@ private fun RepairLocationPermission() {
 }
 
 /**
- * Offers, once, to turn on the two grants that let an alert reach a senior who is not already
- * looking at the phone.
- *
- * Neither can be granted from inside the app — both need the senior to visit a settings page —
- * and neither is required for the system to work: an alert without them still posts, still counts
- * down and still escalates on time. What they buy is the senior seeing it in time to answer, so
- * this asks rather than insists, and never asks twice.
- *
- * Exists for installs that onboarded before these were asked for. Same shape and same reasoning
- * as [RepairLocationPermission] directly above.
+ * Offers, once, to turn on the two grants that help an alert reach a senior who isn't
+ * looking at the phone. Neither is required (alerts still post and escalate), so this asks
+ * once and never insists. For installs that onboarded before these were asked for; same idea
+ * as [RepairLocationPermission].
  */
 @Composable
 private fun RepairAlertPermissions(copy: SeniorStrings.Copy) {
@@ -233,8 +196,7 @@ private fun RepairAlertPermissions(copy: SeniorStrings.Copy) {
     LaunchedEffect(Unit) {
         if (AlertPermissions.wasAsked(context)) return@LaunchedEffect
         if (AlertPermissions.allGranted(context)) {
-            // Nothing to repair, but record the asking anyway so a later revocation does not
-            // reopen this dialog on a senior who has already dealt with it once.
+            // Nothing to repair, but record the asking so a later revocation doesn't reopen this.
             AlertPermissions.markAsked(context)
             return@LaunchedEffect
         }
@@ -254,14 +216,11 @@ private fun RepairAlertPermissions(copy: SeniorStrings.Copy) {
             TextButton(onClick = {
                 AlertPermissions.markAsked(context)
                 show = false
-                // One page at a time. Sending the senior straight on to the second would look
-                // like the first had failed; the repair pass will not fire again, and the
-                // remaining grant is reachable from the phone's own settings.
+                // One page at a time; the remaining grant is reachable from the phone's settings.
                 val next = AlertPermissions.fullScreenIntentSettings(context)
                     ?.takeIf { !AlertPermissions.canUseFullScreenIntent(context) }
                     ?: AlertPermissions.overlaySettings(context)
-                // Some OEM builds ship without one of these pages. A missing settings screen
-                // must not crash the dashboard.
+                // Some OEM builds lack these pages; don't crash the dashboard.
                 runCatching { launcher.launch(next) }
             }) { Text(copy.openSettings) }
         },
@@ -275,28 +234,12 @@ private fun RepairAlertPermissions(copy: SeniorStrings.Copy) {
 }
 
 /**
- * Asks, and keeps asking, while monitoring is missing a permission it cannot work without.
+ * Asks, and keeps asking, while monitoring is missing a permission it can't work without.
  *
- * Deliberately a different shape from [RepairLocationPermission] and [RepairAlertPermissions]
- * directly above, and the difference is the point. Those two offer an *improvement* on a system
- * that already works -- an alert without them still posts, still counts down and still escalates
- * -- so they ask once and never nag. This one describes something already broken: without
- * ACTIVITY_RECOGNITION there is no step counter to tell a frozen phone apart from a senior who
- * has not moved, without notifications a check-in cannot reach the screen, and without location
- * an alert reaches the barangay with no idea where to go. A senior in that state is being
- * watched over by an app that cannot see, so this does not take "not now" for an answer.
- *
- * Onboarding gates on exactly these permissions already
- * ([com.pup.seenior.ui.onboarding.PermissionsScreen]), so reaching this screen missing one means
- * a grant was lost *after* setup: revoked by hand, cleared by a storage sweep, or auto-revoked by
- * the OS for an app it decided was unused. Nothing re-opens the onboarding screen on an install
- * that has already finished it, so before this there was no path back at all -- the app went on
- * looking normal and monitoring quietly less.
- *
- * What this is NOT: a lock on the app. The SOS button works from day one regardless of what the
- * baseline or the permissions are doing (spec §6), and a dialog the senior cannot get past
- * would take away the one thing that always works, at the exact moment the passive half is
- * already degraded. So the dashboard stays reachable behind it.
+ * Unlike [RepairLocationPermission] and [RepairAlertPermissions], which offer improvements,
+ * this describes something broken: without ACTIVITY_RECOGNITION, notifications or location,
+ * detection or alerts are degraded. Onboarding already requires these, so a missing one was
+ * lost afterwards. It is not a lock: the dashboard (and SOS) stay reachable behind it.
  */
 @Composable
 private fun RestoreRequiredPermissions(copy: SeniorStrings.Copy) {
@@ -308,9 +251,7 @@ private fun RestoreRequiredPermissions(copy: SeniorStrings.Copy) {
         ActivityResultContracts.RequestMultiplePermissions()
     ) {
         val still = DeviceCapabilities.missingRequiredPermissions(context)
-        // A request that granted nothing means Android is no longer showing the dialog at all --
-        // the senior has hit "Don't ask again" on it at some point, and asking again is a button
-        // that visibly does nothing. From here the only honest route is the app's settings page.
+        // Nothing was granted, so Android no longer shows the dialog; only the settings page is left.
         systemDialogExhausted = still.size == missing.size
         missing = still
     }
@@ -319,10 +260,8 @@ private fun RestoreRequiredPermissions(copy: SeniorStrings.Copy) {
         ActivityResultContracts.StartActivityForResult()
     ) { missing = DeviceCapabilities.missingRequiredPermissions(context) }
 
-    // Only runs while something is actually missing, so the healthy case costs nothing. It exists
-    // because the senior can also grant the permission from the phone's own Settings app, which
-    // hands this screen no callback -- without re-reading, the dialog would sit there insisting
-    // on a permission they had already restored.
+    // Runs only while something is missing. Re-reads because the senior can grant it from
+    // Settings, which gives this screen no callback.
     LaunchedEffect(missing.isNotEmpty()) {
         while (missing.isNotEmpty()) {
             delay(2_000)
@@ -333,16 +272,14 @@ private fun RestoreRequiredPermissions(copy: SeniorStrings.Copy) {
     if (missing.isEmpty()) return
 
     AlertDialog(
-        // No dismiss button and no dismiss-on-outside-tap: see the note above on why this one
-        // insists where the other two do not.
+        // No dismiss button: this one insists, unlike the other two.
         onDismissRequest = { },
         title = { Text(copy.permissionLostTitle) },
         text = { Text(copy.permissionLostBody) },
         confirmButton = {
             TextButton(onClick = {
                 if (systemDialogExhausted) {
-                    // Some OEM builds rename or remove this screen; a missing settings page must
-                    // not crash the dashboard out from under an alert.
+                    // Some OEM builds remove this screen; don't crash.
                     runCatching {
                         settingsLauncher.launch(
                             Intent(
@@ -369,16 +306,13 @@ fun SeniorDashboard(onAccountDeleted: () -> Unit) {
 
     LaunchedEffect(Unit) { homeViewModel.start() }
 
-    // An unanswered alert replaces the whole dashboard, bottom navigation included. Leaving the
-    // tabs reachable would let the senior wander off the one screen that needs an answer, and
-    // the alert would still be counting down unseen behind them.
+    // An unanswered alert replaces the whole dashboard, so the senior can't wander off the
+    // screen that needs an answer.
     val alert = homeViewModel.activeAlert
     if (alert != null) {
         ShowOverLockScreen()
-        // Back would otherwise drop the senior onto the launcher with the alert still open and
-        // still counting down — the tabs are hidden just below for the same reason. Home cannot
-        // be intercepted by any app at any permission level, so this closes the one exit Android
-        // does let us hold. Walking away does not stop the chain either way.
+        // Back would drop the senior onto the launcher with the alert still counting down.
+        // Home can't be intercepted. Walking away doesn't stop the chain either way.
         BackHandler(enabled = true) { }
         WellnessPromptScreen(
             alert = alert,
@@ -397,26 +331,21 @@ fun SeniorDashboard(onAccountDeleted: () -> Unit) {
     }
 
     val copy = SeniorStrings.forLanguage(homeViewModel.language)
-    // Everything behind the tabs reads its own copy from these two, rather than being handed a
-    // language parameter screen by screen. OnboardingStrings is provided here as well because
-    // Edit profile reuses the sign-up form's field labels — one translation, two places.
+    // Screens behind the tabs read their copy from these, not a language parameter each.
+    // OnboardingStrings is provided too because Edit profile reuses the sign-up labels.
     val profileCopy = ProfileStrings.forLanguage(homeViewModel.language)
     val formCopy = OnboardingStrings.forLanguage(homeViewModel.language)
     val infoCopy = InfoStrings.forLanguage(homeViewModel.language)
 
-    // First of the three: the other two offer improvements, this one reports a fault, and a
-    // senior looking at two dialogs at once reads neither.
+    // First of the three: the other two offer improvements, this one reports a fault.
     RestoreRequiredPermissions(copy)
     RepairLocationPermission()
     RepairAlertPermissions(copy)
 
     val tabs = tabsFor(homeViewModel.livesAlone)
 
-    // The senior's own data arrives asynchronously, so the tab list can shrink under a tab
-    // that is already selected — pairing flips it the other way too. Derived rather than
-    // written back into `tab`: assigning state during composition is how recomposition
-    // loops start, and there is nothing to persist here. Home is always present, so this
-    // always resolves to something in the bar.
+    // The tab list can shrink under a selected tab as the senior's data loads. Derived, not
+    // written back, to avoid recomposition loops. Home is always present.
     val activeTab = if (tab in tabs) tab else SeniorTab.HOME
 
     CompositionLocalProvider(
@@ -424,9 +353,7 @@ fun SeniorDashboard(onAccountDeleted: () -> Unit) {
         LocalOnboardingCopy provides formCopy,
         LocalInfoCopy provides infoCopy
     ) {
-    // Whether Alerts' bottom-bar icon carries the small red dot: the same "something is still
-    // open" fact Home's own status card reads, so the badge and the card it points at never
-    // disagree with each other.
+    // Whether Alerts' icon has the red dot: the same fact Home's status card reads.
     val hasOpenAlert = homeViewModel.helpDelivery != null
 
     Scaffold(
@@ -439,15 +366,11 @@ fun SeniorDashboard(onAccountDeleted: () -> Unit) {
                         selected = activeTab == entry,
                         onClick = { tab = entry },
                         icon = {
-                            // Every tab's icon sits in the same fixed-size box, so a bigger
-                            // glyph for Alerts doesn't change where its label lands — only the
-                            // icon inside the box grows, not the slot the bar measures.
+                            // Every icon sits in a fixed box so a bigger Alerts glyph doesn't move its label.
                             Box(modifier = Modifier.size(TAB_ICON_SLOT), contentAlignment = Alignment.Center) {
                                 if (highlighted) {
-                                    // Much bigger than the other four, and always green (darker
-                                    // while pressed or on this tab) rather than white-on-a-pill
-                                    // — this is the tab meant to catch the eye first, not just
-                                    // the one that happens to be selected.
+                                    // Bigger than the others and always green (darker when
+                                    // pressed or selected), so it catches the eye first.
                                     Icon(
                                         entry.icon,
                                         contentDescription = entry.label(copy),
@@ -481,9 +404,7 @@ fun SeniorDashboard(onAccountDeleted: () -> Unit) {
                         colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = Color.White,
                             selectedTextColor = Color.Black,
-                            // Alerts draws its own tint above regardless of selection, so it
-                            // gets no pill behind it — a colored circle plus a color change on
-                            // the icon itself would be two signals saying the same thing.
+                            // Alerts tints itself, so no pill behind it (two signals would be redundant).
                             indicatorColor = if (highlighted) Color.Transparent else SeniorColors.Green,
                             unselectedIconColor = SeniorColors.Green,
                             unselectedTextColor = Color.Black

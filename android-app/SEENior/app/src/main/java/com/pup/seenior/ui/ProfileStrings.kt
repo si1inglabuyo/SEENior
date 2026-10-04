@@ -4,19 +4,15 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import com.pup.seenior.ui.wellness.WellnessMessages
 
 /**
- * The everyday screens a senior reaches from the tabs but does not live on — Profile, Contacts,
- * Invite — in both supported languages.
+ * Copy for the everyday screens behind the tabs (Profile, Contacts, Invite) in both languages.
+ * The third senior-side copy container, split by when the language is known:
  *
- * Third and last of the senior-side copy containers, and the split between them is by *when* the
- * language is known, not by taste:
+ * - [SeniorStrings]: the tabs and Home, resolved from the database on every composition.
+ * - [OnboardingStrings]: the setup flow. Its form vocabulary is reused by Edit profile, which
+ *   is why `SeniorDashboard` provides that local too.
+ * - this file: everything else behind the tabs.
  *
- * - [SeniorStrings] — the tabs and Home, resolved from the database on every composition.
- * - [OnboardingStrings] — the setup flow, where the answer is still being given. Its form
- *   vocabulary (FIRST NAME, GENDER, Select…) is reused by Edit profile rather than translated
- *   twice, which is why `SeniorDashboard` provides that local as well as this one.
- * - this file — everything else behind the tabs.
- *
- * **A draft pending a native speaker's review**, same as its two siblings.
+ * The translations are a draft awaiting a native speaker's review.
  */
 object ProfileStrings {
 
@@ -28,9 +24,7 @@ object ProfileStrings {
         val editProfileSubtitle: String,
         val languageRow: String,
         val languageRowSubtitle: String,
-        /* The Profile -> Language screen's own scaffold title reuses languageRow directly
-         * (same bilingual "Language / Wika" label) rather than duplicating it here. This is
-         * that screen's card heading only. */
+        /* The Language screen's scaffold title reuses languageRow; this is only that screen's card heading. */
         val languageChooseHeading: String,
         val sectionMyContacts: String,
         val familyContacts: String,
@@ -127,9 +121,8 @@ object ProfileStrings {
             if (this === FILIPINO_COPY) "Alisin si " + name + "?" else "Remove " + name + "?"
 
         /**
-         * How recently this family member last opened their app, in words. [minutesAgo] is null
-         * when they never have. Replaces the old always-green "Online Now" — this is a
-         * "recently active" signal, not live presence, and is worded so it never overclaims.
+         * How recently this family member last opened their app. [minutesAgo] is null if never.
+         * A "recently active" signal, not live presence, worded so it doesn't overclaim.
          */
         fun contactActive(minutesAgo: Long?): String = when {
             minutesAgo == null ->
@@ -330,10 +323,8 @@ object ProfileStrings {
 }
 
 /**
- * Profile / Contacts / Invite copy in the senior's stored language.
- *
- * Provided in `SeniorDashboard`, which already reads `Senior_Onboarding.language_preference` for
- * the tabs, so this follows a change made in Profile → Language the moment it is written.
+ * Profile / Contacts / Invite copy in the senior's stored language. Provided in
+ * `SeniorDashboard`, so it follows a change made in Profile -> Language as soon as it is saved.
  */
 val LocalProfileCopy = staticCompositionLocalOf {
     ProfileStrings.forLanguage(WellnessMessages.ENGLISH)

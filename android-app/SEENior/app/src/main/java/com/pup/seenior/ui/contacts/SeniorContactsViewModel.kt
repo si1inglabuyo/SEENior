@@ -26,9 +26,7 @@ class SeniorContactsViewModel(application: Application) : AndroidViewModel(appli
     var error by mutableStateOf<String?>(null)
         private set
 
-    /** True when the last refresh failed. Kept separate from `contacts.isEmpty()` so the screen
-     *  never shows the "no family connected yet" empty state for what is really a failed load —
-     *  that read as though the senior's paired contacts had been deleted. */
+    /** True when the last refresh failed. Separate from `contacts.isEmpty()` so a failed load never looks like deleted contacts. */
     var loadFailed by mutableStateOf(false)
         private set
 
@@ -40,13 +38,11 @@ class SeniorContactsViewModel(application: Application) : AndroidViewModel(appli
             error = null
             loadFailed = false
             try {
-                // Not registered with the cloud yet ⇒ no family can have paired ⇒ empty list,
-                // and no reason to create a cloud record just to read an empty one.
+                // Not registered with the cloud means no family can have paired, so skip creating a cloud record to read an empty list.
                 val syncId = cloudSync.withSyncIdOrNull()
                 cloudSyncId = syncId
                 contacts = if (syncId != null) {
-                    // A 404 here means the cached id predates the current backend's database;
-                    // withSyncId re-registers so the senior recovers instead of staying broken.
+                    // A 404 means the cached id predates the backend's database; withSyncId re-registers.
                     cloudSync.withSyncId { id ->
                         cloudSyncId = id
                         RetrofitClient.api.getFamilyContacts(id)
@@ -65,15 +61,9 @@ class SeniorContactsViewModel(application: Application) : AndroidViewModel(appli
     }
 
     /**
-     * Mirrors a successful fetch into the device's own Contacts table.
-     *
-     * The SOS screen reads that table rather than the network, so this is what makes a
-     * newly paired daughter appear on it without waiting for the next app start -- opening
-     * Contacts after pairing is the natural moment, and the senior does it anyway to check
-     * the pairing worked.
-     *
-     * Failures are swallowed: this is a cache refresh riding along with a screen load, and
-     * a write that fails must not turn a working contacts list into an error message.
+     * Mirrors a successful fetch into the device's Contacts table. The SOS screen reads that
+     * table, so a newly paired contact shows up there without an app restart. Failures are
+     * swallowed so a cache write never turns a working list into an error.
      */
     private suspend fun cacheForSos(fetched: List<FamilyContactDto>) {
         try {

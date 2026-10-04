@@ -16,11 +16,7 @@ logging.basicConfig(level=logging.INFO)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Starts the escalation clock with the API and stops it cleanly on shutdown.
-
-    Without this, the third tier of a system whose title promises progressive escalation
-    would only ever be reached by a family member pressing a button by hand.
-    """
+    """Starts the escalation clock with the API and stops it cleanly on shutdown."""
     task = asyncio.create_task(escalation_sweep_loop())
     yield
     task.cancel()
@@ -30,9 +26,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="SEENior API", lifespan=lifespan)
 
-# Browsers refuse to send a cross-origin request unless the server says the origin is
-# welcome. The Android apps are not browsers, which is why this was never needed until the
-# barangay dashboard -- the first part of SEENior that runs in one.
+# Browsers need the server to allow the origin; the barangay dashboard is the only browser client.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
@@ -51,10 +45,8 @@ app.include_router(barangay.router)
 
 @app.get("/health")
 async def health() -> dict:
-    # push_enabled / sms_enabled are reported because a deployment with no FCM
-    # credentials or no Semaphore key looks identical to a healthy one from the
-    # outside — right up until an emergency fails to reach anybody. This makes that
-    # state visible without reading the logs.
+    # Report whether push and SMS are configured, so a deployment missing credentials
+    # doesn't look healthy.
     return {
         "status": "ok",
         "push_enabled": push.is_configured(),

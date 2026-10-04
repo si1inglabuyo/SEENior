@@ -8,13 +8,9 @@ import org.junit.Test
 import kotlin.math.abs
 
 /**
- * The codec behind `Alerts.location_cluster_id`.
- *
- * The property under test changed on 2026-08-31. It used to be that the cell had to stay coarse
- * enough not to identify a house; the spec §11 now says the opposite, because a barangay
- * responder has to be able to reach a senior who has fallen and the system already hands that
- * responder her street address. So these assert that a location is resolved finely enough to act
- * on — and, still, that codes written under the old setting keep decoding to what they meant.
+ * The codec behind `Alerts.location_cluster_id`. Since 2026-08-31 the cell must be fine
+ * enough to act on (a responder has to reach a fallen senior), so these assert that, and
+ * that codes written under the old ~150 m setting still decode to what they meant.
  */
 class GeohashTest {
 
@@ -24,8 +20,7 @@ class GeohashTest {
 
     @Test
     fun `encodes a known point to the published geohash`() {
-        // Cross-checked against the reference implementation rather than against this one, so a
-        // bug in the bit interleaving cannot agree with itself and pass.
+        // Cross-checked against the reference implementation, so a bit-interleaving bug can't agree with itself.
         assertEquals("ezs42", Geohash.encode(42.6, -5.6, precision = 5))
         assertEquals("u4pruydqqvj", Geohash.encode(57.64911, 10.40744, precision = 11))
     }
@@ -38,8 +33,7 @@ class GeohashTest {
         // Longitude degrees shorten with latitude; at ~14.5°N the factor is cos(14.5°) ≈ 0.968.
         val widthMetres = (cell.eastLongitude - cell.westLongitude) * 111_320.0 * 0.968
 
-        // A handset fix is good to roughly 5-10 m outdoors, so a cell at or under that adds no
-        // error of its own — the stored value is as good as what the sensor gave us.
+        // A handset fix is good to ~5-10 m outdoors, so a cell at or under that adds no error.
         assertTrue("cell was ${heightMetres}m tall", heightMetres in 1.0..10.0)
         assertTrue("cell was ${widthMetres}m wide", widthMetres in 1.0..10.0)
     }
@@ -62,10 +56,8 @@ class GeohashTest {
 
     @Test
     fun `tells a house apart from its neighbour`() {
-        // Two points ~15 m apart. Under the old ~150 m setting these encoded identically, which
-        // is what made an alert hard to act on: a responder was handed a block, not a door. The
-        // reversal is deliberate and documented in the spec §11 — this test is what would catch
-        // a silent revert of it.
+        // Two points ~15 m apart. Under the old ~150 m setting these encoded identically; this
+        // test catches a silent revert (see the spec, section 11).
         val house = Geohash.encode(PILOT_LATITUDE, PILOT_LONGITUDE)
         val neighbour = Geohash.encode(PILOT_LATITUDE + 0.00013, PILOT_LONGITUDE)
 
@@ -74,9 +66,8 @@ class GeohashTest {
 
     @Test
     fun `still decodes the wider cells written before locations were kept precisely`() {
-        // A real value captured on the pilot handset on 2026-08-31, under the ~150 m setting.
-        // Rows like this are still in the database, and the family's map must keep drawing them
-        // as the areas they always meant rather than as false pinpoints.
+        // A real value from the pilot handset (2026-08-31, ~150 m setting). Such rows remain in
+        // the database and must keep drawing as areas, not false pinpoints.
         val legacy = Geohash.decode("wdw4d9w")!!
 
         val heightMetres = (legacy.northLatitude - legacy.southLatitude) * 111_320.0
@@ -108,8 +99,7 @@ class GeohashTest {
 
     @Test
     fun `refuses a cluster id that is not a geohash`() {
-        // location_cluster_id predates this encoding and is a free-form 64-char column, so the
-        // map has to survive a row holding something else entirely.
+        // location_cluster_id predates this encoding and is free-form, so the map must survive other values.
         assertNull(Geohash.decode(""))
         assertNull(Geohash.decode("has spaces"))
         // "a", "i", "l" and "o" are excluded from the geohash alphabet.

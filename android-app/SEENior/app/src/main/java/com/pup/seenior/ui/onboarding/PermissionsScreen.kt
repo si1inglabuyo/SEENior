@@ -60,10 +60,9 @@ import com.pup.seenior.ui.onboarding.components.PrimaryPillButton
 import com.pup.seenior.ui.theme.SeniorColors
 
 /**
- * Icons only. The title and description of each row are translated copy and live in
- * [com.pup.seenior.ui.OnboardingStrings]; this list is zipped with that one by position, so the
- * two must stay in the same order — motion, location, notifications, battery, background, wake,
- * overlay.
+ * Icons only. Titles and descriptions are in [com.pup.seenior.ui.OnboardingStrings]; the
+ * two lists are zipped by position, so keep the same order: motion, location, notifications,
+ * battery, background, wake, overlay.
  */
 private val permissionIcons = listOf(
     Icons.AutoMirrored.Filled.DirectionsRun,
@@ -77,9 +76,7 @@ private val permissionIcons = listOf(
 
 private val runtimePermissions: List<String> = buildList {
     if (Build.VERSION.SDK_INT >= 29) add(Manifest.permission.ACTIVITY_RECOGNITION)
-    // Both location permissions are requested together so that Android 12+ shows the senior the
-    // Precise/Approximate choice at all. Which one they pick is up to them -- see
-    // [requiredPermissionsGranted], which accepts either.
+    // Both location permissions are requested together so Android 12+ shows the Precise/Approximate choice.
     add(Manifest.permission.ACCESS_FINE_LOCATION)
     add(Manifest.permission.ACCESS_COARSE_LOCATION)
     if (Build.VERSION.SDK_INT >= 33) add(Manifest.permission.POST_NOTIFICATIONS)
@@ -91,13 +88,9 @@ private val locationPermissions = setOf(
 )
 
 /**
- * Whether onboarding may continue.
- *
- * Every permission is required except that the two location ones count as *one* answer. Android
- * 12+ offers "Precise" or "Approximate" in a single dialog, and choosing Approximate returns
- * ACCESS_FINE_LOCATION as denied. Requiring all of them would therefore trap a senior who
- * answered the dialog perfectly reasonably on a screen they cannot skip -- and approximate
- * location is still enough to place an alert, just to a wider area.
+ * Whether onboarding may continue. Every permission is required, except the two location
+ * ones count as one answer: choosing Approximate returns ACCESS_FINE_LOCATION as denied, and
+ * approximate is still enough to place an alert.
  */
 private fun requiredPermissionsGranted(results: Map<String, Boolean>): Boolean {
     val location = results.filterKeys { it in locationPermissions }
@@ -116,25 +109,14 @@ fun PermissionsScreen(
     val context = LocalContext.current
 
     /**
-     * Asked after the runtime permissions, and deliberately NOT gating onboarding on the answer.
-     *
-     * Exact alarms already survive stock Android's Doze, but OEM skins (XOS on Infinix, MIUI,
-     * EMUI) run their own battery killers on top, and this exemption is the only defence against
-     * those. A senior who declines still gets a working app — just one whose escalation can be
-     * delayed by their manufacturer — so refusing must not trap them on this screen.
+     * Asked after the runtime permissions, and does not gate onboarding. OEM battery killers
+     * sit on top of stock Doze handling, and this exemption is the only defence. Declining
+     * still gives a working app, just with escalation that can be delayed.
      */
     /**
-     * The last two asks, and the two the app cannot make for itself.
-     *
-     * Neither is a runtime permission: both are settings pages the senior has to visit, and from
-     * Android 14 the full-screen one is refused outright unless they do. Measured on the pilot
-     * handset 2026-09-04 — a fall alert had both refused at 13:04:04 with the manifest lines
-     * already in place, so the prompt had never once taken over the screen on its own.
-     *
-     * Chained one page at a time and, like the battery exemption below, never gating onboarding
-     * on the answer. A senior who declines still gets a working app: the alert still posts, still
-     * counts down and still escalates. They are simply likelier to miss it, and trapping them on
-     * this screen over a settings toggle would be the worse outcome.
+     * The last two asks, which are settings pages the senior has to visit. From Android 14 the
+     * full-screen one is refused unless they do. Chained one page at a time, and like the
+     * battery exemption they don't gate onboarding: alerts still post and escalate.
      */
     val overlayLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -145,8 +127,7 @@ fun PermissionsScreen(
             onAllGranted()
             return
         }
-        // Some OEM builds ship without this settings activity; onboarding must never dead-end
-        // because a manufacturer removed a screen.
+        // Some OEM builds lack this settings activity; onboarding must not dead-end.
         runCatching { overlayLauncher.launch(AlertPermissions.overlaySettings(context)) }
             .onFailure { onAllGranted() }
     }
@@ -156,9 +137,8 @@ fun PermissionsScreen(
     ) { requestOverlayThenContinue() }
 
     fun requestFullScreenThenContinue() {
-        // Marked here, not at the rationale dialog several steps up: this is the first of the
-        // two settings-page questions AlertPermissions tracks, and only reaching here means the
-        // senior actually got to them (see the comment on that removed call for why).
+        // Marked here, not at the rationale dialog above: this is the first of the two
+        // settings-page questions AlertPermissions tracks.
         AlertPermissions.markAsked(context)
         val intent = AlertPermissions.fullScreenIntentSettings(context)
         if (intent == null || AlertPermissions.canUseFullScreenIntent(context)) {
@@ -170,18 +150,11 @@ fun PermissionsScreen(
     }
 
     /**
-     * Transsion's own background-app killer ("Hiber") ignores the stock exemption above —
-     * measured on the pilot handset 2026-09-02, where 5-minute sampling only held once the
-     * *per-app* "No restrictions" toggle in Phone Master's app-power screen was set by hand.
-     * There is no public API for that toggle, so the best this screen can do is hand the senior
-     * straight to the two Phone Master pages that matter and explain what to look for — same
-     * "ask, never gate" rule as the rest of this chain: skip silently on a phone that is not
-     * Transsion-based, and continue to the next step regardless of what they choose there.
-     *
-     * The second page (Auto-start) is a separate toggle from the app-power one above, and is the
-     * more likely reason `BootReceiver` never fires after a reboot on this handset — see
-     * [[seenior-reboot-recovery]] in the project notes. Both activities confirmed launchable via
-     * `dumpsys package com.transsion.phonemaster` on the pilot device.
+     * Transsion's background-app killer ("Hiber") ignores the stock exemption; 5-minute
+     * sampling only held once the per-app "No restrictions" toggle in Phone Master was set.
+     * There is no API for it, so this sends the senior to the two Phone Master pages (app
+     * power and Auto-start, the latter likely why BootReceiver doesn't fire after a reboot).
+     * Skipped on other phones, and never gates onboarding.
      */
     var showManufacturerDialog by remember { mutableStateOf(false) }
 
@@ -233,30 +206,16 @@ fun PermissionsScreen(
             Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
             Uri.parse("package:${context.packageName}")
         )
-        // Some OEM builds ship without this settings activity; onboarding must not dead-end
-        // because a manufacturer removed a screen.
+        // Some OEM builds lack this settings activity; don't dead-end.
         runCatching { batteryLauncher.launch(intent) }.onFailure { requestFullScreenThenContinue() }
     }
 
     /**
-     * Says so, once, when the handset has no step counter at all.
-     *
-     * Not a permission problem and not fixable as one, which is exactly why it is called out
-     * here instead of being left to look like one. On the realme RMP2204 tester device every
-     * step reading was zero across five days with ACTIVITY_RECOGNITION granted the whole time:
-     * `dumpsys sensorservice` lists eighteen hardware sensors and no step counter among them,
-     * because the device is a tablet. The standing advice -- "check the permission" -- was
-     * unfollowable on that device, and nothing on any screen said so.
-     *
-     * It costs more than the step column. The counter is the witness
-     * [com.pup.seenior.sensors.SensorCollectionService] uses to tell a gap the OS froze apart
-     * from a senior who genuinely did not move, so a device without one has no independent check
-     * on its own inactivity figures.
-     *
-     * Asked, not enforced: a senior who owns one device owns one device, and refusing to set up
-     * on it would leave them with no monitoring rather than imperfect monitoring. What they get
-     * is the choice, at the only point in the app where the choice is still open -- afterwards
-     * there is nothing to decide and nothing they could do about it.
+     * Says so, once, when the handset has no step counter (for example a tablet). It isn't a
+     * permission problem, so "check the permission" can't fix it. The counter is also the
+     * witness [com.pup.seenior.sensors.SensorCollectionService] uses to tell a frozen gap from
+     * stillness, so such a device has no independent check on inactivity. Asked, not enforced:
+     * this is the only point where the choice is still open.
      */
     var showNoStepSensor by remember { mutableStateOf(false) }
 
@@ -278,13 +237,9 @@ fun PermissionsScreen(
         Column(modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp)) {
             OnboardingTopBar(currentStep = 4, onBack = onBack)
 
-            // Five permissions, each with a sentence of justification, is more than a short
-            // display holds — and this is the one screen a senior cannot skip past, so the
-            // button below must stay reachable. The heading and the list scroll; the top bar
-            // keeps its back arrow and the footer keeps the button, both pinned.
-            //
-            // The weight lives here now rather than on a spacer: a weighted child inside a
-            // scrolling Column is measured against an unbounded height and throws.
+            // The heading and list scroll, while the top bar and footer button stay pinned, so
+            // the button is always reachable. The weight is here because a weighted child in a
+            // scrolling Column is measured against unbounded height and throws.
             Column(
                 modifier = Modifier
                     .weight(1f)
@@ -331,20 +286,13 @@ fun PermissionsScreen(
             onDeny = { showRationale = false },
             onAllow = {
                 showRationale = false
-                // Recorded before the dialog, not after: what matters is that the senior was
-                // put in front of the question at all, so that the dashboard's repair pass
-                // never second-guesses an answer they already gave.
+                // Recorded before the dialog: what matters is that the senior was asked, so the
+                // dashboard's repair pass never second-guesses their answer.
                 //
-                // AlertPermissions.markAsked() does NOT belong here too, despite looking
-                // symmetric to the line above -- that was the actual bug once. Its two grants
-                // (full-screen intent, overlay) are separate settings-page questions, asked
-                // several steps further down this chain in requestFullScreenThenContinue(),
-                // reached only if the runtime dialog below is actually granted. Marking it here
-                // meant a senior who denied the runtime dialog -- and so never reached those two
-                // settings pages at all -- still had AlertPermissions.wasAsked() return true
-                // forever, permanently skipping RepairAlertPermissions on the dashboard for
-                // exactly the senior it existed to catch. It is marked where it belongs, in
-                // requestFullScreenThenContinue() below.
+                // AlertPermissions.markAsked() does not belong here. Its grants are asked later in
+                // requestFullScreenThenContinue(), reached only if this dialog is granted, so
+                // marking it here would permanently skip RepairAlertPermissions for a senior who
+                // denied this one.
                 LocationPermissionState.markAsked(context)
                 launcher.launch(runtimePermissions.toTypedArray())
             }
@@ -422,10 +370,7 @@ private fun PermissionRationaleDialog(onDeny: () -> Unit, onAllow: () -> Unit) {
     )
 }
 
-/**
- * One button only. There is no second option to offer: the hardware is missing, the senior
- * cannot grant it, and a "fix this" button that led nowhere would be worse than none.
- */
+/** One button only: the hardware is missing and the senior can't grant it. */
 @Composable
 private fun NoStepSensorDialog(onContinue: () -> Unit) {
     val copy = LocalOnboardingCopy.current

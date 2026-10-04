@@ -5,11 +5,9 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Validates how confirmed false alarms loosen one block's Layer 1 trigger, per the spec §10.
- *
- * What matters is what must *not* move: one false alarm changes nothing, an extreme reading can
- * never be argued away, and the demo's injected z = 4.0 reading (see [AnomalySimulator]) cannot
- * teach the system anything when the presenter cancels it.
+ * Validates how confirmed false alarms loosen one block's Layer 1 trigger. What matters is
+ * what must not move: one false alarm changes nothing, an extreme reading can't be argued
+ * away, and the demo's injected z = 4.0 (see [AnomalySimulator]) can't teach the system.
  */
 class FalseAlarmToleranceTest {
 
@@ -77,8 +75,7 @@ class FalseAlarmToleranceTest {
 
     @Test
     fun `scores below the base threshold are ignored`() {
-        // Cannot occur in practice (nothing under 2.5 becomes an alert), but the function must
-        // not be able to lower the threshold below where every block starts.
+        // Can't occur in practice, but the function must never lower the threshold below where every block starts.
         assertEquals(2.5, threshold(1.0, 2.0), delta)
     }
 

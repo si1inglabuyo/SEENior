@@ -35,10 +35,7 @@ data class PendingAlert(
     /** Epoch millis deadline by which a response is required before auto-escalating */
     @ColumnInfo(name = "response_deadline") val responseDeadline: Long,
     @ColumnInfo(name = "responded_at") val respondedAt: Long? = null,
-    /**
-     * "safe", "need_help", "acknowledged", "escalated", or "no_response"
-     * Null while still awaiting a response.
-     */
+    /** "safe", "need_help", "acknowledged", "escalated" or "no_response"; null while awaiting a response. */
     @ColumnInfo(name = "response_type") val responseType: String? = null,
     @ColumnInfo(name = "is_resolved") val isResolved: Boolean = false
 )

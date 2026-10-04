@@ -7,51 +7,36 @@ import kotlin.math.round
 import kotlin.random.Random
 
 /**
- * Phase 3 of the Isolation Forest build (spec §5, Layer 2; §10's simulated-data mandate) —
- * the [FallSimulator] counterpart for this layer.
+ * Test-data generator for Layer 2, the [FallSimulator] counterpart (the spec's simulated-data
+ * approach to validation).
  *
- * Generates real [DailyAggregate] rows — not pre-computed feature vectors — scaled against a real
- * [Baseline] set by named factors: `movementFactor = 0.05` means "5% of her normal movement for
- * this block," not a raw z-shift. Producing actual aggregate rows rather than skipping straight to
- * z-scores means Phase 4's test suite exercises [AggregateFeatures] as well as [IsolationForest] —
- * the whole real pipeline on fabricated input, which is also the only way to exercise
- * [AggregateFeatures.isUsable] at all, since a thin or null `sample_count` has nowhere to live on
- * a bare [DoubleArray].
+ * It generates real [DailyAggregate] rows, scaled against a real [Baseline] set by named
+ * factors (`movementFactor = 0.05` means 5% of normal movement for that block), so tests
+ * exercise [AggregateFeatures] (including [AggregateFeatures.isUsable]) as well as
+ * [IsolationForest].
  *
- * **Every entry point takes a [Random] instance; none default to [Random.Default].** Unseeded
- * randomness in a simulator is one of the three implementation traps the plan calls out by name:
- * it passes four test runs and fails the fifth, on a run nobody is sitting at to explain why.
+ * Every entry point takes a [Random]; none default to [Random.Default], since unseeded
+ * randomness makes tests fail intermittently.
  */
 object AggregateSimulator {
 
-    /** How many 5-minute samples a "full" simulated block-day carries, unless a test overrides it
-     *  to exercise [AggregateFeatures.isUsable]'s thin-block exclusion (test case 9). Sixty is not
-     *  a universal truth about every senior's blocks — see [AggregateFeatures.isUsable]'s own KDoc
-     *  — it is simply what these *invented* rows carry unless told otherwise. */
+    /** How many 5-minute samples a "full" simulated block-day carries, unless a test overrides it to exercise the thin-block exclusion. */
     const val DEFAULT_SAMPLE_COUNT = 60
 
-    /** Day-to-day wobble applied on top of every factor, so 40 "normal" rows aren't 40 identical
-     *  copies of the same number — a forest trained on truly identical rows never sees the spread
-     *  a real routine has, and the "ignores a normal night" case would look artificially easy. */
+    /** Day-to-day wobble on top of every factor, so "normal" rows aren't identical copies. */
     private const val JITTER = 0.05
 
     /**
-     * One block-day, scaled against [baselines]' medians for [seniorId] and [block].
+     * One block-day, scaled against [baselines]' medians for [seniorId] and [block]. A factor
+     * of `1.0` means her normal median; `movementFactor = 0.05, stepsFactor = 0.0` is total
+     * stillness and `stepsFactor = 3.0` alone is an energetic day.
      *
-     * A factor of `1.0` (the default for all three) means "at her normal median" — an ordinary
-     * day. `movementFactor = 0.05, stepsFactor = 0.0` is the "total stillness" case; `stepsFactor =
-     * 3.0` alone is the "energetic day" case; the plan's own names for both are in
-     * [IsolationForest]'s doc.
+     * [stillnessFactor] scales inactivity and screen-idle together, since a quiet block moves
+     * both. [unlocks] is a direct override.
      *
-     * [stillnessFactor] scales inactivity and screen-idle **together**, off their own separate
-     * baselines — physically the same fact (how disengaged she was) measured two ways, and a real
-     * quiet block moves both at once. [unlocks] is a direct override rather than a factor: nothing
-     * in the plan's nine cases needs it scaled, only occasionally pinned to a specific count.
-     *
-     * @param sampleCount Defaults to [DEFAULT_SAMPLE_COUNT] (a full block). Pass a low number or
-     *   `null` to build the rows test case 9 needs.
-     * @param random Shared across a whole scenario's calls (e.g. all of [normalDays]) so the run
-     *   stays reproducible together, not merely individually reproducible in isolation.
+     * @param sampleCount defaults to [DEFAULT_SAMPLE_COUNT]; pass a low number or `null` to
+     *   build thin-block rows.
+     * @param random shared across a scenario's calls so the run is reproducible together.
      */
     fun day(
         seniorId: Int,
@@ -98,9 +83,8 @@ object AggregateSimulator {
     }
 
     /**
-     * [count] ordinary block-days for [block], standing in for the rows a real fortnight
-     * accumulates for that one block (14 by default — one per day, since [day] already covers a
-     * single block; a full simulated 56-row fortnight is four calls to this, one per block).
+     * [count] ordinary block-days for [block] (14 by default, one per day). A full simulated
+     * fortnight is four calls, one per block.
      */
     fun normalDays(
         count: Int,

@@ -20,10 +20,8 @@ import java.io.IOException
 import java.time.LocalDate
 
 /**
- * The figures behind one senior's status tiles on the Home tab.
- *
- * `riskLevel` is null until a fetch has actually succeeded: the tile shows "—" rather than
- * asserting "Low", which would be a claim about the senior's safety made from no data.
+ * The figures behind one senior's status tiles on Home. `riskLevel` is null until a fetch
+ * has succeeded, so the tile shows "—" instead of claiming "Low" from no data.
  */
 data class SeniorStatus(
     val riskLevel: String? = null,
@@ -31,19 +29,16 @@ data class SeniorStatus(
     val hasOpenAlert: Boolean = false
 )
 
-/** One row of the RECENT ALERTS feed. The feed is merged across every linked senior, so the
- *  name has to travel with the alert — it can't be inferred from the alert alone. */
+/** One row of the RECENT ALERTS feed, merged across seniors, so the name travels with the alert. */
 data class RecentAlert(
     val alert: AlertDto,
     val seniorName: String
 )
 
 /**
- * Feeds the family Home tab (designs/family_contact/home_screen_with_linked_senior).
- *
- * Deliberately separate from FamilyAlertsViewModel: that one narrows everything down to the
- * single most urgent open alert to drive the Alerts tab's screen flow, while Home needs
- * per-senior counts and a merged feed. Both read the same authenticated GET /alerts.
+ * Feeds the family Home tab. Separate from FamilyAlertsViewModel, which narrows to the single
+ * most urgent alert; Home needs per-senior counts and a merged feed. Both read the same
+ * authenticated GET /alerts.
  */
 class FamilyHomeViewModel(application: Application) : AndroidViewModel(application) {
     /** Keyed by senior sync_id. */
@@ -58,8 +53,7 @@ class FamilyHomeViewModel(application: Application) : AndroidViewModel(applicati
     var error by mutableStateOf<FamilyError?>(null)
         private set
 
-    /** False until a fetch has completed at least once, so the screen can tell "no alerts"
-     *  apart from "haven't looked yet" — the two must never render the same way. */
+    /** False until a fetch has completed, so "no alerts" and "haven't looked yet" never render the same. */
     var loaded by mutableStateOf(false)
         private set
 
@@ -67,15 +61,9 @@ class FamilyHomeViewModel(application: Application) : AndroidViewModel(applicati
     private var pollJob: Job? = null
 
     /**
-     * Re-fetches every [POLL_INTERVAL_MS] for as long as the Home tab is resumed.
-     *
-     * Home previously refreshed only when the tab was entered or the app resumed, so a senior
-     * could press SOS while their family member sat looking at this very screen and nothing
-     * would change until they navigated away and back.
-     *
-     * This is a foreground stopgap, not the notification channel: the spec §9 specifies FCM
-     * push (build-order step 11), which isn't built, so none of this reaches a family member
-     * whose app is closed.
+     * Re-fetches every [POLL_INTERVAL_MS] while the Home tab is resumed, so an SOS shows up
+     * while the family member is looking at this screen. This is a foreground stopgap, not the
+     * notification channel (FCM covers a closed app).
      */
     fun startPolling(contacts: List<ContactDto>) {
         pollJob?.cancel()
@@ -116,13 +104,10 @@ class FamilyHomeViewModel(application: Application) : AndroidViewModel(applicati
                 val alerts = RetrofitClient.api.getAlerts(contact.senior.syncId, "Bearer $token")
                 val open = alerts.filter { it.status in OPEN_STATUSES }
                 nextStatuses[contact.senior.syncId] = SeniorStatus(
-                    // Highest open risk, not the newest one: a HIGH alert from an hour ago
-                    // still outranks a MEDIUM from a minute ago as a summary of how the
-                    // senior is doing right now.
+                    // Highest open risk, not the newest: an hour-old HIGH outranks a minute-old MEDIUM.
                     riskLevel = open.maxByOrNull { RISK_ORDER.indexOf(it.riskLevel) }?.riskLevel
                         ?: "low",
-                    // Every alert raised today, not just the open ones — an alert the family
-                    // already resolved still happened, and hiding it would understate the day.
+                    // Every alert raised today, not just open ones; a resolved alert still happened.
                     alertsToday = alerts.count { parseServerTime(it.createdAt)?.toLocalDate() == today },
                     hasOpenAlert = open.isNotEmpty()
                 )
@@ -137,9 +122,7 @@ class FamilyHomeViewModel(application: Application) : AndroidViewModel(applicati
             error = if (SessionState.handleIfUnauthorized(getApplication(), e))
                 FamilyError.SessionExpired
             else FamilyError.Server(FamilyError.Action.LoadHomeActivity, e.code())
-            // A blip on one of the polls must not wipe a screen that already has data: replacing
-            // real alerts with an error card would hide the very thing this screen exists to
-            // show. The last known alerts stay up instead.
+            // A failed poll must not wipe data already on screen; the last known alerts stay up.
             if (!loaded) loadFailed = true
         } catch (e: IOException) {
             error = FamilyError.Network(FamilyError.NetworkVariant.CheckConnection)
@@ -155,14 +138,12 @@ class FamilyHomeViewModel(application: Application) : AndroidViewModel(applicati
         private val RISK_ORDER = listOf("low", "medium", "high")
         private const val RECENT_LIMIT = 5
 
-        /** Short enough that an SOS surfaces while it still matters, long enough not to hammer
-         *  a free-tier backend from every family phone that has the app open. */
+        /** Short enough that an SOS surfaces while it matters, long enough not to hammer a free-tier backend. */
         private const val POLL_INTERVAL_MS = 20_000L
     }
 }
 
-// Status label for one RECENT ALERTS row is FamilyStrings.Copy.recentAlertChipLabel now.
+// The status label for a RECENT ALERTS row is FamilyStrings.Copy.recentAlertChipLabel.
 //
-// Note the design mock's example row ("Alfreda replied 'I'm okay'") cannot occur here: a senior
-// who answers "I'M SAFE" closes the alert locally as `self_cancelled` and nothing is ever
-// uploaded (spec §11), so the cloud only ever holds alerts that actually escalated.
+// A senior who answers "I'M SAFE" closes the alert locally as `self_cancelled` and nothing is
+// uploaded, so the cloud only holds alerts that actually escalated.

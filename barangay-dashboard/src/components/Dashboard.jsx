@@ -19,9 +19,8 @@ function dayLabel(iso) {
   })
 }
 
-// Every new stats field is read defensively (`?? 0` / `?? null`). The dashboard has to
-// render cleanly against the production API before it ships the extra fields -- the
-// sub-lines just fall back to "—" until then.
+// New stats fields are read defensively (`?? 0` / `?? null`), so the dashboard still
+// renders against an API that doesn't send them yet.
 function resolutionRate(outcomes) {
   const resolved = (outcomes.resolved || 0) + (outcomes.false_positive || 0)
   const active =
@@ -30,13 +29,10 @@ function resolutionRate(outcomes) {
   return total === 0 ? null : Math.round((resolved / total) * 100)
 }
 
-// The dashboard's "Alerts by Type" donut wants the four responder-facing categories
-// (anomaly / potential_fall / sos / dispatch_family). An older /barangay/stats returns only
-// `alert_types`, keyed by raw trigger_type, so fold those into the categories that can be
-// derived from a trigger alone: sos -> sos, fall_pattern -> potential_fall, everything else
-// -> anomaly. (dispatch_family
-// needs the escalation timeline, which stats doesn't carry, so it only appears once the
-// API returns `alert_categories` directly.)
+// Older /barangay/stats responses only have `alert_types` keyed by trigger_type. Fold those
+// into the four categories that can be derived from a trigger: sos, fall_pattern ->
+// potential_fall, everything else -> anomaly. dispatch_family needs the timeline, so it
+// only appears when the API returns `alert_categories`.
 function categoriesFromTypes(types) {
   if (!types) return null
   const out = {}
@@ -52,8 +48,7 @@ export default function Dashboard({ onSessionLost, onNavigate }) {
   const [activeAlerts, setActiveAlerts] = useState(null)
   const [error, setError] = useState('')
 
-  // Stats drives the whole page and must succeed. The active-alerts feed is a nice-to-have
-  // -- a transient failure just leaves that one panel empty.
+    // Stats must succeed. The active-alerts feed is optional; a failure just empties that panel.
   const load = useCallback(
     (live = () => true) => {
       api('/barangay/stats')
@@ -76,15 +71,10 @@ export default function Dashboard({ onSessionLost, onNavigate }) {
     [onSessionLost]
   )
 
-  // Clicking a row in the Active Alerts panel opens the shared Details modal (with the same
-  // Acknowledge / Resolve / False Positive actions the Alerts tab uses). A successful action
-  // reloads the whole dashboard so the stat cards and charts catch it immediately.
+    // Clicking a row opens the shared Details modal. A successful action reloads the dashboard.
   const actions = useAlertActions({ onReload: () => load(), onSessionLost })
 
-  // Polled, not just fetched once: an alert acted on from the Alerts page (Acknowledge,
-  // Resolve, False Positive) is a real write to the same alerts table this page reads --
-  // polling is what makes the stat cards, the Alerts Today panel and the outcome donut
-  // catch that change without requiring the responder to leave and re-enter this view.
+    // Polled so actions taken on other screens show up in the stat cards and charts.
   useEffect(() => {
     let cancelled = false
     const live = () => !cancelled
@@ -96,9 +86,7 @@ export default function Dashboard({ onSessionLost, onNavigate }) {
     }
   }, [load])
 
-  // A poll that fails transiently (a Render cold-start, a dropped connection) must not
-  // blank a dashboard that already has good data on screen -- only the first load blocks
-  // on success, same as IncidentQueue's own load/poll split.
+    // A failed poll must not blank data already on screen; only the first load blocks.
   if (error && !stats) return <p className="error">{error}</p>
   if (!stats || !activeAlerts) return <p className="muted">Loading…</p>
 

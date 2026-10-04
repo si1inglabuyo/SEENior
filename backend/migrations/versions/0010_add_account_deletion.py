@@ -1,17 +1,9 @@
 """account deletion: soft-delete + reason on users and seniors
 
-Deleting an account is soft on both sides. The row stays for audit with
-deleted_at / deletion_reason / deletion_note set; every user-facing query must
-now exclude deleted_at IS NOT NULL.
-
-deletion_reason holds a stable code from the app's reason picker (e.g.
-"switching_phone"), never the translated label, so the reasons stay analysable.
-deletion_note is the user's own words, optional.
-
-For users, the unique columns (username, email, google_sub) are tombstoned in
-the delete endpoint (a "+deletedNNN" suffix) rather than guarded by a partial
-index, so the email/username slots free up for a fresh sign-up with no change to
-any constraint -- only the three new columns per table land here.
+Rows are kept for audit with deleted_at / deletion_reason / deletion_note set; user-facing
+queries must exclude deleted_at IS NOT NULL. deletion_reason is a stable code, not the
+translated label. The unique user columns are tombstoned in the delete endpoint, so no
+constraint changes are needed here.
 
 Revision ID: 0010
 Revises: 0009

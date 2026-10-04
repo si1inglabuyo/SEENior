@@ -30,17 +30,11 @@ interface SeniorOnboardingDao {
     @Query("SELECT * FROM Senior_Onboarding WHERE senior_id = :seniorId LIMIT 1")
     suspend fun getBySeniorId(seniorId: Int): SeniorOnboarding?
 
-    /**
-     * Sets seed_baseline_generated = true once the onboarding questionnaire answers
-     * have been successfully converted into seed Baseline rows.
-     */
+    /** Sets seed_baseline_generated = true once the questionnaire answers have been converted into seed Baseline rows. */
     @Query("UPDATE Senior_Onboarding SET seed_baseline_generated = 1 WHERE senior_id = :seniorId")
     suspend fun markSeedBaselineGenerated(seniorId: Int)
 
-    /**
-     * Sets baseline_ready_at to signal that 14 days of real sensor data have fully replaced
-     * all seed values — passive detection now operates at full accuracy.
-     */
+    /** Sets baseline_ready_at when 14 days of real data have fully replaced the seed values. */
     @Query("UPDATE Senior_Onboarding SET baseline_ready_at = :readyAt WHERE senior_id = :seniorId")
     suspend fun markBaselineReady(seniorId: Int, readyAt: Long)
 
@@ -48,15 +42,9 @@ interface SeniorOnboardingDao {
     suspend fun updateLanguagePreference(seniorId: Int, language: String)
 
     /**
-     * The senior's language, re-emitted whenever it changes.
-     *
-     * A Flow rather than another suspend read because the setting has no Save button and no
-     * screen transition to hide behind: tapping "English" in Profile has to repaint the tabs, the
-     * Home screen and every screen behind them at once. Read once, the app went on speaking the
-     * old language until it was next launched, which reads as the toggle being broken.
-     *
-     * Nullable because the row does not exist until onboarding is submitted; collectors keep
-     * their default until it does.
+     * The senior's language, re-emitted whenever it changes. A Flow because there is no Save
+     * button: tapping "English" in Profile must repaint every screen at once. Nullable because
+     * the row doesn't exist until onboarding is submitted.
      */
     @Query("SELECT language_preference FROM Senior_Onboarding WHERE senior_id = :seniorId LIMIT 1")
     fun observeLanguagePreference(seniorId: Int): Flow<String?>

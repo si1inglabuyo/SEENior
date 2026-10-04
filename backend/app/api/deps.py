@@ -23,14 +23,9 @@ async def get_current_user(
     if payload is None or "sub" not in payload:
         raise credentials_error
 
-    # Resolved by immutable id, never by username -- see create_access_token's docstring for
-    # why that distinction is a security boundary rather than a style preference.
-    #
-    # A token minted before this change carries a username here and will not parse as an
-    # int, which is deliberately treated as invalid rather than fallen back on: keeping the
-    # old lookup alive "just for the transition" would keep the hole open for exactly as
-    # long as it existed. The cost is that everyone signed in at deploy time is asked to log
-    # in once more, which the sixty-minute token lifetime was already doing to them anyway.
+    # Look up by immutable id, never username (see create_access_token). An older token
+    # carrying a username fails to parse and is treated as invalid, so those users log in
+    # again once.
     try:
         user_id = int(payload["sub"])
     except (TypeError, ValueError):
@@ -38,8 +33,7 @@ async def get_current_user(
 
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
-    # deleted_at is checked alongside is_active because they are set together on soft delete
-    # and a row where they ever disagreed must still fail closed.
+    # Both are set together on soft delete; check both so it fails closed.
     if user is None or not user.is_active or user.deleted_at is not None:
         raise credentials_error
     return user

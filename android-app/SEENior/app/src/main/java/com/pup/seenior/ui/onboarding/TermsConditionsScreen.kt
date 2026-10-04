@@ -48,11 +48,9 @@ fun TermsConditionsScreen(
     val copy = LocalOnboardingCopy.current
     var acceptedTerms by remember { mutableStateOf(false) }
     var acceptedPrivacy by remember { mutableStateOf(false) }
-    // The checkbox text underlines "Terms and Conditions" / "Privacy Policy" as if they were
-    // links, but nothing happened when tapped, and the Privacy Policy text was never shown
-    // anywhere in onboarding at all — flagged in the 2026-09-14 native-speaker review. Backed by
-    // InfoStrings (the same content Profile -> Privacy policy shows post-onboarding) rather than
-    // duplicating the legal text a second time in OnboardingStrings.
+    // The checkbox text links "Terms and Conditions" / "Privacy Policy", which did nothing, and
+    // the Privacy Policy was never shown in onboarding (flagged in the 2026-09-14 review). Backed
+    // by InfoStrings, the same content as Profile -> Privacy policy, instead of duplicating the legal text.
     var legalDialogTitle by remember { mutableStateOf<String?>(null) }
     var legalDialogSections by remember { mutableStateOf<List<OnboardingStrings.Section>>(emptyList()) }
     val infoCopy = InfoStrings.forLanguage(copy.languageCode)
@@ -199,9 +197,7 @@ private fun ConsentRow(
         Text(
             text = buildAnnotatedString {
                 append(prefix)
-                // A real link, not just link-styled text: tapping it opens the document instead
-                // of silently toggling the checkbox underneath (the row's own click handler,
-                // which this span's tap intentionally does not fall through to).
+                // A real link: tapping opens the document instead of toggling the checkbox underneath.
                 withLink(
                     LinkAnnotation.Clickable(
                         tag = "legalDoc",

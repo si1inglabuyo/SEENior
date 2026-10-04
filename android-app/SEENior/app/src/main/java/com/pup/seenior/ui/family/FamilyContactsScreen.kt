@@ -48,8 +48,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.pup.seenior.network.dto.ContactDto
 
-/** Family "Contacts" tab: the seniors this account is monitoring (designs/family_contact/limit,
- *  designs/family_contact/unlink). Tapping a row opens its detail/unlink screen. */
+/** Family "Contacts" tab: the seniors this account monitors. Tapping a row opens its detail/unlink screen. */
 @Composable
 fun FamilyContactsScreen(viewModel: FamilySeniorsViewModel, onLinkSenior: () -> Unit) {
     var selected by remember { mutableStateOf<ContactDto?>(null) }
@@ -96,8 +95,7 @@ private fun ContactsListScreen(
             )
         }
 
-        // Loading and failure are both checked before the empty case: either one showing
-        // "No seniors linked yet." looked like the links had been removed.
+        // Loading and failure are checked before the empty case, or the list would look removed.
         if (viewModel.isLoading) {
             Box(modifier = Modifier.fillMaxWidth().padding(24.dp)) {
                 LoadingCard(copy.loadingSeniors)
@@ -183,10 +181,8 @@ private fun ContactDetailScreen(
             Text("${senior.firstName} ${senior.lastName}", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
         }
 
-        // Scrolls, and the header above it does not. A senior's address is a joined
-        // PSGC string and can run to several lines, which pushed the Unlink button off the
-        // bottom of the display with no way to reach it. Putting the scroll on the outer
-        // Column instead would have taken the back arrow with it.
+        // Scrolls while the header above doesn't. A senior's address can run to several lines
+        // and pushed the Unlink button off the display; scrolling the outer Column would take the back arrow too.
         Column(
             modifier = Modifier
                 .weight(1f)
@@ -270,8 +266,7 @@ private fun ContactDetailScreen(
                 Text(copy.errorMessage(it) ?: "", color = FamilyColors.ErrorRed, fontSize = 14.sp, modifier = Modifier.padding(top = 12.dp))
             }
 
-            // Clears the bottom navigation bar, which would otherwise sit on top of the last
-            // element once the content is scrolled all the way down.
+            // Clears the bottom navigation bar once scrolled to the end.
             Spacer(Modifier.height(24.dp))
         }
     }

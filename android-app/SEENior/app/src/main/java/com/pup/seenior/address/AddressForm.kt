@@ -7,11 +7,9 @@ import androidx.compose.runtime.setValue
 
 /**
  * The structured address a senior fills in: region -> province -> city -> barangay + a street
- * line, all backed by the bundled PSGC dataset. Selecting a level resets everything below it.
- *
- * Shared by sign-up and Edit Profile so both accept an address the same way, and so both can
- * hand the same map picker a place to put its result. The barangay is the one field tier 3 of
- * the escalation chain depends on, which is why it is only ever chosen from the dataset here.
+ * line, backed by the bundled PSGC dataset. Selecting a level resets the ones below it.
+ * Shared by sign-up and Edit Profile. The barangay is only ever chosen from the dataset, since
+ * tier 3 of the escalation chain depends on it.
  */
 class AddressForm {
 
@@ -28,8 +26,7 @@ class AddressForm {
     var streetAddress by mutableStateOf("")
         private set
 
-    /** True once the senior has touched any part of the address. Edit Profile uses it to leave an
-     *  older free-text address alone when only, say, the phone number was edited. */
+    /** True once the senior has touched any part of the address, so Edit Profile leaves an older free-text address alone. */
     var dirty by mutableStateOf(false)
         private set
 
@@ -79,13 +76,10 @@ class AddressForm {
     }
 
     /**
-     * Fills the address from a spot pinned on the map.
-     *
-     * Set together and without the cascade resets the per-field setters do, because these four
-     * already agree with each other -- they were read out of the same PSGC entry. The barangay can
-     * legitimately arrive null (the map found the city but nothing matched a barangay in it);
-     * guessing is not an option for the field that routes tier 3, so the senior chooses from the
-     * dropdown, which by then is already narrowed to the right city.
+     * Fills the address from a spot pinned on the map. Set together, without the cascade resets
+     * of the per-field setters, since the four values came from the same PSGC entry. The
+     * barangay can arrive null (nothing matched); the senior then picks it from the dropdown,
+     * already narrowed to the city.
      */
     fun applyPickedAddress(match: PsgcMatch, streetLine: String) {
         region = match.regionName
@@ -97,12 +91,9 @@ class AddressForm {
     }
 
     /**
-     * Reads a stored address back into the form, for Edit Profile.
-     *
-     * Only levels that exist in the dataset are kept. An address saved before the structured form
-     * existed is free text, so it lands whole in the street line with the rest blank -- the form
-     * is then incomplete and the senior is asked to choose, rather than the app guessing.
-     * Leaves [dirty] false: loading is not an edit.
+     * Reads a stored address back into the form for Edit Profile. Only levels in the dataset
+     * are kept; an older free-text address lands whole in the street line and the senior is
+     * asked to choose. Leaves [dirty] false, since loading isn't an edit.
      */
     fun fillFrom(address: String, storedBarangay: String) {
         val parts = address.split(", ").map { it.trim() }

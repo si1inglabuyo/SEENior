@@ -18,19 +18,11 @@ class VerifyCodeRequest(BaseModel):
 
 
 class InviteSeniorOut(BaseModel):
-    """The redacted view of a senior handed back by the *unauthenticated* code check.
+    """The redacted senior returned by the unauthenticated code check.
 
-    `POST /contacts/verify` needs no credentials by design -- the code is the credential --
-    so whatever it returns is readable by anyone who guesses a live six-digit code. It used
-    to return the full `SeniorOut`, which meant a correct guess disclosed a senior's home
-    address and mobile number to a stranger.
-
-    The fields kept here are exactly the five the Connected screen renders (first name, last
-    name, age, gender, barangay) -- enough for a family member to recognise their own
-    relative and no more. `address` and `mobile_number` keep their names and types so the
-    installed Android DTO still parses, but carry a redacted value: the screen never reads
-    either, and the pairing that follows is authenticated, after which the full record is
-    available through the normal contact endpoints.
+    The code is the credential, so this returns only what the Connected screen shows
+    (first name, last name, age, gender, barangay). `address` and `mobile_number` keep
+    their names so the installed Android app still parses them, but hold a redacted value.
     """
 
     sync_id: UUID
@@ -54,8 +46,7 @@ class InviteSeniorOut(BaseModel):
             age=senior.age,
             gender=senior.gender,
             barangay=senior.barangay,
-            # Barangay only -- the same granularity the caller already sees in `barangay`,
-            # so this adds nothing and leaks nothing.
+            # Barangay only, which the caller already sees.
             address=senior.barangay,
             mobile_number="•••••••••••",
             created_at=senior.created_at,
@@ -63,15 +54,13 @@ class InviteSeniorOut(BaseModel):
 
 
 class VerifyCodeResponse(BaseModel):
-    """Returned when a family member checks a code on the Link screen — shows the
-    senior on the Connected screen BEFORE anything is committed. No account is
-    created here; that happens on POST /contacts/pair after they pick a relationship."""
+    """Returned when a family member checks a code on the Link screen. Nothing is created
+    until POST /contacts/pair."""
     senior: InviteSeniorOut
 
 
 class PairRequest(BaseModel):
-    """Requires an authenticated caller (POST /auth/register or /auth/google happens
-    first, separately) - this only links the already-logged-in account to a senior."""
+    """Requires an authenticated caller; links the logged-in account to a senior."""
     invite_code: str
     # How they relate to the senior — chosen on the Connected screen.
     relationship_label: str
@@ -94,18 +83,15 @@ class PairResponse(BaseModel):
 
 
 class FamilyContactOut(BaseModel):
-    """Senior-side view: a family member on the senior's Contacts list
-    (their name, phone, and relationship — flattened from the linked User)."""
+    """Senior-side view of a family member on the Contacts list (flattened from the User)."""
     id: int
     full_name: str | None
     phone: str | None
     relationship_label: str | None
     contact_type: ContactType
     created_at: datetime
-    # The most recent time any of this contact's devices registered its FCM token —
-    # which the family app does on every launch. A "recently opened the app" proxy, not
-    # live presence; the senior's Contacts screen turns it into "Active … ago". Null when
-    # the contact has never registered a device.
+    # Latest time any of this contact's devices registered its FCM token (done on every
+    # launch). A "recently opened the app" proxy, not live presence. Null if none.
     last_active_at: datetime | None = None
 
     model_config = {"from_attributes": True}

@@ -1,23 +1,17 @@
-// Everything that talks to the SEENior API lives here, so no screen has to know about
-// tokens or URLs.
+// Everything that talks to the SEENior API, so no screen deals with tokens or URLs.
 
 const BASE = import.meta.env.VITE_API_BASE ?? 'https://seenior.onrender.com'
 const TOKEN_KEY = 'seenior.responder.token'
 
-// Shared poll interval for every screen that needs to notice a change made elsewhere
-// (another browser tab, or an action taken on a different screen of this same app) without
-// a live-update channel. Short enough that a responder watching the screen sees it,
-// long enough not to hammer a free-tier service -- and it keeps the Render instance awake,
-// which is what keeps the server-side escalation clock running.
+// Shared poll interval, so screens notice changes made elsewhere. Also keeps the Render
+// instance awake, which keeps the escalation clock running.
 export const POLL_MS = 10000
 
 export const getToken = () => localStorage.getItem(TOKEN_KEY)
 export const clearToken = () => localStorage.removeItem(TOKEN_KEY)
 
-// The responder's own user id, read from the JWT's `sub` claim. Used only to attribute
-// entries in the access audit log (src/audit.js) -- never for an access decision, which
-// the server alone makes. Returns null on a missing or malformed token rather than
-// throwing, so a logging call can never break a render.
+// The responder's user id from the JWT `sub` claim. Used only for the access audit log,
+// never for access decisions. Returns null on a bad token instead of throwing.
 export function currentUserId() {
   const token = getToken()
   if (!token) return null
@@ -30,9 +24,8 @@ export function currentUserId() {
 }
 
 export async function login(username, password) {
-  // /auth/login speaks OAuth2's form encoding, not JSON. The field is named "username"
-  // by that spec; family accounts put an email in it, but a barangay responder types
-  // their pre-assigned username (spec §2 and §14).
+    // /auth/login takes form encoding, not JSON. The field is "username"; responders type
+    // their pre-assigned username.
   const res = await fetch(`${BASE}/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -62,9 +55,7 @@ export async function api(path, options = {}) {
   return data
 }
 
-// FastAPI reports a 422 with `detail` as an array of { loc, msg, type } objects, not a
-// string -- passing that straight to `new Error()` renders as "[object Object]". Flatten
-// it to something a person can read; fall back to the status code.
+// FastAPI sends 422 `detail` as an array of objects; flatten it into readable text.
 function errorMessage(data, status) {
   const detail = data && data.detail
   if (typeof detail === 'string') return detail
@@ -76,10 +67,8 @@ function errorMessage(data, status) {
 }
 
 export function parseServerTime(value) {
-  // The API returns naive UTC with no zone marker ("2026-08-26T14:03:21.994").
-  // JavaScript reads a bare timestamp like that as LOCAL time, which in Manila would make
-  // every incident look eight hours old the instant it is raised. Appending Z tells it
-  // what the server actually meant. Same trap parseServerTime solves in the Android app.
+    // The API sends naive UTC with no zone marker, which JS would read as local time.
+    // Appending Z fixes that.
   if (!value) return null
   return new Date(/(Z|[+-]\d{2}:\d{2})$/.test(value) ? value : `${value}Z`)
 }

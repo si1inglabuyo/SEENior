@@ -1,7 +1,6 @@
-// Standard geohash decode (base32, no a/i/l/o). Length-agnostic: a precision-9 cell is
-// ~5 m, a precision-7 cell ~150 m -- older alerts carry the wider ones (spec §11).
-// Returns the cell centre and its half-width in degrees, or null for anything that isn't a
-// valid geohash. The Android app's Geohash.kt is the reference implementation.
+// Standard geohash decode (base32). Works at any length: precision 9 is ~5 m, precision 7
+// is ~150 m (older alerts). Returns the cell centre and half-width in degrees, or null if
+// invalid. Matches the Android app's Geohash.kt.
 const BASE32 = '0123456789bcdefghjkmnpqrstuvwxyz'
 
 export function decodeGeohash(hash) {
@@ -32,8 +31,7 @@ export function decodeGeohash(hash) {
   }
 }
 
-// Rough metres across the cell at this latitude, for choosing "pin" vs "approximate area"
-// wording. 1 deg latitude ~= 111 km.
+// Rough metres across the cell at this latitude, to choose "pin" vs "approximate area".
 export function cellSizeMeters({ lat, latErr, lonErr }) {
   const latM = latErr * 2 * 111_320
   const lonM = lonErr * 2 * 111_320 * Math.cos((lat * Math.PI) / 180)

@@ -29,11 +29,9 @@ interface BaselineDao {
     fun getAllBySenior(seniorId: Int): Flow<List<Baseline>>
 
     /**
-     * One-shot read of the whole Routine Fingerprint — all 5 features across all 4 blocks.
-     *
-     * Separate from [getAllBySenior] because that returns a Flow for screens to observe.
-     * [com.pup.seenior.detection.IsolationForestDetector] needs the 20 rows exactly once per
-     * nightly run, to score every block against, and a subscription would be the wrong shape.
+     * One-shot read of the whole Routine Fingerprint (5 features across 4 blocks). Separate from
+     * [getAllBySenior], which returns a Flow; [com.pup.seenior.detection.IsolationForestDetector]
+     * needs the 20 rows once per nightly run.
      */
     @Query("SELECT * FROM Baseline WHERE senior_id = :seniorId")
     suspend fun getAllBySeniorOnce(seniorId: Int): List<Baseline>
@@ -41,10 +39,7 @@ interface BaselineDao {
     @Query("SELECT * FROM Baseline WHERE baseline_id = :baselineId")
     suspend fun getById(baselineId: Int): Baseline?
 
-    /**
-     * Primary lookup for Layer 1 (Median-MAD) detection — fetches the median and MAD
-     * for a specific feature within a specific time block.
-     */
+    /** Primary lookup for Layer 1: the median and MAD for one feature in one time block. */
     @Query("""
         SELECT * FROM Baseline
         WHERE senior_id = :seniorId

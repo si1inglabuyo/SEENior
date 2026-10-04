@@ -5,11 +5,9 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Validates the gap-reconciliation rule by driving it with known inputs, per the spec §10.
- *
- * The claim is that a flat step counter means two opposite things depending on whether anything
- * was feeding it, so the tests that matter are the pair: identical readings, identical flat step
- * count, two verdicts.
+ * Validates the gap-reconciliation rule with known inputs. A flat step counter means two
+ * opposite things depending on whether anything was feeding it, so the key test is the pair:
+ * identical readings and flat step count, two verdicts.
  */
 class InactivityReconcilerTest {
 
@@ -30,9 +28,8 @@ class InactivityReconcilerTest {
 
     @Test
     fun `a flat counter that was awake is evidence and the long reading stands`() {
-        // Two hours slept through, the counter watching throughout and seeing nothing. She really
-        // was still, so this must NOT be capped — capping it would be the detector switching
-        // itself off on exactly the reading it exists to catch.
+        // Two hours slept through, with the counter watching and seeing nothing. The senior
+        // really was still, so this must not be capped.
         val verdict = reconcile(7200, gapMillis = 2 * 60 * 60 * 1000L, stepCountObserved = true)
         assertEquals(7200L, verdict.seconds)
         assertTrue(verdict is InactivityReconciler.Verdict.Believed)
@@ -40,9 +37,8 @@ class InactivityReconcilerTest {
 
     @Test
     fun `a flat counter that never reported is silence and the gap is capped`() {
-        // Byte-for-byte the same gap and the same zero steps. The only difference is that nothing
-        // was ever feeding the counter — no TYPE_STEP_COUNTER, or ACTIVITY_RECOGNITION denied at
-        // onboarding — so there is no witness and no stillness was observed.
+        // The same gap and zero steps, but nothing fed the counter (no sensor, or permission
+        // denied), so there is no witness and no stillness was observed.
         val verdict = reconcile(7200, gapMillis = 2 * 60 * 60 * 1000L, stepCountObserved = false)
         assertEquals(listenSeconds, verdict.seconds)
         assertTrue(verdict is InactivityReconciler.Verdict.Capped)
@@ -61,8 +57,7 @@ class InactivityReconcilerTest {
 
     @Test
     fun `a reboot mid-gap reads as flat, not as negative steps`() {
-        // TYPE_STEP_COUNTER restarts at zero on reboot, so the difference goes negative. That is a
-        // reboot boundary, not proof she walked backwards, and it must not cap.
+        // The counter restarts at zero on reboot, so the difference goes negative. That's a reboot boundary and must not cap.
         val verdict = reconcile(
             7200, gapMillis = 2 * 60 * 60 * 1000L, stepCountObserved = true, stepsDuringGap = -9000
         )
@@ -71,8 +66,7 @@ class InactivityReconcilerTest {
 
     @Test
     fun `an ordinary sampling interval is never reconciled`() {
-        // Under twice the poll interval is jitter, not a suspend. Nothing was missed, so the
-        // reading means what it says even with no step counter on the device at all.
+        // Under twice the poll interval is jitter, not a suspend, so the reading stands even with no step counter.
         val verdict = reconcile(900, gapMillis = 5 * 60 * 1000L, stepCountObserved = false)
         assertEquals(900L, verdict.seconds)
         assertTrue(verdict is InactivityReconciler.Verdict.Believed)
@@ -86,8 +80,7 @@ class InactivityReconcilerTest {
 
     @Test
     fun `capping never inflates a short reading`() {
-        // The cap is a ceiling, not an assignment. A senior who moved two seconds ago across a
-        // slept gap reads 2, and must not be written up to the listening window.
+        // The cap is a ceiling, not an assignment: a movement two seconds ago across a slept gap reads 2.
         val verdict = reconcile(2, gapMillis = 2 * 60 * 60 * 1000L, stepCountObserved = false)
         assertEquals(2L, verdict.seconds)
     }

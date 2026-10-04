@@ -7,17 +7,10 @@ import androidx.compose.runtime.setValue
 import retrofit2.HttpException
 
 /**
- * App-wide signal that the family login has died, so a 401 becomes a route back to Log In
- * instead of a dead end.
- *
- * Why this exists: the access token expires (60 minutes by default server-side) and there is
- * no refresh flow. Before this, every family ViewModel caught the resulting HttpException and
- * rendered "…(server error 401)", leaving the user stuck on a dashboard whose only escape was
- * the Profile tab's Log Out button. A 401 has no recoverable meaning here — expired token,
- * rotated SECRET_KEY, or a re-created database all mean the same thing to the app: this
- * credential is finished, get a new one.
- *
- * Observed by FamilyDashboard, which owns the navigation callback.
+ * App-wide signal that the family login has died, so a 401 becomes a route back to Log In.
+ * The access token expires (60 minutes server-side) with no refresh flow, and before this
+ * every family ViewModel showed "server error 401" and left the user stuck. A 401 always
+ * means the credential is finished. Observed by FamilyDashboard, which owns the navigation.
  */
 object SessionState {
 
@@ -26,8 +19,8 @@ object SessionState {
         private set
 
     /**
-     * Clears the stored token and flags the session as expired when [e] is a 401.
-     * Returns true when it handled the exception, so callers can pick the right message:
+     * Clears the stored token and flags the session as expired when [e] is a 401. Returns true
+     * when it handled the exception, so callers can pick the message:
      *
      *     error = if (SessionState.handleIfUnauthorized(getApplication(), e))
      *         FamilyError.SessionExpired

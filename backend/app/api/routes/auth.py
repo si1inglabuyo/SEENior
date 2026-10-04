@@ -42,29 +42,21 @@ async def login(
 ) -> Token:
     """Password sign-in for both roles.
 
-    Throttled on two keys, because either one alone leaves a usable attack. Per-IP stops one
-    host working through a password list; per-identifier stops the same list being spread
-    across a pool of addresses at a single account, which is the shape that matters when the
-    account is a barangay responder whose username is public within the barangay.
-
-    The identifier key is the string as submitted, so it also covers a caller trying the same
-    account by email and by username. bcrypt's cost was the only brake here before, and a cost
-    factor is a speed limit, not an attempt limit.
+    Throttled per IP and per submitted identifier, so neither a single host nor a spread
+    of hosts can work through passwords against one account.
     """
     submitted = form_data.username.strip().lower()
     await ratelimit.check("login-ip", ratelimit.client_ip(request), limit=10, window_seconds=300)
     await ratelimit.check("login-id", submitted, limit=5, window_seconds=300)
 
-    # OAuth2PasswordRequestForm's field is always named "username" by spec, but family
-    # accounts log in by email (matching the Log In screen) while barangay responders
-    # still log in by their pre-assigned username (spec §2) - so this checks both.
+    # The form field is always named "username"; family accounts log in by email and
+    # barangay responders by username, so check both.
     result = await db.execute(
         select(User).where((User.email == form_data.username) | (User.username == form_data.username))
     )
     user = result.scalar_one_or_none()
     has_password = user is not None and user.password_hash is not None
-    # Always run verify_password, even when there's no matching user or no password
-    # set, so response timing doesn't leak account state (bcrypt cost stays constant).
+    # Always run verify_password so response timing doesn't reveal account state.
     password_hash = user.password_hash if has_password else _DUMMY_PASSWORD_HASH
     password_ok = verify_password(form_data.password, password_hash)
     if user is None or not user.is_active:
@@ -91,8 +83,7 @@ async def login(
 
 @router.post("/register", response_model=Token, status_code=status.HTTP_201_CREATED)
 async def register(payload: RegisterRequest, db: AsyncSession = Depends(get_db)) -> Token:
-    """Family app's Sign Up screen. Creates the account up front, separate from and
-    before pairing with any senior (pairing happens later via an invite code)."""
+    """Family app's Sign Up. Creates the account before pairing with any senior."""
     existing = await db.execute(select(User).where(User.email == payload.email))
     if existing.scalar_one_or_none() is not None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="An account with this email already exists")
@@ -135,8 +126,7 @@ async def google_sign_in(payload: GoogleSignInRequest, db: AsyncSession = Depend
     user = result.scalar_one_or_none()
 
     if user is None and email:
-        # Same email signed up manually before - link this Google account to it
-        # instead of creating a duplicate.
+        # Same email signed up manually before: link this Google account to it.
         existing_result = await db.execute(select(User).where(User.email == email))
         existing = existing_result.scalar_one_or_none()
         if existing is not None:
@@ -167,9 +157,7 @@ async def google_sign_in(payload: GoogleSignInRequest, db: AsyncSession = Depend
 
 @router.post("/firebase", response_model=Token)
 async def firebase_sign_in(payload: FirebaseSignInRequest, db: AsyncSession = Depends(get_db)) -> Token:
-    # Reuses the same Firebase Admin SDK connection push.py already sets up for
-    # FCM - Firebase Auth verification needs the same service-account credentials,
-    # so there is nothing separate to configure.
+    # Uses the same Firebase Admin connection as push.py (same service account).
     if not push.is_configured():
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -195,19 +183,15 @@ async def firebase_sign_in(payload: FirebaseSignInRequest, db: AsyncSession = De
         existing = existing_result.scalar_one_or_none()
         if existing is not None:
             if payload.is_sign_up:
-                # A dedicated Sign Up must create a new, distinct identity - silently
-                # attaching to whoever already owns this email (e.g. an existing
-                # Google-linked account) would hand over that account, and the
-                # profile PATCH the app sends right after this would overwrite its
-                # real name/phone. Refuse instead, same as the old /register did.
+                # A fresh Sign Up must create a new identity. Attaching to an existing
+                # account would hand it over and the profile PATCH would overwrite its
+                # name and phone, so refuse.
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="An account with this email already exists. Please log in instead.",
                 )
-            # Same email already exists (e.g. an old password-based or Google-linked
-            # account) - link this Firebase identity to it instead of creating a
-            # duplicate. Correct here because this path is reached only via a
-            # returning sign-in, never a fresh Sign Up.
+            # Same email already exists: link this Firebase identity to it. Safe here because
+            # this path is only reached by a returning sign-in.
             existing.firebase_uid = firebase_uid
             user = existing
 
@@ -257,9 +241,7 @@ async def update_language(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> User:
-    """Family app's Profile -> Language toggle. Writes through immediately, same as the
-    senior side's onboarding/Profile language choice — there is no Save button, since a
-    half-applied language is worse than either."""
+    """Family app's Profile -> Language toggle. Saves immediately; there is no Save button."""
     current_user.language_preference = payload.language
     await db.commit()
     await db.refresh(current_user)
@@ -289,14 +271,12 @@ async def set_password(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> None:
-    """Adds a password to a Google-only account (Edit Profile → Set a password).
+    """Adds a password to a Google-only account (Edit Profile -> Set a password).
 
-    The user is already signed in via Google, so the JWT is the authorization; there is no
-    current password to check. Afterwards the account keeps its Google Sign-In and also
-    accepts email + password at /login (has_password flips true).
-
-    Refuses an account that already has one — that is what /change-password is for, and it
-    requires the current password."""
+    The JWT is the authorization, so no current password is needed. The account keeps
+    Google Sign-In and also accepts email + password. Accounts that already have a
+    password use /change-password.
+    """
     if current_user.password_hash is not None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -314,28 +294,15 @@ async def delete_current_account(
 ) -> None:
     """Soft-deletes the caller's own account.
 
-    The row is kept (deleted_at / deletion_reason / deletion_note) for audit, but:
-
-      * is_active goes False, so login() and get_current_user() already reject it;
-      * every pairing this user had is soft-unlinked (unlinked_by=family), so the
-        seniors stop seeing them and the escalation sweep stops routing to them --
-        Contact.is_active() / has_family_tier() both filter on unlinked_at IS NULL;
-      * their device tokens are dropped, so this handset stops receiving pushes
-        that name a senior (spec §11);
-      * username / email / google_sub are tombstoned with a "+del<id>.<ts>" tag
-        (front-truncated to the column limit), freeing those unique slots for a
-        fresh sign-up later with no schema change.
-
-    Idempotent: a repeat call on an already-deleted account is a no-op, the same
-    way a repeated unlink is.
+    The row is kept for audit with deleted_at / deletion_reason / deletion_note. The
+    account is deactivated, every pairing is soft-unlinked, device tokens are dropped, and
+    username / email / google_sub are tombstoned so they can be reused. Idempotent.
     """
     if current_user.deleted_at is not None:
         return
 
     now = datetime.now(timezone.utc).replace(tzinfo=None)
-    # The id makes the tag unique on its own, so truncating the front of a long value
-    # (username is only String(64), and for a family account it IS the email) still leaves
-    # a value that cannot collide with a fresh sign-up. Keeping the tail keeps the tag intact.
+    # The id keeps the tag unique, so truncating the front of a long value can't collide.
     tag = f"+del{current_user.id}.{int(now.timestamp())}"
 
     current_user.deleted_at = now
@@ -355,9 +322,7 @@ async def delete_current_account(
         contact.unlinked_at = now
         contact.unlinked_by = UnlinkActor.FAMILY
 
-    # Deleted outright, not lazy-loaded off current_user (that relationship is unloaded
-    # on an async session and would raise). This handset must stop receiving pushes
-    # that name a senior the moment the account is gone.
+    # Deleted directly, since current_user's relationships aren't loaded on an async session.
     await db.execute(delete(DeviceToken).where(DeviceToken.user_id == current_user.id))
 
     await db.commit()

@@ -99,14 +99,9 @@ fun ConnectedScreen(
             }
         }
 
-        // Declarative fill-in-the-blank on purpose, not an open question. "What is your
-        // relationship to the senior?" reads two opposite ways: the chips below answer it as
-        // "I am the senior's ___" (their frame), but someone typing into the blank field
-        // underneath just as naturally answers "he/she is my ___" instead -- literally what
-        // happened on 2026-09-06, where a contact typed "Father" meaning the senior is his
-        // father, and the senior-facing contact list then displayed it as if the contact were
-        // the senior's father. "You are the senior's:" fixes the direction for both paths at
-        // once, since only one answer to the fill-in-the-blank is grammatical.
+        // A fill-in-the-blank on purpose. The chips answer "I am the senior's ___", but a typed
+        // answer is just as likely "he/she is my ___" (a contact typed "Father" meaning the
+        // senior is his father, and it showed backwards). "You are the senior's:" fixes the direction.
         Text(
             copy.youAreSeniorsLabel,
             color = FamilyColors.Blue,
@@ -128,25 +123,20 @@ fun ConnectedScreen(
                         .clickable { viewModel.chooseRelationship(rel) }
                         .padding(horizontal = 18.dp, vertical = 10.dp)
                 ) {
-                    // rel (the value sent to the server as relationship_label) stays English --
-                    // only the displayed chip label varies with this account's language. See
-                    // FamilyStrings.Copy.relationshipLabel's kdoc for why.
+                    // rel (sent as relationship_label) stays English; only the chip label varies
+                    // with the account's language. See FamilyStrings.Copy.relationshipLabel.
                     Text(copy.relationshipLabel(rel), color = if (selected) FamilyColors.Blue else FamilyColors.TextPrimary, fontSize = 15.sp)
                 }
             }
         }
 
-        // "Other", per the design: a free-text field under the chips rather than a seventh chip.
-        // Six labels cannot cover how Filipino families actually describe themselves — niece,
-        // neighbour, kapitbahay — and a pairing that cannot be completed because none of the
-        // words fit is a worse outcome than an unusual label in the database.
+        // "Other" is a free-text field under the chips, since six labels can't cover how
+        // Filipino families describe themselves (niece, neighbour, kapitbahay).
         OutlinedTextField(
             value = viewModel.otherRelationship,
             onValueChange = { viewModel.typeOtherRelationship(it) },
             modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
-            // Examples in the same direction as the chips above (niece, neighbor -- not "aunt",
-            // "landlord"), so a free-typed answer keeps the fill-in-the-blank grammatical instead
-            // of silently reversing it.
+            // Examples go the same direction as the chips (niece, neighbor), keeping the blank grammatical.
             placeholder = { Text(copy.otherRelationshipPlaceholder) },
             singleLine = true,
             shape = RoundedCornerShape(12.dp),
@@ -192,8 +182,7 @@ fun ConnectedScreen(
         }
     }
 
-    // Shown once the pairing has actually gone through on the server — the flow otherwise
-    // navigated straight on, so nothing confirmed the link had been made.
+    // Shown once the server has confirmed the pairing, since the flow otherwise navigated straight on.
     viewModel.pairedSeniorName?.let { name ->
         val displayName = name.ifBlank { copy.theSeniorFallback }
         AlertDialog(

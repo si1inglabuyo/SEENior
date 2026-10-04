@@ -23,8 +23,7 @@ import com.pup.seenior.ui.wellness.WellnessMessages
 
 object OnboardingOptions {
     val genders = listOf("Male", "Female", "Other")
-    /** Stored in `Seniors.living_arrangement`. Named because they are read outside onboarding
-     *  too -- the senior dashboard decides which tabs exist from them. */
+    /** Stored in `Seniors.living_arrangement`. Named because the senior dashboard reads them to choose its tabs. */
     const val LIVING_ALONE = "alone"
     const val LIVING_WITH_FAMILY = "with_family"
 
@@ -32,10 +31,9 @@ object OnboardingOptions {
     val yesNo = listOf("Yes", "No")
 
     /**
-     * Stored in `Senior_Onboarding.language_preference` and read back by
-     * [com.pup.seenior.ui.wellness.WellnessMessages]. Both labels are written in their own
-     * language rather than both in English: a senior who reads only Filipino has to be able to
-     * find their own option in this list, and "Filipino" spelled in English is no help to them.
+     * Stored in `Senior_Onboarding.language_preference` and read by
+     * [com.pup.seenior.ui.wellness.WellnessMessages]. Each label is written in its own language
+     * so a senior who reads only Filipino can find their option.
      */
     val languages = listOf(
         "English" to WellnessMessages.ENGLISH,
@@ -69,9 +67,8 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
     var mobileNumber by mutableStateOf("")
     var livingArrangementLabel by mutableStateOf<String?>(null)
 
-    // Structured address (delivery-style: region -> province -> city -> barangay + street line),
-    // held in [AddressForm] so Edit Profile accepts an address the same way. The members below
-    // just forward to it, so the sign-up screen reads as it always has.
+    // Structured address (region -> province -> city -> barangay + street), held in
+    // [AddressForm] so Edit Profile accepts one the same way. These members just forward to it.
     val addressForm = AddressForm()
     val region get() = addressForm.region
     val province get() = addressForm.province
@@ -141,21 +138,13 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
      * Writes the senior, their questionnaire answers and their seed Baseline, and returns the
      * senior_id this install will use from now on.
      *
-     * **Idempotent, and that is the whole point.** [com.pup.seenior.ui.onboarding.AllSetScreen]
-     * calls this from a `LaunchedEffect(Unit)`, which runs again every time that destination
-     * re-enters composition -- and the permission chain immediately before it leaves and returns
-     * repeatedly, once per settings page the senior is sent to. Inserting unconditionally minted
-     * a fresh senior on every pass: five rows in six minutes on the realme tester handset on
-     * 2026-09-18, ids 1-5, all the same person, created 14:23:04 through 14:28:58. The app then
-     * followed `getOnboardedSenior()` to the newest of them and left the other four holding
-     * twenty dead seed Baseline rows apiece, plus one orphan Sensor_Data row no nightly pass
-     * would ever roll up or purge, because the aggregation worker only sweeps the senior the
-     * app considers current.
-     *
-     * So an existing row is updated in place instead of duplicated, and the senior_id is held
-     * stable across re-runs. That last part matters more than it looks: Sensor_Data,
-     * Daily_Aggregates, Baseline and Alerts are all keyed to it, and a re-run that minted a new
-     * id would orphan every reading collected up to that point.
+     * Idempotent. [com.pup.seenior.ui.onboarding.AllSetScreen] calls this from a
+     * `LaunchedEffect(Unit)` that runs every time the destination re-enters composition, and
+     * the permission chain before it leaves and returns repeatedly. Inserting each time
+     * created five senior rows in six minutes on a tester handset, leaving dead seed Baseline
+     * rows and an orphan Sensor_Data row. So an existing row is updated in place and the
+     * senior_id stays stable; Sensor_Data, Daily_Aggregates, Baseline and Alerts are all keyed
+     * to it.
      */
     suspend fun submitOnboarding(): Int = withContext(Dispatchers.IO) {
         val db = SeniorAppDatabase.getInstance(getApplication())
@@ -165,10 +154,8 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
             .first { it.first == activityLevelLabel }.second
 
         val resolvedId = db.withTransaction {
-            // [seniorId] first, because within a single run of onboarding it names the row this
-            // view model itself just wrote. The query behind it covers the case where the
-            // process was killed between two passes and the view model came back empty -- which
-            // is the same state a senior experiences as "it asked me everything again".
+            // [seniorId] first, since it names the row this view model just wrote. The query
+            // covers the process being killed between passes and the view model coming back empty.
             val existing = db.seniorDao().getById(seniorId) ?: db.seniorDao().getOnboardedSenior()
 
             val senior = Senior(
@@ -182,10 +169,8 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
                     .joinToString(", "),
                 barangay = barangay!!,
                 livingArrangement = livingArrangementValue,
-                // Both carried over rather than regenerated. createdAt is when this senior first
-                // signed up, not when they last walked back through the form; cloudSyncId is the
-                // identity the server and every paired family contact already know them by, and
-                // dropping it here would strand the pairing while the phone carried on happily.
+                // Carried over, not regenerated: createdAt is first sign-up, and cloudSyncId is
+                // the identity the server and paired family know, which the pairing would lose.
                 createdAt = existing?.createdAt ?: System.currentTimeMillis(),
                 isOnboardingComplete = true,
                 cloudSyncId = existing?.cloudSyncId
@@ -210,8 +195,7 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
                 activityLevel = activityLevelValue,
                 languagePreference = OnboardingOptions.languages
                     .first { it.first == languageLabel }.second,
-                // Kept from the row being replaced: both record what has already happened to
-                // this senior's baseline, which is not something the questionnaire can restate.
+                // Kept from the row being replaced: they record what already happened to the baseline.
                 seedBaselineGenerated = previous?.seedBaselineGenerated ?: false,
                 onboardingCompletedAt = previous?.onboardingCompletedAt ?: System.currentTimeMillis(),
                 baselineReadyAt = previous?.baselineReadyAt
@@ -219,11 +203,9 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
             if (previous == null) db.seniorOnboardingDao().insert(onboarding)
             else db.seniorOnboardingDao().update(onboarding)
 
-            // Only when there is nothing there already. Seeding unconditionally would drop a
-            // senior who has lived through the fortnight back to questionnaire guesses -- the
-            // section 6 hand-over run in reverse. If the declared hours really did change,
-            // BaselineUpdater folds them in from the next nightly pass against real data, which
-            // is the honest way to get there.
+            // Only when nothing is there. Seeding again would drop a senior who has lived through
+            // the fortnight back to questionnaire guesses. If the declared hours changed,
+            // BaselineUpdater folds that in from real data.
             if (db.baselineDao().getAllBySeniorOnce(id).isEmpty()) {
                 db.baselineDao().insertAll(SeedBaselineGenerator.generate(id, onboarding))
                 db.seniorOnboardingDao().markSeedBaselineGenerated(id)

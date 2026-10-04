@@ -18,9 +18,8 @@ import java.io.IOException
 const val MAX_LINKED_SENIORS = 3
 
 /**
- * Loads and holds every senior the logged-in family member is linked to. Shared by the
- * Home, Link, and Contacts tabs (one instance per FamilyDashboard) so a link or unlink
- * on one tab is reflected immediately on the others.
+ * Loads and holds every senior the family member is linked to. Shared by the Home, Link and
+ * Contacts tabs (one instance per FamilyDashboard) so a change on one shows on the others.
  */
 class FamilySeniorsViewModel(application: Application) : AndroidViewModel(application) {
     var contacts by mutableStateOf<List<ContactDto>>(emptyList())
@@ -30,14 +29,11 @@ class FamilySeniorsViewModel(application: Application) : AndroidViewModel(applic
     var error by mutableStateOf<FamilyError?>(null)
         private set
 
-    /** True when the last refresh failed. Screens must branch on this before `contacts.isEmpty()`
-     *  so a failed fetch never renders as "no seniors linked" — that looked like the pairing had
-     *  been lost when in fact nothing had been reached. */
+    /** True when the last refresh failed. Screens must check this before `contacts.isEmpty()`, so a failed fetch never looks like "no seniors linked". */
     var loadFailed by mutableStateOf(false)
         private set
 
-    // Only meaningful after a successful load: if the fetch failed, `contacts` is empty for the
-    // wrong reason, so don't invite the user to link a senior they may already be at the cap for.
+    // Only meaningful after a successful load; after a failure `contacts` is empty for the wrong reason.
     val canLinkMore: Boolean get() = !loadFailed && contacts.size < MAX_LINKED_SENIORS
 
     fun refresh() {

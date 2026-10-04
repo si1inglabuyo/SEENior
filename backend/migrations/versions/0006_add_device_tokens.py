@@ -1,11 +1,6 @@
 """device_tokens: per-device FCM registration tokens for push delivery
 
-Adds the table that lets the backend PUSH an alert to a family contact instead of
-waiting for their app to poll for it. Without this the escalation chain only reaches a
-family member who already has the app open (spec §7).
-
-One row per installed app per device, not a column on `users` — see the DeviceToken
-docstring in app/db/models.py for why that distinction is load-bearing.
+One row per installed app per device (see the DeviceToken docstring in app/db/models.py).
 
 Revision ID: 0006
 Revises: 0005
@@ -26,20 +21,16 @@ def upgrade() -> None:
         "device_tokens",
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column("user_id", sa.Integer(), nullable=False),
-        # 255 is comfortably above the ~163 chars FCM tokens run to today, but the format
-        # is not contractual and has grown before, so this is sized with headroom.
+        # 255 leaves headroom, since the FCM token format isn't contractual.
         sa.Column("token", sa.String(length=255), nullable=False),
         sa.Column("platform", sa.String(length=16), server_default="android", nullable=False),
         sa.Column("created_at", sa.DateTime(), server_default=sa.func.now(), nullable=False),
         sa.Column("last_seen_at", sa.DateTime(), server_default=sa.func.now(), nullable=False),
-        # A user going away takes their tokens with them; leaving orphans would mean
-        # pushing to a device whose account no longer exists.
+        # Deleting a user removes their tokens.
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
     )
-    # Unique GLOBALLY, not per user: one physical device holds one token, and if it is
-    # handed to another person who signs in, that token must move accounts rather than
-    # exist twice and deliver a stranger's alerts to the previous owner.
+    # Unique globally: a handed-over device's token must move to the new account.
     op.create_index("ix_device_tokens_token", "device_tokens", ["token"], unique=True)
     # Drives the send path's "every token for every family contact of this senior" lookup.
     op.create_index("ix_device_tokens_user_id", "device_tokens", ["user_id"])

@@ -14,31 +14,22 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
 /**
- * Keeps the backend's record of this device's FCM token in step with reality.
- *
- * Without a current token on the server, the family tier of the escalation chain is back
- * to only reaching someone who already has the app open — the exact gap push exists to
- * close, and one that fails silently, since nothing on screen looks different.
+ * Keeps the backend's record of this device's FCM token current. Without it the family tier
+ * only reaches someone who already has the app open, and nothing on screen would show it.
  */
 object PushTokenRegistrar {
 
     private const val TAG = "PushTokenRegistrar"
 
-    /** Outlives any screen, so sign-out cleanup is not cancelled by the navigation that
-     *  triggers it. SupervisorJob so one failed cleanup cannot poison later ones. */
+    /** Outlives any screen, so sign-out cleanup isn't cancelled by the navigation. SupervisorJob so one failure doesn't affect later ones. */
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     /**
-     * Registers the current token against the signed-in family account.
-     *
-     * Called on every launch of the family dashboard and from
-     * [com.pup.seenior.alerts.SeeniorMessagingService.onNewToken]. Registering on launch
-     * rather than at each of the three login paths (email register, email login, Google)
-     * is deliberate: one call site cannot drift out of sync with the others, and it also
-     * repairs the case where a token rotated while the app was not running.
-     *
-     * Safe to call when nobody is logged in — the senior side of this single-module app
-     * has no account at all — in which case it does nothing.
+     * Registers the current token against the signed-in family account. Called on every
+     * launch of the family dashboard and from
+     * [com.pup.seenior.alerts.SeeniorMessagingService.onNewToken]. One call site can't drift
+     * out of sync with the login paths, and it repairs a token that rotated while the app
+     * wasn't running. Does nothing when nobody is logged in (the senior side has no account).
      */
     suspend fun syncToken(context: Context) {
         val app = context.applicationContext
@@ -49,9 +40,7 @@ object PushTokenRegistrar {
             .onFailure { Log.w(TAG, "Could not obtain FCM token", it) }
             .getOrNull() ?: return
 
-        // Never fatal. Failing to register means falling back to the 20s polling the app
-        // already does, which is a degraded experience — not a broken one — and must not
-        // take down whatever screen triggered this.
+        // Never fatal: failing to register falls back to the 20 s polling the app already does.
         runCatching {
             RetrofitClient.api.registerDevice(RegisterDeviceRequest(token), "Bearer $jwt")
         }.onFailure {
@@ -63,22 +52,11 @@ object PushTokenRegistrar {
      * Signs this device out: clears the stored login immediately, then releases the push
      * token in the background.
      *
-     * The ordering is the whole point, in both directions.
-     *
-     * The session is cleared FIRST and synchronously, because the moment the user taps Log
-     * Out they are logged out. Waiting on the network first would leave a live session for
-     * as long as the request takes — and against Render's free tier a cold start is ~40s,
-     * easily long enough for the user to reopen the app and be routed straight back into
-     * the dashboard they just left.
-     *
-     * The JWT is therefore captured BEFORE the clear and handed to the background job,
-     * which still needs it: dropping the token server-side is what stops this handset
-     * receiving the previous account's alerts, and those name the senior, so leaving it
-     * behind is a disclosure and not merely untidy (spec §11).
-     *
-     * Runs on [appScope], not the caller's: the Log Out tap navigates away and destroys
-     * the composable immediately, which would cancel a screen-scoped job before the
-     * request ever left the device.
+     * The session is cleared first and synchronously, so a slow cold-start request can't leave
+     * a live session. The JWT is captured before the clear because the background job still
+     * needs it; dropping the token server-side stops this handset receiving the previous
+     * account's alerts, which name the senior. Runs on [appScope] because the Log Out tap
+     * destroys the composable and would cancel a screen-scoped job.
      */
     fun signOutAsync(context: Context) {
         val app = context.applicationContext
@@ -88,11 +66,8 @@ object PushTokenRegistrar {
     }
 
     /**
-     * Best-effort removal of this device's token, server-side and locally.
-     *
-     * Every failure is swallowed. Sign-out has already happened from the user's point of
-     * view, there is no screen left to report into, and the server prunes tokens it finds
-     * dead on its next send anyway.
+     * Best-effort removal of this device's token, server-side and locally. Failures are
+     * swallowed, since sign-out has already happened and the server prunes dead tokens anyway.
      */
     private suspend fun releaseToken(context: Context, jwt: String?) {
         val token = runCatching { currentToken() }.getOrNull()
@@ -103,21 +78,15 @@ object PushTokenRegistrar {
                 Log.w(TAG, "Device token unregistration failed", it)
             }
         }
-        // Deleted locally too, so the next account on this phone gets a fresh identifier
-        // rather than inheriting one the server may still associate with someone else.
+        // Deleted locally too, so the next account on this phone gets a fresh identifier.
         runCatching { deleteToken() }
             .onFailure { Log.w(TAG, "Could not delete local FCM token", it) }
     }
 
-    /** Bridges FirebaseMessaging's Task API into a coroutine without pulling in the
-     *  play-services-coroutines artifact for one call. */
+    /** Bridges FirebaseMessaging's Task API into a coroutine without play-services-coroutines. */
     /**
-     * This device's FCM token, or null if one could not be obtained.
-     *
-     * Public because the senior side of the app needs the same token for a different
-     * purpose -- being woken by the server -- and has no family JWT, so it cannot go
-     * through [syncToken]. Two paths to Firebase would be two chances to disagree about
-     * which token this handset has.
+     * This device's FCM token, or null. Public because the senior side needs the same token
+     * to be woken by the server and has no family JWT, so it can't use [syncToken].
      */
     suspend fun currentTokenOrNull(): String? =
         runCatching { currentToken() }

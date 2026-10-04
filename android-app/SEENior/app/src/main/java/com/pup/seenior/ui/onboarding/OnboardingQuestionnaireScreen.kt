@@ -34,8 +34,7 @@ fun OnboardingQuestionnaireScreen(
             OnboardingTopBar(currentStep = 3, onBack = onBack)
             OnboardingHeading(title = copy.questionnaireTitle, subtitle = copy.questionnaireSubtitle)
 
-            // Language is no longer asked here — it is the senior's first onboarding choice now
-            // (SeniorRoutes.LANGUAGE), so by this screen the whole form is already in it.
+            // Language is asked first now (SeniorRoutes.LANGUAGE), so the form is already in it by here.
 
             LabeledTimeField(
                 label = copy.qWakeTime,

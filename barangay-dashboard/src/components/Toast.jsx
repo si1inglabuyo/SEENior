@@ -2,9 +2,8 @@ import { useEffect } from 'react'
 import { IconCheck } from '../icons'
 import Modal from './Modal'
 
-// The one success toast for all three row actions. `message` is the only thing that
-// changes between them (see ALERT_ACTIONS[...].successMessage in src/alertActions.js).
-// Auto-dismisses, but the X and a backdrop click both close it early.
+// The success toast for all three row actions; only `message` differs. Auto-dismisses, or
+// closes early on the X or a backdrop click.
 export default function Toast({ message, onClose, duration = 2500 }) {
   useEffect(() => {
     const timer = setTimeout(onClose, duration)

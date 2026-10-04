@@ -83,9 +83,8 @@ class SeedBaselineGeneratorTest {
 
     @Test
     fun `block elapsed is small just after wake time`() {
-        // Wake 10:00 — the morning block is five minutes old at 10:05, so the largest honest
-        // inactivity reading is 300 seconds however long the senior has really been still. This
-        // is what stops a night's stillness being scored against the morning baseline.
+        // Wake 10:00: the morning block is five minutes old at 10:05, so the largest honest
+        // inactivity reading is 300 s, which stops a night's stillness scoring against morning's baseline.
         val elapsed = SeedBaselineGenerator.secondsSinceBlockStart(timestampAt(10, 5), "10:00", "23:00")
         assertEquals(300L, elapsed)
     }
@@ -113,9 +112,8 @@ class SeedBaselineGeneratorTest {
         assertTrue(scores.first() < scores.last())
     }
 
-    // Logical-day grouping. Wake 10:00 / sleep 23:00 are the pilot senior's real answers, so
-    // these reproduce the handset case rather than an invented one: her night runs 23:00 to
-    // 10:00 and therefore straddles two calendar dates.
+    // Logical-day grouping. Wake 10:00 / sleep 23:00 are the pilot's real answers, so her night
+    // (23:00 to 10:00) straddles two calendar dates.
 
     private fun septemberAt(day: Int, hour: Int, minute: Int): Long =
         Calendar.getInstance().apply {
@@ -162,22 +160,18 @@ class SeedBaselineGeneratorTest {
 
     @Test
     fun `a night that does not cross midnight is left alone`() {
-        // Sleeps at 01:00, wakes at 10:00 — the whole night already sits inside one date, and
-        // shifting it back would be the very bug logicalDayMillis exists to prevent.
+        // Sleeps at 01:00, wakes at 10:00: the night is already inside one date and mustn't be shifted back.
         val logical = SeedBaselineGenerator.logicalDayMillis(septemberAt(2, 3, 0), "10:00", "01:00")
         assertEquals(2, dayOf(logical))
     }
 
-    // --- Any block can be the one that crosses midnight, not only night. -------------------
-    // The blocks tile the 24-hour clock, so exactly one contains midnight -- but which one
-    // depends on the senior's hours. A senior who goes to bed AFTER midnight has a night that
-    // sits inside one date and an EVENING that wraps, which the night-specific version of
-    // logicalDayMillis ignored entirely.
+    // --- Any block can cross midnight, not only night. ---
+    // The blocks tile the clock, so exactly one contains midnight, depending on the senior's
+    // hours. Someone who goes to bed after midnight has an evening that wraps.
 
     @Test
     fun `evening that crosses midnight belongs to the day it began`() {
-        // Wake 08:00 / sleep 03:00 -> evening runs 20:40 through 03:00. 01:00 on Sept 2 is the
-        // tail of the evening that began at 20:40 on Sept 1.
+        // Wake 08:00 / sleep 03:00: evening runs 20:40 to 03:00, so 01:00 on Sept 2 belongs to Sept 1's evening.
         val logical = SeedBaselineGenerator.logicalDayMillis(septemberAt(2, 1, 0), "08:00", "03:00")
         assertEquals(1, dayOf(logical))
     }
@@ -227,9 +221,8 @@ class SeedBaselineGeneratorTest {
 
     @Test
     fun `a wrapping block groups one whole block into one logical day`() {
-        // The property the aggregation actually depends on: every reading across a block that
-        // straddles midnight reports the same logical day, so the block becomes one group and no
-        // step delta ever spans the gap that produced the 10,779-step night.
+        // Every reading across a block that straddles midnight reports the same logical day, so
+        // no step delta spans the gap that produced the 10,779-step night.
         val schedule = "08:00" to "03:00"
         val readings = listOf(
             septemberAt(1, 20, 45),
@@ -245,8 +238,7 @@ class SeedBaselineGeneratorTest {
 
     @Test
     fun `block elapsed never exceeds the morning block length`() {
-        // Morning is 260 minutes wide for wake 10:00 / sleep 23:00. This is the ceiling the
-        // aggregation clip relies on — aggregate_id 12 stored 26,652 s inside it.
+        // Morning is 260 minutes wide for wake 10:00 / sleep 23:00, the ceiling the aggregation clip relies on.
         val elapsed = SeedBaselineGenerator.secondsSinceBlockStart(timestampAt(14, 19), "10:00", "23:00")
         assertTrue(elapsed < 260 * 60L)
     }

@@ -49,9 +49,8 @@ fun SignUpScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                // Shrinks the scroll viewport by the keyboard height so the focused field
-                // (last/street/mobile sit low on this form) scrolls above the IME instead of
-                // hiding behind it — enableEdgeToEdge() means adjustResize no longer does this.
+                // Shrinks the scroll area by the keyboard height so a focused field scrolls above
+                // it; enableEdgeToEdge() means adjustResize no longer does this.
                 .imePadding()
                 .padding(horizontal = 24.dp)
         ) {
@@ -116,9 +115,7 @@ fun SignUpScreen(
                 placeholder = copy.selectPlaceholder
             )
 
-            // Offered above the dropdowns, not below them: it exists to save a senior from four
-            // cascading lists, and placed after them it would only be found by someone who had
-            // already done the work.
+            // Above the dropdowns, where it saves the work of four cascading lists.
             PickOnMapRow(onPickOnMap)
 
             SearchableDropdownField(
@@ -170,11 +167,9 @@ fun SignUpScreen(
 }
 
 /**
- * The shortcut into [AddressMapPickerScreen].
- *
- * Deliberately a link beside the dropdowns rather than a replacement for them. OpenStreetMap's
- * coverage of Philippine barangays is uneven, and a senior whose street it has never heard of must
- * still be able to finish signing up — so typing the address stays the guaranteed path.
+ * The shortcut into [AddressMapPickerScreen]. A link beside the dropdowns, not a replacement:
+ * OpenStreetMap's coverage of Philippine barangays is uneven, so typing the address stays
+ * the guaranteed path.
  */
 @Composable
 internal fun PickOnMapRow(onPickOnMap: () -> Unit) {

@@ -6,48 +6,31 @@ import kotlin.math.pow
 import kotlin.random.Random
 
 /**
- * Layer 2 of the detection pipeline (spec §5) — catches the day Layer 1 cannot.
+ * Layer 2: catches the day Layer 1 can't. Layer 1 asks every five minutes whether one signal
+ * is unusual; this asks once a day whether the combination of movement, stillness, screen
+ * idle, unlocks, steps and charging for a time block is unusual for this senior. See
+ * [IsolationTree] for how one tree turns "unusual" into a path length; this class grows the
+ * forest and turns the average path length into a 0-1 score.
  *
- * Median-MAD (Layer 1) asks, every five minutes, whether *one* signal is unusual for the senior
- * right now. This layer asks a different question, once a day: whether the *combination* of
- * movement, stillness, screen idle, unlocks, steps and charging for one time block is unusual for
- * her, even when no single one of them crossed its own threshold. See [IsolationTree] for how one
- * tree turns "unusual" into a path length; this class only owns growing a forest of them and
- * turning their average path length into a single 0-1 score.
+ * It knows nothing about seniors, blocks or baselines, only [DoubleArray] rows, so it can be
+ * unit tested with invented numbers. Building those rows from `DailyAggregate` and `Baseline`
+ * is `AggregateFeatures`' job.
  *
- * **This class knows nothing about seniors, blocks, or baselines.** It trains on whatever
- * [DoubleArray] rows it is handed and scores whatever row it is asked to score. Turning a real
- * day's `DailyAggregate` and `Baseline` rows into those feature vectors — six numbers, five of
- * them z-scores against that block's own baseline, per the design decision that they must be
- * z-scores and never raw values — is a separate class's job (Phase 2, `AggregateFeatures`),
- * precisely so this class can be unit-tested against invented numbers (Phase 4) with nothing about
- * Room or a real senior involved.
- *
- * Trained fresh, on-device, every night (Phase 5, from
- * `com.pup.seenior.aggregation.NightlyAggregationWorker`) rather than shipped as a `.pkl`. At the
- * data volumes here — dozens of rows, a couple hundred trees — retraining from scratch takes
- * milliseconds: cheaper than the machinery a shipped, versioned model would need, and it can never
- * go stale against a baseline that keeps moving underneath it.
- *
- * No Android imports, like every other detection-layer class in this package.
+ * It is trained fresh on the device every night (from
+ * `com.pup.seenior.aggregation.NightlyAggregationWorker`) rather than shipped as a `.pkl`;
+ * with dozens of rows that takes milliseconds and can't go stale. No Android imports.
  */
 class IsolationForest private constructor(
     private val trees: List<IsolationTree>,
-    /**
-     * The subsample size each tree actually trained on — what [train] resolved `psi` to, never
-     * `psi` itself. A senior with fewer block-days than `psi` still needs a score normalised
-     * against how many rows each tree actually saw, not against a target that was never reached.
-     */
+    /** The subsample size each tree actually trained on (what [train] resolved `psi` to), used to normalise scores. */
     private val subsampleSize: Int
 ) {
 
     /**
-     * Anomaly score in (0, 1]. Close to 1 means [point] isolated in very few random cuts across
-     * the forest — the "unusual combination" case this layer exists for. Around 0.5 is
-     * inconclusive. Comfortably below 0.5 is unremarkable. Phase 4's test suite is what turns this
-     * into an actual pass/fail threshold (the plan's starting point is 0.62); this class only ever
-     * returns the raw score, never a yes/no, in keeping with the spec §14's requirement that this
-     * layer's output stay a distinct thing from Layer 1's z-score and Layer 3's risk level.
+     * Anomaly score in (0, 1]. Close to 1 means [point] was isolated in very few cuts (an
+     * unusual combination), around 0.5 is inconclusive, and well below 0.5 is unremarkable.
+     * It returns only the raw score, never a yes/no, so this layer's output stays separate
+     * from Layer 1's z-score and Layer 3's risk level.
      */
     fun score(point: DoubleArray): Double {
         val averagePathLength = trees.map { it.pathLength(point) }.average()
@@ -64,17 +47,12 @@ class IsolationForest private constructor(
         const val DEFAULT_PSI = 32
 
         /**
-         * Builds a forest of [trees] trees, each grown on its own random subsample of [psi] rows
-         * drawn without replacement from [data] — or all of [data], if there are fewer rows than
-         * [psi] to draw from (a senior early in her fortnight has fewer than 32 block-days banked).
+         * Builds a forest of [trees] trees, each grown on a random subsample of [psi] rows drawn
+         * without replacement, or all of [data] if there are fewer rows than [psi].
          *
-         * @param seed Fixed by the caller, never left to a platform default. Unseeded randomness
-         *   here is one of the implementation traps worth naming explicitly: it passes four test
-         *   runs and then fails the fifth, on a machine nobody is sitting at to explain why. There
-         *   is deliberately no default value for this parameter — production code (Phase 5) should
-         *   still pass a real seed, e.g. `System.nanoTime()`; training itself is not required to
-         *   be reproducible night to night, only tests are, and a missing default forces every
-         *   caller to make that choice on purpose instead of inheriting one by accident.
+         * @param seed fixed by the caller, with no default, so every caller chooses on purpose.
+         *   Unseeded randomness makes tests fail intermittently. Production should pass a real
+         *   seed such as `System.nanoTime()`; only tests need reproducibility.
          */
         fun train(
             data: List<DoubleArray>,
@@ -93,9 +71,7 @@ class IsolationForest private constructor(
 
             val random = Random(seed)
             val subsampleSize = minOf(psi, data.size)
-            // The original paper's height limit: a tree does not need to be tall enough to fully
-            // isolate every ordinary row, only tall enough that anomalies — which isolate near the
-            // root — stand out against the ones that don't.
+            // The paper's height limit: trees only need to be tall enough for anomalies, which isolate near the root, to stand out.
             val heightLimit = ceil(ln(subsampleSize.toDouble()) / ln(2.0)).toInt().coerceAtLeast(1)
 
             val forest = List(trees) {

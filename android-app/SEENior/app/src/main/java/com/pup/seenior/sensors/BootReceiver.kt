@@ -19,10 +19,7 @@ class BootReceiver : BroadcastReceiver() {
                 if (db.seniorDao().getOnboardedSenior() != null) {
                     SensorCollectionService.start(context.applicationContext)
                 }
-                // Alarms do not survive a reboot. Any alert still awaiting an answer when the
-                // phone restarted would otherwise wait forever for a wake-up that is never
-                // coming — and it would fail silently, which is the worst way for this
-                // particular thing to fail.
+                // Alarms don't survive a reboot, so an alert still awaiting an answer would wait forever, silently.
                 EscalationScheduler.rearmAll(context.applicationContext)
             } finally {
                 pendingResult.finish()

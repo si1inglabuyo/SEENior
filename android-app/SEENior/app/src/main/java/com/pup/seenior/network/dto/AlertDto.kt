@@ -1,7 +1,6 @@
 package com.pup.seenior.network.dto
 
-/** Mirrors backend AlertOut. escalationSteps is left loosely typed (List<Map<String, String>>)
- *  since it's a free-form JSON timeline (step/at/reason/notes) rather than a fixed shape. */
+/** Mirrors backend AlertOut. escalationSteps is loosely typed since it is a free-form JSON timeline. */
 data class AlertDto(
     val syncId: String,
     val riskLevel: String,
@@ -15,14 +14,9 @@ data class AlertDto(
 )
 
 /**
- * Mirrors backend AlertCreate — the senior's phone pushing one alert's METADATA up.
- *
- * Deliberately carries no sensor readings and no deviation score: the spec §11 keeps raw
- * behavioural data on the device, and the cloud row exists only so family/barangay can see
- * that something happened, not why in numeric detail.
- *
- * The backend mints its own `sync_id` and ignores any the device might send, so the returned
- * [AlertDto.syncId] is the one both sides must agree on afterwards.
+ * Mirrors backend AlertCreate: the senior's phone pushing one alert's metadata up. It carries
+ * no sensor readings or deviation score (spec section 11). The backend mints its own
+ * `sync_id`, so the returned [AlertDto.syncId] is the one both sides use afterwards.
  */
 data class CreateAlertRequest(
     val seniorSyncId: String,
@@ -30,33 +24,28 @@ data class CreateAlertRequest(
     val triggerType: String,
     val locationClusterId: String? = null,
     val escalationSteps: List<Map<String, String>>? = null,
-    // The moment this device's own detector fired -- Alert.triggeredAt, converted to an
-    // Instant so it always carries an explicit UTC offset (java.time.Instant.toString()
-    // always ends in "Z"). Distinct from created_at, which the server stamps itself when
-    // this request arrives; on 2026-09-06 those were 47 minutes apart with nothing on the
-    // cloud side able to say so. Null only for the retry path, where the original alert
-    // predates this field and no local record of the true moment survives to resend.
+    // When this device's detector fired (Alert.triggeredAt), as an Instant so it always has an
+    // explicit UTC offset. Different from created_at, which the server stamps on arrival (they
+    // were 47 minutes apart once). Null only on the retry path, where the original moment is gone.
     val triggeredAt: String? = null
 )
 
 /** Mirrors backend AlertDispatchRequest (family requesting a barangay welfare check). */
 /** Mirrors backend AlertCancel. The senior's id travels with the alert's so the server can
- *  check the two belong together — the senior has no account, so this pairing is the credential. */
+ *  check they belong together; the senior has no account, so this pairing is the credential. */
 data class CancelAlertRequest(
     val seniorSyncId: String
 )
 
-/** Mirrors backend AlertSeverityUpdate -- an already-sent alert that Layer 1 has re-classified
- *  upwards. Carries the senior's id alongside the alert's for the same reason
- *  [CancelAlertRequest] does. */
+/** Mirrors backend AlertSeverityUpdate: an already-sent alert that Layer 1 re-classified
+ *  upwards. Carries the senior's id like [CancelAlertRequest]. */
 data class UpdateSeverityRequest(
     val seniorSyncId: String,
     val riskLevel: String
 )
 
-/** Mirrors backend AlertLocationUpdate -- a fix that arrived after its alert had already been
- *  posted. Carries the senior's id alongside the alert's for the same reason
- *  [CancelAlertRequest] does. */
+/** Mirrors backend AlertLocationUpdate: a fix that arrived after the alert was posted.
+ *  Carries the senior's id like [CancelAlertRequest]. */
 data class UpdateLocationRequest(
     val seniorSyncId: String,
     val locationClusterId: String
@@ -67,8 +56,8 @@ data class AlertDispatchRequest(
     val notes: String?
 )
 
-/** Mirrors backend ClosedAlertOut: an alert of this senior's that a family contact or the
- *  barangay has closed. Just the id and the status -- never who closed it or why. */
+/** Mirrors backend ClosedAlertOut: an alert a family contact or the barangay closed. Just the
+ *  id and status, never who closed it or why. */
 data class ClosedAlertDto(
     val syncId: String,
     val status: String

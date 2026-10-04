@@ -3,56 +3,36 @@ package com.pup.seenior.detection
 import kotlin.math.abs
 
 /**
- * Layer 0 of the detection pipeline (spec §5) — real-time fall detection.
+ * Layer 0: real-time fall detection. It compares against no baseline, so it works from day one.
  *
- * Unlike Layers 1-3 this compares against nothing. There is no baseline, no z-score and no
- * 14-day warm-up: a fall looks like a fall on the senior's first day with the app, which is
- * exactly why it runs from day one.
+ * The signature has three required phases:
+ * 1. Free fall: measured acceleration collapses toward zero g.
+ * 2. Impact: a short, violent spike.
+ * 3. Post-fall stillness: the person does not get up.
  *
- * The signature is three phases in sequence, and all three are required:
+ * Requiring all three separates a fall from a phone dropped on a table (no free fall) or
+ * tossed on a sofa (picked up again). Someone who gets up immediately raises no alert; a slow
+ * decline is covered by the inactivity signal.
  *
- * 1. **Free fall** — the phone accelerates toward the ground, so measured acceleration collapses
- *    toward zero g instead of resting at one g.
- * 2. **Impact** — a short, violent spike as the body hits the floor.
- * 3. **Post-fall stillness** — the person does not get up.
- *
- * Requiring all three is what separates a fall from the two things that otherwise look identical
- * to an accelerometer: a phone dropped on a table (impact and stillness, no free fall) and a
- * phone tossed onto a sofa (free fall and impact, but it is picked up again moments later).
- * Someone who falls and immediately gets up produces no alert either — deliberately. They can
- * move, so they are not the emergency this tier exists for, and a gradual decline afterwards is
- * still covered by the Median-MAD inactivity signal.
- *
- * Deliberately free of Android imports. It is fed timestamped magnitudes and nothing else, so
- * the whole state machine can be driven from a synthetic sample stream in a JUnit test — the
- * validation approach the spec §10 requires, since real falls cannot be collected on demand.
- *
- * **Timestamps must come from `SensorEvent.timestamp`, not the wall clock.** The service batches
- * sensor samples to protect the battery target, so a whole second of readings can arrive in one
- * burst; wall-clock timing would see them as simultaneous and no phase would ever have duration.
+ * No Android imports: it takes timestamped magnitudes only, so a JUnit test can drive it with
+ * a synthetic stream. Timestamps must come from `SensorEvent.timestamp`, not the wall clock,
+ * because batched samples arrive in bursts.
  */
 class FallDetector(
     private val config: Config = Config(),
     /**
-     * Optional narration of every decision this state machine makes.
-     *
-     * A callback rather than `android.util.Log` on purpose: this class is deliberately free of
-     * Android imports so the whole thing can be driven from a synthetic stream in a plain JUnit
-     * test, and `Log` is not mocked there. [com.pup.seenior.sensors.SensorCollectionService]
-     * wires this to logcat; a test can wire it to a list and assert on the reasoning.
-     *
-     * It earns its place: without it, a drop that fails to confirm is indistinguishable from a
-     * drop that was never seen at all, and all four gates fail silently and identically.
+     * Optional narration of every decision. A callback rather than `android.util.Log` so this
+     * class stays free of Android imports; [com.pup.seenior.sensors.SensorCollectionService]
+     * wires it to logcat, and a test can wire it to a list. Without it a drop that fails to
+     * confirm looks the same as one never seen.
      */
     private val trace: (String) -> Unit = {}
 ) {
 
     /**
-     * Thresholds in SI units — m/s² for acceleration, rad/s for rotation, milliseconds for time.
-     *
-     * The defaults sit at the conservative end of the published ranges for waist/pocket-worn
-     * phone detectors. A missed fall is still caught late by the inactivity signal; a false one
-     * wakes a family member at 3am and teaches them to ignore the next alert.
+     * Thresholds in SI units (m/s2, rad/s, ms). The defaults are on the conservative end of
+     * published ranges: a missed fall is caught late by the inactivity signal, but a false one
+     * wakes a family member at 3am.
      */
     data class Config(
         /** Below this, the phone is not being held up against gravity. ~0.3 g. */
@@ -75,11 +55,7 @@ class FallDetector(
         val rotationMin: Float = 2.0f,
         /** How far either side of impact a rotation peak still counts as part of this event. */
         val rotationMemoryMs: Long = 3_000,
-        /**
-         * Whether rotation is required to confirm. The caller sets this from whether the device
-         * actually has a gyroscope — on a phone without one, demanding rotation would mean
-         * never detecting a fall at all, which is worse than confirming on acceleration alone.
-         */
+        /** Whether rotation is required to confirm. Set from whether the phone has a gyroscope; without one, requiring it would never detect a fall. */
         val requireRotation: Boolean = true,
         /** After a confirmed fall, ignore new candidates for this long. */
         val cooldownMs: Long = 60_000
@@ -98,10 +74,7 @@ class FallDetector(
     /** Highest magnitude seen while awaiting impact, so a near miss can say how near. */
     private var awaitingPeak = 0f
 
-    /**
-     * Feeds one accelerometer sample in. Returns true exactly once per confirmed fall, on the
-     * sample that completes the stillness window.
-     */
+    /** Feeds one accelerometer sample in. Returns true once per confirmed fall, on the sample that completes the stillness window. */
     fun onAcceleration(timestampNanos: Long, magnitude: Float): Boolean {
         val nowMs = timestampNanos / NANOS_PER_MS
         if (nowMs < cooldownUntilMs) return false
@@ -169,13 +142,9 @@ class FallDetector(
     }
 
     /**
-     * Feeds one gyroscope sample in, as the magnitude of the angular velocity vector.
-     *
-     * Accelerometer and gyroscope samples do not arrive interleaved — with batching they come in
-     * separate bursts — so the rotation belonging to a fall can be delivered either side of the
-     * acceleration that identifies it. Both orderings are handled: a rolling peak covers rotation
-     * that arrives first, and the branch below covers rotation that arrives after the impact has
-     * already been recognised.
+     * Feeds one gyroscope sample in (angular velocity magnitude). Gyroscope and accelerometer
+     * samples arrive in separate batches, so the rotation for a fall can come before or after
+     * the acceleration. A rolling peak handles the first case and the branch below the second.
      */
     fun onRotation(timestampNanos: Long, angularSpeed: Float) {
         val nowMs = timestampNanos / NANOS_PER_MS
@@ -184,8 +153,7 @@ class FallDetector(
             impactRotationPeak = maxOf(impactRotationPeak, angularSpeed)
         }
 
-        // The rolling peak forgets anything older than the event window, so the stillness after a
-        // fall cannot be vouched for by rotation from minutes earlier.
+        // The peak forgets anything older than the event window, so old rotation can't vouch for the stillness.
         if (nowMs - rotationPeakAtMs > config.rotationMemoryMs) rotationPeak = 0f
         if (angularSpeed >= rotationPeak) {
             rotationPeak = angularSpeed
@@ -202,9 +170,8 @@ class FallDetector(
     }
 
     /**
-     * Freezes how much the body was rotating around the impact. Taken here rather than read live
-     * at confirmation because confirmation happens eight seconds later, by which time the phone
-     * is lying still and the live reading says nothing about the fall.
+     * Freezes how much the body was rotating around the impact. Taken now rather than at
+     * confirmation, eight seconds later, when the phone is lying still.
      */
     private fun beginSettling(nowMs: Long) {
         impactMs = nowMs

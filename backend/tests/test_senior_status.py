@@ -1,8 +1,5 @@
-"""Guards the senior roster status added 2026-09-18 (migration 0012).
-
-The contract that matters most here is a negative one -- that a roster flag never becomes a
-way to switch a detector off -- and negatives are exactly what quietly stops being true.
-"""
+"""Tests for the senior roster status (migration 0012). The key rule is that a roster flag
+never switches off a detector or stops alerts reaching the barangay."""
 
 import pytest
 from fastapi.testclient import TestClient
@@ -19,8 +16,7 @@ STATUS_URL = f"/seniors/{SOME_SYNC_ID}/status"
 # ------------------------------------------------------------------------ the column
 
 def test_status_defaults_to_active_and_cannot_be_null():
-    """Every existing row is backfilled to active by the server_default, and there is no
-    third 'unknown' state for a query to have to guess about."""
+    """The server default backfills existing rows to active, with no third 'unknown' state."""
     column = Senior.__table__.c["status"]
     assert column.server_default.arg == "active"
     assert column.nullable is False
@@ -31,15 +27,14 @@ def test_status_has_exactly_two_values():
 
 
 def test_the_audit_pair_is_nullable():
-    """Rows that predate the column were never flipped by anybody, so 'who and when' has to
-    be allowed to have no answer."""
+    """Rows that predate the column were never changed, so 'who and when' may be empty."""
     assert Senior.__table__.c["status_changed_at"].nullable is True
     assert Senior.__table__.c["status_changed_by"].nullable is True
 
 
 def test_status_is_a_separate_axis_from_deletion():
-    """A responder tidying their roster and a senior deleting their own account are
-    different events; collapsing them onto one column would make either unreadable."""
+    """A responder tidying the roster and a senior deleting their account are different
+    events and use different columns."""
     cols = Senior.__table__.c
     assert "deleted_at" in cols and "status" in cols
     assert cols["deleted_at"].nullable is True
@@ -64,8 +59,7 @@ def test_response_carries_the_audit_fields_so_the_dashboard_need_not_refetch():
 
 
 def test_senior_out_defaults_status_so_an_older_client_still_parses():
-    """SeniorOut gained a field. A client reading a server that does not send it sees every
-    senior as active -- which is what they all were before the column existed."""
+    """A client reading a server that doesn't send `status` sees every senior as active."""
     assert SeniorOut.model_fields["status"].default is SeniorStatus.ACTIVE
 
 
@@ -89,15 +83,10 @@ def test_a_garbage_token_is_refused():
 # ------------------------------------------------------- the negative that matters most
 
 def test_escalation_never_consults_roster_status():
-    """**The point of this file.**
+    """A senior marked inactive must still reach the barangay when their phone raises an alert.
 
-    A senior marked inactive must still reach the barangay if their phone raises an alert.
-    The barangay is the last tier in the chain, and with the family contacts possibly
-    unlinked too, an escalation that skipped it would go nowhere at all -- silently, for
-    the person least able to notice.
-
-    Asserted by reading the escalation module rather than by exercising it, because the way
-    this breaks is somebody adding a filter here in good faith while tidying a roster query.
+    Checked by reading the escalation module, since the way this breaks is someone adding
+    a filter to a roster query.
     """
     import inspect
 

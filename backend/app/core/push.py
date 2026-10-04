@@ -1,20 +1,8 @@
-"""Firebase Cloud Messaging delivery for alerts (spec §13 step 11).
+"""Firebase Cloud Messaging delivery for alerts.
 
-The family tier of the escalation chain used to depend on the family app asking the
-backend whether anything had happened. That only works while someone is holding the
-phone with the app open — which is precisely not the situation this system exists for.
-This module inverts it: the backend tells Google, and Google wakes the app.
-
-Two rules shape everything here.
-
-**A push failure must never fail the alert.** POST /alerts is a senior's phone reporting
-an emergency. If FCM is slow, misconfigured, or down, the alert must still commit and
-still be visible to the family app's polling. Every entry point below therefore swallows
-its own errors and reports them through the return value and the log, never by raising.
-
-**The payload carries alert metadata only** (spec §11) — no sensor readings, no
-coordinates. It is the same privacy-stripped subset the cloud `alerts` table already
-holds, plus the senior's first name so the family knows who it is about.
+A push failure must never fail the alert: every entry point swallows its own errors and
+reports them through the return value and the log. Payloads carry alert metadata only
+(no sensor readings or coordinates), plus the senior's first name.
 """
 
 from __future__ import annotations
@@ -50,8 +38,7 @@ class AlertPush:
 class PushResult:
     sent: int = 0
     failed: int = 0
-    # Tokens FCM reported as permanently dead. The caller deletes these; retrying them
-    # forever is how a push backlog quietly turns into a rate-limit problem.
+    # Tokens FCM reported as permanently dead. The caller deletes these.
     stale_tokens: tuple[str, ...] = ()
 
     @property
@@ -60,14 +47,8 @@ class PushResult:
 
 
 def _credentials():
-    """Builds Firebase credentials from FIREBASE_CREDENTIALS, which may hold either the
-    raw service-account JSON or a path to it.
-
-    Both forms exist because the two deployment targets want different things: Render
-    takes a pasted env var, while locally it is far easier to point at a file you
-    downloaded. Sniffing the value beats making the operator set a second "which mode"
-    variable and get it wrong.
-    """
+    """Builds Firebase credentials from FIREBASE_CREDENTIALS, which may be the raw
+    service-account JSON (Render env var) or a path to the file (local)."""
     from firebase_admin import credentials
 
     raw = (settings.firebase_credentials or "").strip()
@@ -86,9 +67,7 @@ def _credentials():
 def _get_app():
     """Initialises the Firebase app once, on first use.
 
-    Lazy rather than at import time so the API still boots — and every non-push endpoint
-    still works — on a machine with no push credentials at all, which is the normal state
-    of a fresh clone. The failure is logged once, not once per alert.
+    Lazy so the API still boots without push credentials. The failure is logged once.
     """
     global _app, _init_attempted
 
@@ -123,16 +102,14 @@ def _get_app():
 
 
 def is_configured() -> bool:
-    """Whether pushes can actually be sent. Exposed so /health can report it rather than
-    leaving a silently push-less deployment looking identical to a healthy one."""
+    """Whether pushes can be sent. Exposed so /health can report it."""
     return _get_app() is not None
 
 
 def send_alert(tokens: list[str], alert: AlertPush) -> PushResult:
     """Delivers one alert to every supplied device token.
 
-    Returns what happened instead of raising; the caller decides what to do with stale
-    tokens. Safe to call with an empty token list.
+    Returns what happened instead of raising. Safe with an empty token list.
     """
     if not tokens:
         return PushResult()
@@ -143,13 +120,9 @@ def send_alert(tokens: list[str], alert: AlertPush) -> PushResult:
 
     from firebase_admin import messaging
 
-    # DATA-ONLY, deliberately. A `notification` payload is handled by the Android system
-    # tray whenever the app is backgrounded, which means our own code never runs — no
-    # full-screen intent, no alarm-category sound, none of the treatment AlertNotifier
-    # already gives an alert. A data message with priority=high always reaches
-    # onMessageReceived, even in Doze, so the app builds the notification itself.
-    #
-    # Every value must be a string; FCM rejects non-string data fields.
+    # Data-only: a `notification` payload would be shown by the system tray and skip our
+    # own code (full-screen intent, alarm sound). A high-priority data message always
+    # reaches onMessageReceived, even in Doze. All values must be strings.
     data = {
         "type": "alert",
         "alert_sync_id": alert.alert_sync_id,
@@ -161,24 +134,14 @@ def send_alert(tokens: list[str], alert: AlertPush) -> PushResult:
 
     android = messaging.AndroidConfig(
         priority="high",
-        # An alert that arrives the next morning is worse than one that never arrives:
-        # by then the chain has moved on — the barangay tier has been dispatched, or the
-        # family already resolved it — and a stale "possible fall detected" banner sends
-        # someone into a panic about a handled incident. An hour is comfortably longer
-        # than the longest response window (600s).
+        # Drop it after an hour: a late alert about an incident that's already handled is
+        # worse than none. Longer than the longest response window (600s).
         ttl=timedelta(hours=1),
     )
 
-    # One Message per token rather than a MulticastMessage: firebase-admin 7.x deprecates
-    # MulticastMessage.tokens, and send_each takes the same round trip anyway.
-    #
-    # `token=` is itself deprecated in favour of `fid=`, and that is deliberate, not an
-    # oversight. They are NOT aliases — the encoder writes them to different wire fields
-    # and rejects a message carrying both — so `fid` expects a Firebase *installation* ID
-    # (Android: FirebaseInstallations.getId()), whereas every FCM client guide, and this
-    # app, produce a registration token (FirebaseMessaging.getToken()). Switching would
-    # mean changing what the Android side sends, for no behavioural gain. Deprecated is
-    # not removed, requirements.txt pins the version, and the warning is noise.
+    # One Message per token (MulticastMessage.tokens is deprecated). `token=` is deprecated
+    # in favour of `fid=`, but they are not aliases: `fid` expects a Firebase installation
+    # ID, and the app sends a registration token. The warning is harmless.
     messages = [
         messaging.Message(token=token, data=data, android=android) for token in tokens
     ]
@@ -186,8 +149,8 @@ def send_alert(tokens: list[str], alert: AlertPush) -> PushResult:
     try:
         response = messaging.send_each(messages)
     except Exception:
-        # Network trouble, a revoked key, a disabled API. Logged, never raised: the alert
-        # itself has already been committed and must not be rolled back over this.
+        # Network trouble, revoked key, disabled API. Logged, never raised: the alert is
+        # already committed.
         logger.exception("FCM send failed for alert %s", alert.alert_sync_id)
         return PushResult(failed=len(tokens))
 
@@ -215,19 +178,9 @@ def send_alert(tokens: list[str], alert: AlertPush) -> PushResult:
 def send_wake(token: str) -> PushResult:
     """Wakes one senior's phone so it can take a sensor sample.
 
-    This exists because the handset cannot be trusted to wake itself. Measured on the
-    Infinix X6885 on 2026-08-29: the sensor service's own five-minute loop produced one
-    sample in twenty-four minutes, and the persisted fifteen-minute watchdog job ran three
-    times in thirteen and a half hours -- a twelve-hour hole through the night, which is
-    the exact window passive monitoring exists to cover. A high-priority data-only message
-    is the one thing Android does not defer in Doze, so it is the only remaining clock.
-
-    Carries NOTHING but the word "wake". There is no senior name, no alert, no reading --
-    the phone already knows who it is, and the whole point of spec §11 is that what it
-    then measures never leaves it. This push is a tap on the shoulder, not a message.
-
-    Returns rather than raises, like everything else here: a phone that could not be woken
-    is a degraded pass of a background sweep, not a request that should fail.
+    Phones can freeze background work, and a high-priority data message is the one thing
+    Android doesn't defer in Doze. The payload is just "wake": no name, alert or reading.
+    Returns instead of raising, since a failed nudge is just a degraded sweep.
     """
     app = _get_app()
     if app is None:
@@ -240,11 +193,7 @@ def send_wake(token: str) -> PushResult:
         data={"type": "wake"},
         android=messaging.AndroidConfig(
             priority="high",
-            # Shorter than the alert TTL by a wide margin, and for the opposite reason.
-            # An alert is worth delivering late; a nudge is not. If this one could not be
-            # delivered within the window it was meant to cover, the next sweep is already
-            # due and will send a fresher one -- delivering a stale wake as well would
-            # spend the phone's battery twice for a single sample.
+            # Short TTL: a late nudge is useless because the next sweep sends a fresh one.
             ttl=timedelta(seconds=settings.device_nudge_every_seconds),
         ),
     )
@@ -267,18 +216,11 @@ def send_wake(token: str) -> PushResult:
 
 
 def _is_dead_token(messaging, exception: Exception | None) -> bool:
-    """Whether a per-token failure means that token is dead for good, so its row should be
-    deleted rather than retried forever.
+    """Whether a per-token failure means the token is dead and its row should be deleted.
 
-    UnregisteredError (app uninstalled, data cleared, token rotated) and
-    SenderIdMismatchError (token belongs to another Firebase project) are unambiguous:
-    they can only describe the token.
-
-    INVALID_ARGUMENT needs more care, and getting it wrong is destructive. FCM raises it
-    both for a malformed *token* and for a malformed *message* — and in the second case
-    EVERY recipient fails with it, so treating the code alone as "token is dead" would
-    wipe the whole device_tokens table the first time a bad payload shipped. The message
-    text is therefore checked as well, so only a token-specific complaint prunes anything.
+    UnregisteredError and SenderIdMismatchError describe the token. INVALID_ARGUMENT can
+    also mean a bad message, which fails for every recipient, so the message text is
+    checked too, to avoid wiping every token over one bad payload.
     """
     if exception is None:
         return False
@@ -291,9 +233,7 @@ def _is_dead_token(messaging, exception: Exception | None) -> bool:
     if definitely_dead and isinstance(exception, definitely_dead):
         return True
 
-    # Note the code is SCREAMING_SNAKE ("INVALID_ARGUMENT"), not the kebab-case that
-    # google-api-core uses elsewhere — comparing against the wrong casing silently never
-    # matches, which is exactly how dead tokens accumulate unnoticed.
+    # The code is SCREAMING_SNAKE ("INVALID_ARGUMENT"), unlike google-api-core's kebab-case.
     if getattr(exception, "code", None) != "INVALID_ARGUMENT":
         return False
     return "registration token" in str(exception).lower()

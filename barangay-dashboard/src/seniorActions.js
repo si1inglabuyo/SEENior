@@ -1,11 +1,7 @@
-// Action objects for the shared ConfirmDialog + Toast on the senior record. Same shape as
-// alertActions.js (dialogTitle / dialogMessage / confirmLabel / tone / successMessage).
-//
-// Deactivation is a reversible roster flip, not a deletion and not a switch-off: the senior
-// drops off the active roster, the record and history stay, and the account can be switched
-// back on. It does NOT stop the phone monitoring or stop that senior's alerts reaching the
-// barangay -- the barangay is the last tier of the escalation chain and a roster flag must never
-// be able to remove it (docs/handoff-senior-status.md). Saved via PATCH /seniors/{sync_id}/status.
+// Actions for the shared ConfirmDialog and Toast on the senior record, same shape as
+// alertActions.js. Deactivation is a reversible roster flip: the record stays, but the
+// phone keeps monitoring and the senior's alerts still reach the barangay
+// (docs/handoff-senior-status.md). Saved via PATCH /seniors/{sync_id}/status.
 export const DEACTIVATE_ACTION = {
   dialogTitle: 'Deactivate Account',
   dialogMessage:

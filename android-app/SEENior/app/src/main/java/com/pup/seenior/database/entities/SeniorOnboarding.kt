@@ -35,10 +35,7 @@ data class SeniorOnboarding(
     @ColumnInfo(name = "activity_level") val activityLevel: String,
     /** "en" or "fil" — drives language of all senior-facing prompts */
     @ColumnInfo(name = "language_preference") val languagePreference: String,
-    /**
-     * False while seed values pre-populate the Baseline table during onboarding.
-     * Set to true once real sensor data fully replaces seed values (target: Day 14).
-     */
+    /** False while seed values fill the Baseline table; set true once real data fully replaces them (target Day 14). */
     @ColumnInfo(name = "seed_baseline_generated") val seedBaselineGenerated: Boolean = false,
     @ColumnInfo(name = "onboarding_completed_at") val onboardingCompletedAt: Long = System.currentTimeMillis(),
     /** Null until 14 days of real sensor data have replaced all seed baseline values */

@@ -30,19 +30,15 @@ class NightlyAggregationWorker(
         val unaggregated = sensorDataDao.getUnaggregatedSensorData(senior.seniorId)
         if (unaggregated.isEmpty()) return Result.success()
 
-        // Needed before the loop, not after, because the open block below is defined by this
-        // senior's own wake and sleep times.
+        // Needed before the loop, since the open block is defined by this senior's wake and sleep times.
         val onboarding = database.seniorOnboardingDao().getBySeniorId(senior.seniorId)
 
         val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.US)
         val now = System.currentTimeMillis()
 
-        // Logical day, not calendar day -- see SeedBaselineGenerator.logicalDayMillis. Grouping a
-        // night by calendar date splits it in two and mixes each half with a different night.
-        //
-        // With no onboarding row there are no wake/sleep times to place the night with, so this
-        // falls back to the calendar date. Safe, because the deferral below already refuses to
-        // roll up anything dated today when onboarding is missing.
+        // Logical day, not calendar day (see SeedBaselineGenerator.logicalDayMillis), so a night
+        // isn't split in two. With no onboarding row it falls back to the calendar date, which is
+        // safe because the deferral below refuses to roll up today's data in that case.
         fun logicalDate(timestamp: Long): String = dateFormat.format(
             Date(
                 onboarding?.let {
@@ -59,27 +55,16 @@ class NightlyAggregationWorker(
         val groups = unaggregated.groupBy { row -> logicalDate(row.timestamp) to row.timeBlock }
 
         /*
-         * Aggregate only blocks that can no longer receive samples, and leave the open one's raw
-         * rows where they are for the next run.
-         *
-         * The delete-then-insert below exists so a repeated run does not duplicate a row, but it
-         * used to be destructive: a block that had already been rolled up would be REBUILT from
-         * whatever rows arrived since, and the earlier ones were long deleted. That silently
-         * shortened every max-based field -- `total_inactivity_duration` is the block's longest
-         * streak, and a rebuild from the tail of the block cannot see the streak in its head.
-         *
-         * It hit `night` every single day: this worker runs at 02:00, rolls up night-so-far, then
-         * the rest of that same night block accumulates until wake time and replaces it on the
-         * next run. Evidence it was live on the pilot handset: `aggregate_id` 4 is missing from
-         * Agnes's table, deleted and reinserted under a new id.
-         *
-         * Waiting for the block to close means each one is built exactly once, from all of it.
+         * Aggregate only blocks that can no longer receive samples, and leave the open block's
+         * raw rows for the next run. Rebuilding an already rolled-up block from only the later
+         * rows used to shorten max-based fields like `total_inactivity_duration`, and it hit
+         * `night` every day (this worker runs at 02:00, before the night block ends). Waiting
+         * for the block to close builds each one once, from all of it.
          */
         val (open, closed) = groups.entries.partition { (key, _) ->
             val (date, timeBlock) = key
-            // With no onboarding row there is no way to know which block is open, so nothing
-            // dated today is touched. Conservative: a delayed roll-up costs nothing, a
-            // destructive one cannot be undone.
+            // With no onboarding row we can't tell which block is open, so nothing dated today
+            // is touched. A delayed roll-up is harmless; a destructive one can't be undone.
             date == today && (openBlock == null || timeBlock == openBlock)
         }
 
@@ -90,8 +75,7 @@ class NightlyAggregationWorker(
             dailyAggregateDao.insert(aggregate)
         }
 
-        // Only what was actually rolled up. Marking the open block's rows here would delete them
-        // on the next line and lose the very samples this deferral is protecting.
+        // Only what was rolled up. Marking the open block's rows would delete samples this deferral protects.
         val aggregatedIds = closed.flatMap { (_, rows) -> rows }.map { it.dataId }
         if (open.isNotEmpty()) {
             android.util.Log.i(
@@ -99,15 +83,12 @@ class NightlyAggregationWorker(
                 "Deferred ${open.sumOf { it.value.size }} row(s) in the still-open block"
             )
         }
-        // Room expands `IN (:dataIds)` into one bound SQL parameter per ID; SQLite's
-        // default limit is 999. Chunk so a backlog (missed nightly runs) can't blow past it.
+        // Room expands `IN (:dataIds)` into one parameter per ID and SQLite's limit is 999, so chunk.
         aggregatedIds.chunked(900).forEach { chunk -> sensorDataDao.markAsAggregated(chunk) }
         sensorDataDao.deleteAggregated()
 
-        // The updater blends real data against this senior's seed values, so it needs the
-        // onboarding answers those seeds were built from. No onboarding row means no seed to
-        // blend against, and overwriting a baseline with unblended early data is the bug this
-        // is here to prevent -- so skip rather than fall back.
+        // The updater blends against this senior's seed values, so it needs their onboarding
+        // answers. Without them, skip rather than overwrite the baseline with unblended data.
         if (onboarding != null) {
             com.pup.seenior.baseline.BaselineUpdater.updateForSenior(
                 senior.seniorId,
@@ -123,15 +104,9 @@ class NightlyAggregationWorker(
     }
 
     /**
-     * Layer 2's once-a-day pass (spec §5), run here because the aggregates were just written
-     * and the baseline it scores against was just refreshed one statement ago.
-     *
-     * **Wrapped, and deliberately never fatal.** Everything above this line is load-bearing: the
-     * roll-up, the raw-row purge, the Routine Fingerprint that Layer 1 depends on every five
-     * minutes. Layer 2 is an addition on top of all of it. If it throws — a baseline row missing
-     * for a block, something unforeseen in a senior's data — the right outcome is a logged
-     * complaint and a successful worker, not a failed run that takes the nightly aggregation down
-     * with it and leaves Layer 1 scoring against a stale fingerprint tomorrow.
+     * Layer 2's once-a-day pass, run here because the aggregates and baseline were just
+     * refreshed. Wrapped and never fatal: the roll-up, purge and Layer 1 fingerprint are
+     * essential, and a Layer 2 failure should be logged without failing the nightly run.
      */
     private suspend fun runIsolationForest(
         database: SeniorAppDatabase,
@@ -149,9 +124,7 @@ class NightlyAggregationWorker(
             )
             android.util.Log.i("NightlyAggregation", "Isolation Forest: $outcome")
 
-            // Only a raised alert is owed a response chain. Everything else the detector can
-            // return — a logged low-risk note, a cold-start bail-out, a nap — is deliberately
-            // silent, and must not arm an alarm on the way past.
+            // Only a raised alert gets a response chain. Logged notes, cold-start bail-outs and naps stay silent.
             if (outcome is IsolationForestDetector.Outcome.Raised) {
                 AlertResponder.onAlertCreated(applicationContext, database, outcome.alert)
             }
@@ -170,21 +143,11 @@ class NightlyAggregationWorker(
         val avgMovementScore = rows.map { it.movementScore }.average()
 
         /*
-         * inactivity_duration and screen_idle_duration are running "seconds since X last
-         * happened" counters, not per-poll deltas, so the block's longest streak is its max
-         * reading -- averaging a running counter halves it and would drag the baseline median
-         * below what the block actually looked like.
-         *
-         * But the counters keep climbing straight across a block boundary, so a reading taken
-         * early in a block can be describing stillness that belongs to the previous one. Each
-         * reading is therefore clipped to how much of its own block had elapsed when it was
-         * taken, so a block is only ever summarised on what happened inside it.
-         *
-         * MedianMadDetector already clips exactly this way -- that is what stopped alert 20's
-         * 10:05 false alarm. Without the same clip here the impossible value never fires an
-         * alert but still reaches the Baseline, and later Isolation Forest: `aggregate_id` 12 on
-         * the pilot handset recorded 26,652 s of morning stillness inside a morning block only
-         * 15,600 s long.
+         * inactivity_duration and screen_idle_duration are running "seconds since X" counters,
+         * so a block's longest streak is its max reading; averaging would halve it. But the
+         * counters climb across block boundaries, so each reading is clipped to how much of its
+         * own block had elapsed, as MedianMadDetector does. Without this, an impossible value
+         * (26,652 s of morning stillness in a 15,600 s block) reached the Baseline.
          */
         fun clipToBlock(row: SensorData, reading: Long): Long = onboarding?.let {
             minOf(
@@ -197,9 +160,7 @@ class NightlyAggregationWorker(
         val avgScreenIdleDuration = rows.maxOf { clipToBlock(it, it.screenIdleDuration) }
         val totalScreenUnlocks = rows.sumOf { it.screenUnlockCount }
 
-        // Lives in [StepTotals] rather than here because the counter misbehaves in ways worth
-        // testing directly -- see that file for the vivo reading that fell by 49 without a
-        // reboot and was credited as 9,182 steps in seven minutes.
+        // Lives in [StepTotals] because the counter misbehaves in ways worth testing directly.
         val totalSteps = StepTotals.forBlock(rows)
 
         val chargingCount = rows.count { it.isCharging }
@@ -215,10 +176,8 @@ class NightlyAggregationWorker(
             totalScreenUnlocks = totalScreenUnlocks,
             totalSteps = totalSteps,
             isChargingMajority = isChargingMajority,
-            // The one moment this number can be taken. `rows` is about to be marked aggregated
-            // and deleted by `deleteAggregated()`, after which nothing can say whether this
-            // block was summarised from a full 52 readings or from the four that arrived before
-            // the battery died. Both produce rows that look equally plausible.
+            // The only moment this can be taken: after the rows are deleted, nothing can say
+            // whether a block came from a full 52 readings or only a few.
             sampleCount = rows.size
         )
     }

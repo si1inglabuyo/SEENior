@@ -10,11 +10,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 /**
- * Fires when an alert's response window runs out, woken by [EscalationScheduler]'s exact alarm.
- *
- * This is the moment the escalation chain moves past the senior and reaches the family
- * (spec §7), and it has to work with the phone asleep on a table and nobody in the room —
- * which is why the deadline is an alarm rather than a deferrable background job.
+ * Fires when an alert's response window runs out, woken by [EscalationScheduler]'s exact
+ * alarm. This is where the chain moves past the senior to the family, and it must work with
+ * the phone asleep and nobody around, which is why it's an alarm and not a deferrable job.
  */
 class EscalationReceiver : BroadcastReceiver() {
 
@@ -23,9 +21,8 @@ class EscalationReceiver : BroadcastReceiver() {
         val alertId = intent.getIntExtra(EscalationScheduler.EXTRA_ALERT_ID, -1)
         if (alertId <= 0) return
 
-        // goAsync buys this receiver time to finish a network call. It is a limited budget
-        // (~10s), which is exactly why a failed delivery is handed to WorkManager below rather
-        // than retried inline.
+        // goAsync gives this receiver time for a network call, but only ~10 s, which is why a
+        // failed delivery is handed to WorkManager below instead of retried inline.
         val pendingResult = goAsync()
         val app = context.applicationContext
 
@@ -44,9 +41,7 @@ class EscalationReceiver : BroadcastReceiver() {
                     AlertEscalator.Outcome.Delivered ->
                         Log.i(TAG, "Alert $alertId escalated to family")
                     // The audit entry is written either way; only the cloud copy is missing.
-                    // Hand it to WorkManager, which can wait for a network and back off —
-                    // the deadline itself has already been honoured on time, which is the part
-                    // an alarm was needed for.
+                    // Hand it to WorkManager, which can wait for a network and back off.
                     else -> {
                         Log.w(TAG, "Alert $alertId escalation not delivered ($outcome); queueing retry")
                         EscalationWorker.enqueueRetry(app, alertId)

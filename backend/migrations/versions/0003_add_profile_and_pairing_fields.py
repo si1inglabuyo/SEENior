@@ -15,8 +15,7 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # Senior profile fields shown on the family's "Connected" card (age · gender · barangay).
-    # server_default backfills any pre-existing rows; new inserts always supply real values.
+    # Shown on the family's "Connected" card. server_default backfills existing rows.
     op.add_column("seniors", sa.Column("age", sa.Integer(), nullable=False, server_default="0"))
     op.add_column("seniors", sa.Column("gender", sa.String(length=16), nullable=False, server_default="unknown"))
 

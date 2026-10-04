@@ -4,43 +4,30 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import com.pup.seenior.ui.wellness.WellnessMessages
 
 /**
- * The onboarding copy in the language chosen so far, for the whole setup flow.
- *
- * A CompositionLocal rather than a parameter threaded through every screen: the language is
- * answered in the middle of the flow and every screen after it has to follow, so passing it by
- * hand would mean adding the same argument to eight screens and their private composables.
- * Provided once, in `SeniorNavGraph`, from the shared `OnboardingViewModel`.
- *
- * Defaults to English, which is what the screens before the language question render in.
+ * The onboarding copy in the language chosen so far, for the whole setup flow. A
+ * CompositionLocal, since the language is answered mid-flow and every later screen must
+ * follow. Provided once in `SeniorNavGraph` from the shared `OnboardingViewModel`. Defaults
+ * to English, which the screens before the language question use.
  */
 val LocalOnboardingCopy = staticCompositionLocalOf {
     OnboardingStrings.forLanguage(WellnessMessages.ENGLISH)
 }
 
 /**
- * Every string on the screens a senior sees once, while setting the app up — Welcome through
- * All Set — in both supported languages.
+ * Every string on the screens a senior sees once, during setup (Welcome through All Set),
+ * in both languages. Split out of [SeniorStrings] for size; it is reached through
+ * `SeniorStrings.Copy.onboarding`.
  *
- * Split out of [SeniorStrings] rather than nested in it only for size: this is the same container,
- * reached through `SeniorStrings.Copy.onboarding`, and that file's reasoning about why none of
- * this lives in `strings.xml` applies here unchanged.
+ * The senior picks their language inside this flow, so the screens before that question
+ * (Welcome, Choose your role, Tell Us About Yourself, Terms) render in English on the way in.
+ * Their Filipino takes effect once the answer exists.
  *
- * **One thing to know before reading further.** The senior chooses their language *inside* this
- * flow — it is the first question on the questionnaire — so the screens before that question
- * (Welcome, Choose your role, Tell Us About Yourself, Terms) render in English on the way in. The
- * Filipino for them is written here and takes effect the moment the answer exists, which covers a
- * senior who goes back, and covers the day the question moves earlier in the flow. Moving it is a
- * UX decision nobody has made yet; nothing here depends on which way it goes.
+ * Option labels are translated for display only. `OnboardingOptions` values are stored and
+ * compared in code (`hasNap == "Yes"`, `SeedBaselineGenerator.ACTIVITY_PROFILES[activityLevel]`),
+ * so the English string stays the state. Each lookup falls back to the value it was given.
  *
- * **Option labels are translated for display only.** `OnboardingOptions` values are persisted
- * (`Seniors.gender`, `Senior_Onboarding.activity_level`) and compared in code (`hasNap == "Yes"`,
- * `SeedBaselineGenerator.ACTIVITY_PROFILES[activityLevel]`), so the English string stays the state
- * and stays the stored value; only what is drawn on screen changes. Every lookup below falls back
- * to the value it was handed, so an option added later shows up untranslated rather than blank.
- *
- * **These translations are a draft pending a native speaker's review** — the same standing caveat
- * as [SeniorStrings] and [WellnessMessages]. The legal prose on the Terms screen deserves a second
- * look in particular: a translated consent line is still the line the senior is agreeing to.
+ * These translations are a draft awaiting a native speaker's review, especially the legal
+ * text on the Terms screen.
  */
 object OnboardingStrings {
 
@@ -131,9 +118,8 @@ object OnboardingStrings {
         val manufacturerDialogBody: String,
         val manufacturerDialogOpenSettings: String,
         val manufacturerDialogSkip: String,
-        /* Shown once, during setup, on a device with no step counter. Deliberately NOT a
-         * Home-screen message: missing hardware is not something the senior can act on, and the
-         * only moment the choice of device is still open is this one. */
+        /* Shown once during setup on a device with no step counter. Not a Home message: the
+         * senior can't fix missing hardware, and setup is the only time the choice is open. */
         val noStepSensorTitle: String,
         val noStepSensorBody: String,
         val noStepSensorContinue: String,
@@ -151,12 +137,8 @@ object OnboardingStrings {
         val welcomeLead: String,
         val welcomeMid: String,
 
-        /**
-         * Lets [com.pup.seenior.ui.onboarding.TermsConditionsScreen] fetch the full Privacy
-         * Policy from [com.pup.seenior.ui.InfoStrings] in the same language, when the senior taps
-         * that consent checkbox's link — rather than duplicating the legal text a second time in
-         * this file just to avoid a language lookup.
-         */
+        /** Lets [com.pup.seenior.ui.onboarding.TermsConditionsScreen] fetch the Privacy Policy
+         *  from [com.pup.seenior.ui.InfoStrings] in the same language instead of duplicating the legal text. */
         val languageCode: String,
 
         // Option labels — display only, see the file KDoc
@@ -176,12 +158,8 @@ object OnboardingStrings {
         fun activityLevel(label: String): String = activityLevelLabels[label] ?: label
 
         /**
-         * "You're All Set, Lolo Reviman!"
-         *
-         * The honorific used to be a hardcoded "Lola", which called every male senior a grandmother
-         * on the last screen of his own setup. It is read from the answer two screens earlier
-         * instead, and a senior who chose neither is greeted by name alone — better no honorific
-         * than the wrong one.
+         * "You're All Set, Lolo Reviman!" The honorific comes from the gender answered earlier
+         * (it used to be a hardcoded "Lola"). A senior who chose neither is greeted by name only.
          */
         fun allSetTitle(gender: String?, firstName: String, lastName: String): String {
             val name = listOf(firstName, lastName).filter { it.isNotBlank() }.joinToString(" ")
@@ -292,9 +270,8 @@ object OnboardingStrings {
         permissionsSubtitle = "SEENior needs these to monitor quietly in the background. All data stays on your phone.",
         permissionRows = listOf(
             "Motion & Activity" to "Detects movement to track routine",
-            // Was "only as an approximate area", which contradicted the design: one precise fix is
-            // captured, and only at the moment an alert fires (spec §11). The protection is
-            // that it is never continuous — say that, rather than claim a vagueness we do not add.
+            // One precise fix is captured, only when an alert fires (spec section 11). The
+            // protection is that it is never continuous, so say that instead of claiming vagueness.
             "Location (Alerts)" to "Only when an alert triggers — one exact location, never continuous tracking",
             "Notifications" to "Safety confirmation prompts & SOS alert",
             "Battery & screen" to "Tracks charging & screen use",

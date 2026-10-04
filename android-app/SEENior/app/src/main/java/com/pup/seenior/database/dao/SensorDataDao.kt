@@ -32,11 +32,9 @@ interface SensorDataDao {
     suspend fun getUnaggregatedSensorData(seniorId: Int): List<SensorData>
 
     /**
-     * The most recent reading, whatever block it fell in.
-     *
-     * Used to measure the gap since the last sample. A gap far longer than the poll
-     * interval means the process was frozen rather than idle, and the two demand different
-     * readings of the same numbers -- see collectAndStore in SensorCollectionService.
+     * The most recent reading, whatever block it fell in. Used to measure the gap since the
+     * last sample: a gap far longer than the poll interval means the process was frozen, not
+     * idle (see collectAndStore in SensorCollectionService).
      */
     @Query("SELECT * FROM Sensor_Data WHERE senior_id = :seniorId ORDER BY timestamp DESC LIMIT 1")
     suspend fun getLatest(seniorId: Int): SensorData?

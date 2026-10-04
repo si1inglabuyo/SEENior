@@ -54,8 +54,8 @@ interface ApiService {
         @Body body: UpdateSeniorRequest
     ): SeniorDto
 
-    // Which of this senior's recent alerts a family contact or the barangay has closed. The phone
-    // has no other way to learn that, and Home keeps saying "still open" until it does.
+    // Which of the senior's recent alerts a family contact or the barangay has closed; the
+    // phone has no other way to learn that.
     @GET("seniors/{syncId}/closed-alerts")
     suspend fun getClosedAlerts(@Path("syncId") syncId: String): List<ClosedAlertDto>
 
@@ -65,18 +65,15 @@ interface ApiService {
         @Body body: CancelAlertRequest
     ): AlertDto
 
-    // Upgrade-only on the server, and idempotent: an alert re-classified after it was already
-    // posted has to reach the family app and the barangay dashboard, and a retry must not be
-    // able to talk a level back down.
+    // Upgrade-only and idempotent on the server, so a retry can't talk a level back down.
     @PATCH("alerts/{syncId}/severity")
     suspend fun updateAlertSeverity(
         @Path("syncId") syncId: String,
         @Body body: UpdateSeverityRequest
     ): AlertDto
 
-    // Set-once on the server, and idempotent: the fix can land after the alert has already gone
-    // out -- an SOS posts at the end of a ten-second cancel window while the GPS is allowed
-    // twenty -- and a retry must not be able to replace a cell that already arrived.
+    // Set-once and idempotent on the server. The fix can land after the alert was posted (an
+    // SOS posts at the end of a 10 s cancel window while GPS gets 20 s).
     @PATCH("alerts/{syncId}/location")
     suspend fun updateAlertLocation(
         @Path("syncId") syncId: String,
@@ -92,9 +89,8 @@ interface ApiService {
     @POST("seniors/{syncId}/invite")
     suspend fun generateInvite(@Path("syncId") syncId: String): InviteCodeDto
 
-    // Soft-deletes the senior's cloud record and soft-unlinks their contacts. No auth —
-    // the sync_id is the credential, same as every senior-side route. The phone wipes its
-    // own local database separately. Idempotent server-side.
+    // Soft-deletes the senior's cloud record and unlinks their contacts. No auth; the sync_id is
+    // the credential. The phone wipes its own database separately. Idempotent.
     @POST("seniors/{syncId}/delete")
     suspend fun deleteSenior(
         @Path("syncId") syncId: String,
@@ -110,8 +106,7 @@ interface ApiService {
         @Path("contactId") contactId: Int
     )
 
-    // No auth, same posture as the other senior-side routes — the senior has no account
-    // (spec §2) and is identified purely by sync_id.
+    // No auth: the senior has no account and is identified by sync_id.
     @POST("alerts")
     suspend fun postAlert(@Body body: CreateAlertRequest): AlertDto
 
@@ -120,8 +115,7 @@ interface ApiService {
     @POST("contacts/verify")
     suspend fun verifyCode(@Body body: VerifyCodeRequest): VerifyCodeResponse
 
-    // Requires the caller to already be logged in — account creation (register/
-    // login/Google) always happens first, as its own step.
+    // Requires a logged-in caller; account creation always happens first.
     @POST("contacts/pair")
     suspend fun pairContact(
         @Body body: PairRequest,
@@ -139,9 +133,8 @@ interface ApiService {
 
     // ---- Account / profile (family side) ----
 
-    // OAuth2PasswordRequestForm on the backend expects standard form-encoded
-    // fields named "username"/"password" - "username" holds the email address
-    // for family accounts (or the pre-assigned username for barangay responders).
+    // The backend expects form-encoded "username"/"password" fields; "username" holds the
+    // email for family accounts or the pre-assigned username for barangay responders.
     @FormUrlEncoded
     @POST("auth/login")
     suspend fun login(
@@ -167,8 +160,7 @@ interface ApiService {
         @Body body: UpdateProfileRequest
     ): UserDto
 
-    // Family app's Profile -> Language toggle. Writes through immediately (no Save
-    // button), same posture as the senior side's own language choice.
+    // Family app's Language toggle. Saves immediately, as on the senior side.
     @PATCH("auth/me/language")
     suspend fun updateLanguage(
         @Header("Authorization") auth: String,
@@ -181,16 +173,15 @@ interface ApiService {
         @Body body: ChangePasswordRequest
     )
 
-    // Adds a password to a Google-only account so email + password sign-in also works.
-    // 400 if the account already has one.
+    // Adds a password to a Google-only account. 400 if it already has one.
     @POST("auth/set-password")
     suspend fun setPassword(
         @Header("Authorization") auth: String,
         @Body body: SetPasswordRequest
     )
 
-    // Soft-deletes the caller's own family account: deactivates it, soft-unlinks every
-    // pairing, drops device tokens, and frees the email/username for a fresh sign-up.
+    // Soft-deletes the caller's own family account: deactivates it, unlinks every pairing,
+    // drops device tokens and frees the email/username.
     @POST("auth/me/delete")
     suspend fun deleteMyAccount(
         @Header("Authorization") auth: String,
@@ -230,7 +221,7 @@ interface ApiService {
     ): AlertDto
 
     /** Family says the alert was raised in error. Closes it as `false_positive`, which the
-     *  senior's phone later reads as evidence for loosening that time block's trigger. */
+     *  senior's phone reads as evidence for loosening that block's trigger. */
     @PATCH("alerts/{syncId}/false-positive")
     suspend fun markAlertFalsePositive(
         @Path("syncId") syncId: String,

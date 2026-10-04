@@ -9,35 +9,24 @@ import android.os.Build
 import androidx.core.content.ContextCompat
 
 /**
- * What this particular handset can and may actually measure.
+ * What this handset can and may measure. Two questions, answered separately because only one
+ * is fixable:
  *
- * Two different questions live here and they are answered separately on purpose, because the
- * remedy is different and only one of them has one:
+ * - Permission is revocable and repairable. Android can take ACTIVITY_RECOGNITION back after
+ *   onboarding (revoked by hand, a storage sweep, or auto-revoke). [missingRequiredPermissions]
+ *   finds that.
+ * - Hardware isn't repairable. A handset with no `TYPE_STEP_COUNTER` never will have one.
+ *   [hasStepCounter] stops the app mistaking this for the first case.
  *
- *  - **Permission** is revocable and repairable. Android can take ACTIVITY_RECOGNITION back long
- *    after onboarding granted it — the senior revokes it, a "free up space" sweep revokes it, or
- *    the OS auto-revokes it for an app it thinks is unused. [missingRequiredPermissions] finds
- *    that, and the senior can fix it in one tap.
- *  - **Hardware** is neither. A handset with no `TYPE_STEP_COUNTER` will never have one, and no
- *    amount of prompting changes that. [hasStepCounter] exists so the app stops mistaking the
- *    second case for the first.
- *
- * Measured on the realme RMP2204 tester device, 2026-09-23: every step reading zero across five
- * days, which read as a denied permission and was not one. ACTIVITY_RECOGNITION was granted the
- * whole time; `dumpsys sensorservice` lists 18 hardware sensors and no step counter or step
- * detector among them, because the device is a tablet (`ro.build.characteristics=tablet`). The
- * old advice — "check the permission" — was unfollowable, and the honest answer is that this
- * device cannot do the measurement at all.
+ * Seen on a realme RMP2204 tablet (2026-09-23): five days of zero steps looked like a denied
+ * permission, but it was granted and the device simply has no step counter.
  */
 object DeviceCapabilities {
 
     /**
-     * Whether this handset has a step counter at all.
-     *
-     * Matters beyond the step column itself. The counter is the witness
-     * [SensorCollectionService] uses to tell a gap the OS froze apart from a senior who genuinely
-     * did not move, so a device without one loses the only independent check on its own
-     * inactivity figures — on exactly the cheap handsets most likely to freeze.
+     * Whether this handset has a step counter at all. The counter is also the witness
+     * [SensorCollectionService] uses to tell a frozen gap from stillness, so without one the
+     * inactivity figures lose their only independent check.
      */
     fun hasStepCounter(context: Context): Boolean {
         val sensors = context.getSystemService(Context.SENSOR_SERVICE) as? SensorManager
@@ -46,17 +35,10 @@ object DeviceCapabilities {
     }
 
     /**
-     * The runtime permissions monitoring needs that this install does not currently hold.
-     *
-     * The rule is deliberately the same one onboarding applies in
-     * [com.pup.seenior.ui.onboarding.PermissionsScreen.requiredPermissionsGranted], including its
-     * one concession: the two location permissions count as a single answer, because Android 12+
-     * offers Precise or Approximate in one dialog and a senior who chose Approximate answered it
-     * perfectly reasonably. Any other rule here would have the Home screen nag about a choice
-     * onboarding had already accepted.
-     *
-     * Returns the permissions to re-request, so the caller can put the system dialog in front of
-     * the senior rather than sending them into Settings to hunt for a toggle.
+     * The runtime permissions monitoring needs that this install doesn't hold. Uses the same
+     * rule as [com.pup.seenior.ui.onboarding.PermissionsScreen.requiredPermissionsGranted],
+     * including that the two location permissions count as one answer. Returns the list so the
+     * caller can show the system dialog instead of sending the senior to Settings.
      */
     fun missingRequiredPermissions(context: Context): List<String> = buildList {
         if (Build.VERSION.SDK_INT >= 29 && !granted(context, Manifest.permission.ACTIVITY_RECOGNITION)) {
@@ -68,8 +50,7 @@ object DeviceCapabilities {
         val hasSomeLocation = granted(context, Manifest.permission.ACCESS_FINE_LOCATION) ||
             granted(context, Manifest.permission.ACCESS_COARSE_LOCATION)
         if (!hasSomeLocation) {
-            // Both, so the system offers the Precise/Approximate choice rather than silently
-            // treating this as a coarse-only request.
+            // Both, so the system offers the Precise/Approximate choice.
             add(Manifest.permission.ACCESS_FINE_LOCATION)
             add(Manifest.permission.ACCESS_COARSE_LOCATION)
         }

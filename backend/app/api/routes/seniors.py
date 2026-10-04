@@ -29,9 +29,7 @@ INVITE_CODE_LIFETIME = timedelta(minutes=5)
 
 @router.post("", response_model=SeniorOut, status_code=status.HTTP_201_CREATED)
 async def create_senior(payload: SeniorCreate, db: AsyncSession = Depends(get_db)) -> Senior:
-    # No auth: this is the senior app's one-time "register myself with the cloud"
-    # call during onboarding. Seniors never get a Users account (spec §2) —
-    # the returned sync_id becomes their permanent cloud identity, stored locally.
+    # No auth: the senior has no account, and the returned sync_id becomes their cloud identity.
     senior = Senior(**payload.model_dump())
     db.add(senior)
     await db.commit()
@@ -51,10 +49,8 @@ async def _get_senior_or_404(sync_id: UUID, db: AsyncSession) -> Senior:
 async def update_senior(
     sync_id: UUID, payload: SeniorUpdate, db: AsyncSession = Depends(get_db)
 ) -> Senior:
-    # No auth, same as every other senior-side endpoint here: the senior has no Users
-    # account (spec §2), so the sync_id itself is the credential. Exists so an
-    # Edit Profile save on the phone also reaches the cloud copy — otherwise the family
-    # app keeps rendering the name/age/gender captured at registration.
+    # No auth: the sync_id is the credential. Lets an Edit Profile save reach the cloud copy
+    # the family app shows.
     senior = await _get_senior_or_404(sync_id, db)
     for field, value in payload.model_dump().items():
         setattr(senior, field, value)
@@ -67,35 +63,22 @@ async def update_senior(
 async def heartbeat(
     sync_id: UUID, payload: SeniorHeartbeat, db: AsyncSession = Depends(get_db)
 ) -> Senior:
-    """Records that this senior's phone is still running, and how much charge it has left.
+    """Records that the senior's phone is still running, with its battery level.
 
-    The senior has no account to sign in with (spec §2), so the sync_id is the
-    credential here exactly as it is for update_senior and generate_invite.
-
-    The *timestamp* is the point of this endpoint. Between alerts nothing in the system
-    could distinguish a phone quietly monitoring from one that was flat, switched off, or
-    no longer running the app after a reboot -- a failure mode measured on the test
-    handset, where a reboot left monitoring off until somebody opened the app by hand. A
-    check-in that carries no readings at all is therefore still worth recording.
-
-    Each call overwrites the previous values. Nothing accumulates: a series of battery
-    readings would describe when the senior charges their phone, and therefore roughly
-    when they sleep, which is the behavioural data 11 keeps on the device. A single
-    current reading only describes whether the device can keep working.
+    The sync_id is the credential. The timestamp is the point: it shows monitoring hasn't
+    stopped. Each call overwrites the last values, since a battery history would reveal
+    when the senior sleeps.
     """
     senior = await _get_senior_or_404(sync_id, db)
 
     # Naive UTC to match the column type, same convention as generate_invite below.
     senior.last_seen_at = datetime.now(timezone.utc).replace(tzinfo=None)
-    # Only overwrite a reading the phone actually sent. A check-in that could not read the
-    # battery must not erase the last figure the family saw and replace it with nothing.
+    # Only overwrite a reading the phone actually sent.
     if payload.battery_percent is not None:
         senior.battery_percent = payload.battery_percent
     if payload.is_charging is not None:
         senior.is_charging = payload.is_charging
-    # Same rule as the readings above -- only overwrite what the phone actually sent. A
-    # check-in from a handset that could not obtain a token must not erase the token that
-    # is currently the only way to wake it.
+    # Same rule: don't erase the token that is the only way to wake the phone.
     if payload.push_token:
         senior.push_token = payload.push_token
 
@@ -110,19 +93,9 @@ async def delete_senior(
 ) -> None:
     """Soft-deletes a senior's cloud record.
 
-    No auth, same posture as every other senior-side route here: the senior has no
-    users account (spec §2), so the sync_id is the credential.
-
-    The row is kept (deleted_at / deletion_reason / deletion_note) for audit, but:
-
-      * its contacts are soft-unlinked (unlinked_by=senior), so linked family stop
-        seeing this senior on their next refresh;
-      * push_token / last_nudge_at / invite_code are cleared, so the quiet-device
-        nudge and any stale invite code cannot act on a deleted record;
-      * every barangay-dashboard query must exclude deleted_at IS NOT NULL.
-
-    The phone wipes its own local database separately -- that is where the Routine
-    Fingerprint and all raw behaviour live. Idempotent: a repeat call is a no-op.
+    No auth; the sync_id is the credential. The row is kept for audit, contacts are
+    soft-unlinked, and push_token / last_nudge_at / invite_code are cleared. The phone
+    wipes its own database separately. Idempotent.
     """
     senior = await _get_senior_or_404(sync_id, db)
     if senior.deleted_at is not None:
@@ -151,8 +124,7 @@ async def delete_senior(
 _responder_only = require_role(UserRole.BARANGAY_RESPONDER)
 
 
-# How far back the phone is told about closed alerts. An alert still open on a handset is at most
-# a few days old; anything older is history, not something a Home card needs correcting.
+# How far back the phone is told about closed alerts.
 _CLOSED_ALERTS_WINDOW = timedelta(days=7)
 
 
@@ -160,11 +132,8 @@ _CLOSED_ALERTS_WINDOW = timedelta(days=7)
 async def closed_alerts(sync_id: UUID, db: AsyncSession = Depends(get_db)) -> list[Alert]:
     """Which of this senior's recent alerts a family contact or the barangay has closed.
 
-    The senior's phone has no other way to learn this: the family or a responder resolving an
-    alert happens in the cloud, and until now nothing carried it back, so Home kept showing
-    "your request is still open" over an incident that was over. Same credential as the rest of
-    this file's senior-facing routes -- the `sync_id` -- and it returns only sync ids and a
-    status, never who closed it or why.
+    Lets the phone stop showing a closed alert as open. Uses the sync_id as the
+    credential and returns only sync ids and a status.
     """
     senior = await _get_senior_or_404(sync_id, db)
     since = datetime.now(timezone.utc).replace(tzinfo=None) - _CLOSED_ALERTS_WINDOW
@@ -188,33 +157,19 @@ async def set_senior_status(
     db: AsyncSession = Depends(get_db),
     responder: User = Depends(_responder_only),
 ) -> Senior:
-    """Flips a senior between the barangay's active roster and its inactive list.
+    """Moves a senior between the barangay's active roster and inactive list.
 
-    Lives here rather than in `barangay.py` purely for ownership: that file belongs to the
-    dashboard lane (spec §15) and this one does not, so putting it here is what keeps
-    the two lanes from colliding on the same file. The gating is the same as every route
-    over there -- a barangay_responder JWT, scoped to that responder's own barangay.
-
-    **What this does not do.** It does not stop monitoring, and it does not stop this
-    senior's alerts reaching the barangay. The server cannot switch off a handset, and the
-    barangay is the last tier in the escalation chain -- dropping it on a roster flag would
-    produce an alert with nowhere left to go, silently, for a senior whose family contacts
-    may also be unlinked. The dashboard's confirm copy currently says "Monitoring stops",
-    which this deliberately does not make true; see docs/handoff-senior-status.md.
-
-    Idempotent: setting the status it already has returns the current row untouched, rather
-    than rewriting the audit fields and claiming a change nobody made.
+    Needs a barangay_responder JWT for that responder's own barangay. It does not stop
+    monitoring or stop the senior's alerts reaching the barangay. It lives here rather than
+    in barangay.py because that file belongs to the dashboard lane. Idempotent.
     """
     senior = await _get_senior_or_404(sync_id, db)
 
-    # A senior who deleted their own account is not a roster entry to be tidied -- their
-    # record is gone by their own decision, and a responder flipping its status would be
-    # writing to something that should not be on any list at all.
+    # A senior who deleted their account is not a roster entry.
     if senior.deleted_at is not None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Senior not found")
 
-    # Same barangay scoping as every route in barangay.py, and the same 404-not-403: which
-    # seniors exist outside a responder's own barangay is not theirs to learn.
+    # Same barangay scoping and 404-not-403 as barangay.py.
     if not responder.barangay or senior.barangay != responder.barangay:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Senior not found")
 
@@ -233,9 +188,7 @@ async def set_senior_status(
 async def generate_invite(sync_id: UUID, db: AsyncSession = Depends(get_db)) -> InviteCodeOut:
     senior = await _get_senior_or_404(sync_id, db)
 
-    # Naive UTC, matching the column type (TIMESTAMP WITHOUT TIME ZONE, same
-    # convention as created_at elsewhere in this schema) — asyncpg rejects a
-    # tz-aware datetime.now(timezone.utc) against that column type.
+    # Naive UTC, to match the column type.
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     if senior.invite_code_expires_at is not None and senior.invite_code_expires_at > now:
         # Still-active code — this IS the 5-minute cooldown, no separate field needed.

@@ -58,8 +58,8 @@ fun BlueHeader(icon: ImageVector, title: String) {
     }
 }
 
-/** A colored header with a back arrow, used by every Alerts sub-screen (each design uses a
- *  different accent color: red for the active alert, orange once acknowledged, blue elsewhere). */
+/** A colored header with a back arrow, used by every Alerts sub-screen (red for the active
+ *  alert, orange once acknowledged, blue elsewhere). */
 @Composable
 fun BackHeader(title: String, background: Color, onBack: () -> Unit) {
     val copy = LocalFamilyCopy.current
@@ -77,9 +77,7 @@ fun BackHeader(title: String, background: Color, onBack: () -> Unit) {
     }
 }
 
-/** Stand-in for a live map tile (designs show Google Maps). No Maps SDK/API key is wired up
- *  in this project yet, so this renders a neutral placeholder instead of a fake interactive
- *  map — same "cosmetic, not a dead-end pretending to be real" judgment call as elsewhere. */
+/** Stand-in for a live map tile. No Maps SDK key is wired up, so this shows a neutral placeholder. */
 @Composable
 fun MapPlaceholder(modifier: Modifier = Modifier) {
     val copy = LocalFamilyCopy.current
@@ -124,9 +122,7 @@ fun BluePillButton(
     }
 }
 
-/** A solid-color pill button (Alerts tab uses several distinct accent colors — red to
- *  acknowledge, green to call, orange to dispatch — where BluePillButton's single fixed
- *  color doesn't fit). */
+/** A solid-color pill button, for the Alerts tab's accent colors where BluePillButton's fixed blue doesn't fit. */
 @Composable
 fun ColorPillButton(
     text: String,
@@ -178,9 +174,8 @@ fun OutlinePillButton(
 }
 
 /**
- * Shown while a fetch is still in flight and there is nothing to display yet. Necessary because
- * a cold Render instance can take ~40s to wake: without this the screen sat on its "empty" state
- * for the whole wait, which is indistinguishable from the data having been deleted.
+ * Shown while a fetch is in flight and there is nothing to display yet. A cold Render
+ * instance can take ~40 s to wake, and an empty state would look like deleted data.
  */
 @Composable
 fun LoadingCard(message: String, modifier: Modifier = Modifier) {
@@ -211,8 +206,7 @@ fun LoadingCard(message: String, modifier: Modifier = Modifier) {
 
 /**
  * Shown wherever a fetch failed and there is nothing to display. Never reuse an "empty" state
- * for this: an unreachable server rendering as "no seniors linked" / "no alerts" reads as data
- * loss, and on the Alerts tab it would falsely imply the senior is fine.
+ * for this: an unreachable server shown as "no alerts" would falsely imply the senior is fine.
  */
 @Composable
 fun CouldNotLoadCard(
@@ -259,8 +253,7 @@ fun CouldNotLoadCard(
     }
 }
 
-/** Shown on the Link tab (instead of the code form) and the Contacts tab (below the list)
- *  once a family account has reached MAX_LINKED_SENIORS. */
+/** Shown on the Link tab and the Contacts tab once a family account has reached MAX_LINKED_SENIORS. */
 @Composable
 fun MonitoringLimitCard(modifier: Modifier = Modifier) {
     val copy = LocalFamilyCopy.current
@@ -300,10 +293,7 @@ fun FamilyTextField(
     isError: Boolean = false,
     errorText: String? = null
 ) {
-    // Per field, and always hidden to begin with: a password must never appear on screen
-    // unless the person asks for it, and revealing one field says nothing about the others.
-    // Lives here rather than at each call site so every password field in the app (login,
-    // sign-up, change/set password) gets the same eye without anyone having to remember it.
+    // Per field and hidden to begin with. Lives here so every password field gets the same eye icon.
     var revealed by remember { mutableStateOf(false) }
     val copy = LocalFamilyCopy.current
 

@@ -9,12 +9,9 @@ import org.junit.Test
 import java.util.Calendar
 
 /**
- * Validates Layer 3 by driving it with known inputs, per the spec §10.
- *
- * The claim this layer makes is that the *same* deviation deserves a different answer depending on
- * when it arrives, so the tests that matter are the pairs: one z-score, two hours, two verdicts.
- * A classifier that merely re-derived the old `z >= 3.5` cutoff would pass a single-input test and
- * fail every one of those.
+ * Validates Layer 3 with known inputs. Its claim is that the same deviation deserves a
+ * different answer at a different time, so the key tests are pairs: one z-score, two hours,
+ * two verdicts. A classifier that just re-derived `z >= 3.5` would fail them.
  */
 class FuzzyRiskClassifierTest {
 
@@ -39,8 +36,8 @@ class FuzzyRiskClassifierTest {
 
     @Test
     fun `a mild deviation still asks the senior during waking hours`() {
-        // The spec §5: 2.5 <= z < 3.5 is a moderate anomaly and triggers the wellness prompt.
-        // Context may quieten it at night, but it must not be silent in the middle of the day.
+        // 2.5 <= z < 3.5 is a moderate anomaly and triggers the wellness prompt; context may
+        // quieten it at night but it mustn't be silent mid-day.
         assertEquals(FuzzyRiskClassifier.Risk.MEDIUM, classify(2.6, rest = 0.0))
     }
 
@@ -53,8 +50,7 @@ class FuzzyRiskClassifierTest {
 
     @Test
     fun `nothing at full rest is ever classified high`() {
-        // The deliberate ceiling: deep sleep never escalates on its own. If something is genuinely
-        // wrong the deviation keeps growing and the waking hours that follow escalate it.
+        // The ceiling: deep sleep never escalates alone. A real problem keeps growing and escalates in the waking hours.
         var z = 2.5
         while (z <= 12.0) {
             assertFalse(
@@ -67,8 +63,7 @@ class FuzzyRiskClassifierTest {
 
     @Test
     fun `risk never decreases as the deviation grows`() {
-        // Monotonic in the deviation, at every hour. A bigger departure from normal must never
-        // produce a calmer answer than a smaller one.
+        // Monotonic in the deviation at every hour: a bigger departure never gives a calmer answer.
         val order = listOf(
             FuzzyRiskClassifier.Risk.LOW,
             FuzzyRiskClassifier.Risk.MEDIUM,
@@ -166,9 +161,8 @@ class FuzzyRiskClassifierTest {
 
     // ------------------------------------- the device under test, for demo rehearsal
 
-    // Agnes Rayos as actually onboarded on the Infinix: wake 08:30, sleep 21:00, and a declared
-    // nap at 14:00 lasting 120 minutes. AnomalySimulator injects its reading at z = 4.0, so these
-    // pin down exactly what the demo button does at each hour of her day.
+    // The pilot senior as onboarded: wake 08:30, sleep 21:00, nap at 14:00 for 120 minutes.
+    // AnomalySimulator injects z = 4.0, so these pin down what the demo button does at each hour.
     private val WAKE = "08:30"
     private val SLEEP = "21:00"
 
@@ -213,8 +207,7 @@ class FuzzyRiskClassifierTest {
 
     @Test
     fun `seconds since nap end starts at zero the moment the window closes`() {
-        // The minute isWithinNapWindow stops suppressing is the minute this starts counting from,
-        // so no stretch of the day is excused by both and no stretch by neither.
+        // The minute isWithinNapWindow stops suppressing is where this starts counting, so no stretch is excused by both or neither.
         assertFalse(FuzzyRiskClassifier.isWithinNapWindow(15 * 60, "14:00", 60))
         assertEquals(0L, secondsSinceNapEnd(15, 0))
         assertEquals(30L, secondsSinceNapEnd(15, 0, 30))
@@ -231,17 +224,14 @@ class FuzzyRiskClassifierTest {
 
     @Test
     fun `a nap crossing midnight counts forward from the far side`() {
-        // 23:30 + 60 min ends at 00:30. Half an hour later is half an hour, not twenty-three and a
-        // half — the modular arithmetic has to survive the wrap or the clip would excuse a whole
-        // day of stillness every morning.
+        // 23:30 + 60 min ends at 00:30, and half an hour later is half an hour. The modular
+        // arithmetic must survive the wrap or the clip would excuse a day of stillness.
         assertEquals(1800L, FuzzyRiskClassifier.secondsSinceNapEnd(at(1, 0), "23:30", 60))
     }
 
     @Test
     fun `away from the nap the tail clip yields to the block clip`() {
-        // Ten in the morning is nowhere near her nap, so this number is large and a caller taking
-        // `min` of it and the block elapsed time is left with the block elapsed time. The new clip
-        // must change nothing on the readings it was not written for.
+        // Ten in the morning is far from the nap, so this is large and `min` leaves the block elapsed time unchanged.
         val blockElapsed = 3600L
         val sinceNapEnd = secondsSinceNapEnd(10, 0)!!
         assertTrue(sinceNapEnd > blockElapsed)
@@ -255,9 +245,8 @@ class FuzzyRiskClassifierTest {
         val mad = 315.4
         val madFloor = SeedBaselineGenerator.MIN_MAD_FLOOR.getValue("inactivity_duration")
 
-        // Alert 101, 15:28. Her afternoon block starts 14:20, so the block clip alone allowed
-        // 4,080 s and the counter's own 3,593 s stood — thirty-two minutes of which were the nap
-        // she had declared.
+        // Alert 101 at 15:28. The block clip allowed 4,080 s and the counter's 3,593 s stood,
+        // 32 minutes of which were the declared nap.
         val counterReading = 3593.0
         val blockElapsed = 4080L
         assertEquals(8.2, MedianMad.deviationsScore(
@@ -277,9 +266,8 @@ class FuzzyRiskClassifierTest {
 
     @Test
     fun `a Layer 1 alert is unchanged by the widened table`() {
-        // The nine original rules are the ml_flag-absent slice, and every Layer 1 caller still
-        // uses the two-argument form. Stating it as an equality means a future edit to the
-        // twenty-seven cannot quietly move Layer 1's answers.
+        // The nine original rules are the ml_flag-absent slice, and Layer 1 callers use the
+        // two-argument form. Asserting equality stops an edit to the 27 rules moving Layer 1.
         var z = 2.5
         while (z <= 8.0) {
             for (restStep in 0..10) {
@@ -296,9 +284,8 @@ class FuzzyRiskClassifierTest {
 
     @Test
     fun `Layer 2 alone asks the senior but never summons the barangay`() {
-        // A finding about a block that has already closed is not a fall in progress. Its ceiling
-        // is the wellness prompt — Medium — however isolated the day was, right up to a score of
-        // 1.0. Reaching High needs a Layer 1 deviation to corroborate.
+        // A finding about a closed block is not a fall in progress. Its ceiling is Medium up to
+        // a score of 1.0; High needs a Layer 1 deviation to corroborate.
         var ml = IsolationForestDetector.THRESHOLD
         while (ml <= 1.0) {
             assertEquals(
@@ -312,15 +299,13 @@ class FuzzyRiskClassifierTest {
 
     @Test
     fun `Layer 2 alone is logged rather than waking a sleeping senior`() {
-        // The nightly pass can land at any hour. Asking a senior at 3am whether yesterday morning
-        // was alright is no use to her and teaches her to ignore the prompt.
+        // The nightly pass can land at any hour, and asking at 3am about yesterday morning teaches the senior to ignore the prompt.
         assertEquals(FuzzyRiskClassifier.Risk.LOW, classify(z = 0.0, rest = 1.0, ml = 0.95))
     }
 
     @Test
     fun `Layer 2 corroborating a moderate deviation escalates it`() {
-        // The pair that justifies having a second layer at all: identical z, identical hour, and
-        // the only difference is that Isolation Forest independently found the whole block odd.
+        // The pair that justifies Layer 2: identical z and hour, differing only in Isolation Forest finding the block odd.
         val z = 3.6
         val rest = 0.5
         assertEquals(FuzzyRiskClassifier.Risk.MEDIUM, classify(z, rest, ml = 0.0))
@@ -336,8 +321,7 @@ class FuzzyRiskClassifierTest {
 
     @Test
     fun `nothing at full rest is ever high, at any ml_flag score`() {
-        // The original ceiling, re-proven across the new dimension — this is the invariant most
-        // likely to be broken by a careless edit to the twenty-seven rows.
+        // The original ceiling re-proven across the new dimension, the invariant most likely to break.
         var z = 0.0
         while (z <= 12.0) {
             var ml = 0.0
@@ -354,8 +338,7 @@ class FuzzyRiskClassifierTest {
 
     @Test
     fun `risk never decreases as the ml_flag score grows`() {
-        // Monotonic in the third input too. A day the forest found *more* unusual must never
-        // produce a calmer answer than one it found less so.
+        // Monotonic in the third input too: a day the forest found more unusual never gives a calmer answer.
         val order = listOf(
             FuzzyRiskClassifier.Risk.LOW,
             FuzzyRiskClassifier.Risk.MEDIUM,

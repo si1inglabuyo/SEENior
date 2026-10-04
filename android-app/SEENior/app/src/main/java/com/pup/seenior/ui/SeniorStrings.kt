@@ -3,23 +3,14 @@ package com.pup.seenior.ui
 import com.pup.seenior.ui.wellness.WellnessMessages
 
 /**
- * Every string on the senior's everyday screens — the bottom tabs and Home — in both supported
- * languages.
+ * Every string on the senior's everyday screens (the bottom tabs and Home) in both languages.
+ * Kept out of `strings.xml` like [WellnessMessages], because the language is a per-senior
+ * setting (`Senior_Onboarding.language_preference`), not the device locale.
  *
- * Kept out of `strings.xml` for the same reason as [WellnessMessages], and its reasoning is worth
- * repeating rather than rediscovering: the language is a **per-senior setting** stored in
- * `Senior_Onboarding.language_preference`, not the device locale. Android's resource qualifiers
- * resolve against the handset, so a phone a relative set up in English would silently override the
- * senior's own answer on exactly the screens they use unaccompanied.
- *
- * Filipino here is comfortable with the loanwords Filipino speakers actually use (e.g. "cellphone"
- * rather than "telepono"). **"po" was removed from this file's copy after a native-speaker review
- * on 2026-09-14** — see the tag/history for [[seenior-language]] — except where it quotes the
- * wellness prompt itself ([WellnessMessages]), which the spec §14 pins verbatim and this file
- * does not touch.
- *
- * **These translations are a draft pending a further native speaker's review.** The panel has
- * already rejected one phrasing as too informal; nothing here should reach a defence unread.
+ * Filipino uses the loanwords speakers actually use (for example "cellphone"). "po" was
+ * removed after a native-speaker review on 2026-09-14, except where it quotes the wellness
+ * prompt ([WellnessMessages]), which the spec pins verbatim. The translations are a draft
+ * awaiting further review, since the panel has already rejected one phrasing as too informal.
  */
 object SeniorStrings {
 
@@ -48,9 +39,8 @@ object SeniorStrings {
         val monitoringAtRisk: String,
         val monitoringActive: String,
         val chargeToContinue: String,
-        /* Shown on the same status card, in the same amber, when there is a HIGH-risk alert
-         * still open and unresolved -- outranks the battery message below, and specifically
-         * does not say "you're safe", which was the bug this pair of strings fixes. */
+        /* Shown on the status card, in amber, when a HIGH-risk alert is still open. Outranks the
+         * battery message and never says "you're safe". */
         val helpPendingTitle: String,
         val helpPendingBody: String,
         val batteryLow: String,
@@ -61,10 +51,8 @@ object SeniorStrings {
         val reachBody: String,
         val openSettings: String,
         val notNow: String,
-        /* The Home-screen banner for a permission monitoring needs and no longer has. Unlike
-         * reachTitle/reachBody above, which offer an improvement, these describe something
-         * already broken -- so the wording says what has stopped working, not what could be
-         * better, and the banner stays up until it is fixed. */
+        /* Home banner for a permission monitoring needs and no longer has. Unlike reachTitle/
+         * reachBody, which offer an improvement, this describes something broken and stays up until fixed. */
         val permissionLostTitle: String,
         val permissionLostBody: String,
         val permissionLostCta: String,

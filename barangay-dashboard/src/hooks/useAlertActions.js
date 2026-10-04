@@ -2,15 +2,9 @@ import { useState } from 'react'
 import { api } from '../api'
 import { ALERT_ACTIONS } from '../alertActions'
 
-// The whole row-action flow -- pick an action, confirm it, PATCH it, toast, reload -- in
-// one place so the Alerts queue and the Alert History page run identical logic through the
-// same shared dialog/toast/details components (see AlertActionModals).
-//
-// `onReload` is whatever refetch the calling screen already does on a poll. The PATCH is a
-// real write to /barangay/alerts, so once it lands, every other screen that reads the same
-// rows -- the Dashboard's Active Alerts / Resolved Today counts, the Alerts Outcome donut,
-// the Alerts Today panel -- picks the change up on its own next poll. Nothing here is
-// local-only optimism; the row the caller sees after `onReload()` is the server's.
+// The row-action flow (pick, confirm, PATCH, toast, reload) in one place, shared by the
+// Alerts queue and Alert History. `onReload` is the caller's refetch. The PATCH writes to
+// /barangay/alerts, so other screens pick it up on their next poll.
 export function useAlertActions({ onReload, onSessionLost }) {
   const [pending, setPending] = useState(null) // { alert, actionKey }
   const [busy, setBusy] = useState(false)
@@ -18,9 +12,7 @@ export function useAlertActions({ onReload, onSessionLost }) {
   const [toast, setToast] = useState(null) // { message }
   const [detailsAlert, setDetailsAlert] = useState(null)
 
-  // `notes` is the optional remarks a responder can type in the Details modal before
-  // choosing an action. Blank/whitespace collapses to null so the PATCH body is exactly
-  // what it was before this field existed -- the note is purely additive.
+    // Optional remarks from the Details modal. Blank collapses to null.
   function askAction(alert, actionKey, notes = null) {
     setDialogError('')
     const trimmed = typeof notes === 'string' ? notes.trim() : ''

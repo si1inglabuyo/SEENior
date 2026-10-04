@@ -49,10 +49,8 @@ fun LinkScreen(viewModel: FamilyPairingViewModel, onVerified: () -> Unit) {
     ) {
         BlueHeader(Icons.Filled.Link, copy.tabLink)
 
-        // Scrolls; the header does not. This screen has a text field, so the moment the
-        // keyboard opens the window shrinks (MainActivity is adjustResize) and the Verify
-        // button lands underneath it — with no scroll there was no way to reach the button
-        // you had just typed the code for.
+        // Scrolls while the header doesn't. The keyboard shrinks the window (adjustResize) and
+        // would otherwise cover the Verify button.
         Column(
             modifier = Modifier
                 .weight(1f)
@@ -85,9 +83,8 @@ fun LinkScreen(viewModel: FamilyPairingViewModel, onVerified: () -> Unit) {
 
                 LaunchedEffect(Unit) { focusRequester.requestFocus() }
 
-                // A transparent full-width text field sits on top of the 6 display boxes:
-                // tapping anywhere focuses it and pops the number keypad, while the boxes
-                // render the digits. decorationBox draws the boxes so they share the tap target.
+                // A transparent full-width text field sits over the 6 display boxes, so tapping
+                // anywhere focuses it and shows the keypad while decorationBox draws the digits.
                 BasicTextField(
                     value = viewModel.code,
                     onValueChange = { new -> if (new.length <= 6 && new.all { it.isDigit() }) viewModel.code = new },

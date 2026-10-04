@@ -5,30 +5,20 @@ import com.pup.seenior.ui.OnboardingStrings
 import com.pup.seenior.ui.wellness.WellnessMessages
 
 /**
- * The reading screens behind the family app's Profile — About, How to use, FAQs, Feedback &
- * requests, Contact support, Terms and Privacy — in both supported languages. Mirrors
- * `ui/InfoStrings.kt`'s pattern (own Copy container, split from [FamilyStrings] for the same
- * reason that file is split from `ui/ProfileStrings.kt`: this is prose a family member reads
- * once, and keeping it apart stops a 60-line legal section from burying a button label).
+ * The reading screens behind the family app's Profile (About, How to use, FAQs, Feedback &
+ * requests, Contact support, Terms, Privacy) in both languages. Follows `ui/InfoStrings.kt`'s
+ * pattern and is split from [FamilyStrings] so long prose doesn't bury button labels.
  *
- * Built from the PNGs under `designs/family_contact/infos`, with two corrections from what
- * those mockups actually showed (flagged to the user 2026-09-28, not silently fixed):
+ * Built from `designs/family_contact/infos`, with two corrections to the mockups:
+ * 1. "How to use" was the senior app's onboarding steps, including one that pointed to an
+ *    "Invite tab" that doesn't exist here (the family pairing tab is Link). Rewritten to
+ *    describe what a family member does: sign up, link with the senior's code, what the
+ *    14-day baseline means, and how to read Home and Alerts.
+ * 2. Terms and Privacy were worded as the senior's own. Reworded to cover what is collected
+ *    from a family account (name, phone, email, password, linked seniors); the sensor data
+ *    policy lives in the senior app's Privacy screen.
  *
- * 1. **"How to use" was the senior app's own onboarding steps**, including a step that told
- *    a family member to "go to the Invite tab" — a tab that does not exist in this app (the
- *    family app's pairing tab is called Link). Rewritten below to describe what a family
- *    member actually does: sign up, link via the code their senior shares, what the 14-day
- *    baseline means from their side, and how to read Home/Alerts.
- * 2. **Terms & Privacy were worded as the senior's own terms** ("the SEENior senior app is
- *    intended for use by senior citizens...", "data we collect from senior users") — accurate
- *    for the senior app's copy of these screens, wrong for a family account's. Reworded below
- *    to describe what is actually collected from a FAMILY account (name, phone, email,
- *    password, which senior(s) you're linked to) rather than the senior's sensor/behavioral
- *    data policy, which lives in the senior app's own Privacy screen.
- *
- * **This is an agent-written draft and has not been read by a native speaker or reviewed by
- * whoever needs to sign off on the legal sections** — same caveat [[seenior-language]] and
- * `InfoStrings.kt` carry for their own copy.
+ * This is a draft that a native speaker and whoever signs off on the legal sections haven't reviewed.
  */
 object FamilyInfoStrings {
 

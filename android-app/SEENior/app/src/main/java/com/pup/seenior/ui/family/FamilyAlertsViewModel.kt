@@ -32,12 +32,10 @@ enum class AlertScreen {
     RESOLVED, HISTORY, HISTORY_DETAIL
 }
 
-/** One row in the history list — an alert plus which senior it belongs to, since a family
- *  account can monitor up to [MAX_LINKED_SENIORS]. */
+/** One row in the history list: an alert plus the senior it belongs to. */
 data class AlertHistoryItem(val alert: AlertDto, val senior: SeniorDto)
 
-/** A closed alert's summary, kept only for the Resolved screen right after resolving it
- *  (designs/family_contact/dashboard_notification/Resolved.png) — not persisted anywhere else. */
+/** A closed alert's summary, kept only for the Resolved screen right after resolving it. */
 data class ResolvedSummary(
     val alertShortId: String,
     val triggeredAt: String,
@@ -48,14 +46,11 @@ data class ResolvedSummary(
 )
 
 /**
- * Drives the family Alerts tab (designs/family_contact/dashboard_notification). Watches every
- * linked senior's alerts and surfaces the single most urgent open one (status pending/
- * acknowledged/escalated); falls back to an "All Clear" state for the first linked senior when
- * nothing is open. One active alert at a time matches the mockups, which are single-senior.
+ * Drives the family Alerts tab. Watches every linked senior's alerts and shows the most
+ * urgent open one (pending, acknowledged or escalated), or "All Clear" when nothing is open.
  */
 class FamilyAlertsViewModel(application: Application) : AndroidViewModel(application) {
-    // Starts at LOADING, never ALL_CLEAR: "All Clear" is a positive assertion that the senior is
-    // safe, and the app must not make that claim before it has actually heard from the server.
+    // Starts at LOADING, never ALL_CLEAR, so the app doesn't claim the senior is safe before hearing from the server.
     var screen by mutableStateOf(AlertScreen.LOADING)
         private set
     var isLoading by mutableStateOf(false)
@@ -70,9 +65,8 @@ class FamilyAlertsViewModel(application: Application) : AndroidViewModel(applica
     var resolvedSummary by mutableStateOf<ResolvedSummary?>(null)
         private set
 
-    /** Every fetched alert across every linked senior, newest first — refreshed on every
-     *  [load], including background polls, so it's current whenever History is opened even
-     *  though only a foreground fetch may change [screen] itself. */
+    /** Every fetched alert across all linked seniors, newest first. Refreshed on every [load],
+     *  including background polls. */
     var history by mutableStateOf<List<AlertHistoryItem>>(emptyList())
         private set
     var selectedHistoryItem by mutableStateOf<AlertHistoryItem?>(null)
@@ -82,17 +76,10 @@ class FamilyAlertsViewModel(application: Application) : AndroidViewModel(applica
 
     private var pollJob: Job? = null
 
-    // Set when the family member taps through from the Home popup, so the next refresh opens the
-    // alert they were actually shown instead of whatever "newest open" resolves to.
+    // Set when the family member taps through from the Home popup, so the next refresh opens that alert.
     private var requestedSyncId: String? = null
 
-    /**
-     * Asks the next [refresh] to open one specific alert.
-     *
-     * Without this, tapping "View" on a popup about a pending alert could land on an entirely
-     * different alert that happened to be newer — e.g. an SOS someone already acknowledged —
-     * so the screen would answer a question nobody asked.
-     */
+    /** Asks the next [refresh] to open one specific alert, so tapping "View" on a popup doesn't land on a different, newer one. */
     fun focusAlert(syncId: String) {
         requestedSyncId = syncId
     }
@@ -102,22 +89,14 @@ class FamilyAlertsViewModel(application: Application) : AndroidViewModel(applica
         viewModelScope.launch { load(contacts, background = false) }
     }
 
-    /**
-     * Re-fetches every [POLL_INTERVAL_MS] for as long as the Alerts tab is resumed.
-     *
-     * The tab previously fetched only when the linked-senior list changed, which in practice meant
-     * once — so a family member could sit watching this screen read "All clear" while the alert
-     * was already on the server. Of every screen in the app this is the worst one to leave stale.
-     */
+    /** Re-fetches every [POLL_INTERVAL_MS] while the Alerts tab is resumed, so the screen doesn't sit on "All clear" while an alert is already on the server. */
     fun startPolling(contacts: List<ContactDto>) {
         pollJob?.cancel()
         pollJob = viewModelScope.launch {
             var first = true
             while (isActive) {
-                // Only the first fetch of a session may take over the screen, and only when there
-                // is nothing on it yet. Every later one runs silently: this tab is a flow the
-                // family member walks through, and a poll that reset it would throw away the step
-                // they were on mid-emergency.
+                // Only the first fetch may take over the screen, and only when it is empty. Later
+                // polls are silent so they don't reset a step the family member is on.
                 load(contacts, background = !first || screen != AlertScreen.LOADING)
                 first = false
                 delay(POLL_INTERVAL_MS)
@@ -165,20 +144,16 @@ class FamilyAlertsViewModel(application: Application) : AndroidViewModel(applica
                         bestContact = contact
                     }
                 }
-                // Refreshed unconditionally (unlike screen, below) so History is current the
-                // moment it's opened even if a background poll fetched it while the family
-                // member was mid-task on a different screen.
+                // Refreshed unconditionally so History is current when opened.
                 history = fetchedHistory.sortedByDescending { it.alert.createdAt }
-                // An explicitly requested alert outranks "newest open": the family member tapped
-                // through to that one. Falls back to the usual pick if it has since vanished.
+                // A requested alert outranks "newest open". Falls back if it has vanished.
                 if (requestedAlert != null) {
                     bestAlert = requestedAlert
                     bestContact = requestedContact
                 }
 
                 if (mayClaimScreen(background)) {
-                    // Consumed only when it is actually acted on, so a silent poll cannot swallow
-                    // the family member's "View this one" before the screen has honoured it.
+                    // Consumed only when acted on, so a silent poll can't swallow it.
                     requestedSyncId = null
                     activeAlert = bestAlert
                     activeSenior = bestContact ?: contacts.first()
@@ -203,15 +178,10 @@ class FamilyAlertsViewModel(application: Application) : AndroidViewModel(applica
     }
 
     /**
-     * Whether this fetch is allowed to change what is on screen.
-     *
-     * A foreground fetch always is. A background poll only may while the screen is still just
-     * reporting the situation — once the family member has acknowledged or opened the dispatch
-     * form, they are mid-task and the screen belongs to them.
-     *
-     * RESOLVED reports rather than asks. It summarises an alert that is already over, so nothing
-     * is taken from anyone by replacing it — whereas leaving it out meant a finished summary
-     * could hold the tab shut against a *live* alert arriving behind it, which was seen happen.
+     * Whether this fetch may change what is on screen. A foreground fetch always may. A
+     * background poll may only while the screen is just reporting; once the family member has
+     * acknowledged or opened the dispatch form, the screen is theirs. RESOLVED counts as
+     * reporting, so a finished summary can't block a live alert.
      */
     private fun mayClaimScreen(background: Boolean): Boolean =
         !background || screen in PASSIVE_SCREENS
@@ -290,8 +260,7 @@ class FamilyAlertsViewModel(application: Application) : AndroidViewModel(applica
         }
     }
 
-    /** The senior was fine and the detection was wrong. Closes the alert the way [markResolved]
-     *  does, but as a false alarm, so it counts against the detector rather than as an incident. */
+    /** The senior was fine and the detection was wrong. Closes the alert like [markResolved] but as a false alarm. */
     fun markFalseAlarm() {
         val alert = activeAlert ?: return
         val token = FamilySession.getToken(getApplication()) ?: return
@@ -325,12 +294,10 @@ class FamilyAlertsViewModel(application: Application) : AndroidViewModel(applica
         screen = AlertScreen.HISTORY_DETAIL
     }
 
-    /** Same incident-summary shape [markResolved] builds for the alert it just closed, exposed
-     *  so the history detail screen can build one for any past alert, not only the freshest. */
+    /** The incident-summary [markResolved] builds, for the history detail screen to use on any past alert. */
     fun summaryFor(alert: AlertDto): ResolvedSummary = buildSummary(alert)
 
-    /** Called after leaving the Resolved screen — goes back to All Clear rather than
-     *  re-fetching, since the just-resolved alert is correctly excluded from OPEN_STATUSES. */
+    /** Called after leaving the Resolved screen. Goes back to All Clear without re-fetching. */
     fun backToAllClear() {
         activeAlert = null
         resolvedSummary = null
@@ -352,21 +319,9 @@ class FamilyAlertsViewModel(application: Application) : AndroidViewModel(applica
     }
 
     /**
-     * Who closed the alert, read from the closing entry the backend writes into
-     * `escalation_steps`.
-     *
-     * Two steps can close one: a family member resolving it, or the senior answering the wellness
-     * prompt on their own phone. Both are worth naming, and naming the senior matters most — "the
-     * person we were worried about said they were fine" is a different reassurance from "one of
-     * your relatives dealt with it".
-     *
-     * The screen used to print a hardcoded "You", which was only ever right by luck: any of the
-     * senior's other family contacts can resolve an alert, and that screen would still have
-     * credited whoever happened to be reading it.
-     *
-     * Falls back to a dash rather than to "You". Alerts resolved before the backend started
-     * recording the name genuinely have no answer, and guessing would put the wrong person's
-     * name against someone else's action in an audit trail.
+     * Who closed the alert, from the closing entry in `escalation_steps`. Either a family
+     * member resolved it or the senior answered on their own phone; both are named. Falls back
+     * to a dash for older alerts with no recorded name, rather than guessing.
      */
     private fun resolverName(alert: AlertDto): String =
         alert.escalationSteps
@@ -381,9 +336,7 @@ class FamilyAlertsViewModel(application: Application) : AndroidViewModel(applica
         /** Audit steps that close an incident, newest of which names who closed it. */
         private val CLOSING_STEPS = setOf("resolved_family", "false_positive_family", "self_cancelled_senior")
 
-        /** Screens that only report the current situation, so a poll may replace them. The rest
-         *  are steps the family member is part-way through and must not be pulled out from under
-         *  them. */
+        /** Screens that only report the situation, so a poll may replace them. The rest are steps the family member is partway through. */
         private val PASSIVE_SCREENS = setOf(
             AlertScreen.LOADING,
             AlertScreen.ALL_CLEAR,
@@ -392,23 +345,18 @@ class FamilyAlertsViewModel(application: Application) : AndroidViewModel(applica
             AlertScreen.RESOLVED
         )
 
-        /** Matches the Home tab's cadence — the two tabs read the same endpoint and there is no
-         *  reason for one to learn about an alert sooner than the other. */
+        /** Matches the Home tab's cadence, since both read the same endpoint. */
         private const val POLL_INTERVAL_MS = 20_000L
     }
 }
 
 /**
- * Parses a timestamp as the backend writes it and converts it to the device's own zone.
- *
- * The cloud columns are TIMESTAMP WITHOUT TIME ZONE holding UTC, so the strings arrive with no
- * offset. Reading them as local time made every alert look hours stale on any device outside
- * UTC — a brand-new alert would read "8 hr ago" on a phone in the Philippines. Every display of
- * a server timestamp must go through here.
+ * Parses a server timestamp and converts it to the device's time zone. The cloud stores UTC
+ * with no offset, so reading it as local time made new alerts look hours old. Every display
+ * of a server timestamp must go through here.
  */
 fun parseServerTime(iso: String): ZonedDateTime? {
-    // The offset branch is defensive: today the backend always sends naive UTC, but if a column
-    // ever becomes tz-aware, silently re-interpreting the offset would shift every timestamp.
+    // Defensive: the backend sends naive UTC today, but a tz-aware column shouldn't shift timestamps.
     runCatching { OffsetDateTime.parse(iso) }.getOrNull()?.let {
         return it.atZoneSameInstant(ZoneId.systemDefault())
     }
@@ -418,13 +366,10 @@ fun parseServerTime(iso: String): ZonedDateTime? {
 }
 
 /**
- * Plain-language "why we're asking" text derived from Alert.triggerType, mirroring the
- * senior-side wellness-prompt requirement in the spec §7 so families get the same context.
- *
- * English-only, deliberately: [FamilyAlertNotifier] (a system notification built outside any
- * Composable, from an FCM message) has no access to [LocalFamilyCopy] to translate this with.
- * The in-app Alerts tab uses [FamilyStrings.Copy.alertReasonText] instead, which is the same
- * wording in English and adds Filipino.
+ * Plain-language "why we're asking" text from Alert.triggerType, so families get the same
+ * context as the senior. English only, because [FamilyAlertNotifier] builds notifications
+ * outside any Composable and can't use [LocalFamilyCopy]. The in-app tab uses
+ * [FamilyStrings.Copy.alertReasonText], which adds Filipino.
  */
 fun alertReasonText(triggerType: String): String = when (triggerType) {
     "inactivity" -> "No movement for a while during their usual active hours. No response to the check-in prompt."
@@ -437,10 +382,7 @@ fun alertReasonText(triggerType: String): String = when (triggerType) {
     else -> "An unusual pattern was detected in their routine."
 }
 
-/** Minutes between a server timestamp and now, clamped to 0 -- feeds
- *  [FamilyStrings.Copy.relativeTimeAgo], which turns it into a translated phrase. Negative
- *  would mean the server clock is marginally ahead of the device's; the alert is new either
- *  way. */
+/** Minutes between a server timestamp and now, clamped to 0. Feeds [FamilyStrings.Copy.relativeTimeAgo]. */
 fun minutesAgo(iso: String): Long {
     val then = parseServerTime(iso) ?: return 0L
     return Duration.between(then, ZonedDateTime.now()).toMinutes().coerceAtLeast(0)

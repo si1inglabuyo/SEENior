@@ -46,10 +46,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.pup.seenior.network.dto.ContactDto
 
 /**
- * Family landing screen (designs/family_contact/home_screen_with_linked_senior). Shows every
- * linked senior with their status tiles and a merged recent-alerts feed, both fed by
- * [FamilyHomeViewModel] from the same alerts the Alerts tab acts on — Home used to hardcode
- * "0 alerts today / no alerts yet" while an open HIGH alert sat one tab away.
+ * Family landing screen. Shows every linked senior with status tiles and a merged recent
+ * alerts feed, both from [FamilyHomeViewModel] using the same alerts the Alerts tab acts on.
  */
 @Composable
 fun FamilyHomeScreen(
@@ -64,10 +62,8 @@ fun FamilyHomeScreen(
         profileViewModel.refresh()
     }
 
-    // Poll for as long as this tab is on screen and the app is in the foreground, stopping the
-    // moment it isn't. A single fetch on resume left a family member staring at "All clear"
-    // while an alert was already sitting on the server — the senior list this is keyed on
-    // rarely changes, so nothing would have re-triggered it.
+    // Poll while this tab is on screen and the app is in the foreground. A single fetch on
+    // resume left "All clear" showing while an alert sat on the server.
     LifecycleResumeEffect(seniorsViewModel.contacts) {
         homeViewModel.startPolling(seniorsViewModel.contacts)
         onPauseOrDispose { homeViewModel.stopPolling() }
@@ -109,9 +105,8 @@ fun FamilyHomeScreen(
             )
             Text(greetingSubtitle(homeViewModel, copy), color = FamilyColors.TextSecondary, fontSize = 15.sp)
 
-            // Read from the per-senior status rather than the recent-alerts feed: that feed
-            // includes alerts that have already been resolved, so it would keep claiming
-            // someone needs attention after the family member had dealt with them.
+            // Read from the per-senior status, not the recent-alerts feed, which includes
+            // resolved alerts and would keep claiming someone needs attention.
             val needsAttention = seniorsViewModel.contacts.filter {
                 homeViewModel.statuses[it.senior.syncId]?.hasOpenAlert == true
             }
@@ -124,9 +119,8 @@ fun FamilyHomeScreen(
 
             SectionHeader(copy.sectionMySeniors, onSeeAll = onSeeAllSeniors.takeIf { hasSeniors })
 
-            // Loading and failure are both checked before the empty case — rendering either as
-            // EmptyLinkCard told the user "no one linked yet" when their seniors were still
-            // linked, just slow to fetch or unreachable.
+            // Loading and failure are checked before the empty case, or the user would be told
+            // "no one linked yet" while seniors were just slow to load.
             if (seniorsViewModel.isLoading) {
                 LoadingCard(copy.loadingSeniors)
             } else if (seniorsViewModel.loadFailed) {
@@ -142,8 +136,7 @@ fun FamilyHomeScreen(
                 seniorsViewModel.contacts.forEach { contact ->
                     SeniorCard(
                         contact = contact,
-                        // Null whenever the figures aren't trustworthy yet — the tiles show
-                        // "—" rather than a stale or invented value.
+                        // Null whenever the figures aren't trustworthy yet; tiles show "—".
                         status = if (homeViewModel.loadFailed) null
                         else homeViewModel.statuses[contact.senior.syncId]
                     )
@@ -177,8 +170,7 @@ fun FamilyHomeScreen(
     }
 }
 
-/** The line under the greeting. "You're all set today" is a claim about the seniors' safety,
- *  so it is only made once a fetch has confirmed nothing is open. */
+/** The line under the greeting. "You're all set today" is only said once a fetch confirmed nothing is open. */
 private fun greetingSubtitle(homeViewModel: FamilyHomeViewModel, copy: FamilyStrings.Copy): String = when {
     !homeViewModel.loaded || homeViewModel.loadFailed -> copy.greetingCheckingOnSeniors
     homeViewModel.statuses.values.any { it.hasOpenAlert } -> copy.greetingSomeoneNeedsAttention
@@ -186,16 +178,8 @@ private fun greetingSubtitle(homeViewModel: FamilyHomeViewModel, copy: FamilyStr
 }
 
 /**
- * Home's replacement for the modal alert popup that used to sit over this tab.
- *
- * The popup was a second surface for an alert the Alerts tab already opens straight onto, and
- * being modal it blocked the whole of Home until it was answered — on the one screen a family
- * member opens for a quick read on how everyone is doing. This states the same fact in a line
- * and hands off to the tab that can act on it.
- *
- * Deliberately routed through onSeeAllAlerts rather than naming an alert id the way the popup's
- * "View" did: the popup was advertising one specific alert and had to open that one, while this
- * banner only reports that something is open, so the Alerts tab's own pick is the right one.
+ * Home's replacement for the modal alert popup. It states that an alert is open and hands
+ * off to the Alerts tab, which picks the alert itself, instead of blocking Home.
  */
 @Composable
 private fun OngoingAlertBanner(names: List<String>, onOpenAlerts: () -> Unit) {
@@ -322,15 +306,10 @@ private fun SeniorCard(contact: ContactDto, status: SeniorStatus?) {
                 label = copy.alertsTodayLabel,
                 modifier = Modifier.weight(1f).fillMaxHeight()
             )
-            // The privacy decision the earlier note here asked for was taken deliberately:
-            // the senior's phone reports its *current* charge on each heartbeat and the server
-            // overwrites the previous value. A single reading is device health — whether the
-            // phone can keep monitoring at all — while a series of readings would describe when
-            // the senior charges their phone, and so roughly when they sleep, which is the
-            // behavioural data the spec §11 keeps on the device. Nothing accumulates.
-            //
-            // Still "—" for a senior whose phone has never checked in. That is a real state
-            // worth showing as itself rather than dressing up as 0%.
+            // The senior's phone reports its current charge on each heartbeat and the server
+            // overwrites the previous value. A single reading is device health; a series would
+            // reveal when the senior sleeps, which stays on the device. Shows "—" if the phone
+            // has never checked in, rather than 0%.
             StatTile(
                 icon = Icons.Filled.BatteryChargingFull,
                 value = senior.batteryPercent?.let { "$it%" } ?: copy.unknownDash,
@@ -343,11 +322,8 @@ private fun SeniorCard(contact: ContactDto, status: SeniorStatus?) {
 }
 
 /**
- * How recently the senior's phone checked in — a green "Phone active" when the last heartbeat
- * was within ~20 minutes (the sensor loop sends one every ~15), otherwise how long ago.
- *
- * This is the honest version of the mock's old "Online" badge: the heartbeat
- * (`seniors.last_seen_at`) is a real signal now, unlike when [StatusChip] was written.
+ * How recently the senior's phone checked in: a green "Phone active" when the last heartbeat
+ * (`seniors.last_seen_at`) was within ~20 minutes, otherwise how long ago.
  */
 @Composable
 private fun SeniorPresenceLine(lastSeenAt: String?) {
@@ -374,13 +350,11 @@ private fun SeniorPresenceLine(lastSeenAt: String?) {
     }
 }
 
-/** The alert-status chip. Whether an alert is open is what a family member opens this screen
- *  to find out; the senior's device presence is a separate line (see [SeniorPresenceLine]). */
+/** The alert-status chip. The senior's device presence is a separate line (see [SeniorPresenceLine]). */
 @Composable
 private fun StatusChip(status: SeniorStatus?) {
     val copy = LocalFamilyCopy.current
-    // Kept short on purpose: this chip shares its row with the senior's name, and a longer
-    // label ("Needs attention") squeezed the name into "Revi …" on a 720px screen.
+    // Kept short because the chip shares its row with the senior's name.
     val (text, color, background) = when {
         status == null -> Triple(copy.statusChecking, FamilyColors.TextSecondary, FamilyColors.FieldBackground)
         status.hasOpenAlert -> Triple(copy.statusAlert, FamilyColors.AlertRed, FamilyColors.AlertRedBg)
@@ -397,14 +371,11 @@ private fun StatusChip(status: SeniorStatus?) {
     }
 }
 
-/** High/medium open risk breaks out of the flat blue palette — a family member scanning Home
- *  should not have to read the tile's text to notice something is wrong. */
+/** High/medium open risk breaks out of the flat blue palette so a problem is noticeable at a glance. */
 /**
- * Colours the battery tile only when the charge is something a family member could act on.
- *
- * A phone on the charger is being dealt with, whatever the number says — 8% and climbing needs
- * nobody's attention, so it stays the ordinary blue. It is 8% and *falling* that means monitoring
- * is about to stop, and that is worth the same red the risk tile uses for a high-risk alert.
+ * Colours the battery tile only when the charge is actionable. A phone on the charger is
+ * fine whatever the number; a low and falling charge means monitoring is about to stop, so
+ * it gets the same red as the high-risk tile.
  */
 private fun batteryTileColor(percent: Int?, charging: Boolean): Color = when {
     percent == null || charging -> FamilyColors.Blue
@@ -435,8 +406,7 @@ private fun StatTile(
     ) {
         Icon(icon, contentDescription = label, tint = Color.White, modifier = Modifier.size(22.dp))
         Text(value, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 6.dp))
-        // One line, always. The three tiles share a row sized to the tallest of them, so a label
-        // that wraps (the Filipino ones used to) makes all three taller than in English.
+        // One line always, since the three tiles share a row and a wrapping label makes all taller.
         Text(
             label,
             color = Color.White,
@@ -473,9 +443,7 @@ private fun RecentAlertRow(item: RecentAlert, onClick: () -> Unit) {
             Icon(Icons.Outlined.Notifications, null, tint = accent, modifier = Modifier.size(20.dp))
         }
         Column(modifier = Modifier.padding(start = 12.dp).weight(1f)) {
-            // Name first, status in the chip. Spelling the status out in the headline instead
-            // ("You acknowledged Revi Ocasion") duplicated the chip and, on a 720px screen, was
-            // the thing that got ellipsized by it.
+            // Name first, status in the chip, so the headline isn't ellipsized on small screens.
             Text(
                 item.seniorName,
                 color = FamilyColors.TextPrimary,
@@ -484,13 +452,10 @@ private fun RecentAlertRow(item: RecentAlert, onClick: () -> Unit) {
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-            // The relative time rides in this line rather than in its own right-hand column:
-            // stacking it above the chip made the right side wide enough to ellipsize the
-            // headline ("You acknowledged R…"), losing the part that says what happened.
-            // The exact clock time is still on the Alerts tab's detail screen.
+            // The relative time sits in this line, not a right-hand column, which would
+            // ellipsize the headline. The exact time is on the Alerts tab's detail screen.
             Text(
-                // "17 hr" not "17 hr ago": next to the widest chip ("Acknowledged") the extra
-                // word was exactly what pushed this line into an ellipsis.
+                // "17 hr" not "17 hr ago": the extra word would push this line into an ellipsis.
                 "${copy.triggerShortLabel(item.alert.triggerType)} · ${copy.relativeTimeAgoShort(minutesAgo(item.alert.createdAt))}",
                 color = FamilyColors.TextSecondary,
                 fontSize = 13.sp,

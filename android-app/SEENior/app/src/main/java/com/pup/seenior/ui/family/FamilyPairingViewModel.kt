@@ -17,9 +17,8 @@ import retrofit2.HttpException
 import java.io.IOException
 
 /**
- * Drives the Link tab's pairing flow: code entry (verify) -> relationship (connected/pair).
- * Assumes the caller is already logged in (account creation is its own earlier step via
- * FamilyAuthViewModel) - used both for a family member's 1st senior and their 2nd/3rd.
+ * Drives the Link tab's pairing flow: code entry (verify), then relationship (connected/pair).
+ * Assumes the caller is logged in; used for a family member's first and later seniors.
  */
 class FamilyPairingViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -40,11 +39,8 @@ class FamilyPairingViewModel(application: Application) : AndroidViewModel(applic
         private set
 
     /**
-     * What actually gets stored, whichever way it was given.
-     *
-     * The typed value wins when there is one: the chips are a shortcut, and someone who has
-     * bothered to type means the shortcut did not fit them. Null means neither was supplied,
-     * which is what keeps the button disabled.
+     * What gets stored for the relationship. A typed value wins over the chips. Null means
+     * neither was supplied, which keeps the button disabled.
      */
     val relationshipLabel: String?
         get() = otherRelationship.trim().takeIf { it.isNotEmpty() } ?: selectedRelationship
@@ -66,16 +62,11 @@ class FamilyPairingViewModel(application: Application) : AndroidViewModel(applic
     var error by mutableStateOf<FamilyError?>(null)
         private set
 
-    /**
-     * The just-linked senior's first name once [pair] has actually succeeded, or null. Drives the
-     * success dialog on the Connected screen — the pairing used to navigate straight to Home with
-     * no confirmation, so nothing told the family member the link had gone through.
-     */
+    /** The just-linked senior's first name once [pair] succeeded, or null. Drives the success dialog on the Connected screen. */
     var pairedSeniorName by mutableStateOf<String?>(null)
         private set
 
-    /** The navigation callback that was passed to [pair], held until the family member dismisses
-     *  the success dialog so the confirmation is seen before the screen moves on. */
+    /** The navigation callback passed to [pair], held until the success dialog is dismissed. */
     private var pendingContinuation: (() -> Unit)? = null
 
     /** Clears the per-pairing fields so the Link screen starts fresh for "Add another senior". */
@@ -121,10 +112,8 @@ class FamilyPairingViewModel(application: Application) : AndroidViewModel(applic
                     PairRequest(inviteCode = code, relationshipLabel = relationship),
                     auth = "Bearer $token"
                 )
-                // Hold the navigation until the family member has seen the confirmation. Empty
-                // string (not a hardcoded English fallback) when the server didn't return a
-                // name -- the screen substitutes copy.theSeniorFallback in the account's own
-                // language; blank still counts as "paired" for the dialog's own null-check.
+                // Hold the navigation until the confirmation has been seen. An empty string when
+                // the server returned no name; the screen then uses copy.theSeniorFallback.
                 pendingContinuation = onPaired
                 pairedSeniorName = verifiedSenior?.firstName.orEmpty()
             } catch (e: HttpException) {
@@ -150,8 +139,7 @@ class FamilyPairingViewModel(application: Application) : AndroidViewModel(applic
     }
 
     private companion object {
-        /** Matches contacts.relationship_label, String(32) — truncate here rather than let the
-         *  server reject a pairing over a long word typed in good faith. */
+        /** Matches contacts.relationship_label, String(32). Truncate here rather than let the server reject the pairing. */
         const val RELATIONSHIP_MAX_LENGTH = 32
     }
 }

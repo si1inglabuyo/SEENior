@@ -60,12 +60,11 @@ import com.pup.seenior.network.dto.AlertDto
 import com.pup.seenior.network.dto.ContactDto
 import com.pup.seenior.network.dto.SeniorDto
 
-// Matches the mockup's fixed "10 mins/minutes" copy -- not read from any backend setting
-// (unlike the family-tier SMS window, which does read FAMILY_RESPONSE_SECONDS; see sms.py).
+// Matches the mockup's fixed "10 minutes" copy; not read from a backend setting.
 private const val BARANGAY_WINDOW_MINUTES = 10
 
-// Sent verbatim as the dispatch `reason` (POST /alerts/{id}/dispatch) -- kept in English
-// regardless of the account's language; see Copy.dispatchReasonLabel's kdoc for why.
+// Sent as the dispatch `reason` (POST /alerts/{id}/dispatch), in English whatever the account's
+// language. See Copy.dispatchReasonLabel.
 private val DISPATCH_REASON_CODES = listOf(
     "No movement / unresponsive",
     "Fall suspected",
@@ -74,9 +73,9 @@ private val DISPATCH_REASON_CODES = listOf(
 )
 
 /**
- * Family Alerts tab (designs/family_contact/dashboard_notification). A small state machine
- * driven by FamilyAlertsViewModel.screen: All Clear <-> Active Alert -> Acknowledged -> (Call
- * Senior | Alert Location | Dispatch Barangay, each with their own back) -> Resolved -> All Clear.
+ * Family Alerts tab, a small state machine driven by FamilyAlertsViewModel.screen:
+ * All Clear <-> Active Alert -> Acknowledged -> (Call Senior | Alert Location | Dispatch
+ * Barangay, each with its own back) -> Resolved -> All Clear.
  */
 @Composable
 fun FamilyAlertsScreen(
@@ -86,9 +85,8 @@ fun FamilyAlertsScreen(
     seniorsLoadFailed: Boolean = false,
     onRetrySeniors: () -> Unit = {}
 ) {
-    // Polls while this tab is resumed, rather than fetching once when the senior list changes —
-    // that list rarely changes, so nothing re-triggered the fetch and the screen could keep
-    // asserting "All clear" long after an alert had arrived.
+    // Polls while this tab is resumed, since the senior list rarely changes and a single
+    // fetch could leave "All clear" showing after an alert arrived.
     LifecycleResumeEffect(contacts) {
         viewModel.startPolling(contacts)
         onPauseOrDispose { viewModel.stopPolling() }
@@ -97,8 +95,7 @@ fun FamilyAlertsScreen(
     val fallbackSenior = contacts.firstOrNull()?.senior
     val senior = viewModel.activeSenior?.senior ?: fallbackSenior
 
-    // Until the senior list has loaded we can't know whether an empty list means "none linked"
-    // or "not fetched yet", so don't render any status claim.
+    // Until the senior list loads we can't tell "none linked" from "not fetched", so make no status claim.
     if (seniorsLoading) {
         AlertsLoadingContent()
         return
@@ -106,9 +103,7 @@ fun FamilyAlertsScreen(
 
     val copy = LocalFamilyCopy.current
 
-    // If the senior list itself never loaded we know nothing about their status — showing
-    // "All Clear" here would actively assert the senior is fine, which is the worst possible
-    // thing for a safety app to get wrong.
+    // If the senior list never loaded we know nothing, and "All Clear" would wrongly say the senior is fine.
     if (seniorsLoadFailed) {
         AlertsLoadFailedContent(
             message = copy.couldNotReachInternet,
@@ -197,9 +192,7 @@ fun FamilyAlertsScreen(
     }
 }
 
-/** Shown while the status check is still in flight. The tab used to default straight to
- *  All Clear, so a cold server meant it asserted "your senior is safe" for ~40s before it had
- *  actually checked anything. */
+/** Shown while the status check is in flight, so a cold server doesn't make the tab claim the senior is safe. */
 @Composable
 private fun AlertsLoadingContent() {
     val copy = LocalFamilyCopy.current
@@ -215,8 +208,7 @@ private fun AlertsLoadingContent() {
     }
 }
 
-/** Explicit "we don't know" state. Distinct from All Clear on purpose: All Clear is a positive
- *  claim that the senior is fine, and we must never make that claim from a failed request. */
+/** The "we don't know" state, separate from All Clear, which must never be claimed from a failed request. */
 @Composable
 private fun AlertsLoadFailedContent(message: String, onRetry: () -> Unit) {
     val copy = LocalFamilyCopy.current
@@ -241,14 +233,9 @@ private fun AlertsLoadFailedContent(message: String, onRetry: () -> Unit) {
 }
 
 /**
- * The Alerts tab with nothing open.
- *
- * Deliberately almost empty. This used to render a senior profile card, a "Low" risk tile, a
- * "—" battery tile, a green reassurance box and a map placeholder — none of it derived from
- * anything the app knew at that moment. "Low" in particular was a hardcoded literal, not a
- * reading, and a safety app must not assert a risk level it has never measured. The senior's
- * details already live on the Contacts tab; when nothing is happening the honest answer is one
- * sentence.
+ * The Alerts tab with nothing open. Deliberately almost empty: it used to show a profile
+ * card, a hardcoded "Low" risk tile and a map placeholder, none derived from real data, and
+ * a safety app must not assert a risk level it hasn't measured.
  */
 @Composable
 private fun AllClearContent(senior: SeniorDto?, onViewHistory: () -> Unit) {
@@ -260,9 +247,8 @@ private fun AllClearContent(senior: SeniorDto?, onViewHistory: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            // Kept apart from the no-alerts line on purpose: "link a senior" is not a statement
-            // about anybody's safety, it is the setup step, and a brand-new user landing on a
-            // blank tab would otherwise have no idea why it is blank.
+            // Separate from the no-alerts line: "link a senior" is a setup step, not a safety
+            // statement, and a new user would otherwise not know why the tab is blank.
             Text(
                 if (senior == null) copy.linkASeniorToStart
                 else copy.noOngoingAlerts,
@@ -491,10 +477,9 @@ private fun AlertLocationContent(alert: AlertDto, senior: SeniorDto, onBack: () 
                 interactive = true
             )
             Spacer(Modifier.height(20.dp))
-            // Routes to the location captured for THIS alert when there is one (spec §11 —
-            // one fix per alert, decoded here from its geohash cell), so help goes where the
-            // senior actually was. Falls back to the registered home address only when no fix
-            // was captured. The map above already draws the same cell.
+            // Routes to the location captured for this alert (decoded from its geohash), so
+            // help goes where the senior was. Falls back to the registered address if no fix
+            // was captured.
             val alertCell = alert.locationClusterId?.let(Geohash::decode)
             ColorPillButton(
                 if (alertCell != null) copy.navigateHereButton else copy.navigateToHomeAddressButton,
@@ -507,13 +492,10 @@ private fun AlertLocationContent(alert: AlertDto, senior: SeniorDto, onBack: () 
 }
 
 /**
- * Opens a maps app on the alert's captured location (a decoded geohash [cell]) if there is one,
- * otherwise on the senior's registered [address].
- *
- * Tries a `geo:` intent first — it lets the OS offer a chooser when several maps apps are
- * installed — then falls back to a Google Maps web URL, which a browser can always handle. Both
- * are wrapped: a device with no maps app AND no browser must not crash the app from a tap on a
- * button during an emergency (a bare emulator is exactly that device).
+ * Opens a maps app on the alert's captured location ([cell]) if there is one, otherwise on
+ * the registered [address]. Tries a `geo:` intent first (so the OS can offer a chooser),
+ * then a Google Maps web URL. Both are wrapped so a device with no maps app or browser
+ * doesn't crash during an emergency.
  */
 private fun openMaps(context: android.content.Context, cell: Geohash.Cell?, address: String) {
     val geo: Uri
@@ -550,8 +532,7 @@ private fun DispatchBarangayContent(
             )
 
             SectionLabel(copy.reasonForDispatchLabel, Modifier.padding(top = 24.dp, bottom = 10.dp))
-            // DISPATCH_REASON_CODES are the English values sent to the server; only the
-            // displayed label (copy.dispatchReasonLabel) changes with the account's language.
+            // DISPATCH_REASON_CODES are the English values sent to the server; only the label is translated.
             DISPATCH_REASON_CODES.forEach { reasonCode ->
                 val selected = selectedReason == reasonCode
                 Row(
@@ -632,8 +613,7 @@ private fun ResolvedContent(senior: SeniorDto, summary: ResolvedSummary, onDone:
     }
 }
 
-/** Every alert across every linked senior — reached from All Clear's "View alert history"
- *  link. Each tile is tappable, opening [AlertHistoryDetailContent] for that one alert. */
+/** Every alert across every linked senior, reached from All Clear's "View alert history". Each tile opens [AlertHistoryDetailContent]. */
 @Composable
 private fun AlertHistoryListContent(
     items: List<AlertHistoryItem>,
@@ -724,11 +704,9 @@ private fun riskColor(riskLevel: String): Color = when (riskLevel) {
 }
 
 /**
- * Read-only detail for one past alert, tapped from [AlertHistoryListContent]. No action buttons
- * -- unlike [AlertDetailContent]/[AcknowledgedContent] this is history, not a live incident, so
- * Acknowledge/Dispatch/Call/Resolve would all be acting on something already over. Reuses the
- * same incident-summary shape [ResolvedContent] shows for a just-closed alert (built for any
- * alert via [FamilyAlertsViewModel.summaryFor]), plus the reason text and location map.
+ * Read-only detail for one past alert, opened from [AlertHistoryListContent]. No action
+ * buttons, since the incident is over. Reuses the summary shape [ResolvedContent] shows
+ * (via [FamilyAlertsViewModel.summaryFor]), plus the reason text and location map.
  */
 @Composable
 private fun AlertHistoryDetailContent(item: AlertHistoryItem, summary: ResolvedSummary, onBack: () -> Unit) {
@@ -776,9 +754,8 @@ private fun AlertHistoryDetailContent(item: AlertHistoryItem, summary: ResolvedS
                 SummaryRow(copy.summaryDuration, copy.durationMinutes(summary.durationMinutes))
                 SummaryRow(copy.summaryResolvedBy, summary.resolvedBy, isLast = true)
             }
-            // The location shows only while the alert is still open -- the family may still need
-            // to reach the senior. Once it is resolved or marked a false positive there is
-            // nothing left to act on, so the stored position is not shown again.
+            // The location shows only while the alert is open. Once resolved or marked a false
+            // positive there is nothing left to act on.
             if (alert.status != "resolved" && alert.status != "false_positive") {
                 SectionLabel(copy.lastKnownLocationLabel, Modifier.fillMaxWidth().padding(top = 24.dp, bottom = 10.dp))
                 AlertLocationMap(
