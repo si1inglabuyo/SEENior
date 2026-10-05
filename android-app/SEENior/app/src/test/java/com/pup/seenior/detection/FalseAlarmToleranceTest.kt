@@ -103,4 +103,49 @@ class FalseAlarmToleranceTest {
         val extra = (threshold(2.6, 2.6) - FalseAlarmTolerance.BASE_THRESHOLD) * mad
         assertEquals(5.6, extra, 1e-9)
     }
+
+    // ------------------------------------------------------------ real alerts take the slack back
+
+    private fun gate(falseAlarms: List<Double>, real: Int) = FalseAlarmTolerance.thresholdFor(falseAlarms, real)
+
+    @Test
+    fun `a real alert in the block takes back its share of the raise`() {
+        // Two false alarms at 3.0 raise 2.5 to 3.25. One real alert keeps (2 - 1) / 2 of that raise.
+        assertEquals(2.875, gate(listOf(3.0, 3.0), real = 1), delta)
+    }
+
+    @Test
+    fun `as many real alerts as false alarms removes the raise entirely`() {
+        assertEquals(2.5, gate(listOf(3.0, 3.0), real = 2), delta)
+        assertEquals(2.5, gate(listOf(3.0, 3.0), real = 5), delta)
+    }
+
+    @Test
+    fun `real alerts alone never move the gate, in either direction`() {
+        assertEquals(2.5, gate(emptyList(), real = 3), delta)
+        assertEquals(2.5, gate(listOf(3.0), real = 0), delta)
+    }
+
+    @Test
+    fun `more false alarms keep more of the raise against the same real alert`() {
+        assertTrue(gate(listOf(3.0, 3.0, 3.0, 3.0), real = 1) > gate(listOf(3.0, 3.0), real = 1))
+    }
+
+    @Test
+    fun `the breakdown shows every step and agrees with the threshold`() {
+        val b = FalseAlarmTolerance.explain(listOf(3.0, 3.0), realAlertCount = 1)
+        assertEquals(3.0, b.medianZ!!, delta)
+        assertEquals(3.25, b.gateBeforeRealAlerts, delta)
+        assertEquals(0.5, b.keptShare, delta)
+        assertEquals(2.875, b.gate, delta)
+        assertEquals(b.gate, FalseAlarmTolerance.thresholdFor(listOf(3.0, 3.0), 1), delta)
+    }
+
+    @Test
+    fun `the minutes added are the raise times the block's MAD`() {
+        // MAD 1,108 s (18.5 min): 0.75 z is 13.9 min with no real alert, half that with one.
+        val mad = 1108.0
+        assertEquals(13.85, FalseAlarmTolerance.explain(listOf(3.0, 3.0)).extraMinutes(mad), 0.01)
+        assertEquals(6.925, FalseAlarmTolerance.explain(listOf(3.0, 3.0), 1).extraMinutes(mad), 0.01)
+    }
 }

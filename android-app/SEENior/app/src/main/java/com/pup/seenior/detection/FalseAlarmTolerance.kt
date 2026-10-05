@@ -20,6 +20,10 @@ package com.pup.seenior.detection
  *   demo's injected z = 4.0, see [AnomalySimulator]) can't push the threshold to the cap.
  * - [WINDOW_DAYS]: the same 14 days as the baseline. Nothing is stored, so it lapses by itself.
  * - The median of the evidence, so one odd score can't drag the threshold.
+ * - Real alerts take the slack back. An alert in the same (signal, block) that went past the
+ *   senior and was not a false alarm (family or the barangay acted on it) means this hour
+ *   does sometimes matter, so each one cancels its share of the raise: with F false alarms
+ *   and R real ones, the raise is multiplied by `(F - R) / F`, and is gone once R >= F.
  *
  * Known limits: the stored score is the z when the alert was raised, so usually just over
  * 2.5 and the raise is small; and a z from an older baseline is compared with a newer one,
@@ -53,9 +57,43 @@ object FalseAlarmTolerance {
      * @param falseAlarmScores the `deviation_score` of each recent alert in this block that was
      *   closed as a false alarm. Scores outside `[BASE_THRESHOLD, CAP)` are dropped here.
      */
-    fun thresholdFor(falseAlarmScores: List<Double>): Double {
+    fun thresholdFor(falseAlarmScores: List<Double>, realAlertCount: Int = 0): Double =
+        explain(falseAlarmScores, realAlertCount).gate
+
+    /**
+     * Every step of [thresholdFor], kept so the demo can show the working and the detector
+     * can't drift from it: there is one computation, and this is it.
+     */
+    data class Breakdown(
+        /** The false-alarm scores that count as evidence (those in `[BASE_THRESHOLD, CAP)`). */
+        val evidence: List<Double>,
+        val realAlertCount: Int,
+        /** Median of [evidence]; null until there are [MIN_EVIDENCE] of them. */
+        val medianZ: Double?,
+        /** `median + MARGIN` held to `[BASE_THRESHOLD, CAP]`, before real alerts take any back. */
+        val gateBeforeRealAlerts: Double,
+        /** The part of the raise that survives the real alerts, 0.0 to 1.0. */
+        val keptShare: Double,
+        val gate: Double
+    ) {
+        /** How far the gate sits above the base, in z-scores. */
+        val raise: Double get() = gate - BASE_THRESHOLD
+
+        /** The same raise as extra tolerated stillness, given this block's effective MAD in seconds. */
+        fun extraMinutes(effectiveMadSeconds: Double): Double = raise * effectiveMadSeconds / 60.0
+    }
+
+    fun explain(falseAlarmScores: List<Double>, realAlertCount: Int = 0): Breakdown {
         val evidence = falseAlarmScores.filter { it >= BASE_THRESHOLD && it < CAP }
-        if (evidence.size < MIN_EVIDENCE) return BASE_THRESHOLD
-        return (MedianMad.median(evidence) + MARGIN).coerceIn(BASE_THRESHOLD, CAP)
+        if (evidence.size < MIN_EVIDENCE) {
+            return Breakdown(evidence, realAlertCount, null, BASE_THRESHOLD, 1.0, BASE_THRESHOLD)
+        }
+        val median = MedianMad.median(evidence)
+        val before = (median + MARGIN).coerceIn(BASE_THRESHOLD, CAP)
+        val kept = ((evidence.size - realAlertCount).toDouble() / evidence.size).coerceIn(0.0, 1.0)
+        return Breakdown(
+            evidence, realAlertCount, median, before, kept,
+            gate = BASE_THRESHOLD + (before - BASE_THRESHOLD) * kept
+        )
     }
 }

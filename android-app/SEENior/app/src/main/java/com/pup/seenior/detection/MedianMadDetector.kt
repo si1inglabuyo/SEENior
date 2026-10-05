@@ -153,13 +153,10 @@ object MedianMadDetector {
             // [FalseAlarmTolerance]). A reading above 2.5 but below the loosened threshold is
             // logged and nobody is asked. Asked only after the reading clears 2.5, so ordinary
             // polls skip the lookup. The stored score and Layer 3 are unchanged.
+            val since = FalseAlarmTolerance.windowStart(sensorData.timestamp)
             val threshold = FalseAlarmTolerance.thresholdFor(
-                alertDao.getToleratedDeviationScores(
-                    seniorId,
-                    triggerType,
-                    sensorData.timeBlock,
-                    FalseAlarmTolerance.windowStart(sensorData.timestamp)
-                )
+                alertDao.getToleratedDeviationScores(seniorId, triggerType, sensorData.timeBlock, since),
+                alertDao.getConfirmedAlertCount(seniorId, triggerType, sensorData.timeBlock, since)
             )
             if (zScore < threshold) {
                 recordLowRisk(seniorId, triggerType, sensorData, zScore, alertDao)

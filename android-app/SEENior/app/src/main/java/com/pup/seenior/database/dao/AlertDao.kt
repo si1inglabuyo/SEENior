@@ -135,6 +135,28 @@ interface AlertDao {
         since: Long
     ): List<Double>
 
+    /**
+     * How many of this signal's recent alerts in one time block were real: they went past the
+     * senior and family or the barangay acted on them, rather than being closed as false
+     * alarms. Each one takes back its share of the slack [getToleratedDeviationScores] earned.
+     */
+    @Query("""
+        SELECT COUNT(*) FROM Alerts
+        WHERE senior_id = :seniorId AND trigger_type = :triggerType AND time_block = :timeBlock
+          AND status IN ('acknowledged_family', 'escalated_barangay', 'resolved')
+          AND triggered_at >= :since
+    """)
+    suspend fun getConfirmedAlertCount(
+        seniorId: Int,
+        triggerType: String,
+        timeBlock: String,
+        since: Long
+    ): Int
+
+    /** Removes the demo's planted rows, found by the marker step they carry. */
+    @Query("DELETE FROM Alerts WHERE escalation_steps LIKE '%' || :step || '%'")
+    suspend fun deleteByEscalationStep(step: String)
+
     @Query("UPDATE Alerts SET risk_level = :riskLevel, deviation_score = :deviationScore WHERE alert_id = :alertId")
     suspend fun updateSeverity(alertId: Int, riskLevel: String, deviationScore: Double)
 

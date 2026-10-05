@@ -52,6 +52,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.pup.seenior.ui.demo.DemoScreen
+import com.pup.seenior.ui.demo.SHOW_DEMO_TOOLS
 import com.pup.seenior.ui.contacts.GreenHeader
 import com.pup.seenior.ui.contacts.InviteScreen
 import com.pup.seenior.ui.contacts.SeniorContactsScreen
@@ -67,11 +69,14 @@ import com.pup.seenior.ui.LocalProfileCopy
 import com.pup.seenior.ui.theme.SeniorColors
 import com.pup.seenior.validation.PhilippinePhone
 import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.Science
 
 private enum class ProfilePage {
     HOME, EDIT, ADDRESS_MAP, LANGUAGE, ABOUT, HOW_TO_USE, FAQS, SUPPORT, TERMS, PRIVACY, DELETE_ACCOUNT,
     /** Only reachable for a senior living alone — for everyone else these are bottom tabs. */
-    FAMILY, FAMILY_INVITE
+    FAMILY, FAMILY_INVITE,
+    /** Demo-only; see SHOW_DEMO_TOOLS. */
+    DEMO
 }
 
 /**
@@ -122,6 +127,7 @@ fun SeniorProfileScreen(onAccountDeleted: () -> Unit) {
             onBack = { page = ProfilePage.HOME }
         )
         ProfilePage.FAMILY_INVITE -> InviteScreen(onBack = { page = ProfilePage.FAMILY })
+        ProfilePage.DEMO -> DemoScreen(onBack = { page = ProfilePage.HOME })
     }
 }
 
@@ -251,6 +257,18 @@ private fun ProfileHome(viewModel: SeniorProfileViewModel, onNavigate: (ProfileP
                     tint = ErrorRed,
                     onClick = { onNavigate(ProfilePage.DELETE_ACCOUNT) }
                 )
+            }
+
+            if (SHOW_DEMO_TOOLS) {
+                SectionLabel("Demo")
+                ProfileGroup {
+                    ProfileRow(
+                        icon = Icons.Filled.Science,
+                        title = "Demo",
+                        subtitle = "Simulate alerts for the defense",
+                        onClick = { onNavigate(ProfilePage.DEMO) }
+                    )
+                }
             }
 
             Spacer(Modifier.height(24.dp))
