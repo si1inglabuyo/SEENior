@@ -208,7 +208,7 @@ private fun MapSurface(target: MapTarget, height: Dp, interactive: Boolean) {
             OsmdroidSetup.ensure(viewContext)
             val map = if (interactive) MapView(viewContext) else StaticMapView(viewContext)
             map.apply {
-                setTileSource(MapTiles.Carto)
+                setTileSource(MapTiles.Street)
                 setMultiTouchControls(interactive)
                 // The design has no zoom chrome; pinch covers it on the screen that needs it.
                 zoomController.setVisibility(CustomZoomButtonsController.Visibility.NEVER)

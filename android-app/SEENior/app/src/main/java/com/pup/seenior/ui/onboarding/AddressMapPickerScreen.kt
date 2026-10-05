@@ -165,7 +165,7 @@ fun AddressMapPickerScreen(
                     factory = { viewContext ->
                         ensureOsmdroid(viewContext)
                         MapView(viewContext).apply {
-                            setTileSource(MapTiles.Carto)
+                            setTileSource(MapTiles.Street)
                             setMultiTouchControls(true)
                             zoomController.setVisibility(CustomZoomButtonsController.Visibility.NEVER)
                             controller.setZoom(START_ZOOM)
