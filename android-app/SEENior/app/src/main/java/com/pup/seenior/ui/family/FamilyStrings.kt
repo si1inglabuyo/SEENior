@@ -171,6 +171,7 @@ object FamilyStrings {
         // Edit profile
         val fullNameLabel: String,
         val mobileNumberLabel: String,
+        val emailLabel: String,
         val invalidPhoneError: String,
         val changePasswordButton: String,
         val setAPasswordButton: String,
@@ -581,6 +582,14 @@ object FamilyStrings {
             get() = if (language == WellnessMessages.FILIPINO) "Naubos na ang code, o naabot mo na ang limitasyong 3 senior."
             else "That code just expired, or you're already at the 3-senior limit."
 
+        val seniorContactLimit: String
+            get() = if (language == WellnessMessages.FILIPINO) "May 5 kontak na kapamilya ang senior na ito, ang pinakamarami na pinapayagan. Hilingin sa senior na mag-alis muna ng isang kontak."
+            else "This senior already has 5 family contacts, the most allowed. Ask them to remove a contact first."
+
+        val familySeniorLimit: String
+            get() = if (language == WellnessMessages.FILIPINO) "Binabantayan mo na ang 3 senior, ang pinakamarami na pinapayagan. Mag-alis muna ng isang senior bago kumonekta sa iba."
+            else "You are already monitoring 3 seniors, the most allowed. Remove a senior first to connect another."
+
         val couldNotReachServerCheckConnection: String
             get() = if (language == WellnessMessages.FILIPINO) "Hindi maabot ang server. Suriin ang iyong internet connection."
             else "Could not reach the server. Check your internet connection."
@@ -743,7 +752,7 @@ object FamilyStrings {
         additionalNotesPlaceholder = "Additional notes for responder…",
         dispatchNowButton = "Dispatch now",
         alertResolvedHeader = "Alert Resolved",
-        incidentSummaryLabel = "INCIDENT SUMMARY",
+        incidentSummaryLabel = "ALERT DETAILS",
         summaryAlertId = "Alert ID",
         summaryTriggered = "Triggered",
         summaryResolved = "Resolved",
@@ -785,6 +794,7 @@ object FamilyStrings {
 
         fullNameLabel = "Full name",
         mobileNumberLabel = "Mobile number",
+        emailLabel = "Email address",
         invalidPhoneError = "Enter a valid PH mobile number (09XXXXXXXXX or +639XXXXXXXXX)",
         changePasswordButton = "Change Password",
         setAPasswordButton = "Set a Password",
@@ -853,7 +863,7 @@ object FamilyStrings {
         tabProfile = "Profile",
         homeRoleBadge = "Pamilya",
         familyFallbackLabel = "Pamilya",
-        sectionMySeniors = "MGA SENIOR KO",
+        sectionMySeniors = "SENIORS",
         sectionRecentAlerts = "MGA RESIYENTENG ALERTO",
         seeAll = "Tingnan lahat",
         loadingSeniors = "Ikinakarga ang iyong mga senior…",
@@ -941,7 +951,7 @@ object FamilyStrings {
         additionalNotesPlaceholder = "Karagdagang tala para sa responder…",
         dispatchNowButton = "Ipadala ngayon",
         alertResolvedHeader = "Naresolbang Alerto",
-        incidentSummaryLabel = "BUOD NG INSIDENTE",
+        incidentSummaryLabel = "DETALYE NG ALERTO",
         summaryAlertId = "Alert ID",
         summaryTriggered = "Nag-trigger",
         summaryResolved = "Naresolba",
@@ -983,6 +993,7 @@ object FamilyStrings {
 
         fullNameLabel = "Buong pangalan",
         mobileNumberLabel = "Numero ng mobile",
+        emailLabel = "Email address",
         invalidPhoneError = "Ilagay ang wastong PH mobile number (09XXXXXXXXX o +639XXXXXXXXX)",
         changePasswordButton = "Baguhin ang Password",
         setAPasswordButton = "Magtakda ng Password",

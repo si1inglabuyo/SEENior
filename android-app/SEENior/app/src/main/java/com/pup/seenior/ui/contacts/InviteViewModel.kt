@@ -7,7 +7,9 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.pup.seenior.database.SeniorAppDatabase
+import com.pup.seenior.network.ApiErrorCodes
 import com.pup.seenior.network.RetrofitClient
+import com.pup.seenior.network.apiErrorCode
 import com.pup.seenior.network.SeniorCloudSync
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -28,6 +30,10 @@ class InviteViewModel(application: Application) : AndroidViewModel(application) 
     var error by mutableStateOf<String?>(null)
         private set
 
+    /** The senior is at the 5-contact limit. A flag, not text, so the screen can say it in her language. */
+    var contactLimitReached by mutableStateOf(false)
+        private set
+
     /**
      * The name of a family member who linked with the live code, or null. Set by the pairing
      * watch so the screen can confirm "someone connected"; the server clears the code, so the
@@ -46,6 +52,7 @@ class InviteViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             isLoading = true
             error = null
+            contactLimitReached = false
             pairedContactName = null
             try {
                 // withSyncId re-registers and retries if the cached id is unknown to the backend.
@@ -56,6 +63,10 @@ class InviteViewModel(application: Application) : AndroidViewModel(application) 
                 startCountdown(300) // display-only; the backend enforces the real 5-min expiry
                 startPairingWatch()
             } catch (e: HttpException) {
+                if (e.code() == 409 && e.apiErrorCode() == ApiErrorCodes.SENIOR_CONTACT_LIMIT) {
+                    contactLimitReached = true
+                    return@launch
+                }
                 error = if (e.code() == 429)
                     "A code is still active. Wait for it to expire before generating a new one."
                 else "Could not generate a code (server error ${e.code()})."

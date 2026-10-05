@@ -47,17 +47,37 @@ def test_invite_codes_are_six_digits_and_come_from_a_secure_source():
     source = open(seniors.__file__, encoding="utf-8").read()
     assert "secrets.randbelow" in source and "random.choices" not in source
 
-    class _Db:
-        committed = False
-
-        async def commit(self):
-            self.committed = True
-
-    senior = SimpleNamespace(invite_code=None, invite_code_expires_at=None, deleted_at=None)
-    invite = asyncio.run(seniors.generate_invite(senior, _Db()))
+    senior = SimpleNamespace(id=1, invite_code=None, invite_code_expires_at=None, deleted_at=None)
+    invite = asyncio.run(seniors.generate_invite(senior, _Db(linked=0)))
 
     assert re.fullmatch(r"\d{6}", invite.code)
     assert senior.invite_code == invite.code
+
+
+class _Db:
+    """Stands in for the session: `linked` is the active family-contact count the query returns."""
+
+    def __init__(self, linked):
+        self.linked = linked
+        self.committed = False
+
+    async def execute(self, _statement):
+        return SimpleNamespace(scalar_one=lambda: self.linked)
+
+    async def commit(self):
+        self.committed = True
+
+
+def test_a_senior_with_five_family_contacts_cannot_generate_an_invite_code():
+    senior = SimpleNamespace(id=1, invite_code=None, invite_code_expires_at=None, deleted_at=None)
+    db = _Db(linked=5)
+
+    with pytest.raises(HTTPException) as caught:
+        asyncio.run(seniors.generate_invite(senior, db))
+
+    assert caught.value.status_code == 409
+    assert caught.value.detail["code"] == "senior_contact_limit"
+    assert senior.invite_code is None and not db.committed
 
 
 def test_alert_creation_uses_a_per_senior_limit_not_a_per_address_one():

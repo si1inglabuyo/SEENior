@@ -23,6 +23,8 @@ sealed interface FamilyError {
     object AccountAlreadyHasPassword : FamilyError
     object InvalidOrExpiredCode : FamilyError
     object CodeExpiredOrLimitReached : FamilyError
+    object SeniorContactLimit : FamilyError
+    object FamilySeniorLimit : FamilyError
 }
 
 /** Null-safe, so call sites can write `copy.errorMessage(viewModel.error)` directly. */
@@ -56,4 +58,6 @@ fun FamilyStrings.Copy.errorMessage(error: FamilyError?): String? = when (error)
     FamilyError.AccountAlreadyHasPassword -> accountAlreadyHasPassword
     FamilyError.InvalidOrExpiredCode -> invalidOrExpiredCode
     FamilyError.CodeExpiredOrLimitReached -> codeExpiredOrLimitReached
+    FamilyError.SeniorContactLimit -> seniorContactLimit
+    FamilyError.FamilySeniorLimit -> familySeniorLimit
 }

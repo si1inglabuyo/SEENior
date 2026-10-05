@@ -362,6 +362,10 @@ private fun FamilyEditProfileScreen(viewModel: FamilyProfileViewModel, onBack: (
             FamilyTextField(copy.fullNameLabel, viewModel.fullName, { viewModel.fullName = it })
 
             Spacer(Modifier.height(14.dp))
+            // Shown so the member knows which sign-in this is, but it is their login identity and not editable here.
+            FamilyTextField(copy.emailLabel, viewModel.user?.email.orEmpty(), {}, keyboardType = KeyboardType.Email, enabled = false)
+
+            Spacer(Modifier.height(14.dp))
             FamilyTextField(
                 copy.mobileNumberLabel,
                 viewModel.phone,

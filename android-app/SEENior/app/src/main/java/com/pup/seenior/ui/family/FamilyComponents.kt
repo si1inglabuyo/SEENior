@@ -291,7 +291,8 @@ fun FamilyTextField(
     isPassword: Boolean = false,
     modifier: Modifier = Modifier,
     isError: Boolean = false,
-    errorText: String? = null
+    errorText: String? = null,
+    enabled: Boolean = true
 ) {
     // Per field and hidden to begin with. Lives here so every password field gets the same eye icon.
     var revealed by remember { mutableStateOf(false) }
@@ -302,6 +303,7 @@ fun FamilyTextField(
         onValueChange = onValueChange,
         label = { Text(label) },
         singleLine = true,
+        enabled = enabled,
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
         keyboardOptions = KeyboardOptions(keyboardType = keyboardType),

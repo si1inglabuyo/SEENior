@@ -3,12 +3,13 @@ from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_authenticated_senior, require_role
+from app.api.routes.contacts import MAX_FAMILY_CONTACTS_PER_SENIOR, SENIOR_CONTACT_LIMIT
 from app.core import device_key, ratelimit
-from app.db.models import Alert, AlertStatus, Contact, Senior, SeniorStatus, UnlinkActor, User, UserRole
+from app.db.models import Alert, AlertStatus, Contact, ContactType, Senior, SeniorStatus, UnlinkActor, User, UserRole
 from app.db.session import get_db
 from app.schemas.contact import InviteCodeOut
 from app.schemas.senior import (
@@ -218,6 +219,27 @@ async def generate_invite(
 ) -> InviteCodeOut:
     # Naive UTC, to match the column type.
     now = datetime.now(timezone.utc).replace(tzinfo=None)
+
+    # A full senior can't take another contact, so a code would only fail when it is used.
+    # Say so now, before the code exists.
+    linked = await db.execute(
+        select(func.count())
+        .select_from(Contact)
+        .where(
+            Contact.senior_id == senior.id,
+            Contact.contact_type == ContactType.FAMILY,
+            Contact.is_active(),
+        )
+    )
+    if linked.scalar_one() >= MAX_FAMILY_CONTACTS_PER_SENIOR:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": SENIOR_CONTACT_LIMIT,
+                "message": f"This senior already has {MAX_FAMILY_CONTACTS_PER_SENIOR} family contacts",
+            },
+        )
+
     if senior.invite_code_expires_at is not None and senior.invite_code_expires_at > now:
         # Still-active code — this IS the 5-minute cooldown, no separate field needed.
         raise HTTPException(

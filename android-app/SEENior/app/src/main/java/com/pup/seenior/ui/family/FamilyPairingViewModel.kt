@@ -6,7 +6,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.pup.seenior.network.ApiErrorCodes
 import com.pup.seenior.network.RetrofitClient
+import com.pup.seenior.network.apiErrorCode
 import com.pup.seenior.network.dto.PairRequest
 import com.pup.seenior.network.dto.SeniorDto
 import com.pup.seenior.network.dto.VerifyCodeRequest
@@ -118,7 +120,11 @@ class FamilyPairingViewModel(application: Application) : AndroidViewModel(applic
                 pairedSeniorName = verifiedSenior?.firstName.orEmpty()
             } catch (e: HttpException) {
                 error = when {
-                    e.code() == 400 -> FamilyError.CodeExpiredOrLimitReached
+                    e.code() == 400 -> when (e.apiErrorCode()) {
+                        ApiErrorCodes.SENIOR_CONTACT_LIMIT -> FamilyError.SeniorContactLimit
+                        ApiErrorCodes.FAMILY_SENIOR_LIMIT -> FamilyError.FamilySeniorLimit
+                        else -> FamilyError.CodeExpiredOrLimitReached
+                    }
                     SessionState.handleIfUnauthorized(getApplication(), e) -> FamilyError.SessionExpired
                     else -> FamilyError.Server(FamilyError.Action.Connect, e.code())
                 }

@@ -28,6 +28,10 @@ router = APIRouter(tags=["contacts"])
 MAX_FAMILY_CONTACTS_PER_SENIOR = 5
 MAX_SENIORS_PER_FAMILY = 3
 
+# Stable codes in the error body, so the apps can show the limit in the user's own language.
+SENIOR_CONTACT_LIMIT = "senior_contact_limit"
+FAMILY_SENIOR_LIMIT = "family_senior_limit"
+
 
 async def _senior_by_valid_code(code: str, db: AsyncSession) -> Senior:
     """Returns the senior owning a live, unexpired invite code, or 400."""
@@ -88,7 +92,10 @@ async def pair_contact(
     if count_result.scalar_one() >= MAX_FAMILY_CONTACTS_PER_SENIOR:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"This senior already has {MAX_FAMILY_CONTACTS_PER_SENIOR} family contacts",
+            detail={
+                "code": SENIOR_CONTACT_LIMIT,
+                "message": f"This senior already has {MAX_FAMILY_CONTACTS_PER_SENIOR} family contacts",
+            },
         )
 
     user = current_user
@@ -105,7 +112,10 @@ async def pair_contact(
     if my_seniors_result.scalar_one() >= MAX_SENIORS_PER_FAMILY:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"You can only monitor up to {MAX_SENIORS_PER_FAMILY} seniors",
+            detail={
+                "code": FAMILY_SENIOR_LIMIT,
+                "message": f"You can only monitor up to {MAX_SENIORS_PER_FAMILY} seniors",
+            },
         )
 
     duplicate_result = await db.execute(

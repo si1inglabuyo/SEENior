@@ -145,6 +145,10 @@ fun InviteScreen(
                 viewModel.generateInvite()
             }
 
+            if (viewModel.contactLimitReached) {
+                Text(copy.contactLimitReached, color = Color(0xFFCC3333), fontSize = 14.sp, modifier = Modifier.padding(top = 12.dp))
+            }
+
             viewModel.error?.let {
                 Text(it, color = Color(0xFFCC3333), fontSize = 14.sp, modifier = Modifier.padding(top = 12.dp))
             }
