@@ -4,7 +4,6 @@ import com.pup.seenior.baseline.SeedBaselineGenerator
 import com.pup.seenior.database.SeniorAppDatabase
 import com.pup.seenior.database.entities.Alert
 import com.pup.seenior.database.entities.SensorData
-import java.util.UUID
 
 /**
  * Demo trigger for the anomaly-detection pipeline. It doesn't fabricate an alert: it
@@ -18,7 +17,7 @@ import java.util.UUID
 object AnomalySimulator {
 
     /** Multiple of the effective MAD above the median, comfortably past the 3.5 "extreme" cutoff so the demo reliably gives HIGH. */
-    const val TARGET_Z_SCORE = 4.0
+    private const val TARGET_Z_SCORE = 4.0
 
     sealed interface Result {
         /** The detector produced (or upgraded into) an alert. [alert] is null when an existing one
@@ -46,12 +45,7 @@ object AnomalySimulator {
     suspend fun simulateProlongedInactivity(db: SeniorAppDatabase): Result =
         simulate(db, Signal.INACTIVITY)
 
-    /**
-     * @param zScore how far past the median to put the reading. The default is well past the
-     *   3.5 "extreme" line; the false-alarm demo passes 3.0, inside the moderate band that
-     *   [FalseAlarmTolerance] is allowed to loosen.
-     */
-    suspend fun simulate(db: SeniorAppDatabase, signal: Signal, zScore: Double = TARGET_Z_SCORE): Result {
+    suspend fun simulate(db: SeniorAppDatabase, signal: Signal): Result {
         val senior = db.seniorDao().getOnboardedSenior() ?: return Result.NoSenior
         val onboarding = db.seniorOnboardingDao().getBySeniorId(senior.seniorId) ?: return Result.NoSenior
 
@@ -87,8 +81,8 @@ object AnomalySimulator {
         val target = when (signal) {
             Signal.LOW_MOVEMENT ->
                 // The concerning side is below the median, and a score can't go under zero.
-                (targetBaseline.medianValue - zScore * effectiveMad).coerceAtLeast(0.0)
-            else -> targetBaseline.medianValue + zScore * effectiveMad
+                (targetBaseline.medianValue - TARGET_Z_SCORE * effectiveMad).coerceAtLeast(0.0)
+            else -> targetBaseline.medianValue + TARGET_Z_SCORE * effectiveMad
         }
 
         // Every other signal is pinned to its median (z = 0), so this produces one clean alert
@@ -124,127 +118,11 @@ object AnomalySimulator {
 
         val created = findings.created.firstOrNull { it.triggerType == signal.triggerType }
         return if (alertDao.getActiveAlert(senior.seniorId, signal.triggerType) != null) {
-            Result.Triggered(created?.deviationScore ?: zScore, created)
+            Result.Triggered(created?.deviationScore ?: TARGET_Z_SCORE, created)
         } else {
             // No open alert, so Layer 3 answered Low: the z-score wasn't worth telling anyone at
             // this hour. Expected at night and during declared rest.
-            Result.LoggedOnly(zScore)
+            Result.LoggedOnly(TARGET_Z_SCORE)
         }
     }
-
-    /** Marks the rows [plantFalseAlarmHistory] writes, so [removeFalseAlarmHistory] takes back exactly those. */
-    private const val DEMO_HISTORY_STEP = "demo_false_alarm_history"
-
-    /**
-     * What the false-alarm demo shows for the open time block: the evidence and the baseline it
-     * was measured against, for [ToleranceExplanation] to turn into steps.
-     */
-    data class ToleranceState(
-        val signal: Signal,
-        val timeBlock: String,
-        val breakdown: FalseAlarmTolerance.Breakdown,
-        /** Null for movement, which is a score and not a time, so there are no minutes to show. */
-        val baseline: ToleranceExplanation.BaselineFacts?
-    ) {
-        val gate: Double get() = breakdown.gate
-
-        fun steps(): List<ToleranceExplanation.Step> =
-            ToleranceExplanation.steps(signal.triggerType, timeBlock, breakdown, baseline)
-    }
-
-    /** The open block's tolerance for [signal]. Null with no senior or onboarding. */
-    suspend fun toleranceState(db: SeniorAppDatabase, signal: Signal): ToleranceState? {
-        val senior = db.seniorDao().getOnboardedSenior() ?: return null
-        val onboarding = db.seniorOnboardingDao().getBySeniorId(senior.seniorId) ?: return null
-        val now = System.currentTimeMillis()
-        val timeBlock = SeedBaselineGenerator
-            .resolveTimeBlock(now, onboarding.wakeTime, onboarding.sleepTime).name.lowercase()
-        val since = FalseAlarmTolerance.windowStart(now)
-        val breakdown = FalseAlarmTolerance.explain(
-            db.alertDao().getToleratedDeviationScores(senior.seniorId, signal.triggerType, timeBlock, since),
-            db.alertDao().getConfirmedAlertCount(senior.seniorId, signal.triggerType, timeBlock, since)
-        )
-        val row = if (signal == Signal.LOW_MOVEMENT) null
-        else db.baselineDao().getBaselineByFeatureAndTimeBlock(senior.seniorId, signal.featureName, timeBlock)
-        val facts = row?.let {
-            ToleranceExplanation.BaselineFacts(
-                medianSeconds = it.medianValue,
-                rawMadSeconds = it.madValue,
-                madFloorSeconds = SeedBaselineGenerator.MIN_MAD_FLOOR[signal.featureName] ?: 1.0,
-                sampleCount = it.sampleCount,
-                isSeed = it.isSeed
-            )
-        }
-        return ToleranceState(signal, timeBlock, breakdown, facts)
-    }
-
-    /**
-     * Writes two alerts the senior answered "I'm fine now" to, in the open time block and a
-     * day or two old, each at z = 3.0. That is the evidence [FalseAlarmTolerance] needs to
-     * lift this block's gate from 2.5 to 3.25. Marked synced so they never reach the cloud.
-     * Returns the time block, or null with no senior.
-     */
-    suspend fun plantFalseAlarmHistory(db: SeniorAppDatabase, signal: Signal): String? {
-        val senior = db.seniorDao().getOnboardedSenior() ?: return null
-        val onboarding = db.seniorOnboardingDao().getBySeniorId(senior.seniorId) ?: return null
-        val now = System.currentTimeMillis()
-        val timeBlock = SeedBaselineGenerator
-            .resolveTimeBlock(now, onboarding.wakeTime, onboarding.sleepTime).name.lowercase()
-        removeFalseAlarmHistory(db)
-        for (daysAgo in 1..2) {
-            val at = now - daysAgo * 24L * 60 * 60 * 1000
-            db.alertDao().insert(
-                Alert(
-                    seniorId = senior.seniorId,
-                    syncId = UUID.randomUUID().toString(),
-                    triggerType = signal.triggerType,
-                    riskLevel = "medium",
-                    timeBlock = timeBlock,
-                    deviationScore = DEMO_FALSE_ALARM_Z,
-                    status = "self_cancelled",
-                    escalationSteps = "[{\"step\":\"$DEMO_HISTORY_STEP\",\"at\":\"$at\"}]",
-                    triggeredAt = at,
-                    resolvedAt = at + 60_000,
-                    isSynced = true
-                )
-            )
-        }
-        return timeBlock
-    }
-
-    /**
-     * Writes one alert in the open block that family acknowledged, at z = 3.2, so the demo can
-     * show a real alert taking back its share of the slack. Marked and synced like the false alarms.
-     */
-    suspend fun plantRealAlert(db: SeniorAppDatabase, signal: Signal): String? {
-        val senior = db.seniorDao().getOnboardedSenior() ?: return null
-        val onboarding = db.seniorOnboardingDao().getBySeniorId(senior.seniorId) ?: return null
-        val now = System.currentTimeMillis()
-        val timeBlock = SeedBaselineGenerator
-            .resolveTimeBlock(now, onboarding.wakeTime, onboarding.sleepTime).name.lowercase()
-        val at = now - 3L * 60 * 60 * 1000
-        db.alertDao().insert(
-            Alert(
-                seniorId = senior.seniorId,
-                syncId = UUID.randomUUID().toString(),
-                triggerType = signal.triggerType,
-                riskLevel = "medium",
-                timeBlock = timeBlock,
-                deviationScore = 3.2,
-                status = "acknowledged_family",
-                escalationSteps = "[{\"step\":\"$DEMO_HISTORY_STEP\",\"at\":\"$at\"}]",
-                triggeredAt = at,
-                isSynced = true
-            )
-        )
-        return timeBlock
-    }
-
-    /** Deletes the rows [plantFalseAlarmHistory] and [plantRealAlert] wrote and nothing else. */
-    suspend fun removeFalseAlarmHistory(db: SeniorAppDatabase) {
-        db.alertDao().deleteByEscalationStep(DEMO_HISTORY_STEP)
-    }
-
-    /** Inside the moderate band, so it counts as evidence; the injected default of 4.0 never does. */
-    const val DEMO_FALSE_ALARM_Z = 3.0
 }

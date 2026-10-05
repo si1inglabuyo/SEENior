@@ -153,10 +153,6 @@ interface AlertDao {
         since: Long
     ): Int
 
-    /** Removes the demo's planted rows, found by the marker step they carry. */
-    @Query("DELETE FROM Alerts WHERE escalation_steps LIKE '%' || :step || '%'")
-    suspend fun deleteByEscalationStep(step: String)
-
     @Query("UPDATE Alerts SET risk_level = :riskLevel, deviation_score = :deviationScore WHERE alert_id = :alertId")
     suspend fun updateSeverity(alertId: Int, riskLevel: String, deviationScore: Double)
 

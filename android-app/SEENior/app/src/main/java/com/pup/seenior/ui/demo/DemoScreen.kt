@@ -16,11 +16,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.withStyle
-import com.pup.seenior.detection.ToleranceExplanation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -81,48 +77,12 @@ private fun DemoSection(viewModel: DemoViewModel = viewModel()) {
             viewModel.simulateLowMovement()
         }
 
-        Section("False-alarm tolerance (z = 3.0)")
-        DemoButton(
-            "1. Simulate inactivity at z = 3.0",
-            "Moderate reading, no history: the senior is asked. Answer \"Ligtas po ako\" before step 3, or the alert escalates for real",
-            idle
-        ) { viewModel.simulateModerateInactivity() }
-        DemoButton(
-            "2. Plant 2 false alarms",
-            "Two earlier \"I'm fine now\" alerts in this time block; raises its gate to 3.25",
-            idle
-        ) { viewModel.plantFalseAlarmHistory() }
-        DemoButton(
-            "3. Repeat step 1",
-            "Same reading, now under the gate: logged, nobody asked. Then press the z = 4.0 inactivity button: it still alerts",
-            idle
-        ) { viewModel.simulateModerateInactivity() }
-        DemoButton(
-            "4. Plant 1 real alert",
-            "An alert in this block that family acknowledged. It takes back part of the minutes the false alarms added",
-            idle
-        ) { viewModel.plantRealAlert() }
-        DemoButton("Show the working", "Minutes added for this block and how the gate was computed", idle) {
-            viewModel.showTolerance()
-        }
-        DemoButton("Remove planted alerts", "Gate back to 2.5", idle) { viewModel.removeFalseAlarmHistory() }
-
-        viewModel.toleranceSteps?.let { ToleranceCard(it) }
-
         Section("Layer 2")
-        DemoButton(
-            "Plant an unusual day",
-            "Writes one block-day where every signal is mildly off together; run Isolation Forest next",
-            idle
-        ) { viewModel.plantUnusualDay() }
         DemoButton(
             "Run Isolation Forest",
             "Real run over stored daily aggregates; only raises if a day is unusual",
             idle
         ) { viewModel.runIsolationForest() }
-        DemoButton("Remove planted day", "Clears the planted row once the demo is done", idle) {
-            viewModel.removePlantedDay()
-        }
 
         Section("Senior-initiated")
         DemoButton("Simulate SOS", "Raises an SOS alert, same as the Home swipe", idle) { viewModel.simulateSos() }
@@ -158,44 +118,4 @@ private fun DemoButton(title: String, subtitle: String, enabled: Boolean, onClic
             Text(subtitle, fontSize = 12.sp, color = SeniorColors.TextSecondary)
         }
     }
-}
-
-/** The false-alarm working, one block per step. Each number carries a tag saying where it came from. */
-@Composable
-private fun ToleranceCard(steps: List<ToleranceExplanation.Step>) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(Color(0xFFF2F7F3), RoundedCornerShape(12.dp))
-            .padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
-    ) {
-        steps.forEach { step ->
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(step.title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = SeniorColors.GreenDark)
-                Text(step.formula, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = SeniorColors.TextPrimary)
-                Text(step.why, fontSize = 12.sp, color = SeniorColors.TextSecondary)
-                step.facts.forEach { fact ->
-                    Text(
-                        buildAnnotatedString {
-                            withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(fact.value) }
-                            append("  ${fact.meaning}  ")
-                            withStyle(SpanStyle(color = originColor(fact.origin), fontWeight = FontWeight.Medium)) {
-                                append("[${fact.origin.label}]")
-                            }
-                        },
-                        fontSize = 12.sp,
-                        color = SeniorColors.TextPrimary
-                    )
-                }
-            }
-        }
-    }
-}
-
-private fun originColor(origin: ToleranceExplanation.Origin): Color = when (origin) {
-    ToleranceExplanation.Origin.YOUR_DATA -> Color(0xFF2E7D32)
-    ToleranceExplanation.Origin.DESIGN_RULE -> Color(0xFF1565C0)
-    ToleranceExplanation.Origin.CHOSEN -> Color(0xFFC77700)
-    ToleranceExplanation.Origin.ARITHMETIC -> Color(0xFF757575)
 }
