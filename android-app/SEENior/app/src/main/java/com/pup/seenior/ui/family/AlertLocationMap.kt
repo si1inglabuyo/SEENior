@@ -34,7 +34,7 @@ import com.pup.seenior.location.AddressGeocoder
 import com.pup.seenior.location.Geohash
 import com.pup.seenior.location.LatLon
 import org.osmdroid.config.Configuration
-import org.osmdroid.tileprovider.tilesource.TileSourceFactory
+import com.pup.seenior.location.MapTiles
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.CustomZoomButtonsController
 import org.osmdroid.views.MapView
@@ -208,7 +208,7 @@ private fun MapSurface(target: MapTarget, height: Dp, interactive: Boolean) {
             OsmdroidSetup.ensure(viewContext)
             val map = if (interactive) MapView(viewContext) else StaticMapView(viewContext)
             map.apply {
-                setTileSource(TileSourceFactory.MAPNIK)
+                setTileSource(MapTiles.Carto)
                 setMultiTouchControls(interactive)
                 // The design has no zoom chrome; pinch covers it on the screen that needs it.
                 zoomController.setVisibility(CustomZoomButtonsController.Visibility.NEVER)

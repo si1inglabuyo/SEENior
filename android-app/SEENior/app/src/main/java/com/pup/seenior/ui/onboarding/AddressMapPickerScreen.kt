@@ -60,7 +60,7 @@ import org.osmdroid.events.DelayedMapListener
 import org.osmdroid.events.MapListener
 import org.osmdroid.events.ScrollEvent
 import org.osmdroid.events.ZoomEvent
-import org.osmdroid.tileprovider.tilesource.TileSourceFactory
+import com.pup.seenior.location.MapTiles
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.CustomZoomButtonsController
 import org.osmdroid.views.MapView
@@ -165,7 +165,7 @@ fun AddressMapPickerScreen(
                     factory = { viewContext ->
                         ensureOsmdroid(viewContext)
                         MapView(viewContext).apply {
-                            setTileSource(TileSourceFactory.MAPNIK)
+                            setTileSource(MapTiles.Carto)
                             setMultiTouchControls(true)
                             zoomController.setVisibility(CustomZoomButtonsController.Visibility.NEVER)
                             controller.setZoom(START_ZOOM)

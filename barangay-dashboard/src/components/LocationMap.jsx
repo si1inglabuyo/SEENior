@@ -30,9 +30,10 @@ export default function LocationMap({ cell, metres }) {
     })
     mapRef.current = map
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png', {
       maxZoom: 19,
-      attribution: '&copy; OpenStreetMap contributors',
+      subdomains: 'abc',
+      attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
     }).addTo(map)
 
     const precise = metres <= PIN_THRESHOLD_METRES
