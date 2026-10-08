@@ -395,12 +395,15 @@ class SensorCollectionService : Service(), SensorEventListener
 
     /** Layer 0 confirmed a fall. The risk level is fixed at High, with no fuzzy classification. */
     private fun onFallDetected() {
+        // Read before launching: the detector keeps going on the sensor thread.
+        val evidence = fallDetector.lastEvidence?.encode()
         serviceScope.launch {
             AlertResponder.raise(
                 applicationContext,
                 SeniorAppDatabase.getInstance(applicationContext),
                 "fall_pattern",
-                "high"
+                "high",
+                evidence
             )
         }
     }

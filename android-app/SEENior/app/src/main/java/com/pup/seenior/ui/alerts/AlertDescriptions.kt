@@ -1,5 +1,6 @@
 package com.pup.seenior.ui.alerts
 
+import com.pup.seenior.detection.FallEvidence
 import com.pup.seenior.detection.IsolationForestDetector
 import com.pup.seenior.ui.wellness.WellnessMessages
 import java.util.Locale
@@ -60,8 +61,10 @@ object AlertDescriptions {
 
     /**
      * A one-line "show your work" for the two layers that compute a score: Median-MAD
-     * (Layer 1) and Isolation Forest (Layer 2). Absent for `fall_pattern` (a signature match)
-     * and `sos` (the senior's own action). The two scores stay on separate lines with separate labels.
+     * (Layer 1) and Isolation Forest (Layer 2). A `fall_pattern` shows what each of its gates
+     * measured against the threshold it had to clear (null for falls stored before that was
+     * recorded). Absent for `sos` (the senior's own action). The two scores stay on separate
+     * lines with separate labels.
      *
      * @param mlFlagScore Isolation Forest's score for the block, looked up by the caller
      *   ([AlertsViewModel.mlFlagScores]); null if not loaded yet, in which case no line is shown.
@@ -70,10 +73,15 @@ object AlertDescriptions {
         language: String,
         triggerType: String,
         deviationScore: Double?,
-        mlFlagScore: Double?
+        mlFlagScore: Double?,
+        fallEvidence: String? = null
     ): String? {
         val fil = language == WellnessMessages.FILIPINO
         return when (triggerType) {
+            "fall_pattern" -> FallEvidence.decode(fallEvidence)?.let { evidence ->
+                val header = if (fil) "Lahat ng yugto ay natugunan:" else "Every phase was met:"
+                (listOf(header) + evidence.lines(filipino = fil)).joinToString("\n")
+            }
             "ml_flag" -> mlFlagScore?.let { score ->
                 val threshold = fmt(IsolationForestDetector.THRESHOLD)
                 if (fil)

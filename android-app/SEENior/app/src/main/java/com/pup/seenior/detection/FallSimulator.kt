@@ -87,11 +87,12 @@ object FallSimulator {
 
     suspend fun simulate(context: Context, db: SeniorAppDatabase): Result {
         db.seniorDao().getOnboardedSenior() ?: return Result.NoSenior
-        if (!replay(stream())) return Result.NotConfirmed
+        val detector = FallDetector()
+        if (!replay(stream(), detector)) return Result.NotConfirmed
 
         // No dedup check here: AlertResponder.raise owns that rule and returns null for it.
 
-        val alert = AlertResponder.raise(context, db, "fall_pattern", "high")
+        val alert = AlertResponder.raise(context, db, "fall_pattern", "high", detector.lastEvidence?.encode())
             ?: return Result.AlreadyActive
         return Result.Raised(alert)
     }

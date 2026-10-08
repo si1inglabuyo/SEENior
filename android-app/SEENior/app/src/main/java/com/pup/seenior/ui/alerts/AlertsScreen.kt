@@ -165,7 +165,7 @@ private fun CurrentAlertCard(
 
     val wellnessCopy = WellnessMessages.forAlert(language, "", alert.triggerType, alert.timeBlock)
     val description = AlertDescriptions.describe(language, alert.triggerType, alert.timeBlock, alert.deviationScore)
-    val computation = AlertDescriptions.computationLine(language, alert.triggerType, alert.deviationScore, mlFlagScore)
+    val computation = AlertDescriptions.computationLine(language, alert.triggerType, alert.deviationScore, mlFlagScore, alert.fallEvidence)
 
     Column(
         modifier = Modifier
@@ -223,7 +223,7 @@ private fun CurrentAlertCard(
 private fun HistoryAlertCard(alert: Alert, language: String, copy: SeniorStrings.Copy, mlFlagScore: Double?) {
     val wellnessCopy = WellnessMessages.forAlert(language, "", alert.triggerType, alert.timeBlock)
     val description = AlertDescriptions.describe(language, alert.triggerType, alert.timeBlock, alert.deviationScore)
-    val computation = AlertDescriptions.computationLine(language, alert.triggerType, alert.deviationScore, mlFlagScore)
+    val computation = AlertDescriptions.computationLine(language, alert.triggerType, alert.deviationScore, mlFlagScore, alert.fallEvidence)
     val accent = riskColor(alert.riskLevel)
 
     Column(

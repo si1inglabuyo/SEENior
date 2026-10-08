@@ -73,6 +73,14 @@ class FallDetector(
     private var cooldownUntilMs = Long.MIN_VALUE
     /** Highest magnitude seen while awaiting impact, so a near miss can say how near. */
     private var awaitingPeak = 0f
+    private var impactPeak = 0f
+
+    /**
+     * What each gate measured on the most recent confirmed fall; read by the caller right after
+     * [onAcceleration] returns true, and stored on the alert.
+     */
+    var lastEvidence: FallEvidence? = null
+        private set
 
     /** Feeds one accelerometer sample in. Returns true once per confirmed fall, on the sample that completes the stillness window. */
     fun onAcceleration(timestampNanos: Long, magnitude: Float): Boolean {
@@ -103,12 +111,12 @@ class FallDetector(
                     awaitingPeak = magnitude
                     trace("1/4 PASSED: free fall ${nowMs - freeFallStartMs} ms — awaiting impact >= ${f(config.impactMin)}")
                     // At 50 Hz the sample that ends free fall is often the impact itself.
-                    if (magnitude >= config.impactMin) beginSettling(nowMs)
+                    if (magnitude >= config.impactMin) beginSettling(nowMs, magnitude)
                 }
 
             Phase.AWAITING_IMPACT ->
                 if (magnitude >= config.impactMin) {
-                    beginSettling(nowMs)
+                    beginSettling(nowMs, magnitude)
                 } else {
                     awaitingPeak = maxOf(awaitingPeak, magnitude)
                     if (nowMs - freeFallEndMs > config.impactWindowMs) {
@@ -133,6 +141,12 @@ class FallDetector(
                         return false
                     }
                     cooldownUntilMs = nowMs + config.cooldownMs
+                    lastEvidence = FallEvidence(
+                        freeFallMs = freeFallEndMs - freeFallStartMs,
+                        impactPeak = impactPeak,
+                        stillnessMs = sinceImpact - config.settleGraceMs,
+                        rotationPeak = if (config.requireRotation) impactRotationPeak else null
+                    )
                     trace("CONFIRMED: all four gates passed (rotation ${f(impactRotationPeak)} rad/s)")
                     return true
                 }
@@ -173,8 +187,9 @@ class FallDetector(
      * Freezes how much the body was rotating around the impact. Taken now rather than at
      * confirmation, eight seconds later, when the phone is lying still.
      */
-    private fun beginSettling(nowMs: Long) {
+    private fun beginSettling(nowMs: Long, magnitude: Float) {
         impactMs = nowMs
+        impactPeak = magnitude
         phase = Phase.SETTLING
         impactRotationPeak =
             if (abs(nowMs - rotationPeakAtMs) <= config.rotationMemoryMs) rotationPeak else 0f

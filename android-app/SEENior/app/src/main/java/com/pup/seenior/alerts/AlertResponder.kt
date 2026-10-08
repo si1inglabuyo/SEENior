@@ -40,7 +40,8 @@ object AlertResponder {
         context: Context,
         db: SeniorAppDatabase,
         triggerType: String,
-        riskLevel: String
+        riskLevel: String,
+        fallEvidence: String? = null
     ): Alert? = raiseLock.withLock {
         val senior = db.seniorDao().getOnboardedSenior() ?: return null
         val onboarding = db.seniorOnboardingDao().getBySeniorId(senior.seniorId) ?: return null
@@ -61,7 +62,8 @@ object AlertResponder {
                 .name.lowercase(),
             // That column belongs to Median-MAD; a fall or button press has no z-score.
             deviationScore = null,
-            triggeredAt = now
+            triggeredAt = now,
+            fallEvidence = fallEvidence
         )
         val stored = alert.copy(alertId = db.alertDao().insert(alert).toInt())
         onAlertCreated(context, db, stored)

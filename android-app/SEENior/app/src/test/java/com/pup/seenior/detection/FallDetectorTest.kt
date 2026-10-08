@@ -1,6 +1,8 @@
 package com.pup.seenior.detection
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -14,6 +16,33 @@ class FallDetectorTest {
     @Test
     fun `confirms a fall with all three phases`() {
         assertTrue(FallSimulator.replay(FallSimulator.stream()))
+    }
+
+    @Test
+    fun `records what each gate measured and it survives encoding`() {
+        val detector = FallDetector()
+        assertTrue(FallSimulator.replay(FallSimulator.stream(), detector))
+
+        val evidence = detector.lastEvidence!!
+        val cfg = FallDetector.Config()
+        assertTrue(evidence.freeFallMs in cfg.freeFallMinMs..cfg.freeFallMaxMs)
+        assertTrue(evidence.impactPeak >= cfg.impactMin)
+        assertTrue(evidence.stillnessMs >= cfg.stillnessMs)
+        assertTrue(evidence.rotationPeak!! >= cfg.rotationMin)
+        assertEquals(evidence, FallEvidence.decode(evidence.encode()))
+    }
+
+    @Test
+    fun `no evidence is recorded for a fall that did not confirm`() {
+        val detector = FallDetector()
+        assertFalse(FallSimulator.replay(FallSimulator.stream(standsUpAfterMs = 3_000), detector))
+        assertNull(detector.lastEvidence)
+    }
+
+    @Test
+    fun `unreadable evidence decodes to null`() {
+        assertNull(FallEvidence.decode(null))
+        assertNull(FallEvidence.decode("garbage"))
     }
 
     @Test
