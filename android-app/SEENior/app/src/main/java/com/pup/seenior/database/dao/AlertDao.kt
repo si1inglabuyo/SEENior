@@ -153,6 +153,29 @@ interface AlertDao {
         since: Long
     ): Int
 
+    /**
+     * Fall alerts in the window that were closed as false alarms (the senior cancelled, or family
+     * or the barangay marked it). Read by [com.pup.seenior.detection.FallTolerance]. A fall has
+     * no z-score, so unlike [getToleratedDeviationScores] this only counts, and it ignores the
+     * time block: a dropped phone is not an hour-of-day habit.
+     */
+    @Query("""
+        SELECT COUNT(*) FROM Alerts
+        WHERE senior_id = :seniorId AND trigger_type = 'fall_pattern'
+          AND status IN ('self_cancelled', 'false_positive')
+          AND triggered_at >= :since
+    """)
+    suspend fun getFallFalseAlarmCount(seniorId: Int, since: Long): Int
+
+    /** Fall alerts in the window that went past the senior and were acted on; each takes back its share of the raise. */
+    @Query("""
+        SELECT COUNT(*) FROM Alerts
+        WHERE senior_id = :seniorId AND trigger_type = 'fall_pattern'
+          AND status IN ('acknowledged_family', 'escalated_barangay', 'resolved')
+          AND triggered_at >= :since
+    """)
+    suspend fun getFallConfirmedCount(seniorId: Int, since: Long): Int
+
     @Query("UPDATE Alerts SET risk_level = :riskLevel, deviation_score = :deviationScore WHERE alert_id = :alertId")
     suspend fun updateSeverity(alertId: Int, riskLevel: String, deviationScore: Double)
 

@@ -35,6 +35,7 @@ import com.pup.seenior.database.SeniorAppDatabase
 import com.pup.seenior.database.entities.SensorData
 import com.pup.seenior.network.HeartbeatReporter
 import com.pup.seenior.detection.FallDetector
+import com.pup.seenior.detection.FallToleranceLoader
 import com.pup.seenior.detection.MedianMadDetector
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.sync.Mutex
@@ -91,6 +92,9 @@ class SensorCollectionService : Service(), SensorEventListener
 
     /** Layer 0. Only used on the sensor callback thread, so it needs no lock. */
     private lateinit var fallDetector: FallDetector
+    private var baseFallConfig = FallDetector.Config()
+    /** The latest [com.pup.seenior.detection.FallTolerance.Result.encode], stamped on the next fall alert. */
+    @Volatile private var fallToleranceNote: String? = null
     private var lastMovementSampleNanos = 0L
 
     // onSensorChanged and screenReceiver run on the main thread; collectAndStore() runs on
@@ -189,10 +193,14 @@ class SensorCollectionService : Service(), SensorEventListener
         // imports and can be unit tested. Read with: adb logcat -s FallDetector
         //
         // INFO, not DEBUG, because the test handset drops DEBUG logs.
+        baseFallConfig = FallDetector.Config(requireRotation = gyroscope != null)
         fallDetector = FallDetector(
-            FallDetector.Config(requireRotation = gyroscope != null),
+            baseFallConfig,
             trace = { Log.i("FallDetector", it) }
         )
+        // A senior who keeps cancelling dropped-phone alarms gets a slightly higher bar. Applied
+        // now and again every poll, so a fresh cancellation takes effect without a restart.
+        serviceScope.launch { refreshFallTolerance() }
         // Shows the trace path is alive, so an empty log isn't mistaken for broken logging.
         Log.i("FallDetector", "armed: requireRotation=${gyroscope != null}, accelerometer at 50 Hz")
 
@@ -220,6 +228,7 @@ class SensorCollectionService : Service(), SensorEventListener
         pollingJob = serviceScope.launch {
             while (true) {
                 delay(POLL_INTERVAL_MS)
+                refreshFallTolerance()
                 collectAndStore()
             }
         }
@@ -393,17 +402,37 @@ class SensorCollectionService : Service(), SensorEventListener
         return System.currentTimeMillis() - ageMillis
     }
 
+    /**
+     * Re-reads this senior's recent fall alerts and moves the detector's impact and stillness
+     * gates to match (see [FallTolerance]). Failure leaves the thresholds as they were: a
+     * detector stuck at its last setting is safer than one that stops.
+     */
+    private suspend fun refreshFallTolerance() {
+        try {
+            val db = SeniorAppDatabase.getInstance(applicationContext)
+            val senior = db.seniorDao().getOnboardedSenior() ?: return
+            val result = FallToleranceLoader.load(db.alertDao(), senior.seniorId, baseFallConfig)
+            fallDetector.applyConfig(result.config)
+            fallToleranceNote = result.encode()
+            if (result.raised) Log.i("FallDetector", result.line())
+        } catch (e: Exception) {
+            Log.w("FallDetector", "could not refresh fall tolerance", e)
+        }
+    }
+
     /** Layer 0 confirmed a fall. The risk level is fixed at High, with no fuzzy classification. */
     private fun onFallDetected() {
         // Read before launching: the detector keeps going on the sensor thread.
         val evidence = fallDetector.lastEvidence?.encode()
+        val tolerance = fallToleranceNote
         serviceScope.launch {
             AlertResponder.raise(
                 applicationContext,
                 SeniorAppDatabase.getInstance(applicationContext),
                 "fall_pattern",
                 "high",
-                evidence
+                evidence,
+                tolerance
             )
         }
     }

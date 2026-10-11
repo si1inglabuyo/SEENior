@@ -27,7 +27,10 @@ data class CreateAlertRequest(
     // When this device's detector fired (Alert.triggeredAt), as an Instant so it always has an
     // explicit UTC offset. Different from created_at, which the server stamps on arrival (they
     // were 47 minutes apart once). Null only on the retry path, where the original moment is gone.
-    val triggeredAt: String? = null
+    val triggeredAt: String? = null,
+    // For fall alerts only: the detector thresholds in force and the counts that earned them.
+    // A setting and two numbers, never a sensor reading (spec section 11).
+    val fallTolerance: String? = null
 )
 
 /** Mirrors backend AlertDispatchRequest (family requesting a barangay welfare check). */

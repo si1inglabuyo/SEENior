@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.db.models import AlertStatus, RiskLevel, TriggerType
 
@@ -14,6 +14,9 @@ class AlertCreate(BaseModel):
     escalation_steps: list | None = None
     # When the phone's detector actually fired (migration 0009). Optional for older clients.
     triggered_at: datetime | None = None
+    # Fall alerts only (migration 0015): thresholds in force plus the counts that earned them.
+    # Held to key=value pairs of plain characters so it can only ever carry that, never free text.
+    fall_tolerance: str | None = Field(default=None, max_length=200, pattern=r"^[a-z_]+=[0-9.]+(;[a-z_]+=[0-9.]+)*$")
 
 
 class AlertOut(BaseModel):

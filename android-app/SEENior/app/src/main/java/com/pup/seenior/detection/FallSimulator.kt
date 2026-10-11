@@ -87,12 +87,16 @@ object FallSimulator {
 
     suspend fun simulate(context: Context, db: SeniorAppDatabase): Result {
         db.seniorDao().getOnboardedSenior() ?: return Result.NoSenior
-        val detector = FallDetector()
+        // The same thresholds the live detector would be using for this senior right now, so a
+        // demo after two cancelled falls is judged (and recorded) against the raised gates.
+        val senior = db.seniorDao().getOnboardedSenior() ?: return Result.NoSenior
+        val tolerance = FallToleranceLoader.load(db.alertDao(), senior.seniorId, FallDetector.Config())
+        val detector = FallDetector(tolerance.config)
         if (!replay(stream(), detector)) return Result.NotConfirmed
 
         // No dedup check here: AlertResponder.raise owns that rule and returns null for it.
 
-        val alert = AlertResponder.raise(context, db, "fall_pattern", "high", detector.lastEvidence?.encode())
+        val alert = AlertResponder.raise(context, db, "fall_pattern", "high", detector.lastEvidence?.encode(), tolerance.encode())
             ?: return Result.AlreadyActive
         return Result.Raised(alert)
     }

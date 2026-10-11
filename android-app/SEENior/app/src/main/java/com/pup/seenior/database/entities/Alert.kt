@@ -63,5 +63,12 @@ data class Alert(
      * local-only: it is not sent to the cloud. Null for every other trigger and for falls
      * recorded before this column existed.
      */
-    @ColumnInfo(name = "fall_evidence") val fallEvidence: String? = null
+    @ColumnInfo(name = "fall_evidence") val fallEvidence: String? = null,
+    /**
+     * For `fall_pattern` only: the thresholds the detector was set to when this fall was
+     * judged, and how many false and real fall alerts earned them (see
+     * [com.pup.seenior.detection.FallTolerance.Result.encode]). Unlike [fallEvidence] this one
+     * is synced to the cloud: it is a setting and two counts, never a sensor reading.
+     */
+    @ColumnInfo(name = "fall_tolerance") val fallTolerance: String? = null
 )

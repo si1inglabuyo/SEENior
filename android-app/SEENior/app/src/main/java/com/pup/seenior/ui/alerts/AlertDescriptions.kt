@@ -1,6 +1,8 @@
 package com.pup.seenior.ui.alerts
 
+import com.pup.seenior.detection.FallDetector
 import com.pup.seenior.detection.FallEvidence
+import com.pup.seenior.detection.FallTolerance
 import com.pup.seenior.detection.IsolationForestDetector
 import com.pup.seenior.ui.wellness.WellnessMessages
 import java.util.Locale
@@ -74,7 +76,8 @@ object AlertDescriptions {
         triggerType: String,
         deviationScore: Double?,
         mlFlagScore: Double?,
-        fallEvidence: String? = null
+        fallEvidence: String? = null,
+        fallTolerance: String? = null
     ): String? {
         val fil = language == WellnessMessages.FILIPINO
         return when (triggerType) {

@@ -19,7 +19,7 @@ import kotlin.math.abs
  * because batched samples arrive in bursts.
  */
 class FallDetector(
-    private val config: Config = Config(),
+    initialConfig: Config = Config(),
     /**
      * Optional narration of every decision. A callback rather than `android.util.Log` so this
      * class stays free of Android imports; [com.pup.seenior.sensors.SensorCollectionService]
@@ -60,6 +60,19 @@ class FallDetector(
         /** After a confirmed fall, ignore new candidates for this long. */
         val cooldownMs: Long = 60_000
     )
+
+    /**
+     * The thresholds in force. Replaced at runtime by [applyConfig] when [FallTolerance] moves
+     * them; read on the sensor thread, written from the service's scope, hence volatile. A
+     * [Config] is immutable, so a reader always sees one whole set.
+     */
+    @Volatile
+    private var config: Config = initialConfig
+
+    /** Swaps the thresholds without disturbing a half-matched candidate. */
+    fun applyConfig(newConfig: Config) {
+        config = newConfig
+    }
 
     private enum class Phase { IDLE, FREE_FALL, AWAITING_IMPACT, SETTLING }
 

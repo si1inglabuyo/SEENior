@@ -264,5 +264,10 @@ class Alert(Base):
     # is only for showing the real time and for the delivery-time metric.
     triggered_at: Mapped[datetime | None] = mapped_column(nullable=True)
     resolved_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    # Fall alerts only (migration 0015): the detector thresholds in force and how many false and
+    # real fall alerts earned them, e.g. "impact_min=27.5;base_impact=25.0;still_ms=8800;
+    # base_still=8000;false=2;real=0". A setting and two counts, never a sensor reading, so it
+    # stays inside the privacy boundary. Null for every other trigger and older rows.
+    fall_tolerance: Mapped[str | None] = mapped_column(String(200), nullable=True)
 
     senior: Mapped["Senior"] = relationship(back_populates="alerts")

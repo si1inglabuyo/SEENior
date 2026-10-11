@@ -125,7 +125,8 @@ object AlertEscalator {
                         // Geohash cell captured at alert time, never coordinates. Null if no fix.
                         locationClusterId = current?.locationClusterId,
                         // Not re-read: the trigger moment never changes.
-                        triggeredAt = Instant.ofEpochMilli(alert.triggeredAt).toString()
+                        triggeredAt = Instant.ofEpochMilli(alert.triggeredAt).toString(),
+                        fallTolerance = current?.fallTolerance ?: alert.fallTolerance
                     )
                 )
             }

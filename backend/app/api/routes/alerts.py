@@ -19,6 +19,7 @@ from app.db.models import (
     DeviceToken,
     RiskLevel,
     Senior,
+    TriggerType,
     User,
     UserRole,
 )
@@ -266,6 +267,8 @@ async def create_alert(
         location_cluster_id=payload.location_cluster_id,
         escalation_steps=payload.escalation_steps,
         triggered_at=triggered_at,
+        # Only meaningful for a fall; ignored for any other trigger rather than stored.
+        fall_tolerance=payload.fall_tolerance if payload.trigger_type == TriggerType.FALL_PATTERN else None,
     )
 
     # A POST /alerts is always the phone escalating to the family tier, so record that step
