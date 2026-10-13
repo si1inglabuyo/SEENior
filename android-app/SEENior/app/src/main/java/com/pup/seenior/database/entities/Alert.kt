@@ -59,9 +59,9 @@ data class Alert(
     @ColumnInfo(name = "is_synced") val isSynced: Boolean = false,
     /**
      * For `fall_pattern` only: what each detector gate measured (see
-     * [com.pup.seenior.detection.FallEvidence]). Four summary figures, never sensor samples, and
-     * local-only: it is not sent to the cloud. Null for every other trigger and for falls
-     * recorded before this column existed.
+     * [com.pup.seenior.detection.FallEvidence]). Four summary figures, never sensor samples.
+     * Sent to the cloud with the alert once it escalates (cloud `alerts.fall_evidence`). Null for
+     * every other trigger and for falls recorded before this column existed.
      */
     @ColumnInfo(name = "fall_evidence") val fallEvidence: String? = null,
     /**

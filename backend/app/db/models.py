@@ -292,5 +292,11 @@ class Alert(Base):
     # base_still=8000;false=2;real=0". A setting and two counts, never a sensor reading, so it
     # stays inside the privacy boundary. Null for every other trigger and older rows.
     fall_tolerance: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    # Fall alerts only (migration 0017): what each detector gate measured on the fall that
+    # confirmed, e.g. "ff=400;imp=35.0;still=10500;rot=4.5" (free fall ms, impact peak m/s2,
+    # stillness ms, rotation peak rad/s; rot absent when the phone has no gyroscope). Four summary
+    # figures, never the sample stream, so the privacy boundary holds. Shows the panel which
+    # phases satisfied the alert. Null for every other trigger and older rows.
+    fall_evidence: Mapped[str | None] = mapped_column(String(200), nullable=True)
 
     senior: Mapped["Senior"] = relationship(back_populates="alerts")

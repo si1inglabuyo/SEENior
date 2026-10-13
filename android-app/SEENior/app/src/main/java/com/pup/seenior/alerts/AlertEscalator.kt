@@ -128,7 +128,8 @@ object AlertEscalator {
                         locationClusterId = current?.locationClusterId,
                         // Not re-read: the trigger moment never changes.
                         triggeredAt = Instant.ofEpochMilli(alert.triggeredAt).toString(),
-                        fallTolerance = current?.fallTolerance ?: alert.fallTolerance
+                        fallTolerance = current?.fallTolerance ?: alert.fallTolerance,
+                        fallEvidence = current?.fallEvidence ?: alert.fallEvidence
                     )
                 )
             }

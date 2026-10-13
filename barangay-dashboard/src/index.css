@@ -254,6 +254,13 @@ h4 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase;
   padding: 3px 8px; white-space: nowrap;
 }
 .alert-row-name .badge-pook { margin-left: 8px; display: inline-block; vertical-align: middle; }
+/* Fall detection phases in the alert details: each gate's measured value against its threshold. */
+.fall-phase-list { list-style: none; margin: 8px 0 18px; padding: 0; display: grid; gap: 6px; }
+.fall-phase-list li { display: flex; gap: 10px; align-items: baseline; font-size: 14px; }
+.fall-phase-mark { font-weight: 700; width: 16px; }
+.fall-phase-met .fall-phase-mark { color: #2e7d32; }
+.fall-phase-unmet .fall-phase-mark { color: #c62828; }
+.fall-phase-name { font-weight: 600; min-width: 110px; }
 .type-badge {
   background: var(--high); color: #fff; font-size: 12px; font-weight: 700;
   border-radius: 999px; padding: 3px 12px; white-space: nowrap;

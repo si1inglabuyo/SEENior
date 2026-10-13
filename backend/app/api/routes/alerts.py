@@ -269,6 +269,7 @@ async def create_alert(
         triggered_at=triggered_at,
         # Only meaningful for a fall; ignored for any other trigger rather than stored.
         fall_tolerance=payload.fall_tolerance if payload.trigger_type == TriggerType.FALL_PATTERN else None,
+        fall_evidence=payload.fall_evidence if payload.trigger_type == TriggerType.FALL_PATTERN else None,
     )
 
     # A POST /alerts is always the phone escalating to the family tier, so record that step

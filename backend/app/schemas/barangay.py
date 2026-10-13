@@ -38,6 +38,12 @@ class BarangayAlertOut(BaseModel):
     senior_pook: str | None = None
     senior_sector: str | None = None
 
+    # Fall alerts only: what each detector gate measured, so the responder (and a panel) can see
+    # which phases satisfied the alert. Summary figures, not sensor samples. Null otherwise.
+    fall_evidence: str | None = None
+    # The thresholds those figures were judged against (see alerts.fall_tolerance).
+    fall_tolerance: str | None = None
+
     # Whether the senior has any family contact. False means nobody else was notified.
     # Same signal the escalation clock uses.
     senior_has_family_contact: bool

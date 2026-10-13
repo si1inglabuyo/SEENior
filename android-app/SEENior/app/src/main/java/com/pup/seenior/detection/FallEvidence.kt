@@ -7,7 +7,9 @@ import java.util.Locale
  * the three phases can be inspected afterwards, not just seen scrolling past in logcat.
  *
  * Four summary figures only (durations, a peak magnitude, a peak angular speed), never the
- * sample stream, so the privacy boundary holds. It stays on the phone: it is not synced.
+ * sample stream, so the privacy boundary holds. It syncs with the alert when the alert
+ * escalates (cloud `alerts.fall_evidence`, migration 0017), so the database shows which phases
+ * satisfied the fall. A fall the senior cancels is recorded on the phone only.
  *
  * [rotationPeak] is null when the phone has no gyroscope and the rotation gate was off.
  */
