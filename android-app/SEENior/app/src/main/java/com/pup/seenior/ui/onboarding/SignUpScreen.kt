@@ -32,6 +32,7 @@ import com.pup.seenior.ui.onboarding.components.LabeledTextField
 import com.pup.seenior.ui.onboarding.components.OnboardingHeading
 import com.pup.seenior.ui.onboarding.components.OnboardingTopBar
 import com.pup.seenior.ui.onboarding.components.PrimaryPillButton
+import com.pup.seenior.ui.onboarding.components.PookField
 import com.pup.seenior.ui.onboarding.components.SearchableDropdownField
 import com.pup.seenior.ui.theme.SeniorColors
 import com.pup.seenior.validation.PhilippinePhone
@@ -148,6 +149,8 @@ fun SignUpScreen(
                 onSelect = { viewModel.barangay = it },
                 enabled = viewModel.city != null
             )
+
+            PookField(viewModel.addressForm)
 
             LabeledTextField(
                 label = copy.streetLabel,

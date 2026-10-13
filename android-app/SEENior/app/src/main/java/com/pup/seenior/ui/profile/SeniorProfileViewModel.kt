@@ -128,7 +128,7 @@ class SeniorProfileViewModel(application: Application) : AndroidViewModel(applic
         age = source.age.toString()
         gender = source.gender
         mobileNumber = source.mobileNumber
-        addressForm.fillFrom(source.address, source.barangay)
+        addressForm.fillFrom(source.address, source.barangay, source.pookId, source.pookName)
         // Stored as "alone"/"with_family"; the dropdown shows the human-readable label.
         livingArrangementLabel = OnboardingOptions.livingArrangements
             .firstOrNull { it.second == source.livingArrangement }?.first
@@ -152,7 +152,10 @@ class SeniorProfileViewModel(application: Application) : AndroidViewModel(applic
                 address = if (addressForm.dirty) addressForm.joined() else current.address,
                 barangay = if (addressForm.dirty) addressForm.barangay!! else current.barangay,
                 livingArrangement = OnboardingOptions.livingArrangements
-                    .first { it.first == livingArrangementLabel }.second
+                    .first { it.first == livingArrangementLabel }.second,
+                // Follows the form: cleared when the address changed, and with it the label.
+                pookId = addressForm.pook?.id,
+                pookName = addressForm.pook?.name
             )
 
             // Local first: this device is the source of truth and must save even offline.
@@ -178,7 +181,8 @@ class SeniorProfileViewModel(application: Application) : AndroidViewModel(applic
                             gender = updated.gender,
                             barangay = updated.barangay,
                             address = updated.address,
-                            mobileNumber = updated.mobileNumber
+                            mobileNumber = updated.mobileNumber,
+                            pookId = updated.pookId
                         )
                     )
                 }

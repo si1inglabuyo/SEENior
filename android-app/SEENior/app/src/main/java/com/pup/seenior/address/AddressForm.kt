@@ -4,6 +4,9 @@ import android.content.Context
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import com.pup.seenior.network.RetrofitClient
+import com.pup.seenior.network.dto.PookDto
+import kotlinx.coroutines.CancellationException
 
 /**
  * The structured address a senior fills in: region -> province -> city -> barangay + a street
@@ -29,6 +32,40 @@ class AddressForm {
     /** True once the senior has touched any part of the address, so Edit Profile leaves an older free-text address alone. */
     var dirty by mutableStateOf(false)
         private set
+
+    /**
+     * The pook (area of the barangay) the senior picked, for barangays that have them. Optional
+     * and a label only, so it never affects [isComplete] or [dirty]. Cleared whenever the
+     * address above it changes, since a pook belongs to one barangay.
+     */
+    var pook by mutableStateOf<PookDto?>(null)
+        private set
+    var pookOptions by mutableStateOf<List<PookDto>>(emptyList())
+        private set
+
+    /** True when the chosen barangay is one the server lists pooks for (U.P. Campus). */
+    val showsPook: Boolean
+        get() = barangay?.filter { it.isLetter() }.equals("UPCampus", ignoreCase = true)
+
+    /** Fetches the pooks for the chosen barangay. No connection leaves the list empty; the field is optional. */
+    suspend fun loadPooks() {
+        val name = barangay
+        if (name == null || !showsPook) {
+            pookOptions = emptyList()
+            return
+        }
+        pookOptions = try {
+            RetrofitClient.api.pooks(name)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    fun onPookSelected(name: String) {
+        pook = pookOptions.firstOrNull { it.name == name }
+    }
 
     suspend fun load(context: Context) {
         locations = PhAddressRepository.load(context)
@@ -56,19 +93,19 @@ class AddressForm {
         listOf(streetAddress.trim(), barangay!!, city!!, province!!, region!!).joinToString(", ")
 
     fun onRegionSelected(name: String) {
-        region = name; province = null; city = null; barangay = null; dirty = true
+        region = name; province = null; city = null; barangay = null; pook = null; dirty = true
     }
 
     fun onProvinceSelected(name: String) {
-        province = name; city = null; barangay = null; dirty = true
+        province = name; city = null; barangay = null; pook = null; dirty = true
     }
 
     fun onCitySelected(name: String) {
-        city = name; barangay = null; dirty = true
+        city = name; barangay = null; pook = null; dirty = true
     }
 
     fun onBarangaySelected(name: String) {
-        barangay = name; dirty = true
+        barangay = name; pook = null; dirty = true
     }
 
     fun onStreetChanged(value: String) {
@@ -86,6 +123,7 @@ class AddressForm {
         province = match.province
         city = match.city
         barangay = match.barangay
+        pook = null
         if (streetLine.isNotBlank()) streetAddress = streetLine
         dirty = true
     }
@@ -95,7 +133,7 @@ class AddressForm {
      * are kept; an older free-text address lands whole in the street line and the senior is
      * asked to choose. Leaves [dirty] false, since loading isn't an edit.
      */
-    fun fillFrom(address: String, storedBarangay: String) {
+    fun fillFrom(address: String, storedBarangay: String, storedPookId: Int? = null, storedPookName: String? = null) {
         val parts = address.split(", ").map { it.trim() }
         var r: String? = null
         var p: String? = null
@@ -118,6 +156,10 @@ class AddressForm {
             }
         }
         region = r; province = p; city = c; barangay = b; streetAddress = street
+        // Kept only if the address still reads back to the barangay the pook was chosen in.
+        pook = if (b != null && storedPookId != null && storedPookName != null) {
+            PookDto(id = storedPookId, barangay = b, name = storedPookName)
+        } else null
         dirty = false
     }
 }

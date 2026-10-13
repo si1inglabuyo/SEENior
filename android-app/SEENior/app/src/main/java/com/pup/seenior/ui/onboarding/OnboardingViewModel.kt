@@ -173,7 +173,9 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
                 // the identity the server and paired family know, which the pairing would lose.
                 createdAt = existing?.createdAt ?: System.currentTimeMillis(),
                 isOnboardingComplete = true,
-                cloudSyncId = existing?.cloudSyncId
+                cloudSyncId = existing?.cloudSyncId,
+                pookId = addressForm.pook?.id,
+                pookName = addressForm.pook?.name
             )
 
             val id = if (existing == null) {

@@ -24,5 +24,12 @@ data class Senior(
      * UUID assigned by the backend on POST /seniors. Null until first registered with the
      * cloud, which is lazy (first invite code), so onboarding works offline.
      */
-    @ColumnInfo(name = "cloud_sync_id") val cloudSyncId: String? = null
+    @ColumnInfo(name = "cloud_sync_id") val cloudSyncId: String? = null,
+    /**
+     * The pook (area of the barangay) the senior lives in, when the barangay has them and they
+     * chose one. A label for the barangay dashboard only: escalation never reads it. [pookId]
+     * is the server's id; [pookName] is kept so Edit Profile can show it without a connection.
+     */
+    @ColumnInfo(name = "pook_id") val pookId: Int? = null,
+    @ColumnInfo(name = "pook_name") val pookName: String? = null
 )

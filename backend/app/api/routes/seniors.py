@@ -102,7 +102,17 @@ async def update_senior(
 ) -> Senior:
     # Lets an Edit Profile save reach the cloud copy the family app shows.
     await _check_pook(payload.pook_id, db)
-    for field, value in payload.model_dump(exclude_unset=True).items():
+    sent = payload.model_dump(exclude_unset=True)
+    # A pook belongs to one barangay. If the senior moved barangay and picked no new pook,
+    # the old one is stale and would mislead the responder, so drop it.
+    if (
+        "pook_id" not in sent
+        and senior.pook is not None
+        and senior.pook.barangay.strip().lower() != payload.barangay.strip().lower()
+    ):
+        senior.pook_id = None
+        senior.pook = None
+    for field, value in sent.items():
         setattr(senior, field, value)
     await db.commit()
     await db.refresh(senior)

@@ -64,6 +64,7 @@ import com.pup.seenior.ui.onboarding.PickOnMapRow
 import com.pup.seenior.ui.onboarding.components.LabeledTextField
 import com.pup.seenior.ui.onboarding.components.SearchableDropdownField
 import com.pup.seenior.ui.onboarding.components.PrimaryPillButton
+import com.pup.seenior.ui.onboarding.components.PookField
 import com.pup.seenior.ui.LocalOnboardingCopy
 import com.pup.seenior.ui.LocalProfileCopy
 import com.pup.seenior.ui.theme.SeniorColors
@@ -403,6 +404,7 @@ private fun SeniorEditProfileScreen(
                 onSelect = form::onBarangaySelected,
                 enabled = form.city != null
             )
+            PookField(form)
             LabeledTextField(
                 label = formCopy.streetLabel,
                 value = form.streetAddress,

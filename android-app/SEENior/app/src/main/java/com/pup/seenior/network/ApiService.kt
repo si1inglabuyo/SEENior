@@ -22,6 +22,7 @@ import com.pup.seenior.network.dto.PairResponseDto
 import com.pup.seenior.network.dto.RegisterDeviceRequest
 import com.pup.seenior.network.dto.RegisterRequest
 import com.pup.seenior.network.dto.SeniorDto
+import com.pup.seenior.network.dto.PookDto
 import com.pup.seenior.network.dto.SetPasswordRequest
 import com.pup.seenior.network.dto.TokenDto
 import com.pup.seenior.network.dto.UpdateLocationRequest
@@ -45,6 +46,10 @@ import retrofit2.http.Query
 interface ApiService {
 
     // ---- Senior side (no login; the phone proves itself with its device key) ----
+
+    // The pooks a senior can choose from in a barangay. Public reference data.
+    @GET("seniors/pooks")
+    suspend fun pooks(@Query("barangay") barangay: String): List<PookDto>
 
     @POST("seniors")
     suspend fun createSenior(@Body body: CreateSeniorRequest): SeniorDto

@@ -185,6 +185,24 @@ fun LabeledTextField(
 }
 
 /**
+ * The optional pook (area of the barangay) picker, shown only where the server lists pooks for
+ * the chosen barangay. Fetches the list when the barangay changes and stays hidden when there
+ * is nothing to choose, such as offline, so it can never block sign-up or Edit Profile.
+ */
+@Composable
+fun PookField(form: com.pup.seenior.address.AddressForm) {
+    androidx.compose.runtime.LaunchedEffect(form.barangay) { form.loadPooks() }
+    if (form.showsPook && form.pookOptions.isNotEmpty()) {
+        SearchableDropdownField(
+            label = LocalOnboardingCopy.current.pookLabel,
+            selected = form.pook?.name,
+            options = form.pookOptions.map { it.name },
+            onSelect = form::onPookSelected
+        )
+    }
+}
+
+/**
  * Dropdown backed by a search dialog — for long option lists (e.g. cities, or Manila's
  * ~900 barangays) where a plain DropdownMenu is unusable. Disabled until [enabled],
  * so cascading levels can lock until their parent is selected.

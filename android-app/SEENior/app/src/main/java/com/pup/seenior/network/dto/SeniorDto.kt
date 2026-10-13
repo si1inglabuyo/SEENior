@@ -8,7 +8,9 @@ data class CreateSeniorRequest(
     val gender: String,
     val barangay: String,
     val address: String,
-    val mobileNumber: String
+    val mobileNumber: String,
+    /** Optional. Null is left out of the JSON, which the server reads as "not chosen". */
+    val pookId: Int? = null
 )
 
 /** Mirrors backend SeniorUpdate. Every field is sent on every save, so it is a full replace
@@ -20,7 +22,18 @@ data class UpdateSeniorRequest(
     val gender: String,
     val barangay: String,
     val address: String,
-    val mobileNumber: String
+    val mobileNumber: String,
+    /** Left out when null, so a save that chose no pook never erases the one on the server. */
+    val pookId: Int? = null
+)
+
+/** Mirrors backend PookOut: one area of a barangay. */
+data class PookDto(
+    val id: Int,
+    val barangay: String,
+    val name: String,
+    val description: String? = null,
+    val sector: String = ""
 )
 
 /**
@@ -58,7 +71,8 @@ data class SeniorDto(
     val batteryPercent: Int? = null,
     val isCharging: Boolean? = null,
     /** The device key. Sent only when the senior registers, and kept in [com.pup.seenior.network.DeviceKeyStore]. */
-    val deviceKey: String? = null
+    val deviceKey: String? = null,
+    val pook: PookDto? = null
 )
 
 /** Mirrors backend DeviceKeyOut: a key issued to a phone that registered before keys existed. */

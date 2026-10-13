@@ -28,7 +28,8 @@ class SeniorCloudSync(private val db: SeniorAppDatabase) {
                 gender = senior.gender,
                 barangay = senior.barangay,
                 address = senior.address,
-                mobileNumber = senior.mobileNumber
+                mobileNumber = senior.mobileNumber,
+                pookId = senior.pookId
             )
         )
         db.seniorDao().updateCloudSyncId(senior.seniorId, created.syncId)

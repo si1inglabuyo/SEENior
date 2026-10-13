@@ -40,7 +40,7 @@ import com.pup.seenior.database.entities.SensorData
         MlModelMetadata::class,
         SeniorOnboarding::class
     ],
-    version = 6,
+    version = 7,
     exportSchema = true
 )
 abstract class SeniorAppDatabase : RoomDatabase() {
@@ -111,13 +111,24 @@ abstract class SeniorAppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * 6 -> 7: the pook the senior lives in, a label for the barangay dashboard. Both
+         * columns are null for "not chosen", which is also what every existing row gets.
+         */
+        private val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE Seniors ADD COLUMN pook_id INTEGER")
+                db.execSQL("ALTER TABLE Seniors ADD COLUMN pook_name TEXT")
+            }
+        }
+
         fun getInstance(context: Context): SeniorAppDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext,
                     SeniorAppDatabase::class.java,
                     "senior_app.db"
-                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
                     .build().also { INSTANCE = it }
             }
         }

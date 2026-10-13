@@ -55,3 +55,41 @@ def test_migration_chains_after_0015():
 def test_escalation_never_reads_the_pook():
     source = (Path(__file__).parent.parent / "app" / "api" / "escalation.py").read_text(encoding="utf-8")
     assert "pook" not in source.lower()
+
+
+# ---- update_senior: a stale pook is dropped when the barangay moves ----
+
+import asyncio
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
+
+from app.api.routes import seniors as seniors_route
+
+
+def _run_update(senior, **fields):
+    db = SimpleNamespace(get=AsyncMock(return_value=object()), commit=AsyncMock(), refresh=AsyncMock())
+    payload = SeniorUpdate(**{**BASE, **fields})
+    return asyncio.run(seniors_route.update_senior(payload, senior=senior, db=db))
+
+
+def _senior(barangay="U.P. CAMPUS"):
+    pook = SimpleNamespace(barangay="U.P. Campus")
+    return SimpleNamespace(
+        first_name="A", last_name="B", age=70, gender="f", barangay=barangay, address="x",
+        mobile_number="09170000000", pook_id=7, pook=pook,
+    )
+
+
+def test_pook_survives_a_save_that_keeps_the_barangay_and_omits_the_pook():
+    senior = _run_update(_senior())
+    assert senior.pook_id == 7
+
+
+def test_pook_is_dropped_when_the_barangay_changes_and_no_new_pook_is_sent():
+    senior = _run_update(_senior(), barangay="SAN ROQUE")
+    assert senior.pook_id is None
+
+
+def test_a_newly_chosen_pook_is_kept_even_if_the_barangay_changed():
+    senior = _run_update(_senior(), barangay="SAN ROQUE", pook_id=3)
+    assert senior.pook_id == 3
