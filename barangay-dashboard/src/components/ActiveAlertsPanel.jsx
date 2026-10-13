@@ -1,4 +1,4 @@
-import { displayStatus, triggerLabel } from '../labels'
+import { displayStatus, triggerLabel, pookTitle } from '../labels'
 import { initials, clockTime } from '../format'
 import { IconWarning, IconEye } from '../icons'
 import SectionCard from './SectionCard'
@@ -43,6 +43,11 @@ export default function ActiveAlertsPanel({ alerts, onViewAll, onShowDetails }) 
               <div className="alert-row-main">
                 <p className="alert-row-name">
                   {alert.senior_name}, {alert.senior_age}
+                  {alert.senior_pook && (
+                    <span className="badge-pook" title={pookTitle(alert.senior_sector)}>
+                      {alert.senior_pook}
+                    </span>
+                  )}
                   {/* Not a risk level -- amber, never red (dashboard spec §6). It tells
                       the responder nobody else was notified for this senior. Same badge the
                       Alerts-tab rows carry. */}

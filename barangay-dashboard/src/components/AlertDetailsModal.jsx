@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { triggerLabel, stepLabel } from '../labels'
+import { triggerLabel, stepLabel, pookTitle } from '../labels'
 import { reverseGeocode } from '../reverseGeocode'
 import { initials, dateTimeLabel } from '../format'
 import { canActOn } from '../alertActions'
@@ -186,6 +186,12 @@ export default function AlertDetailsModal({ alert, onClose, onAct, actionBusy })
                 to reach this senior -- hidden once the incident is closed, same as the
                 location panel below. Gender shows only when the senior gave one at
                 onboarding (the API sends null otherwise). */}
+            {alert.senior_pook && (
+              <p className="details-age">
+                Pook: {alert.senior_pook}
+                {alert.senior_sector ? ` · ${pookTitle(alert.senior_sector)}` : ''}
+              </p>
+            )}
             {isActiveAlert(alert) && (
               <p className="details-age">
                 Age: {alert.senior_age}

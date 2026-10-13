@@ -33,6 +33,10 @@ class BarangayAlertOut(BaseModel):
     senior_gender: str | None
     senior_address: str
     senior_mobile: str
+    # The pook (area of the barangay) the senior lives in, so the responder knows which area
+    # the alert is in. Null when the senior never chose one. A label only.
+    senior_pook: str | None = None
+    senior_sector: str | None = None
 
     # Whether the senior has any family contact. False means nobody else was notified.
     # Same signal the escalation clock uses.
@@ -49,6 +53,8 @@ class BarangaySeniorOut(BaseModel):
     gender: str
     address: str
     mobile_number: str
+    pook: str | None = None
+    sector: str | None = None
     # The responder's own roster state. Inactive seniors are still listed and their alerts
     # still arrive.
     status: SeniorStatus
@@ -88,6 +94,8 @@ class BarangaySeniorDetail(BaseModel):
     gender: str
     address: str
     mobile_number: str
+    pook: str | None = None
+    sector: str | None = None
     status: SeniorStatus
     living_arrangement: str
     has_family_contact: bool

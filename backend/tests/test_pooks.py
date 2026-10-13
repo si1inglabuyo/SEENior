@@ -93,3 +93,34 @@ def test_pook_is_dropped_when_the_barangay_changes_and_no_new_pook_is_sent():
 def test_a_newly_chosen_pook_is_kept_even_if_the_barangay_changed():
     senior = _run_update(_senior(), barangay="SAN ROQUE", pook_id=3)
     assert senior.pook_id == 3
+
+
+# ---- the responder's payloads carry the pook ----
+
+from datetime import datetime
+from uuid import uuid4
+
+from app.api.routes.barangay import _alert_out
+from app.db.models import AlertStatus, RiskLevel, TriggerType
+
+
+def _alert_for(pook):
+    senior = SimpleNamespace(
+        sync_id=uuid4(), first_name="A", last_name="B", age=70, gender="f", address="x",
+        mobile_number="09170000000", contacts=[], pook=pook,
+    )
+    return SimpleNamespace(
+        sync_id=uuid4(), risk_level=RiskLevel.HIGH, trigger_type=TriggerType.INACTIVITY,
+        status=AlertStatus.ESCALATED, escalation_steps=[], created_at=datetime(2026, 10, 13),
+        resolved_at=None, location_cluster_id=None, senior=senior,
+    )
+
+
+def test_barangay_alert_carries_the_pook_and_sector():
+    out = _alert_out(_alert_for(SimpleNamespace(name="Sumakwel (Area 2)", sector="north")))
+    assert (out.senior_pook, out.senior_sector) == ("Sumakwel (Area 2)", "north")
+
+
+def test_barangay_alert_without_a_pook_is_null_not_an_error():
+    out = _alert_out(_alert_for(None))
+    assert (out.senior_pook, out.senior_sector) == (None, None)

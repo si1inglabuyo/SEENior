@@ -246,6 +246,14 @@ h4 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase;
 }
 /* When it sits inline after the senior's name (dashboard Alerts Today panel). */
 .alert-row-name .badge-alone { margin-left: 8px; display: inline-block; vertical-align: middle; }
+/* The senior's pook (area of the barangay). Neutral on purpose: it is location context for the
+   responder, not a severity, so it never borrows the risk reds or the "Lives alone" amber. */
+.badge-pook {
+  font-size: 10px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase;
+  color: #4f6b8a; border: 1px solid #4f6b8a; border-radius: 999px;
+  padding: 3px 8px; white-space: nowrap;
+}
+.alert-row-name .badge-pook { margin-left: 8px; display: inline-block; vertical-align: middle; }
 .type-badge {
   background: var(--high); color: #fff; font-size: 12px; font-weight: 700;
   border-radius: 999px; padding: 3px 12px; white-space: nowrap;

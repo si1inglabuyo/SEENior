@@ -106,6 +106,8 @@ def _alert_out(alert: Alert) -> BarangayAlertOut:
         senior_gender=_display_gender(senior.gender),
         senior_address=senior.address,
         senior_mobile=senior.mobile_number,
+        senior_pook=senior.pook.name if senior.pook else None,
+        senior_sector=senior.pook.sector if senior.pook else None,
         senior_has_family_contact=has_family_tier(senior),
     )
 
@@ -323,6 +325,8 @@ async def list_barangay_seniors(
             gender=senior.gender,
             address=senior.address,
             mobile_number=senior.mobile_number,
+            pook=senior.pook.name if senior.pook else None,
+            sector=senior.pook.sector if senior.pook else None,
             status=senior.status,
             last_seen_at=senior.last_seen_at,
             battery_percent=senior.battery_percent,
@@ -384,6 +388,8 @@ async def barangay_senior_detail(
         gender=senior.gender,
         address=senior.address,
         mobile_number=senior.mobile_number,
+        pook=senior.pook.name if senior.pook else None,
+        sector=senior.pook.sector if senior.pook else None,
         status=senior.status,
         living_arrangement="With Family" if family else "Lives alone",
         has_family_contact=bool(family),

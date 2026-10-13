@@ -18,5 +18,25 @@ export function matchesSeniorSearch(senior, query) {
   const needle = query.trim().toLowerCase()
   if (!needle) return true
   const name = `${senior.first_name} ${senior.last_name}`.toLowerCase()
-  return name.includes(needle) || String(senior.age).includes(needle)
+  return (
+    name.includes(needle) ||
+    String(senior.age).includes(needle) ||
+    (senior.pook || '').toLowerCase().includes(needle)
+  )
+}
+
+// Pook filter values: 'all', a pook name, or NO_POOK for seniors who never chose one.
+export const NO_POOK = '__none__'
+
+export function matchesSeniorPook(senior, filter) {
+  if (filter === 'all') return true
+  if (filter === NO_POOK) return !senior.pook
+  return senior.pook === filter
+}
+
+// The pook names present on this roster, in the order they sort, for the filter menu.
+export function pookOptionsFor(seniors) {
+  return [...new Set(seniors.map((s) => s.pook).filter(Boolean))].sort((a, b) =>
+    a.localeCompare(b)
+  )
 }

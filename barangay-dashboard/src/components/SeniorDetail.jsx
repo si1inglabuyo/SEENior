@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { api, parseServerTime } from '../api'
 import { initials, dateTimeLabel, maskPhone } from '../format'
-import { triggerLabel, alertCategory, CATEGORY_LABEL } from '../labels'
+import { triggerLabel, alertCategory, CATEGORY_LABEL, pookTitle } from '../labels'
 import { DEACTIVATE_ACTION, REACTIVATE_ACTION } from '../seniorActions'
 import { recordAccess } from '../audit'
 import {
@@ -131,6 +131,8 @@ export default function SeniorDetail({
         gender: fallbackSenior.gender,
         address: fallbackSenior.address,
         mobile_number: fallbackSenior.mobile_number,
+        pook: fallbackSenior.pook,
+        sector: fallbackSenior.sector,
         living_arrangement: null,
         last_seen_at: fallbackSenior.last_seen_at,
         battery_percent: fallbackSenior.battery_percent,
@@ -229,6 +231,14 @@ export default function SeniorDetail({
                           </button>
                         </span>
                       )}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Pook</dt>
+                    <dd>
+                      {profile.pook
+                        ? `${profile.pook}${profile.sector ? ` · ${pookTitle(profile.sector)}` : ''}`
+                        : 'Not set'}
                     </dd>
                   </div>
                   <div>

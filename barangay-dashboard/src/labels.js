@@ -21,6 +21,14 @@ export const TRIGGER_SHORT = {
   fall_pattern: 'Possible fall',
 }
 
+// A pook is the area of the barangay a senior lives in. The sector (north / south of the
+// Sunken Garden) is shown as a tooltip, since the name alone is what a responder looks for.
+export const SECTOR_LABEL = { north: 'North sector', south: 'South sector' }
+
+export function pookTitle(sector) {
+  return SECTOR_LABEL[sector] || 'Pook'
+}
+
 export const STATUS_LABEL = {
   pending: 'Waiting for an answer',
   acknowledged: 'Family is handling it',

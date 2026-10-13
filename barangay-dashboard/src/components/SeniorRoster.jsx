@@ -6,7 +6,11 @@ import {
   SENIOR_STATUS_LABEL,
   matchesSeniorStatus,
   matchesSeniorSearch,
+  matchesSeniorPook,
+  pookOptionsFor,
+  NO_POOK,
 } from '../seniorFilters'
+import { pookTitle } from '../labels'
 import { IconSeniors, IconSearch } from '../icons'
 import SectionCard from './SectionCard'
 import FilterMenu from './FilterMenu'
@@ -18,6 +22,7 @@ export default function SeniorRoster({ onSessionLost }) {
   const [error, setError] = useState('')
   const [statusFilter, setStatusFilter] = useState('all') // 'all' | 'active' | 'deactivated'
   const [search, setSearch] = useState('')
+  const [pookFilter, setPookFilter] = useState('all') // 'all' | a pook name | NO_POOK
   const [selected, setSelected] = useState(null) // sync_id of the senior being viewed
 
     // Saved on the server (PATCH /seniors/{sync_id}/status) so it is the same on every
@@ -52,14 +57,17 @@ export default function SeniorRoster({ onSessionLost }) {
   const rows = useMemo(() => seniors ?? [], [seniors])
   const loading = seniors === null
 
+  const pookOptions = useMemo(() => pookOptionsFor(rows), [rows])
+
   const visible = useMemo(
     () =>
       rows.filter(
         (senior) =>
           matchesSeniorStatus(senior.status === 'inactive', statusFilter) &&
+          matchesSeniorPook(senior, pookFilter) &&
           matchesSeniorSearch(senior, search)
       ),
-    [rows, statusFilter, search]
+    [rows, statusFilter, pookFilter, search]
   )
 
   if (selected) {
@@ -130,11 +138,53 @@ export default function SeniorRoster({ onSessionLost }) {
           )}
         </FilterMenu>
 
+        {/* Only offered once at least one senior has a pook, so barangays that don't use
+            pooks never see a filter that does nothing. */}
+        {pookOptions.length > 0 && (
+          <FilterMenu
+            label={pookFilter === 'all' ? 'Pook' : pookFilter === NO_POOK ? 'No pook set' : pookFilter}
+            active={pookFilter !== 'all'}
+          >
+            {(close) => (
+              <ul className="menu-list">
+                {[...pookOptions, NO_POOK].map((opt) => (
+                  <li key={opt}>
+                    <button
+                      type="button"
+                      className={pookFilter === opt ? 'active' : ''}
+                      onClick={() => {
+                        setPookFilter(opt)
+                        close()
+                      }}
+                    >
+                      {opt === NO_POOK ? 'No pook set' : opt}
+                    </button>
+                  </li>
+                ))}
+                {pookFilter !== 'all' && (
+                  <li>
+                    <button
+                      type="button"
+                      className="menu-clear"
+                      onClick={() => {
+                        setPookFilter('all')
+                        close()
+                      }}
+                    >
+                      Clear
+                    </button>
+                  </li>
+                )}
+              </ul>
+            )}
+          </FilterMenu>
+        )}
+
         <div className="history-search">
           <IconSearch />
           <input
             type="search"
-            placeholder="Search by name, age…"
+            placeholder="Search by name, age, pook…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
@@ -179,6 +229,11 @@ export default function SeniorRoster({ onSessionLost }) {
                     </p>
                     <DeviceBadge senior={senior} className="senior-row-device" />
                   </div>
+                  {senior.pook && (
+                    <span className="badge-pook" title={pookTitle(senior.sector)}>
+                      {senior.pook}
+                    </span>
+                  )}
                   <span className={`status-badge ${off ? 'status-off' : 'status-on'}`}>
                     <span className="status-dot" />
                     {off ? 'Deactivated' : 'Active'}

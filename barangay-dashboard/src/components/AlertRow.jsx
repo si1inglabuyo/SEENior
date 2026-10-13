@@ -1,4 +1,4 @@
-import { alertCategory, CATEGORY_LABEL, displayStatus } from '../labels'
+import { alertCategory, CATEGORY_LABEL, displayStatus, pookTitle } from '../labels'
 import { initials, dateTimeLabel } from '../format'
 import StatusPill from './StatusPill'
 
@@ -44,6 +44,13 @@ export default function AlertRow({ alert, onShowDetails }) {
           {!alert.senior_has_family_contact && (
             <span className="badge-alone" title="This senior has no family contact linked">
               Lives alone
+            </span>
+          )}
+          {/* Which area of the barangay the senior lives in -- context for whoever is
+              assigned to that pook. Not a risk level, so it is neutral, never red or amber. */}
+          {alert.senior_pook && (
+            <span className="badge-pook" title={pookTitle(alert.senior_sector)}>
+              {alert.senior_pook}
             </span>
           )}
           <span className={`type-badge ${CATEGORY_CLASS[category]}`.trim()}>
