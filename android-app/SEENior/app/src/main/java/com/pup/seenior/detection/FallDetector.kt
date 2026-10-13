@@ -30,9 +30,15 @@ class FallDetector(
 ) {
 
     /**
-     * Thresholds in SI units (m/s2, rad/s, ms). The defaults are on the conservative end of
-     * published ranges: a missed fall is caught late by the inactivity signal, but a false one
-     * wakes a family member at 3am.
+     * Thresholds in SI units (m/s2, rad/s, ms). A missed fall is caught late by the inactivity
+     * signal, but a false one wakes a family member at 3am, so the defaults lean strict.
+     *
+     * Where each value stands against the literature, with the verified citations, is in
+     * docs/fall-detection-references.md. In short: impact (25.0 m/s2 = 2.55 g) sits inside the
+     * published upper-fall-threshold range of about 1.8 to 3.5 g (Bourke et al. 2007, as reported
+     * by Bagala et al. 2012; Li et al. 2009); free fall (0.31 g) and stillness (8 s) are stricter
+     * than published (0.41 to 0.73 g; a posture check 1 to 3 s after impact), and the stillness
+     * figure and the free-fall duration window are not from a source.
      */
     data class Config(
         /** Below this, the phone is not being held up against gravity. ~0.3 g. */
