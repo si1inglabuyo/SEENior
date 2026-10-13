@@ -6,6 +6,16 @@ from pydantic import BaseModel, Field
 from app.db.models import SeniorStatus
 
 
+class PookOut(BaseModel):
+    id: int
+    barangay: str
+    name: str
+    description: str | None = None
+    sector: str
+
+    model_config = {"from_attributes": True}
+
+
 class SeniorCreate(BaseModel):
     first_name: str
     last_name: str
@@ -14,6 +24,7 @@ class SeniorCreate(BaseModel):
     barangay: str
     address: str
     mobile_number: str
+    pook_id: int | None = None
 
 
 class SeniorUpdate(BaseModel):
@@ -24,6 +35,8 @@ class SeniorUpdate(BaseModel):
     barangay: str
     address: str
     mobile_number: str
+    # Only applied when the client sends it, so an older app's save cannot erase a pook.
+    pook_id: int | None = None
 
 
 class SeniorDeletionRequest(BaseModel):
@@ -80,6 +93,7 @@ class SeniorOut(BaseModel):
     is_charging: bool | None = None
     # Roster state, defaulting to active for clients reading an older server.
     status: SeniorStatus = SeniorStatus.ACTIVE
+    pook: PookOut | None = None
 
     model_config = {"from_attributes": True}
 

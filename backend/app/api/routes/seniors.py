@@ -9,12 +9,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_authenticated_senior, require_role
 from app.api.routes.contacts import MAX_FAMILY_CONTACTS_PER_SENIOR, SENIOR_CONTACT_LIMIT
 from app.core import device_key, ratelimit
-from app.db.models import Alert, AlertStatus, Contact, ContactType, Senior, SeniorStatus, UnlinkActor, User, UserRole
+from app.db.models import Alert, AlertStatus, Contact, ContactType, Pook, Senior, SeniorStatus, UnlinkActor, User, UserRole
 from app.db.session import get_db
 from app.schemas.contact import InviteCodeOut
 from app.schemas.senior import (
     ClosedAlertOut,
     DeviceKeyOut,
+    PookOut,
     SeniorCreate,
     SeniorDeletionRequest,
     SeniorHeartbeat,
@@ -30,6 +31,23 @@ router = APIRouter(prefix="/seniors", tags=["seniors"])
 INVITE_CODE_LIFETIME = timedelta(minutes=5)
 
 
+@router.get("/pooks", response_model=list[PookOut])
+async def list_pooks(barangay: str | None = None, db: AsyncSession = Depends(get_db)) -> list[Pook]:
+    """The pooks a senior can pick from. Public reference data, no personal information.
+
+    `barangay` is matched case-insensitively because PSGC spells it "U.P. CAMPUS".
+    """
+    query = select(Pook).order_by(Pook.sector.desc(), Pook.id)
+    if barangay:
+        query = query.where(func.lower(Pook.barangay) == barangay.strip().lower())
+    return list((await db.execute(query)).scalars())
+
+
+async def _check_pook(pook_id: int | None, db: AsyncSession) -> None:
+    if pook_id is not None and await db.get(Pook, pook_id) is None:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Unknown pook")
+
+
 @router.post(
     "",
     response_model=SeniorRegistered,
@@ -38,6 +56,7 @@ INVITE_CODE_LIFETIME = timedelta(minutes=5)
 )
 async def create_senior(payload: SeniorCreate, db: AsyncSession = Depends(get_db)) -> SeniorRegistered:
     """Registers a senior. The device key in the response is shown once and only its hash is kept."""
+    await _check_pook(payload.pook_id, db)
     key = device_key.generate()
     senior = Senior(**payload.model_dump(), device_key_hash=device_key.hash_key(key))
     db.add(senior)
@@ -82,7 +101,8 @@ async def update_senior(
     db: AsyncSession = Depends(get_db),
 ) -> Senior:
     # Lets an Edit Profile save reach the cloud copy the family app shows.
-    for field, value in payload.model_dump().items():
+    await _check_pook(payload.pook_id, db)
+    for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(senior, field, value)
     await db.commit()
     await db.refresh(senior)

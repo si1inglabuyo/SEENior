@@ -138,6 +138,25 @@ class DeviceToken(Base):
     user: Mapped["User"] = relationship(back_populates="device_tokens")
 
 
+class Pook(Base):
+    """One of a barangay's political subdivisions (Barangay U.P. Campus has sixteen).
+
+    Reference data, seeded by migration 0016. A senior's pook is a label the barangay
+    dashboard shows so a responder knows which area an alert is in. It is never read by
+    escalation: a missing or stale pook must not be able to misroute an alert.
+    """
+
+    __tablename__ = "pooks"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    barangay: Mapped[str] = mapped_column(String(128), index=True)
+    name: Mapped[str] = mapped_column(String(64))
+    # The printed name from the barangay profile, e.g. "Pook Gen. Emilio Aguinaldo
+    # (including Hardin ng Rosas and Hardin ng Bougainvilla)".
+    description: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    sector: Mapped[str] = mapped_column(String(16))  # "north" or "south"
+
+
 class Senior(Base):
     """Cloud record for a senior: identity only. The Routine Fingerprint stays on the phone."""
 
@@ -194,6 +213,10 @@ class Senior(Base):
     status_changed_by: Mapped[int | None] = mapped_column(
         ForeignKey("users.id"), nullable=True
     )
+
+    # Which pook the senior lives in (migration 0016). Optional, display only.
+    pook_id: Mapped[int | None] = mapped_column(ForeignKey("pooks.id"), nullable=True)
+    pook: Mapped["Pook | None"] = relationship(lazy="joined")
 
     contacts: Mapped[list["Contact"]] = relationship(back_populates="senior")
     alerts: Mapped[list["Alert"]] = relationship(back_populates="senior")
