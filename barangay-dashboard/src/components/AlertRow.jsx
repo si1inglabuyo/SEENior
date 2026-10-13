@@ -1,15 +1,12 @@
-import { alertCategory, CATEGORY_LABEL, displayStatus, pookTitle } from '../labels'
+import { alertCategory, CATEGORY_CLASS, CATEGORY_LABEL, displayStatus, pookTitle } from '../labels'
 import { initials, dateTimeLabel } from '../format'
 import StatusPill from './StatusPill'
 
-// One incident row, shared by the Alerts queue and Alert History. It shows who, when and
-// the type/status badges, and opens the Details modal when clicked.
-const CATEGORY_CLASS = {
-  sos: 'type-badge-sos',
-  dispatch_family: 'type-badge-dispatch',
-  potential_fall: 'type-badge-fall',
-  anomaly: '',
-}
+// One incident row, shared by the Alerts queue and Alert History's chronological view --
+// identical markup on both screens (the only difference is which alerts each hands in). The
+// row itself carries no controls: it shows who the alert is about, when it fired, and the
+// type/status badges, and the whole row is a button that opens the Details modal.
+// Acknowledge / Resolve / False Positive live inside that modal.
 
 export default function AlertRow({ alert, onShowDetails }) {
   const category = alertCategory(alert)

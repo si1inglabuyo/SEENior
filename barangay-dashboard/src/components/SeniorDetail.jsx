@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { api, parseServerTime } from '../api'
 import { initials, dateTimeLabel, maskPhone } from '../format'
-import { triggerLabel, alertCategory, CATEGORY_LABEL, pookTitle } from '../labels'
+import { triggerLabel, alertCategory, CATEGORY_CLASS, CATEGORY_LABEL, pookTitle } from '../labels'
 import { DEACTIVATE_ACTION, REACTIVATE_ACTION } from '../seniorActions'
 import { recordAccess } from '../audit'
 import {
@@ -31,12 +31,6 @@ import DeviceBadge from './DeviceBadge'
 // disclosure beyond the default view is written to the access audit log (src/audit.js),
 // section 23(a). The email stays withheld since no responder task needs it.
 
-const CATEGORY_CLASS = {
-  sos: 'type-badge-sos',
-  dispatch_family: 'type-badge-dispatch',
-  potential_fall: 'type-badge-fall',
-  anomaly: '',
-}
 
 // Retention for the per-senior alert history (RA 10173 section 11(e)): the default card
 // shows at most DEFAULT_HISTORY_MAX entries from the last DEFAULT_HISTORY_WINDOW_DAYS. The

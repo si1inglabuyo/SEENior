@@ -1,5 +1,14 @@
 import { useEffect, useState } from 'react'
-import { triggerLabel, stepLabel, pookTitle } from '../labels'
+import {
+  alertCategory,
+  CATEGORY_CLASS,
+  CATEGORY_LABEL,
+  displayStatus,
+  isAttending,
+  stepLabel,
+  triggerLabel,
+  pookTitle,
+} from '../labels'
 import { reverseGeocode } from '../reverseGeocode'
 import { initials, dateTimeLabel } from '../format'
 import { canActOn } from '../alertActions'
@@ -7,6 +16,7 @@ import { isActiveAlert } from '../historyFilters'
 import { decodeGeohash, cellSizeMeters } from '../geohash'
 import Modal from './Modal'
 import LocationMap from './LocationMap'
+import StatusPill from './StatusPill'
 
 // "Last Known Location": the senior's position when the alert fired, stored as a geohash.
 // It is a precise fix held under RA 10173 section 12(c), not anonymised. Shown on a live
@@ -101,9 +111,14 @@ function LocationPreview({ address, clusterId }) {
   )
 }
 
-// The full escalation history for this incident, built from `escalation_steps`. STEP_LABEL
-// (labels.js) turns each code into a sentence; unknown codes print as themselves.
-function EscalationTimeline({ steps }) {
+// The full escalation history for this incident: every tier the alert passed through, who
+// acted, and any note they left. Built from `escalation_steps`, the JSON audit trail the
+// phone, the family app and the server-side clock all append to (CLAUDE.md §8). `STEP_LABEL`
+// (labels.js) turns each code into a sentence; an unknown code prints as itself rather than
+// vanishing. This is where a responder sees *why* an alert reached them -- and, once closed,
+// how it was resolved and by whom.
+function EscalationTimeline({ alert }) {
+  const steps = alert.escalation_steps
   const entries = Array.isArray(steps) ? steps : []
   if (entries.length === 0) return null
   return (
@@ -114,7 +129,7 @@ function EscalationTimeline({ steps }) {
           <li key={i} className="timeline-item">
             <span className="timeline-dot" aria-hidden="true" />
             <div className="timeline-body">
-              <p className="timeline-step">{stepLabel(entry)}</p>
+              <p className="timeline-step">{stepLabel(entry, alert)}</p>
               <p className="timeline-meta">
                 {dateTimeLabel(entry.at)}
                 {entry.by ? ` · ${entry.by}` : ''}
@@ -163,6 +178,12 @@ function IncidentActions({ alert, onAct, busy }) {
           placeholder="Add a note for the incident log — e.g. why this is a false positive, or who attended. Leave blank to skip."
         />
       </label>
+      {isAttending(alert) && (
+        <p className="details-attending-note muted">
+          A responder is already attending. Close it as Resolved or False Positive once it is
+          settled.
+        </p>
+      )}
     </div>
   )
 }
@@ -198,6 +219,12 @@ export default function AlertDetailsModal({ alert, onClose, onAct, actionBusy })
                 {alert.senior_gender ? ` · ${alert.senior_gender}` : ''}
               </p>
             )}
+            <div className="details-badges">
+              <span className={`type-badge ${CATEGORY_CLASS[alertCategory(alert)]}`.trim()}>
+                {CATEGORY_LABEL[alertCategory(alert)]}
+              </span>
+              <StatusPill status={displayStatus(alert)} />
+            </div>
           </div>
         </div>
 
@@ -228,7 +255,7 @@ export default function AlertDetailsModal({ alert, onClose, onAct, actionBusy })
           </>
         )}
 
-        <EscalationTimeline steps={alert.escalation_steps} />
+        <EscalationTimeline alert={alert} />
 
         {onAct && <IncidentActions alert={alert} onAct={onAct} busy={actionBusy} />}
       </div>
