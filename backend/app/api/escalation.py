@@ -63,7 +63,27 @@ async def db_now(db: AsyncSession) -> datetime:
     return result.scalar_one()
 
 
+EXTENDED_FALL_WINDOW_SECONDS = 120  # fall window once the phone has reported fall tolerance
+
+
+def _fall_tolerance_raised(note: str | None) -> bool:
+    """True if the fall alert's note says the impact gate was raised above its base.
+
+    The note is the metadata string FallTolerance.encode() writes on the phone, for example
+    `impact_min=27.5;base_impact=25.0;...`. Mirrors FallTolerance.windowSeconds().
+    """
+    if not note:
+        return False
+    parts = dict(p.split("=", 1) for p in note.split(";") if "=" in p)
+    try:
+        return float(parts["impact_min"]) > float(parts["base_impact"])
+    except (KeyError, ValueError):
+        return False
+
+
 def senior_window(alert: Alert) -> int:
+    if alert.trigger_type == TriggerType.FALL_PATTERN and _fall_tolerance_raised(alert.fall_tolerance):
+        return EXTENDED_FALL_WINDOW_SECONDS
     return SENIOR_WINDOW_SECONDS.get(alert.trigger_type.value, DEFAULT_SENIOR_WINDOW_SECONDS)
 
 

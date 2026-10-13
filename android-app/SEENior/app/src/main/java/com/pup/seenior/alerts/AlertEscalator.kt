@@ -3,6 +3,7 @@ package com.pup.seenior.alerts
 import android.util.Log
 import com.pup.seenior.database.SeniorAppDatabase
 import com.pup.seenior.database.entities.Alert
+import com.pup.seenior.detection.FallTolerance
 import com.pup.seenior.network.RetrofitClient
 import com.pup.seenior.network.SeniorCloudSync
 import com.pup.seenior.network.dto.CancelAlertRequest
@@ -64,11 +65,12 @@ object AlertEscalator {
      * How long the senior gets to answer before this fires, by trigger type. Used by both the
      * on-screen countdown and the background watchdog so they never disagree.
      */
-    fun windowSecondsFor(triggerType: String): Int = when (triggerType) {
+    fun windowSecondsFor(triggerType: String, fallTolerance: String? = null): Int = when (triggerType) {
         // A conscious cry for help. Only long enough to catch a pocket press (spec §7).
         "sos" -> 10
         // Layer 0 gets a compressed window, since a detected fall already shows something happened.
-        "fall_pattern" -> 60
+        // After repeated cancelled falls it is lengthened (see FallTolerance.windowSeconds).
+        "fall_pattern" -> FallTolerance.windowSeconds(fallTolerance)
         else -> 600
     }
 

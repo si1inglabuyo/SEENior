@@ -78,7 +78,7 @@ class WellnessPromptViewModel(application: Application) : AndroidViewModel(appli
             // Anchored to when the alert was raised, and re-derived from the clock each tick, not
             // counted down: Doze can freeze the app and the display would fall behind the alarm.
             // This keeps it in agreement with EscalationScheduler.
-            val windowSeconds = AlertEscalator.windowSecondsFor(alert.triggerType).toLong()
+            val windowSeconds = AlertEscalator.windowSecondsFor(alert.triggerType, alert.fallTolerance).toLong()
             while (stage == PromptStage.PROMPT) {
                 val remaining = windowSeconds - (System.currentTimeMillis() - alert.triggeredAt) / 1000
                 secondsRemaining = remaining.coerceIn(0, Int.MAX_VALUE.toLong()).toInt()

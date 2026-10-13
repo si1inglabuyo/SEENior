@@ -31,12 +31,12 @@ def _senior(contacts):
     )
 
 
-def _alert(trigger=TriggerType.INACTIVITY, contacts=None, steps=None):
+def _alert(trigger=TriggerType.INACTIVITY, contacts=None, steps=None, fall_tolerance=None):
     senior = _senior([_contact()] if contacts is None else contacts)
     return SimpleNamespace(
         sync_id=uuid4(), senior_id=1, senior=senior, trigger_type=trigger,
         risk_level=RiskLevel.HIGH, status=AlertStatus.PENDING,
-        escalation_steps=steps or [], created_at=CREATED,
+        escalation_steps=steps or [], created_at=CREATED, fall_tolerance=fall_tolerance,
     )
 
 
@@ -106,6 +106,19 @@ def test_sos_and_fall_get_short_windows_and_the_rest_the_default():
     assert escalation.senior_window(_alert(TriggerType.SOS)) == 10
     assert escalation.senior_window(_alert(TriggerType.FALL_PATTERN)) == 60
     assert escalation.senior_window(_alert(TriggerType.INACTIVITY)) == 600
+
+
+RAISED = "impact_min=27.5;base_impact=25.0;still_ms=8800;base_still=8000;false=2;real=0"
+NOT_RAISED = "impact_min=25.0;base_impact=25.0;still_ms=8000;base_still=8000;false=1;real=0"
+
+
+def test_fall_window_is_extended_only_when_tolerance_raised_the_gate():
+    fall = TriggerType.FALL_PATTERN
+    assert escalation.senior_window(_alert(fall, fall_tolerance=RAISED)) == 120
+    assert escalation.senior_window(_alert(fall, fall_tolerance=NOT_RAISED)) == 60
+    assert escalation.senior_window(_alert(fall, fall_tolerance="garbage")) == 60
+    # The note means nothing on any other trigger.
+    assert escalation.senior_window(_alert(TriggerType.SOS, fall_tolerance=RAISED)) == 10
 
 
 def test_barangay_waits_a_family_window_after_family_for_ordinary_alerts():

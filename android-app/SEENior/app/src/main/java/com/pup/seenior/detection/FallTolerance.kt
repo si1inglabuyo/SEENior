@@ -39,6 +39,25 @@ object FallTolerance {
     /** The most any gate can be raised: 30%, so impact never passes 32.5 m/s2 and stillness 10.4 s. */
     const val MAX_RAISE = 0.30
 
+    /** The senior's answer window for a normal fall alert. */
+    const val BASE_WINDOW_SECONDS = 60
+
+    /**
+     * The answer window once tolerance is active. A senior who has cancelled several falls is
+     * probably across the room from a dropped phone, so they get longer to reach it. The alert
+     * stays High with the full alarm and still escalates when the time runs out.
+     */
+    const val EXTENDED_WINDOW_SECONDS = 120
+
+    /**
+     * How long the senior has to answer a fall alert whose stored [note] is [Result.encode]'s
+     * output. Read off the alert itself, so the countdown, the watchdog and the server all get
+     * the same answer with nothing extra stored. Tolerance that real falls have cancelled out
+     * (not [Result.raised]) gives the base window.
+     */
+    fun windowSeconds(note: String?): Int =
+        if (decodeNote(note)?.raised == true) EXTENDED_WINDOW_SECONDS else BASE_WINDOW_SECONDS
+
     /** Earliest `triggered_at` that still counts as evidence at [now]. */
     fun windowStart(now: Long): Long = FalseAlarmTolerance.windowStart(now)
 

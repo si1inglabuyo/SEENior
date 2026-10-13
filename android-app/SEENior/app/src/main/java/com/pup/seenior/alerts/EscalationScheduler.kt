@@ -37,7 +37,7 @@ object EscalationScheduler {
      */
     fun arm(context: Context, alert: Alert) {
         val windowMillis = TimeUnit.SECONDS.toMillis(
-            AlertEscalator.windowSecondsFor(alert.triggerType).toLong()
+            AlertEscalator.windowSecondsFor(alert.triggerType, alert.fallTolerance).toLong()
         )
         val dueAt = alert.triggeredAt + windowMillis
         val manager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager

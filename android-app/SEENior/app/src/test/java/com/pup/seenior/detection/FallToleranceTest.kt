@@ -18,6 +18,28 @@ class FallToleranceTest {
 
     private fun resolve(false_: Int, real: Int = 0) = FallTolerance.resolve(base, false_, real)
 
+    // ------------------------------------------------------------ answer window
+
+    @Test
+    fun `window stays 60s until tolerance has raised the gate`() {
+        assertEquals(60, FallTolerance.windowSeconds(null))
+        assertEquals(60, FallTolerance.windowSeconds(resolve(0).encode()))
+        assertEquals(60, FallTolerance.windowSeconds(resolve(1).encode()))
+        assertEquals(60, FallTolerance.windowSeconds("garbage"))
+    }
+
+    @Test
+    fun `window is 120s once two false alarms raised the gate`() {
+        assertEquals(120, FallTolerance.windowSeconds(resolve(2).encode()))
+        assertEquals(120, FallTolerance.windowSeconds(resolve(6).encode()))
+    }
+
+    @Test
+    fun `real falls take the longer window back with the raise`() {
+        assertEquals(120, FallTolerance.windowSeconds(resolve(4, real = 1).encode()))
+        assertEquals(60, FallTolerance.windowSeconds(resolve(2, real = 2).encode()))
+    }
+
     // ------------------------------------------------------------ nothing changes without a pattern
 
     @Test

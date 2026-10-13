@@ -75,7 +75,7 @@ fun WellnessPromptScreen(
                 SosCountdownScreen(
                     copy = copy,
                     secondsRemaining = viewModel.secondsRemaining,
-                    totalSeconds = AlertEscalator.windowSecondsFor(alert.triggerType),
+                    totalSeconds = AlertEscalator.windowSecondsFor(alert.triggerType, alert.fallTolerance),
                     contacts = willAlertContacts,
                     contactsKnown = willAlertContactsKnown,
                     barangay = barangay,
