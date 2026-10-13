@@ -163,6 +163,15 @@ object MedianMadDetector {
                 continue
             }
 
+            // The screen was on within the last few minutes, so a still phone is not a still
+            // person (see [ScreenEngagement]). Logged, nobody asked. Applies to the two
+            // accelerometer signals only, after the score and the tolerance gate, so the stored
+            // score is the real one.
+            if (ScreenEngagement.excuses(featureName, sensorData.screenIdleDuration)) {
+                recordLowRisk(seniorId, triggerType, sensorData, zScore, alertDao)
+                continue
+            }
+
             // Layer 3: the classifier decides what the z-score is worth at this hour. The score
             // is stored unchanged alongside it; they are separate outputs.
             val risk = FuzzyRiskClassifier.classify(
