@@ -10,11 +10,12 @@ from datetime import date, datetime, time, timedelta
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, or_, select, true
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.api.deps import require_role
+from app.core.config import settings
 from app.api.escalation import append_step, db_now, has_family_tier, sweep_overdue_alerts
 from app.db.models import (
     Alert,
@@ -59,6 +60,17 @@ def _assigned_barangay(responder: User) -> str:
             detail="This responder account has no barangay assigned. Contact the OSCA officer.",
         )
     return responder.barangay
+
+
+def _barangay_filter(barangay: str):
+    """SQL condition for "this senior is in the responder's barangay". Matches every senior
+    while BARANGAY_SHOW_ALL_SENIORS is on (demo only; see app/core/config.py)."""
+    return true() if settings.barangay_show_all_seniors else Senior.barangay == barangay
+
+
+def _in_barangay(senior_barangay: str | None, barangay: str) -> bool:
+    """The same check for a senior already loaded into Python."""
+    return settings.barangay_show_all_seniors or senior_barangay == barangay
 
 
 def _display_gender(gender: str | None) -> str | None:
@@ -140,7 +152,7 @@ async def list_barangay_alerts(
         select(Alert)
         .join(Senior, Senior.id == Alert.senior_id)
         .where(
-            Senior.barangay == barangay,
+            _barangay_filter(barangay),
             Senior.deleted_at.is_(None),  # deleted their own account (spec §11a)
             Alert.status != AlertStatus.PENDING,
         )
@@ -203,7 +215,7 @@ async def _responder_alert(sync_id: UUID, db: AsyncSession, responder: User) -> 
     if (
         alert is None
         or alert.senior is None
-        or alert.senior.barangay != barangay
+        or not _in_barangay(alert.senior.barangay, barangay)
         or alert.senior.deleted_at is not None  # deleted their own account (spec §11a)
     ):
         # Same 404 for "no such alert" and "not your barangay", so existence isn't revealed.
@@ -300,7 +312,7 @@ async def list_barangay_seniors(
 
     seniors_result = await db.execute(
         select(Senior)
-        .where(Senior.barangay == barangay, Senior.deleted_at.is_(None))
+        .where(_barangay_filter(barangay), Senior.deleted_at.is_(None))
         .order_by(Senior.last_name, Senior.first_name)
     )
     seniors = list(seniors_result.scalars().all())
@@ -357,7 +369,7 @@ async def barangay_senior_detail(
         )
     )
     senior = result.scalar_one_or_none()
-    if senior is None or senior.barangay != barangay or senior.deleted_at is not None:
+    if senior is None or not _in_barangay(senior.barangay, barangay) or senior.deleted_at is not None:
         # Same 404 for "no such senior" and "not your barangay".
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Senior not found")
 
@@ -412,7 +424,7 @@ async def barangay_stats(
     barangay = _assigned_barangay(responder)
 
     seniors_result = await db.execute(
-        select(Senior.id).where(Senior.barangay == barangay, Senior.deleted_at.is_(None))
+        select(Senior.id).where(_barangay_filter(barangay), Senior.deleted_at.is_(None))
     )
     senior_ids = list(seniors_result.scalars().all())
     if not senior_ids:
@@ -495,7 +507,7 @@ async def barangay_stats(
     )
     seniors_month_result = await db.execute(
         select(func.count(Senior.id)).where(
-            Senior.barangay == barangay,
+            _barangay_filter(barangay),
             Senior.deleted_at.is_(None),
             Senior.created_at >= month_start_utc,
         )

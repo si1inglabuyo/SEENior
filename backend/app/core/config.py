@@ -74,6 +74,12 @@ class Settings:
     # so production doesn't publish a map of every endpoint.
     enable_api_docs: bool = os.environ.get("ENABLE_API_DOCS") == "1"
 
+    # Demo switch: when BARANGAY_SHOW_ALL_SENIORS=1 the barangay dashboard lists every senior and
+    # alert whatever barangay they registered in, so testers outside Barangay U.P. Campus show up.
+    # Off by default, which keeps each responder scoped to their own barangay (spec section 11).
+    # Turn it off again before a real pilot.
+    barangay_show_all_seniors: bool = os.environ.get("BARANGAY_SHOW_ALL_SENIORS") == "1"
+
     # Browser origins allowed to call this API (the barangay dashboard).
     cors_origins: list[str] = [
         origin.strip()
