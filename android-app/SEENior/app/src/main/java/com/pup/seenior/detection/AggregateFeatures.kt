@@ -29,8 +29,9 @@ object AggregateFeatures {
      * time block. Takes the whole baseline set so filtering by block happens in one place.
      *
      * The first five numbers are signed Modified Z-Scores, `(value - median) / effectiveMad`,
-     * not run through [MedianMad.deviationsScore] (which takes the absolute value): the sign
-     * separates an energetic day from barely moving. The sixth, `is_charging`, is 0.0/1.0.
+     * not run through [MedianMad.deviationsScore] (which takes the absolute value), then
+     * clipped to the worrying side: movement, unlocks and steps keep only z <= 0; inactivity
+     * and screen idle keep only z >= 0. The sixth, `is_charging`, is 0.0/1.0.
      *
      * @throws IllegalArgumentException if a baseline row for one of the five features is
      *   missing for this senior and block; onboarding seeds all of them, so a gap is a bug.
@@ -51,12 +52,16 @@ object AggregateFeatures {
             return (value - baseline.medianValue) / effectiveMad
         }
 
+        // One-sided: only the worrying direction survives. More movement, steps or unlocks than
+        // usual is a busy day (the market, a visitor), never the emergency; less stillness or
+        // screen idle than usual is the same. Without this the forest flagged energetic
+        // afternoons three nights running (z up to +26 on steps, 2026-10-10..12).
         return doubleArrayOf(
-            signedZ("movement_score", aggregate.avgMovementScore),
-            signedZ("inactivity_duration", aggregate.totalInactivityDuration.toDouble()),
-            signedZ("screen_idle_duration", aggregate.avgScreenIdleDuration.toDouble()),
-            signedZ("screen_unlock_count", aggregate.totalScreenUnlocks.toDouble()),
-            signedZ("step_count", aggregate.totalSteps.toDouble()),
+            minOf(signedZ("movement_score", aggregate.avgMovementScore), 0.0),
+            maxOf(signedZ("inactivity_duration", aggregate.totalInactivityDuration.toDouble()), 0.0),
+            maxOf(signedZ("screen_idle_duration", aggregate.avgScreenIdleDuration.toDouble()), 0.0),
+            minOf(signedZ("screen_unlock_count", aggregate.totalScreenUnlocks.toDouble()), 0.0),
+            minOf(signedZ("step_count", aggregate.totalSteps.toDouble()), 0.0),
             if (aggregate.isChargingMajority) 1.0 else 0.0
         )
     }

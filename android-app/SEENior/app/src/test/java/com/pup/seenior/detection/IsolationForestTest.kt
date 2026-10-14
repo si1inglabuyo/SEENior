@@ -14,23 +14,30 @@ import org.junit.Test
  *
  * As in [FallDetectorTest], the negative cases outnumber the positive on purpose.
  *
- * Tuning note: `psi` (32) and `trees` (100) kept the plan's values once training used a
- * realistic 56-row fortnight (14 days x 4 blocks). [THRESHOLD] moved from 0.62 to 0.58, the
- * midpoint of what training produced:
+ * Tuning note (revised 2026-10-14; the 2026-09-15 note chose 0.58 from one draw per case
+ * and is superseded). Two things changed. Features are one-sided (more movement, steps or
+ * unlocks than usual, or less stillness, is clipped to 0), because on 10-10..12 the detector
+ * flagged busy afternoons. And the simulator's ordinary days now wobble like the pilot's (about
+ * 1.5 z), where before they sat within 0.1 z of the median. [THRESHOLD] is 0.64, read off
+ * 200 independent draws per scenario (ThresholdCalibrationTest). Share flagged at 0.58 / 0.64:
  *
- *     total stillness   0.632  \  flag cluster (min 0.607)
- *     combination       0.607  /
- *     lazy Sunday       0.553  \
- *     energetic day     0.542   > quiet cluster (max 0.553)
- *     normal night      0.519  /
+ *     long stillness            99% / 90%   (clear positive)
+ *     combination               70% / 36%   (partly detectable by nature)
+ *     ordinary day              16% /  1%
+ *     lazy Sunday               27% /  4%
+ *     energetic day (3x steps)  10% /  1%
  *
- * 0.62 sat inside the flag cluster and would have missed "catches the combination". The
- * clusters are ~0.054 apart and 0.58 sits roughly centred in the gap.
+ * At 0.58 about one block in six on an ordinary day would flag; with four blocks a day that is
+ * most nights. 0.64 keeps the clear positive at 90% and the false rate near 1%. The mild
+ * "total stillness" morning (steps -2.2 z, inactivity normal) flags only 11% and is Layer 1's
+ * case, not Layer 2's. These are synthetic rates; there is no labelled real-emergency set.
  */
 class IsolationForestTest {
 
     /** Score at/above this is "flag"; below is "quiet". See the class doc's tuning note. */
-    private val THRESHOLD = 0.58
+    private val THRESHOLD = 0.64
+
+    private val RUNS = 100
 
     private val TREES = IsolationForest.DEFAULT_TREES
     private val PSI = IsolationForest.DEFAULT_PSI
@@ -66,44 +73,66 @@ class IsolationForestTest {
         val day = AggregateSimulator.day(
             seniorId = 1, date = "2099-01-01", block = block, baselines = baselines,
             movementFactor = movementFactor, stepsFactor = stepsFactor, stillnessFactor = stillnessFactor,
-            sampleCount = sampleCount, random = Random(seed)
+            sampleCount = sampleCount, spread = AggregateSimulator.ORDINARY_SPREAD, random = Random(seed)
         )
         return AggregateFeatures.vector(day, baselines)
     }
 
-    @Test
-    fun `catches total stillness`() {
-        val forest = forestFor("morning", seed = 1L)
-        val motionless = scenario("morning", movementFactor = 0.05, stepsFactor = 0.0, seed = 2L)
-        assertTrue("expected a flag, scored ${forest.score(motionless)}", forest.score(motionless) >= THRESHOLD)
+    /**
+     * Share of [RUNS] independent (fortnight, day) draws that score at or above [THRESHOLD].
+     * One draw proves nothing once ordinary days wobble like real ones (spread ~1.5 z, measured
+     * on the pilot): the same scenario scores anywhere in a band. The claim is about the rate.
+     */
+    private fun flagRate(
+        movementFactor: Double = 1.0,
+        stepsFactor: Double = 1.0,
+        stillnessFactor: Double = 1.0
+    ): Double {
+        val flagged = (1..RUNS).count { i ->
+            val forest = forestFor("morning", seed = i * 100L)
+            val point = scenario(
+                "morning", movementFactor, stepsFactor, stillnessFactor, seed = i * 100L + 2
+            )
+            forest.score(point) >= THRESHOLD
+        }
+        return flagged.toDouble() / RUNS
     }
 
     @Test
-    fun `catches the combination even when no single feature is extreme`() {
-        val forest = forestFor("morning", seed = 3L)
-        // Every factor is a mild move, none near Layer 1's 2.5 cutoff alone, but all five drift
-        // the same way. Pushed to the edge of "no single z above 2.5" (checked by hand).
-        val mildlyOff = scenario(
-            "morning",
-            movementFactor = 0.0, stepsFactor = 0.15, stillnessFactor = 1.38,
-            seed = 4L
-        )
-        assertTrue("expected a flag, scored ${forest.score(mildlyOff)}", forest.score(mildlyOff) >= THRESHOLD)
+    fun `catches a long stillness`() {
+        // Inactivity about +3.5 z and screen idle about +8 z: Layer 2's clear-cut positive.
+        val rate = flagRate(movementFactor = 0.2, stepsFactor = 0.2, stillnessFactor = 2.5)
+        assertTrue("expected >= 85% flagged, got ${"%.0f".format(rate * 100)}%", rate >= 0.85)
+    }
+
+    @Test
+    fun `sometimes catches the combination even when no single feature is extreme`() {
+        // Every factor is a mild move, none near Layer 1's 2.5 cutoff alone, but all drift the
+        // same way. A forest can only be partly sure of this, so the bar is a share, not most.
+        val rate = flagRate(movementFactor = 0.0, stepsFactor = 0.15, stillnessFactor = 1.38)
+        assertTrue("expected >= 25% flagged, got ${"%.0f".format(rate * 100)}%", rate >= 0.25)
+    }
+
+    @Test
+    fun `ignores an ordinary day`() {
+        val rate = flagRate()
+        assertTrue("expected <= 5% flagged, got ${"%.0f".format(rate * 100)}%", rate <= 0.05)
     }
 
     @Test
     fun `ignores a lazy Sunday`() {
-        val forest = forestFor("morning", seed = 5L)
-        val lazySunday = scenario("morning", movementFactor = 0.6, stepsFactor = 0.5, seed = 6L)
-        assertFalse("expected quiet, scored ${forest.score(lazySunday)}", forest.score(lazySunday) >= THRESHOLD)
+        val rate = flagRate(movementFactor = 0.6, stepsFactor = 0.5)
+        assertTrue("expected <= 10% flagged, got ${"%.0f".format(rate * 100)}%", rate <= 0.10)
     }
 
     @Test
     fun `ignores an energetic day`() {
-        // The hardest case in the plan: unusual is not the same as unsafe.
-        val forest = forestFor("morning", seed = 7L)
-        val energetic = scenario("morning", stepsFactor = 3.0, seed = 8L)
-        assertFalse("expected quiet, scored ${forest.score(energetic)}", forest.score(energetic) >= THRESHOLD)
+        // The hardest case in the plan: unusual is not the same as unsafe. Features are
+        // one-sided, so doing more than usual cannot count against her.
+        val rate = flagRate(stepsFactor = 3.0)
+        assertTrue("expected <= 5% flagged, got ${"%.0f".format(rate * 100)}%", rate <= 0.05)
+        val veryEnergetic = flagRate(movementFactor = 10.0, stepsFactor = 10.0)
+        assertTrue("expected <= 5% flagged, got ${"%.0f".format(veryEnergetic * 100)}%", veryEnergetic <= 0.05)
     }
 
     @Test

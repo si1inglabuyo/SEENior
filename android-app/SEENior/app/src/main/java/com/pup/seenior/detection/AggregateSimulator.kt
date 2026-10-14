@@ -3,7 +3,11 @@ package com.pup.seenior.detection
 import com.pup.seenior.database.entities.Baseline
 import com.pup.seenior.database.entities.DailyAggregate
 import java.time.LocalDate
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.ln
 import kotlin.math.round
+import kotlin.math.sqrt
 import kotlin.random.Random
 
 /**
@@ -27,6 +31,17 @@ object AggregateSimulator {
     private const val JITTER = 0.05
 
     /**
+     * Day-to-day spread of an ordinary day, in z-score units (multiples of the baseline's MAD).
+     * Measured, not guessed: the pilot's real ordinary blocks (2026-10-01..13) spread about
+     * 1.5 z around the median, where [JITTER] alone gives about 0.1. A training set that tight
+     * makes every real wobble look out of range to the forest.
+     */
+    const val ORDINARY_SPREAD = 1.5
+
+    private fun gaussian(random: Random): Double =
+        sqrt(-2.0 * ln(1.0 - random.nextDouble())) * cos(2.0 * PI * random.nextDouble())
+
+    /**
      * One block-day, scaled against [baselines]' medians for [seniorId] and [block]. A factor
      * of `1.0` means her normal median; `movementFactor = 0.05, stepsFactor = 0.0` is total
      * stillness and `stepsFactor = 3.0` alone is an energetic day.
@@ -36,6 +51,7 @@ object AggregateSimulator {
      *
      * @param sampleCount defaults to [DEFAULT_SAMPLE_COUNT]; pass a low number or `null` to
      *   build thin-block rows.
+     * @param spread natural day-to-day variation in z units; 0 keeps the tight [JITTER] only.
      * @param random shared across a scenario's calls so the run is reproducible together.
      */
     fun day(
@@ -49,6 +65,7 @@ object AggregateSimulator {
         unlocks: Int? = null,
         charging: Boolean = false,
         sampleCount: Int? = DEFAULT_SAMPLE_COUNT,
+        spread: Double = 0.0,
         random: Random
     ): DailyAggregate {
         val byFeature = baselines
@@ -63,7 +80,10 @@ object AggregateSimulator {
 
         fun scaled(featureName: String, factor: Double): Double {
             val wobble = 1.0 + random.nextDouble(-JITTER, JITTER)
-            return (median(featureName) * factor * wobble).coerceAtLeast(0.0)
+            val mad = byFeature.getValue(featureName).madValue
+                .coerceAtLeast(com.pup.seenior.baseline.SeedBaselineGenerator.MIN_MAD_FLOOR.getValue(featureName))
+            val natural = if (spread > 0.0) gaussian(random) * spread * mad else 0.0
+            return (median(featureName) * factor * wobble + natural).coerceAtLeast(0.0)
         }
 
         val unlockCount = unlocks ?: round(scaled("screen_unlock_count", 1.0)).toInt()
@@ -91,7 +111,8 @@ object AggregateSimulator {
         seniorId: Int,
         block: String,
         baselines: List<Baseline>,
-        seed: Long
+        seed: Long,
+        spread: Double = ORDINARY_SPREAD
     ): List<DailyAggregate> {
         val random = Random(seed)
         return List(count) { i ->
@@ -100,6 +121,7 @@ object AggregateSimulator {
                 date = LocalDate.ofEpochDay(i.toLong()).toString(),
                 block = block,
                 baselines = baselines,
+                spread = spread,
                 random = random
             )
         }

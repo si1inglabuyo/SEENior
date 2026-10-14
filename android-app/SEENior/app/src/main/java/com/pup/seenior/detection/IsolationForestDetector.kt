@@ -25,7 +25,7 @@ object IsolationForestDetector {
      * Score at or above which a block is flagged. Tuned against the nine cases in
      * `IsolationForestTest`; see that class's tuning note.
      */
-    const val THRESHOLD = 0.58
+    const val THRESHOLD = 0.64
 
     /**
      * Below this many usable block-days the run scores nothing. A product decision: a forest
