@@ -1,11 +1,15 @@
 package com.pup.seenior.ui.family
 
 import android.app.Application
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
@@ -14,6 +18,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -179,42 +184,83 @@ private fun RoutineBody(rows: List<RoutineRowDto>, fil: Boolean) {
         return
     }
 
-    val seeds = RoutineWording.seedCount(rows)
-    Text(
-        if (seeds == 0) {
-            if (fil) "Natutunan mula sa nakaraang 14 na araw."
-            else "Learned from the last 14 days."
-        } else {
-            if (fil) "Nag-aaral pa: $seeds sa ${rows.size} na halaga ay galing pa sa mga sagot sa setup."
-            else "Still learning: $seeds of ${rows.size} values still come from the setup answers."
-        },
-        color = FamilyColors.TextSecondary,
-        fontSize = 13.sp
-    )
+    val summary = RoutineSummary.summarize(rows)
+    var showNumbers by remember { mutableStateOf(false) }
 
-    RoutineWording.BLOCK_ORDER.forEach { block ->
-        val inBlock = rows.filter { it.timeBlock == block }
-            .sortedBy { RoutineWording.FEATURE_ORDER.indexOf(it.featureName) }
-            .filter { it.featureName in RoutineWording.FEATURE_ORDER }
-        if (inBlock.isEmpty()) return@forEach
+    RoutineSummary.headline(summary, fil)?.let {
+        Text(it, color = FamilyColors.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+    }
+    Text(RoutineSummary.progress(summary, fil), color = FamilyColors.TextSecondary, fontSize = 13.sp)
 
+    summary.blocks.forEach { b ->
         HorizontalDivider(color = FamilyColors.FieldBorder)
-        Text(
-            RoutineWording.blockLabel(block, fil),
-            color = FamilyColors.Blue,
-            fontSize = 15.sp,
-            fontWeight = FontWeight.Bold
-        )
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(RoutineWording.blockLabel(b.block, fil), color = FamilyColors.Blue, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+            Text(RoutineSummary.levelLabel(b.level, fil), color = FamilyColors.TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+        }
+        // How busy this part of the day is next to the senior's busiest part.
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(8.dp)
+                .background(FamilyColors.BlueLightBg, RoundedCornerShape(4.dp))
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(b.activity.toFloat().coerceIn(0.03f, 1f))
+                    .height(8.dp)
+                    .background(FamilyColors.Blue, RoundedCornerShape(4.dp))
+            )
+        }
+        b.stillSeconds?.let {
+            Text(RoutineSummary.stillLabel(it, fil), color = FamilyColors.TextSecondary, fontSize = 13.sp)
+        }
+        b.phone?.let {
+            Text(RoutineSummary.phoneLabel(it, fil), color = FamilyColors.TextSecondary, fontSize = 13.sp)
+        }
+    }
+
+    HorizontalDivider(color = FamilyColors.FieldBorder)
+    Text(
+        if (showNumbers) (if (fil) "Itago ang mga numero" else "Hide numbers")
+        else (if (fil) "Ipakita ang mga numero" else "Show numbers"),
+        color = FamilyColors.Blue,
+        fontSize = 14.sp,
+        fontWeight = FontWeight.Bold,
+        modifier = Modifier.clickable { showNumbers = !showNumbers }.padding(vertical = 4.dp)
+    )
+    if (showNumbers) RoutineNumbers(rows, fil)
+}
+
+/** The exact figures behind the summary, for anyone who wants them. */
+@Composable
+private fun RoutineNumbers(rows: List<RoutineRowDto>, fil: Boolean) {
+    RoutineWording.BLOCK_ORDER.forEach { block ->
+        val inBlock = rows.filter { it.timeBlock == block && it.featureName in RoutineWording.FEATURE_ORDER }
+            .sortedBy { RoutineWording.FEATURE_ORDER.indexOf(it.featureName) }
+        if (inBlock.isEmpty()) return@forEach
+        Text(RoutineWording.blockLabel(block, fil), color = FamilyColors.Blue, fontSize = 14.sp, fontWeight = FontWeight.Bold)
         inBlock.forEach { row ->
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(RoutineWording.featureLabel(row.featureName, fil), color = FamilyColors.TextSecondary, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                Text(
+                    RoutineWording.featureLabel(row.featureName, fil) + if (row.isSeed) " *" else "",
+                    color = FamilyColors.TextSecondary,
+                    fontSize = 13.sp,
+                    modifier = Modifier.weight(1f)
+                )
                 Text(
                     "${RoutineWording.value(row, fil)}  ${RoutineWording.swing(row, fil)}",
                     color = FamilyColors.TextPrimary,
-                    fontSize = 14.sp,
+                    fontSize = 13.sp,
                     fontWeight = FontWeight.Bold
                 )
             }
         }
     }
+    Text(
+        if (fil) "* galing pa sa mga sagot sa setup. \"±\" ay ang karaniwang pagbabago sa isang araw."
+        else "* still from the setup answers. \"±\" is how much an ordinary day normally varies.",
+        color = FamilyColors.TextSecondary,
+        fontSize = 12.sp
+    )
 }

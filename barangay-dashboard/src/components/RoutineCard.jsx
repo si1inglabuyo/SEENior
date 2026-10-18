@@ -1,7 +1,10 @@
 import { useState } from 'react'
 import { api, formatTime } from '../api'
 import { recordAccess } from '../audit'
-import { BLOCKS, BLOCK_LABEL, FEATURES, cell, seedCount } from '../routine'
+import {
+  BLOCKS, BLOCK_LABEL, FEATURES, LEVEL_LABEL, PHONE_LABEL,
+  cell, headline, progress, stillLabel, summarize,
+} from '../routine'
 import { IconChart, IconEye } from '../icons'
 import SectionCard from './SectionCard'
 
@@ -13,6 +16,7 @@ export default function RoutineCard({ syncId, onSessionLost }) {
   const [phase, setPhase] = useState('closed') // 'closed' | 'loading' | 'ok' | 'error'
   const [routine, setRoutine] = useState(null)
   const [error, setError] = useState('')
+  const [showNumbers, setShowNumbers] = useState(false)
 
   async function open() {
     setPhase('loading')
@@ -31,7 +35,8 @@ export default function RoutineCard({ syncId, onSessionLost }) {
   }
 
   const rows = routine?.rows ?? []
-  const seeds = seedCount(rows)
+  const summary = summarize(rows)
+  const lead = headline(summary)
 
   return (
     <SectionCard icon={<IconChart />} title="Daily Routine" className="routine-card">
@@ -58,53 +63,75 @@ export default function RoutineCard({ syncId, onSessionLost }) {
 
       {phase === 'ok' && rows.length > 0 && (
         <>
+          {lead && <p className="routine-headline">{lead}</p>}
           <p className="muted routine-note">
-            {seeds === 0
-              ? 'Learned from the last 14 days.'
-              : `Still learning: ${seeds} of ${rows.length} values still come from the setup answers (marked *).`}{' '}
-            Last updated {formatTime(routine.updated_at)}.
+            {progress(summary)} Last updated {formatTime(routine.updated_at)}.
           </p>
-          <div className="routine-scroll">
-            <table className="routine-table">
-              <thead>
-                <tr>
-                  <th />
-                  {BLOCKS.map((b) => (
-                    <th key={b}>{BLOCK_LABEL[b]}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {FEATURES.map((f) => (
-                  <tr key={f.key}>
-                    <th scope="row">{f.label}</th>
-                    {BLOCKS.map((b) => {
-                      const c = cell(rows, f.key, b)
-                      return (
-                        <td key={b}>
-                          {c ? (
-                            <>
-                              <strong>
-                                {c.value}
-                                {c.isSeed ? '*' : ''}
-                              </strong>
-                              <span className="muted routine-swing">{c.swing}</span>
-                            </>
-                          ) : (
-                            '—'
-                          )}
-                        </td>
-                      )
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <p className="muted routine-note">
-            &ldquo;±&rdquo; is how much an ordinary day normally varies. A reading far outside it
-            is what raises an alert.
-          </p>
+
+          <ul className="routine-blocks">
+            {summary.blocks.map((b) => (
+              <li key={b.block} className="routine-block">
+                <div className="routine-block-head">
+                  <strong>{BLOCK_LABEL[b.block]}</strong>
+                  <span className={`routine-level routine-level-${b.level}`}>{LEVEL_LABEL[b.level]}</span>
+                </div>
+                <div className="routine-bar" aria-hidden="true">
+                  <div className="routine-bar-fill" style={{ width: `${Math.max(3, Math.round(b.activity * 100))}%` }} />
+                </div>
+                {b.stillSeconds !== null && <p className="muted routine-line">{stillLabel(b.stillSeconds)}</p>}
+                {b.phone && <p className="muted routine-line">{PHONE_LABEL[b.phone]}</p>}
+              </li>
+            ))}
+          </ul>
+
+          <button type="button" className="history-more-btn" onClick={() => setShowNumbers((v) => !v)}>
+            {showNumbers ? 'Hide numbers' : 'Show numbers'}
+          </button>
+
+          {showNumbers && (
+            <>
+              <div className="routine-scroll">
+                <table className="routine-table">
+                  <thead>
+                    <tr>
+                      <th />
+                      {BLOCKS.map((b) => (
+                        <th key={b}>{BLOCK_LABEL[b]}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {FEATURES.map((f) => (
+                      <tr key={f.key}>
+                        <th scope="row">{f.label}</th>
+                        {BLOCKS.map((b) => {
+                          const c = cell(rows, f.key, b)
+                          return (
+                            <td key={b}>
+                              {c ? (
+                                <>
+                                  <strong>
+                                    {c.value}
+                                    {c.isSeed ? '*' : ''}
+                                  </strong>
+                                  <span className="muted routine-swing">{c.swing}</span>
+                                </>
+                              ) : (
+                                '—'
+                              )}
+                            </td>
+                          )
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p className="muted routine-note">
+                * still from the setup answers. &ldquo;±&rdquo; is how much an ordinary day normally varies.
+              </p>
+            </>
+          )}
         </>
       )}
     </SectionCard>

@@ -779,3 +779,14 @@ h4 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase;
 @media (max-width: 560px) {
   .stat-row { grid-template-columns: 1fr; }
 }
+
+/* --- daily routine: plain-language summary --- */
+.routine-headline { margin: 0 0 4px; font-weight: 700; font-size: 15px; }
+.routine-blocks { list-style: none; margin: 0 0 4px; padding: 0; display: grid; gap: 14px; }
+.routine-block { border-top: 1px solid var(--line); padding-top: 12px; }
+.routine-block-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
+.routine-level { font-size: 12px; font-weight: 700; color: var(--accent-ink); }
+.routine-level-quiet { color: var(--muted); }
+.routine-bar { height: 8px; border-radius: 4px; background: var(--accent-soft); overflow: hidden; }
+.routine-bar-fill { height: 100%; border-radius: 4px; background: var(--accent); }
+.routine-line { margin: 6px 0 0; font-size: 13px; }
