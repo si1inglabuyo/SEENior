@@ -3,13 +3,13 @@ from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_authenticated_senior, require_role
 from app.api.routes.contacts import MAX_FAMILY_CONTACTS_PER_SENIOR, SENIOR_CONTACT_LIMIT
 from app.core import device_key, ratelimit
-from app.db.models import Alert, AlertStatus, Contact, ContactType, Pook, Senior, SeniorStatus, UnlinkActor, User, UserRole
+from app.db.models import Alert, AlertStatus, Contact, ContactType, Pook, RoutineBaseline, Senior, SeniorStatus, UnlinkActor, User, UserRole
 from app.db.session import get_db
 from app.schemas.contact import InviteCodeOut
 from app.schemas.senior import (
@@ -168,6 +168,9 @@ async def delete_senior(
     senior.last_nudge_at = None
     senior.invite_code = None
     senior.invite_code_expires_at = None
+
+    # The fingerprint describes how this person lives; once they delete, it goes.
+    await db.execute(delete(RoutineBaseline).where(RoutineBaseline.senior_id == senior.id))
 
     links = await db.execute(
         select(Contact).where(Contact.senior_id == senior.id, Contact.is_active())

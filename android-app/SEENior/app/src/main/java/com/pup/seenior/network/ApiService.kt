@@ -21,6 +21,8 @@ import com.pup.seenior.network.dto.PairRequest
 import com.pup.seenior.network.dto.PairResponseDto
 import com.pup.seenior.network.dto.RegisterDeviceRequest
 import com.pup.seenior.network.dto.RegisterRequest
+import com.pup.seenior.network.dto.RoutineDto
+import com.pup.seenior.network.dto.RoutineSyncRequest
 import com.pup.seenior.network.dto.SeniorDto
 import com.pup.seenior.network.dto.PookDto
 import com.pup.seenior.network.dto.SetPasswordRequest
@@ -40,6 +42,7 @@ import retrofit2.http.GET
 import retrofit2.http.Header
 import retrofit2.http.PATCH
 import retrofit2.http.POST
+import retrofit2.http.PUT
 import retrofit2.http.Path
 import retrofit2.http.Query
 
@@ -96,6 +99,13 @@ interface ApiService {
         @Body body: HeartbeatRequest
     ): SeniorDto
 
+    // The Routine Fingerprint (20 median/MAD rows at most), overwritten in place. Never raw data.
+    @PUT("seniors/{syncId}/routine")
+    suspend fun syncRoutine(
+        @Path("syncId") syncId: String,
+        @Body body: RoutineSyncRequest
+    ): RoutineDto
+
     @POST("seniors/{syncId}/invite")
     suspend fun generateInvite(@Path("syncId") syncId: String): InviteCodeDto
 
@@ -140,6 +150,13 @@ interface ApiService {
         @Header("Authorization") auth: String,
         @Path("contactId") contactId: Int
     )
+
+    // A paired senior's fingerprint, for the contact's Routine card.
+    @GET("seniors/{syncId}/routine")
+    suspend fun getRoutine(
+        @Path("syncId") syncId: String,
+        @Header("Authorization") auth: String
+    ): RoutineDto
 
     // ---- Account / profile (family side) ----
 

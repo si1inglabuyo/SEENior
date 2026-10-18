@@ -47,7 +47,12 @@ object HeartbeatReporter {
         } catch (e: Exception) {
             // INFO, not WARN: being off the network is ordinary and this fires every 15 minutes.
             Log.i(TAG, "Heartbeat not delivered (${e.javaClass.simpleName})")
+            return
         }
+
+        // Rides the heartbeat: only attempted once the server was just reachable, and a no-op
+        // unless the fingerprint changed since the last upload.
+        RoutineSyncer.syncIfChanged(app, db)
     }
 
     /**

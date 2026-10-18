@@ -2,7 +2,7 @@ import enum
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Enum, ForeignKey, JSON, String
+from sqlalchemy import Enum, Float, ForeignKey, JSON, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
@@ -158,7 +158,8 @@ class Pook(Base):
 
 
 class Senior(Base):
-    """Cloud record for a senior: identity only. The Routine Fingerprint stays on the phone."""
+    """Cloud record for a senior: identity and device health. The fingerprint's summary lives in
+    `RoutineBaseline`; raw sensor data and per-day aggregates stay on the phone."""
 
     __tablename__ = "seniors"
 
@@ -220,6 +221,32 @@ class Senior(Base):
 
     contacts: Mapped[list["Contact"]] = relationship(back_populates="senior")
     alerts: Mapped[list["Alert"]] = relationship(back_populates="senior")
+
+
+class RoutineBaseline(Base):
+    """A senior's Routine Fingerprint as the phone last computed it (migration 0018).
+
+    One row per (feature, time block), so at most 20 per senior, overwritten in place on every
+    sync: the current fingerprint, never a history. Each row is a median and a MAD over the
+    trailing 14 days, a statistical summary and not a sensor reading, so the raw-data boundary in
+    spec section 11 holds. Per-day aggregates and `Sensor_Data` are not synced.
+    """
+
+    __tablename__ = "routine_baseline"
+    __table_args__ = (
+        UniqueConstraint("senior_id", "feature_name", "time_block", name="uq_routine_baseline_cell"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    senior_id: Mapped[int] = mapped_column(ForeignKey("seniors.id"), index=True)
+    feature_name: Mapped[str] = mapped_column(String(32))
+    time_block: Mapped[str] = mapped_column(String(16))
+    median_value: Mapped[float] = mapped_column(Float)
+    mad_value: Mapped[float] = mapped_column(Float)
+    sample_count: Mapped[int] = mapped_column()
+    # True while the row is still partly the onboarding questionnaire's answer.
+    is_seed: Mapped[bool] = mapped_column()
+    updated_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
 
 class Contact(Base):

@@ -18,6 +18,7 @@ import ConfirmDialog from './ConfirmDialog'
 import Toast from './Toast'
 import AlertDetailsModal from './AlertDetailsModal'
 import DeviceBadge from './DeviceBadge'
+import RoutineCard from './RoutineCard'
 
 // RA 10173 (Data Privacy Act) - why some fields on this screen are gated.
 //
@@ -313,6 +314,8 @@ export default function SeniorDetail({
                   </p>
                 )}
               </SectionCard>
+
+              <RoutineCard syncId={syncId} onSessionLost={onSessionLost} />
 
               <SectionCard
                 icon={<IconHistory />}

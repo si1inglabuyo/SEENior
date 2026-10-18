@@ -234,6 +234,8 @@ private fun ContactDetailScreen(
                 InfoRow(Icons.Outlined.LocationOn, copy.homeAddressLabel, senior.address)
             }
 
+            RoutineCard(seniorSyncId = senior.syncId)
+
             Spacer(Modifier.height(28.dp))
 
             Row(

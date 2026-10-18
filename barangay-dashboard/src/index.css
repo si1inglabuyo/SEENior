@@ -503,6 +503,18 @@ h4 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase;
 }
 .history-more-btn:hover { border-color: var(--accent); }
 .history-full-note { margin: 12px 0 0; font-size: 12px; }
+
+/* --- daily routine (Routine Fingerprint) --- */
+.routine-note { margin: 0 0 12px; font-size: 12px; }
+.routine-scroll { overflow-x: auto; }
+.routine-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.routine-table th, .routine-table td {
+  padding: 8px 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top;
+}
+.routine-table thead th { font-size: 12px; color: var(--muted); font-weight: 600; }
+.routine-table tbody th { font-weight: 600; white-space: nowrap; }
+.routine-table td strong { display: block; }
+.routine-swing { display: block; font-size: 11px; }
 .history-window-note { margin: 0 0 12px; font-size: 12px; }
 
 /* --- alert history: grouped-by-senior view --- */

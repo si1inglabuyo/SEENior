@@ -7,7 +7,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.escalation import escalation_sweep_loop
-from app.api.routes import alerts, auth, barangay, contacts, devices, seniors
+from app.api.routes import alerts, auth, barangay, contacts, devices, routine, seniors
 from app.core import push, sms
 from app.core.config import settings
 
@@ -65,6 +65,7 @@ app.include_router(contacts.router)
 app.include_router(alerts.router)
 app.include_router(devices.router)
 app.include_router(barangay.router)
+app.include_router(routine.router)
 
 
 @app.get("/health")

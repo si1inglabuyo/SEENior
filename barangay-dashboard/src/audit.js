@@ -3,6 +3,7 @@
 //   - 'senior_phone_reveal'  - un-masking a senior's phone number
 //   - 'active_alert_view'    - opening the active-alert view (full address and contacts)
 //   - 'full_history_view'    - expanding a senior's full alert history
+//   - 'routine_view'         - opening a senior's daily routine (Routine Fingerprint)
 //
 // The log is kept in localStorage on this machine. A central log would need a server table
 // and a POST /barangay/audit route, which belong to the main lane. Once that exists, send
@@ -49,5 +50,6 @@ export const ACCESS_ACTION_LABEL = {
   senior_phone_reveal: 'Revealed a senior’s full phone number',
   active_alert_view: 'Opened the active-alert view (full address + family contacts)',
   full_history_view: 'Expanded a senior’s full alert history',
+  routine_view: 'Opened a senior’s daily routine',
   history_full_view: 'Opened the full alert history (beyond the default 30 days)',
 }

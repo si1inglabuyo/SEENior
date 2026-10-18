@@ -194,13 +194,15 @@ The senior app mirrors this in the UI only: a senior living alone gets **Home / 
 ### Local SQLite (on senior's phone) — 10 tables
 `Seniors`, `Contacts`, `Sensor_Data`, `Daily_Aggregates`, `Baseline`, `Alerts`, `Pending_Alerts`, `False_Positives`, `ML_Model_Metadata`, `Senior_Onboarding`
 
-### Server PostgreSQL (cloud) — 4 tables
-`Users`, `Seniors`, `Contacts`, `Alerts`
+### Server PostgreSQL (cloud) — 4 core tables
+`Users`, `Seniors`, `Contacts`, `Alerts` (plus `device_tokens`, `pooks`, and `routine_baseline` added 2026-10-19)
 
 ### Tables that exist in both (with different field sets)
 `Seniors`, `Contacts`, `Alerts` — local versions have full detection-relevant fields; cloud versions are privacy-stripped metadata-only subsets.
 
-### Cloud PostgreSQL field lists (as of migration 0004; `alerts.fall_tolerance` added in 0015, `alerts.fall_evidence` in 0017)
+### Cloud PostgreSQL field lists (as of migration 0004; `alerts.fall_tolerance` added in 0015, `alerts.fall_evidence` in 0017; a fifth table, `routine_baseline`, in 0018)
+
+- **`routine_baseline`** (migration 0018) — `id`, `senior_id`, `feature_name` (`inactivity_duration` / `movement_score` / `screen_idle_duration` / `screen_unlock_count` / `step_count`), `time_block` (`morning` / `afternoon` / `evening` / `night`), `median_value`, `mad_value`, `sample_count`, `is_seed`, `updated_at`. Unique on `(senior_id, feature_name, time_block)`, so at most 20 rows per senior. See the 2026-10-19 amendment in §11.
 
 - **`users`** — `id`, `username`, `password_hash` (nullable — null for Google-only accounts), `role` (`family_contact` / `barangay_responder`), `full_name`, `phone`, `email` (nullable/unique — family sign-in identity; barangay responders log in by `username` instead and leave this null), `google_sub` (nullable/unique — Google's stable per-account ID), `barangay` (scopes a barangay responder's dashboard queries; unused for family contacts), `is_active`, `created_at`, `deleted_at` / `deletion_reason` / `deletion_note` (nullable — soft account deletion, see §11a).
 - **`seniors`** — `id`, `sync_id` (anonymous UUID used for all cloud-facing references, per §11), `first_name`, `last_name`, `age`, `gender`, `barangay`, `address` (joined PSGC-validated string), `mobile_number`, `invite_code` (nullable, 6-digit, time-limited), `invite_code_expires_at`, `created_at`, `deleted_at` / `deletion_reason` / `deletion_note` (nullable — soft account deletion, see §11a).
@@ -255,6 +257,7 @@ Detection accuracy is validated via **simulated sensor data injection** in test 
 ## 11. Privacy & Security Requirements (Non-Negotiable)
 
 - Raw sensor data **never** leaves the senior's device. Period.
+  - **Amended 2026-10-19, at the panel's request to see seniors' real routines.** The Routine Fingerprint (the local `Baseline` table: a median and a MAD per feature per time block over the trailing 14 days, 20 rows at most) now syncs to the cloud table `routine_baseline` (migration 0018), so the family app and the barangay dashboard can show it. It is a statistical summary, not a sensor reading. **Still never leaves the phone: `Sensor_Data` and `Daily_Aggregates`** (the per-day history), and no one may add them to this sync. One row per cell, overwritten in place on every sync: the current fingerprint, never a history. The phone sends it from the heartbeat only when it changed (`RoutineSyncer`); the server accepts only the five known features and four time blocks (`schemas/routine.py`). Read access is the same scoping as everything else: `GET /seniors/{sync_id}/routine` needs an active family pairing or a responder covering that barangay, and anyone else gets a 404. The barangay dashboard shows it behind a "View routine" click that is written to its access log. Deleting a senior's account deletes their `routine_baseline` rows. Seed rows are flagged `is_seed` so a viewer can tell questionnaire guesses from learned values.
 - Cloud-synced alert data uses an anonymous `sync_id` (UUID) — not the local sequential `alert_id` — to avoid both ID collisions across devices and leaking volume information.
 - GPS location is read **only at alert-trigger time**, never continuously. There is no location history: one fix per alert, nothing at all on an ordinary day, and no background location work of any kind. **This is the protection, and it is non-negotiable.**
 - **The stored location is precise** — a precision-9 geohash (`android-app/.../location/Geohash.kt`), a ~5 m cell, finer than a handset's own GPS error. It identifies a place.

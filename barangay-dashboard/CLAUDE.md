@@ -81,8 +81,10 @@ OSCA officer, not self-registered, and a login form asking for an email is a bug
   match the risk colours.
 - Sharing a senior's name and location with the barangay during an active alert is lawful under
   **RA 10173 §12(c)** (vital interests). It is not a privacy leak to be designed around.
-- Alert *metadata* is all the cloud has. There are no sensor readings, no coordinates, and no
-  behavioural history to display — only an anonymous `location_cluster_id`. If a design needs raw
+- Alert *metadata* and the 14-day Routine Fingerprint (a median and MAD per feature per time
+  block, `GET /seniors/{sync_id}/routine`, added 2026-10-19) are all the cloud has. There are no
+  sensor readings and no per-day behavioural history to display. The fingerprint opens behind a
+  click that is written to the access log. If a design needs raw
   data to be useful, the design is wrong, not the API (root `CLAUDE.md` §11).
 - `labels.js` holds the human wording, including `STEP_LABEL` for escalation timeline steps. A new
   backend step type appearing as a raw string in the UI means it needs a label here.
