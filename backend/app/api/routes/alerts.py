@@ -157,12 +157,22 @@ async def deliver_family_sms_after_grace(
                     continue
                 grouped.setdefault(language if language == "fil" else "en", []).append(phone)
 
+        sent = 0
         for language, numbers in grouped.items():
-            await deliver_alert_sms(
+            sent += await deliver_alert_sms(
                 numbers,
                 sms.family_alert_message(senior_name, risk_level, trigger_type, language=language),
                 context=f"family/{alert_sync_id}",
             )
+
+        if sent:
+            async with SessionLocal() as db:
+                alert = (
+                    await db.execute(select(Alert).where(Alert.sync_id == alert_sync_id))
+                ).scalar_one_or_none()
+                if alert is not None:
+                    append_step(alert, "sms_sent_family")
+                    await db.commit()
     except Exception:
         logger.exception("Delayed family SMS task crashed for alert %s", alert_sync_id)
 
@@ -181,18 +191,22 @@ async def barangay_phone_numbers(db: AsyncSession, barangay: str) -> list[str]:
     return list(result.scalars().all())
 
 
-async def deliver_alert_sms(numbers: list[str], message: str, *, context: str) -> None:
-    """Sends the SMS fallback as a background task. Failures are logged, never raised."""
+async def deliver_alert_sms(numbers: list[str], message: str, *, context: str) -> int:
+    """Sends the SMS fallback as a background task. Failures are logged, never raised.
+
+    Returns how many numbers the gateway accepted.
+    """
     try:
         result = await sms.send_sms(numbers, message)
     except Exception:
         logger.exception("Alert SMS task crashed (%s)", context)
-        return
+        return 0
 
     if result.attempted:
         logger.info(
             "Alert SMS (%s) sent to %d/%d number(s)", context, result.sent, result.attempted
         )
+    return result.sent
 
 
 async def deliver_alert_push(tokens: list[str], payload: push.AlertPush) -> None:

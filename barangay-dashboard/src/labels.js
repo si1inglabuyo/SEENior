@@ -44,6 +44,8 @@ export const STEP_LABEL = {
   escalated_family: 'Phone notified the family contact',
   escalated_family_server: 'No answer — server notified the family contact',
   delivered_family: 'Alert reached the cloud',
+  push_received_family: 'Family contact received the alert by push notification',
+  sms_sent_family: 'Family contact received the alert by SMS',
   acknowledged_family: 'Family acknowledged',
   escalated_barangay: 'Family requested a barangay welfare check',
   self_cancelled: 'Senior answered: safe',
@@ -89,7 +91,7 @@ function escalatedBarangayAutoLabel(entry, alert) {
   const sos = (reason && reason.includes('SOS pressed')) || (alert && alert.trigger_type === 'sos')
   const alone = wentWithoutFamily(entry, alert)
   if (sos && alone) return 'SOS pressed — sent straight to barangay (no family contact linked)'
-  if (sos) return 'SOS pressed — escalated to barangay'
+  if (sos) return 'SOS pressed — family and barangay notified at the same time'
   if (alone) {
     // When the `no_family_contact` step is on the timeline it has already said what the
     // alert was; repeating it on the very next line is noise.
