@@ -17,7 +17,6 @@ import { decodeGeohash, cellSizeMeters } from '../geohash'
 import Modal from './Modal'
 import LocationMap from './LocationMap'
 import StatusPill from './StatusPill'
-import { fallPhases } from '../fallEvidence'
 
 // "Last Known Location": the senior's position when the alert fired, stored as a geohash.
 // It is a precise fix held under RA 10173 section 12(c), not anonymised. Shown on a live
@@ -189,29 +188,6 @@ function IncidentActions({ alert, onAct, busy }) {
   )
 }
 
-// Which detector phases satisfied a fall alert, each measured value against the threshold it
-// had to clear. This is what the panel asked to see: why the alert fired, not just that it did.
-function FallPhases({ alert }) {
-  const phases = fallPhases(alert.fall_evidence, alert.fall_tolerance)
-  if (alert.trigger_type !== 'fall_pattern' || !phases) return null
-  return (
-    <div className="fall-phases">
-      <h3 className="details-location-title">Fall detection phases</h3>
-      <ul className="fall-phase-list">
-        {phases.map((p) => (
-          <li key={p.key} className={p.met ? 'fall-phase-met' : 'fall-phase-unmet'}>
-            <span className="fall-phase-mark" aria-hidden="true">{p.met ? '✓' : '✗'}</span>
-            <span className="fall-phase-name">{p.label}</span>
-            <span className="fall-phase-values">
-              {p.measured} <span className="muted">(needed {p.needed})</span>
-            </span>
-          </li>
-        ))}
-      </ul>
-    </div>
-  )
-}
-
 export default function AlertDetailsModal({ alert, onClose, onAct, actionBusy }) {
   return (
     <Modal onClose={onClose} labelledBy="alert-details-title" className="details-modal">
@@ -278,8 +254,6 @@ export default function AlertDetailsModal({ alert, onClose, onAct, actionBusy })
             />
           </>
         )}
-
-        <FallPhases alert={alert} />
 
         <EscalationTimeline alert={alert} />
 
