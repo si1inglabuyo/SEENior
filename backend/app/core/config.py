@@ -39,13 +39,14 @@ class Settings:
 
     # --- Escalation clock ---
     # Server-side countdown that moves an unanswered alert up the chain, because phone
-    # timers can be frozen by the OS. Defaults are short so the demo runs quickly; a real
-    # pilot would use 5-10 minutes for family_response_seconds.
+    # timers can be frozen by the OS. family_response_seconds is how long family have to
+    # acknowledge before the barangay is told (anomalies and falls; SOS skips it): 10 minutes.
+    # Set FAMILY_RESPONSE_SECONDS low (e.g. 120) to run a quick demo.
     #
     # Grace: how much longer than the phone's own window the server waits, so the phone
     # wins whenever it is running.
     escalation_grace_seconds: int = int(os.environ.get("ESCALATION_GRACE_SECONDS", "30"))
-    family_response_seconds: int = int(os.environ.get("FAMILY_RESPONSE_SECONDS", "120"))
+    family_response_seconds: int = int(os.environ.get("FAMILY_RESPONSE_SECONDS", "600"))
     escalation_sweep_seconds: int = int(os.environ.get("ESCALATION_SWEEP_SECONDS", "20"))
 
     # How long a family phone has to confirm the push before the server texts them instead.
