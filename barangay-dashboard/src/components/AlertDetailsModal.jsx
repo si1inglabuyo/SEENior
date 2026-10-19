@@ -119,7 +119,12 @@ function LocationPreview({ address, clusterId }) {
 // how it was resolved and by whom.
 function EscalationTimeline({ alert }) {
   const steps = alert.escalation_steps
-  const entries = Array.isArray(steps) ? steps : []
+  const all = Array.isArray(steps) ? steps : []
+  // An SOS goes to family and barangay together, and its one escalation line already names the
+  // family channel (labels.js), so the separate family-notified rows would only repeat it.
+  const sosMerged = alert.trigger_type === 'sos' && all.some((e) => e && e.step === 'escalated_barangay_auto')
+  const MERGED = ['escalated_family', 'escalated_family_server', 'push_received_family', 'sms_sent_family']
+  const entries = sosMerged ? all.filter((e) => !(e && MERGED.includes(e.step))) : all
   if (entries.length === 0) return null
   return (
     <>
