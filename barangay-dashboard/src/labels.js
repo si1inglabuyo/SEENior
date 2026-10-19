@@ -91,7 +91,13 @@ function escalatedBarangayAutoLabel(entry, alert) {
   const sos = (reason && reason.includes('SOS pressed')) || (alert && alert.trigger_type === 'sos')
   const alone = wentWithoutFamily(entry, alert)
   if (sos && alone) return 'SOS pressed — sent straight to barangay (no family contact linked)'
-  if (sos) return 'SOS pressed — family (push or SMS) and barangay notified at the same time'
+  if (sos) {
+    // Name the channel the family actually got, read off the timeline; say nothing about it until known.
+    const push = hasStep(alert, 'push_received_family')
+    const text = hasStep(alert, 'sms_sent_family')
+    const via = push && text ? ' (push and SMS)' : push ? ' (push)' : text ? ' (SMS)' : ''
+    return `SOS pressed — family${via} and barangay notified at the same time`
+  }
   if (alone) {
     // When the `no_family_contact` step is on the timeline it has already said what the
     // alert was; repeating it on the very next line is noise.
