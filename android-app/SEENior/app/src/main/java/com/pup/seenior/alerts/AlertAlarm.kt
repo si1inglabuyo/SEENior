@@ -2,6 +2,7 @@ package com.pup.seenior.alerts
 
 import android.content.Context
 import android.media.AudioAttributes
+import android.media.AudioManager
 import android.media.MediaPlayer
 import android.media.RingtoneManager
 import android.os.Build
@@ -33,7 +34,17 @@ object AlertAlarm {
     /** Wait, buzz, wait — repeating from index 0 until cancelled. */
     private val PATTERN = longArrayOf(0L, 800L, 400L)
 
+    /** The alarm slider is raised to at least this share of its range while an alert sounds. */
+    private const val MIN_VOLUME_FRACTION = 0.8f
+
+    /** How long the one-shot family notification sound keeps the raised volume. */
+    private const val BOOST_HOLD_MS = 20_000L
+
     private var player: MediaPlayer? = null
+    private var appContext: Context? = null
+
+    /** The senior's own alarm level, set only while we have raised it, so it can be put back. */
+    private var volumeToRestore: Int? = null
     private var vibrator: Vibrator? = null
 
     /** Open alerts currently claiming the alarm. Silencing waits until this is empty, so answering one alert doesn't silence another. */
@@ -51,6 +62,7 @@ object AlertAlarm {
         activeAlertIds += alertId
         if (player != null || vibrator != null) return
         val app = context.applicationContext
+        raiseVolume(app)
 
         val attributes = AudioAttributes.Builder()
             .setUsage(AudioAttributes.USAGE_ALARM)
@@ -103,7 +115,52 @@ object AlertAlarm {
         stopSound()
     }
 
+    /**
+     * Raises the alarm slider for a sound that plays once and then ends, such as the family
+     * notification. Call it before posting the notification, since the channel sound is
+     * played at whatever level the slider holds at that moment. Puts the level back after
+     * [BOOST_HOLD_MS] unless a looping alarm is still using it.
+     */
+    @Synchronized
+    fun boostForNotification(context: Context) {
+        raiseVolume(context.applicationContext)
+        handler.postDelayed({ restoreIfIdle() }, BOOST_HOLD_MS)
+    }
+
+    @Synchronized
+    private fun restoreIfIdle() {
+        if (activeAlertIds.isEmpty() && player == null) restoreVolume()
+    }
+
+    /**
+     * Android gives an app no way to lock the slider, but it can lift it for the length of an
+     * alert. A senior who has turned the alarm down or muted it would otherwise sleep through
+     * the one sound meant to reach them. Never lowers a level that is already high enough.
+     */
+    private fun raiseVolume(app: Context) {
+        appContext = app
+        val audio = app.getSystemService(Context.AUDIO_SERVICE) as? AudioManager ?: return
+        runCatching {
+            val max = audio.getStreamMaxVolume(AudioManager.STREAM_ALARM)
+            val target = (max * MIN_VOLUME_FRACTION).toInt().coerceAtLeast(1)
+            val current = audio.getStreamVolume(AudioManager.STREAM_ALARM)
+            if (current >= target) return
+            // Keep the first original level if raised twice in a row, so restore never "restores" a raised one.
+            if (volumeToRestore == null) volumeToRestore = current
+            audio.setStreamVolume(AudioManager.STREAM_ALARM, target, 0)
+        }.onFailure { Log.w(TAG, "could not raise the alarm volume", it) }
+    }
+
+    private fun restoreVolume() {
+        val original = volumeToRestore ?: return
+        volumeToRestore = null
+        val audio = appContext?.getSystemService(Context.AUDIO_SERVICE) as? AudioManager ?: return
+        runCatching { audio.setStreamVolume(AudioManager.STREAM_ALARM, original, 0) }
+            .onFailure { Log.w(TAG, "could not restore the alarm volume", it) }
+    }
+
     private fun stopSound() {
+        restoreVolume()
         handler.removeCallbacks(autoStop)
         player?.let { p -> runCatching { p.stop(); p.release() } }
         player = null

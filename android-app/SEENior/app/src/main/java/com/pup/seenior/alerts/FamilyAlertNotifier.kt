@@ -43,6 +43,8 @@ object FamilyAlertNotifier {
     ) {
         if (!canPostNotifications(context)) return
         createChannel(context)
+        // Before the notification posts: its sound plays at the alarm level of that moment, and a family member may have turned it down.
+        AlertAlarm.boostForNotification(context)
 
         val isHighRisk = riskLevel == "high" || triggerType == "sos"
         val firstName = seniorName.split(" ").firstOrNull()?.takeIf { it.isNotBlank() } ?: seniorName

@@ -13,32 +13,48 @@ function ensureNotificationPermission() {
   }
 }
 
-// Two rising tones. Wrapped in try/catch because autoplay policy may block audio until the
-// page has had a user gesture; the notification and title badge still fire.
+// One AudioContext for the page's life. A fresh one made inside a poll starts suspended
+// under the browser's autoplay policy and plays nothing; this one is resumed by the
+// responder's first click or key press (signing in counts) and by every alert after it.
+let sharedCtx = null
+function audioContext() {
+  const Ctx = window.AudioContext || window.webkitAudioContext
+  if (!Ctx) return null
+  if (!sharedCtx) sharedCtx = new Ctx()
+  if (sharedCtx.state === 'suspended') sharedCtx.resume().catch(() => {})
+  return sharedCtx
+}
+
+// Three rising beeps, loud enough to be heard across an office. Wrapped in try/catch because
+// audio may still be blocked; the notification and title badge fire regardless.
 function playChime() {
   try {
-    const Ctx = window.AudioContext || window.webkitAudioContext
-    if (!Ctx) return
-    const ctx = new Ctx()
+    const ctx = audioContext()
+    if (!ctx) return
     const start = ctx.currentTime
-    ;[880, 1174].forEach((freq, i) => {
-      const t = start + i * 0.18
-      const osc = ctx.createOscillator()
-      const gain = ctx.createGain()
-      osc.type = 'sine'
-      osc.frequency.value = freq
-      gain.gain.setValueAtTime(0.0001, t)
-      gain.gain.exponentialRampToValueAtTime(0.2, t + 0.02)
-      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.16)
-      osc.connect(gain).connect(ctx.destination)
-      osc.start(t)
-      osc.stop(t + 0.18)
-    })
-    setTimeout(() => ctx.close().catch(() => {}), 900)
+    for (let round = 0; round < 3; round++) {
+      ;[880, 1174].forEach((freq, i) => {
+        const t = start + round * 0.7 + i * 0.25
+        const osc = ctx.createOscillator()
+        const gain = ctx.createGain()
+        osc.type = 'square'
+        osc.frequency.value = freq
+        gain.gain.setValueAtTime(0.0001, t)
+        gain.gain.exponentialRampToValueAtTime(0.5, t + 0.02)
+        gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.22)
+        osc.connect(gain).connect(ctx.destination)
+        osc.start(t)
+        osc.stop(t + 0.24)
+      })
+    }
   } catch {
     /* audio unavailable -- the other two channels still fire */
   }
 }
+
+// An SOS or a High-risk incident keeps sounding until the responder reacts to it.
+const REPEAT_MS = 4000
+const isUrgent = (a) => a.trigger_type === 'sos' || a.risk_level === 'high'
 
 export default function AlertWatcher({ onSessionLost, onGoToAlerts }) {
   const knownIds = useRef(null) // Set<sync_id> from the previous poll; null until first load
@@ -48,6 +64,29 @@ export default function AlertWatcher({ onSessionLost, onGoToAlerts }) {
   useEffect(() => {
     goToAlerts.current = onGoToAlerts
   }, [onGoToAlerts])
+  const repeatTimer = useRef(null)
+
+  function stopRepeating() {
+    if (repeatTimer.current) {
+      clearInterval(repeatTimer.current)
+      repeatTimer.current = null
+    }
+  }
+
+  // Unlocks audio on the first gesture, and silences a repeating alarm on any later one.
+  useEffect(() => {
+    function onGesture() {
+      audioContext()
+      stopRepeating()
+    }
+    window.addEventListener('pointerdown', onGesture)
+    window.addEventListener('keydown', onGesture)
+    return () => {
+      window.removeEventListener('pointerdown', onGesture)
+      window.removeEventListener('keydown', onGesture)
+      stopRepeating()
+    }
+  }, [])
 
   useEffect(() => {
     ensureNotificationPermission()
@@ -74,6 +113,9 @@ export default function AlertWatcher({ onSessionLost, onGoToAlerts }) {
       if (fresh.length === 0) return
 
       playChime()
+      if (fresh.some(isUrgent) && !repeatTimer.current) {
+        repeatTimer.current = setInterval(playChime, REPEAT_MS)
+      }
       unseenCount.current += fresh.length
       document.title = `(${unseenCount.current}) ${baseTitle.current}`
 
@@ -110,6 +152,7 @@ export default function AlertWatcher({ onSessionLost, onGoToAlerts }) {
   useEffect(() => {
     function clearBadge() {
       if (document.visibilityState === 'visible') {
+        stopRepeating()
         unseenCount.current = 0
         document.title = baseTitle.current
       }
