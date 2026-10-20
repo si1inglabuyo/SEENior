@@ -43,6 +43,9 @@ class BarangayAlertOut(BaseModel):
     fall_evidence: str | None = None
     # The thresholds those figures were judged against (see alerts.fall_tolerance).
     fall_tolerance: str | None = None
+    # What the phone was doing just before the drop and whether it was the senior's night block
+    # (alerts.fall_context). Two derived figures and a flag. Null otherwise.
+    fall_context: str | None = None
 
     # Whether the senior has any family contact. False means nobody else was notified.
     # Same signal the escalation clock uses.

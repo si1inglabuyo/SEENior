@@ -55,8 +55,9 @@ def test_the_responder_sees_it_on_a_fall_alert():
         sync_id=uuid4(), risk_level=RiskLevel.HIGH, trigger_type=TriggerType.FALL_PATTERN,
         status=AlertStatus.ESCALATED, escalation_steps=[], created_at=datetime(2026, 10, 14),
         resolved_at=None, location_cluster_id=None, senior=senior,
-        fall_evidence=WITH_GYRO, fall_tolerance="impact_min=25.0;base_impact=25.0",
+        fall_evidence=WITH_GYRO, fall_tolerance="impact_min=25.0;base_impact=25.0", fall_context="pre_dev=2.8;active=1;night=0",
     )
     out = _alert_out(alert)
     assert out.fall_evidence == WITH_GYRO
     assert out.fall_tolerance == "impact_min=25.0;base_impact=25.0"
+    assert out.fall_context == "pre_dev=2.8;active=1;night=0"

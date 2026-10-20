@@ -113,7 +113,7 @@ def _alert_for(pook):
         sync_id=uuid4(), risk_level=RiskLevel.HIGH, trigger_type=TriggerType.INACTIVITY,
         status=AlertStatus.ESCALATED, escalation_steps=[], created_at=datetime(2026, 10, 13),
         resolved_at=None, location_cluster_id=None, senior=senior,
-        fall_evidence=None, fall_tolerance=None,
+        fall_evidence=None, fall_tolerance=None, fall_context=None,
     )
 
 

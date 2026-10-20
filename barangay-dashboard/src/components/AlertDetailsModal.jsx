@@ -14,6 +14,7 @@ import { initials, dateTimeLabel } from '../format'
 import { canActOn } from '../alertActions'
 import { isActiveAlert } from '../historyFilters'
 import { decodeGeohash, cellSizeMeters } from '../geohash'
+import { fallContext } from '../fallContext'
 import Modal from './Modal'
 import LocationMap from './LocationMap'
 import StatusPill from './StatusPill'
@@ -148,6 +149,29 @@ function EscalationTimeline({ alert }) {
   )
 }
 
+// For a fall alert: what the phone was doing just before the drop, the time of day, and whether
+// the detector was running raised. Read from `fall_context` / `fall_tolerance`; nothing for older
+// alerts or other triggers. It is a record for the responder, not something the detector acts on.
+function FallContext({ alert }) {
+  if (alert.trigger_type !== 'fall_pattern') return null
+  const ctx = fallContext(alert.fall_context, alert.fall_tolerance)
+  if (!ctx) return null
+  return (
+    <>
+      <h3 className="details-location-title">Fall context</h3>
+      <dl className="fall-context">
+        {ctx.rows.map((row) => (
+          <div key={row.key} className="fall-context-row">
+            <dt>{row.label}</dt>
+            <dd>{row.value}</dd>
+          </div>
+        ))}
+      </dl>
+      {ctx.reading && <p className="fall-context-reading muted">{ctx.reading}</p>}
+    </>
+  )
+}
+
 // The three action buttons sit below the map. The remarks box is optional; a note is
 // saved with the status change.
 function IncidentActions({ alert, onAct, busy }) {
@@ -259,6 +283,8 @@ export default function AlertDetailsModal({ alert, onClose, onAct, actionBusy })
             />
           </>
         )}
+
+        <FallContext alert={alert} />
 
         <EscalationTimeline alert={alert} />
 

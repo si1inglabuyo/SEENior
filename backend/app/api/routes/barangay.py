@@ -122,6 +122,7 @@ def _alert_out(alert: Alert) -> BarangayAlertOut:
         senior_sector=senior.pook.sector if senior.pook else None,
         fall_evidence=alert.fall_evidence,
         fall_tolerance=alert.fall_tolerance,
+        fall_context=alert.fall_context,
         senior_has_family_contact=has_family_tier(senior),
     )
 
