@@ -637,10 +637,7 @@ h4 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase;
 .details-card h3 { color: var(--accent); font-size: 12px; margin: 0 0 3px; }
 .details-card p { margin: 0; font-size: 14px; font-weight: 600; }
 .details-location-title { font-size: 14px; margin: 4px 0 8px; }
-.fall-context { margin: 0 0 8px; display: grid; gap: 6px; }
-.fall-context-row { display: flex; gap: 10px; align-items: baseline; font-size: 14px; }
-.fall-context-row dt { font-weight: 600; min-width: 150px; }
-.fall-context-row dd { margin: 0; }
+.fall-context { margin: 0 0 8px; padding-left: 18px; display: grid; gap: 6px; font-size: 14px; }
 .fall-context-reading { margin: 0 0 18px; font-size: 13px; }
 
 .location-preview {

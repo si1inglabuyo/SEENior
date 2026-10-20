@@ -293,6 +293,38 @@ object FamilyStrings {
             else -> reasonOther
         }
 
+        val fallContextLabel: String
+            get() = if (language == WellnessMessages.FILIPINO) "BAGO ANG PAGBAGSAK" else "JUST BEFORE THE FALL"
+
+        /**
+         * Plain sentences for a potential fall, from [FallContextSummary]. No figures: a family
+         * member needs to know what may have happened and what to do, not an acceleration reading.
+         * Worded as "may" and "could", because the detector only sees the phone, not the person.
+         */
+        fun fallContextLines(summary: FallContextSummary.Summary, seniorName: String): List<String> {
+            val fil = language == WellnessMessages.FILIPINO
+            val motion = when (summary.motion) {
+                FallContextSummary.Motion.MOVING ->
+                    if (fil) "Dala-dala o ginagamit ang telepono bago ito bumagsak, kaya maaaring nahulog si $seniorName habang kumikilos."
+                    else "The phone was being carried or used just before the drop, so $seniorName may have fallen while moving."
+                FallContextSummary.Motion.AT_REST ->
+                    if (fil) "Hindi gumagalaw ang telepono bago ito bumagsak. Maaaring nahulog lang ito, o nahulog si $seniorName mula sa pagkakatayo."
+                    else "The phone was lying still just before the drop. It could simply have been dropped, or $seniorName may have fallen from standing still."
+                FallContextSummary.Motion.UNKNOWN -> null
+            }
+            val time = if (summary.sleeping) {
+                if (fil) "Nangyari ito sa karaniwang oras ng tulog ni $seniorName." else "This happened during $seniorName's usual sleep hours."
+            } else {
+                if (fil) "Nangyari ito sa labas ng karaniwang oras ng tulog ni $seniorName." else "This happened outside $seniorName's usual sleep hours."
+            }
+            val setting = if (!summary.lessSensitive) null else {
+                if (fil) "Mas hindi sensitibo ang pagtukoy ng pagbagsak para kay $seniorName dahil mga maling alarma ang mga naunang alerto."
+                else "Fall detection is set less sensitive for $seniorName because earlier fall alerts were false alarms."
+            }
+            val hint = if (fil) "Palatandaan lang ito. Pakisuri po si $seniorName." else "This is only a hint. Please check on $seniorName."
+            return listOfNotNull(motion, time, setting, hint)
+        }
+
         /**
          * Dispatch-reason button label. The value sent to `POST /alerts/{id}/dispatch`
          * (`DISPATCH_REASON_CODES` in FamilyAlertsScreen.kt) stays English regardless of

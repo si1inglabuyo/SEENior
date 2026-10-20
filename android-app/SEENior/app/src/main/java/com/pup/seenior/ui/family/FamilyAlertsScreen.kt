@@ -328,6 +328,8 @@ private fun AlertDetailContent(alert: AlertDto, senior: SeniorDto, onAcknowledge
                 ColorPillButton(copy.acknowledgeAlertButton, color = FamilyColors.AlertRed, onClick = onAcknowledge)
             }
 
+            FallContextCard(alert, senior)
+
             SectionLabel(copy.escalationChainLabel, Modifier.padding(top = 24.dp, bottom = 10.dp))
             EscalationRow(Icons.Filled.CheckCircle, FamilyColors.Blue, copy.seniorPromptedAt(formatClockTime(alert.createdAt)))
             EscalationRow(Icons.Filled.HourglassEmpty, FamilyColors.Blue, copy.escalationFamilyNotifiedPending)
@@ -389,6 +391,8 @@ private fun AcknowledgedContent(
                     modifier = Modifier.padding(top = 18.dp)
                 )
             }
+
+            FallContextCard(alert, senior)
 
             SectionLabel(copy.locationLabel, Modifier.fillMaxWidth().padding(top = 24.dp, bottom = 10.dp))
             AlertLocationMap(
@@ -783,6 +787,29 @@ private fun BlueHeaderBar(title: String) {
 @Composable
 private fun SectionLabel(text: String, modifier: Modifier = Modifier) {
     Text(text, color = FamilyColors.TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = modifier)
+}
+
+/**
+ * For a potential fall only: what may have happened, in sentences with no figures in them.
+ * Nothing is drawn for other alerts or for falls recorded before the context existed.
+ */
+@Composable
+private fun FallContextCard(alert: AlertDto, senior: SeniorDto) {
+    if (alert.triggerType != "fall_pattern") return
+    val summary = FallContextSummary.from(alert.fallContext, alert.fallTolerance) ?: return
+    val copy = LocalFamilyCopy.current
+    SectionLabel(copy.fallContextLabel, Modifier.fillMaxWidth().padding(top = 24.dp, bottom = 10.dp))
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, FamilyColors.FieldBorder, RoundedCornerShape(14.dp))
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        copy.fallContextLines(summary, senior.firstName).forEach {
+            Text(it, color = FamilyColors.TextPrimary, fontSize = 14.sp)
+        }
+    }
 }
 
 @Composable

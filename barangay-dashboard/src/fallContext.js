@@ -1,12 +1,12 @@
-// Turns a fall alert's `fall_context` and `fall_tolerance` strings (key=number;key=number) into
-// the few lines a responder or panelist reads: what the phone was doing just before the drop, the
-// time of day, and whether the detector was running at a raised setting.
+// Turns a fall alert's `fall_context` and `fall_tolerance` strings (key=number;key=number) into a
+// few plain sentences for a responder: what the phone was doing just before the drop, whether it
+// happened in the senior's sleep hours, and whether the fall detector had been made less
+// sensitive. No raw figures are shown.
 //
-// `fall_context` is a record, not a rule: the detector never reads it. The "reading" line is an
-// interpretation for a human, worded as "consistent with", never as a diagnosis.
+// A hint for a human, not a finding: the detector never reads `fall_context`, and the wording says
+// "may" and "could". The family app has a Kotlin twin (ui/family/FallContextSummary.kt and
+// FamilyStrings.fallContextLines); the two must be changed together.
 import { parseNote } from './fallEvidence.js'
-
-const fixed = (n) => (Number.isFinite(n) ? n.toFixed(1) : '—')
 
 // Returns null when the alert carries no context (older rows, other triggers, unreadable note).
 export function fallContext(contextRaw, toleranceRaw) {
@@ -14,38 +14,22 @@ export function fallContext(contextRaw, toleranceRaw) {
   if (!c || !Number.isFinite(c.night)) return null
   const t = parseNote(toleranceRaw)
 
-  const motionKnown = Number.isFinite(c.active)
-  const moving = motionKnown && c.active === 1
-  const asleep = c.night === 1
-
-  const rows = [
-    {
-      key: 'motion',
-      label: 'Phone before the drop',
-      value: motionKnown
-        ? `${moving ? 'Moving, like walking' : 'At rest'} (${fixed(c.pre_dev)} m/s² off 1 g)`
-        : 'Too few readings to say',
-    },
-    { key: 'time', label: 'Time of day', value: asleep ? 'Sleep hours' : 'Awake hours' },
-  ]
-
-  const raised = !!t && Number.isFinite(t.impact_min) && Number.isFinite(t.base_impact) && t.impact_min > t.base_impact
-  rows.push({
-    key: 'setting',
-    label: 'Detector setting',
-    value: raised
-      ? `Raised after ${t.false ?? '?'} cancelled fall(s): impact ≥ ${fixed(t.impact_min)} m/s² (normally ${fixed(t.base_impact)})`
-      : 'Normal',
-  })
-
-  let reading = null
-  if (motionKnown) {
-    reading = moving
-      ? 'Moving before the drop: consistent with a fall while walking.'
-      : asleep
-        ? 'At rest during sleep hours: could be a phone dropped by someone resting.'
-        : 'At rest before the drop: could be a dropped phone or a fall from standing still.'
+  const lines = []
+  if (Number.isFinite(c.active)) {
+    lines.push(
+      c.active === 1
+        ? 'The phone was being carried or used just before the drop, so the senior may have fallen while moving.'
+        : 'The phone was lying still just before the drop. It could simply have been dropped, or the senior may have fallen from standing still.'
+    )
   }
-
-  return { rows, reading }
+  lines.push(
+    c.night === 1
+      ? "This happened during the senior's usual sleep hours."
+      : "This happened outside the senior's usual sleep hours."
+  )
+  const lessSensitive = !!t && Number.isFinite(t.impact_min) && Number.isFinite(t.base_impact) && t.impact_min > t.base_impact
+  if (lessSensitive) {
+    lines.push('Fall detection is set less sensitive for this senior because earlier fall alerts were false alarms.')
+  }
+  return { lines }
 }

@@ -35,6 +35,11 @@ class AlertOut(BaseModel):
     created_at: datetime
     triggered_at: datetime | None
     resolved_at: datetime | None
+    # Fall alerts only: what the phone was doing before the drop and the detector setting in force,
+    # so the family app can explain a potential fall in plain words. Null otherwise. Two derived
+    # figures, a flag and a setting; never sensor samples.
+    fall_context: str | None = None
+    fall_tolerance: str | None = None
 
     model_config = {"from_attributes": True}
 

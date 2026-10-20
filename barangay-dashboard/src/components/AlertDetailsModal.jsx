@@ -149,25 +149,23 @@ function EscalationTimeline({ alert }) {
   )
 }
 
-// For a fall alert: what the phone was doing just before the drop, the time of day, and whether
-// the detector was running raised. Read from `fall_context` / `fall_tolerance`; nothing for older
-// alerts or other triggers. It is a record for the responder, not something the detector acts on.
+// For a fall alert: a few plain sentences on what the phone was doing just before the drop, whether
+// it fell in the senior's sleep hours, and whether the detector had been made less sensitive. No raw
+// figures. Read from `fall_context` / `fall_tolerance`; nothing for older alerts or other triggers.
+// A hint for the responder, not something the detector acts on.
 function FallContext({ alert }) {
   if (alert.trigger_type !== 'fall_pattern') return null
   const ctx = fallContext(alert.fall_context, alert.fall_tolerance)
   if (!ctx) return null
   return (
     <>
-      <h3 className="details-location-title">Fall context</h3>
-      <dl className="fall-context">
-        {ctx.rows.map((row) => (
-          <div key={row.key} className="fall-context-row">
-            <dt>{row.label}</dt>
-            <dd>{row.value}</dd>
-          </div>
+      <h3 className="details-location-title">Just before the fall</h3>
+      <ul className="fall-context">
+        {ctx.lines.map((line) => (
+          <li key={line}>{line}</li>
         ))}
-      </dl>
-      {ctx.reading && <p className="fall-context-reading muted">{ctx.reading}</p>}
+      </ul>
+      <p className="fall-context-reading muted">This is only a hint. Confirm with the senior or family.</p>
     </>
   )
 }

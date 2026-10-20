@@ -10,7 +10,11 @@ data class AlertDto(
     val escalationSteps: List<Map<String, String>>?,
     val createdAt: String,
     val triggeredAt: String?,
-    val resolvedAt: String?
+    val resolvedAt: String?,
+    // Fall alerts only: what the phone was doing before the drop, and the detector setting in
+    // force. The family app turns these into plain sentences (FallContextSummary).
+    val fallContext: String? = null,
+    val fallTolerance: String? = null
 )
 
 /**
