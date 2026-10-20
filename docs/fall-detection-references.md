@@ -36,6 +36,37 @@ the table says so.
    (Bibliographic record checked on Crossref; open access, CC BY 4.0. Cited as the public
    dataset to validate against, not for a threshold.)
 
+6. **Gimpel, T., Kiertscher, S., Lindemann, A., Schnor, B., & Vogel, P. (2015).** Evaluation of
+   threshold-based fall detection on Android smartphones. *Proceedings of the 8th International
+   Conference on Health Informatics (HEALTHINF 2015)*, SCITEPRESS.
+   (Authors, title, year, thresholds and results read through a fetch summary of the open PDF
+   on scitepress.org, 2026-10-21, not from the full text. **Page range and DOI still to be
+   added from the SCITEPRESS page before this goes in the paper.**) Phone accelerometer worn
+   at the hip or in a belt bag. Best configuration ("Gimpel"): free fall 0.75 g for 30 ms,
+   impact 2 g within 500 ms, stillness variation 0.2 g over a 3.5 s window, orientation change
+   66 degrees; 44 of 52 simulated falls detected (about 85%) and 2 false positives over 297 h of
+   ADL recordings. Falls were simulated by three volunteers aged 23, 29 and 55; ADLs came from
+   two people aged 55 and 72 (11 h from the older). No angular-velocity threshold. Sampling
+   rate not stated for its own recordings; it cites 20 to 100 Hz as suitable.
+
+7. **Luque, R., Casilari, E., Morón, M.-J., & Redondo, G. (2014).** Comparison and
+   characterization of Android-based fall detection systems. *Sensors, 14*(10), 18543–18574.
+   https://doi.org/10.3390/s141018543 (open access, PMC4239945). Read through a fetch summary of
+   the first ~100,000 of ~147,000 characters of the PMC page on 2026-10-21, not the full text;
+   re-check the quotes before they go in the paper. It supports three things SEENior does:
+   (a) the posture or activity before a fall matters to the threshold ("the posture of the user
+   before the fall must be taken into account to optimize the threshold", reporting Viet et
+   al.); (b) fall detectors on phones are configured per user through a profile (thresholds,
+   sampling rate) and some set parameters from age, sex and BMI; (c) a dropped phone is a known
+   false-alarm source, which iFall handles by ignoring a detection if the dropped phone is picked
+   up, and which the authors criticise in a commercial app that dialled an emergency number the
+   moment the phone was dropped. Its own experiments used fixed thresholds, so it is not a source
+   for SEENior's numbers. Phone worn at the waist or in a trouser pocket.
+
+   Against SEENior: impact 2 g sits just below our 2.55 g; its free fall (0.75 g) and
+   stillness (3.5 s window) are far looser than ours (0.31 g, 8 s); 50 Hz sampling is inside
+   the range it cites.
+
 ## What the sources say, against what the app uses
 
 Unit conversions: 1 g = 9.81 m/s²; 1 rad/s = 57.3 °/s.
@@ -68,6 +99,62 @@ trade one problem for another: loosening free fall to 0.6 g would make the detec
 easily, and we already had 15 false alarms in 14 days from the stillness gate. The honest
 position is: impact sits inside the published range, rotation sits below Li's chest figure,
 and free fall and stillness are stricter than the literature on purpose.
+
+## Suggested wording for the paper (drafted 2026-10-21)
+
+Use this in place of any sentence saying the adaptive rules come from the literature. The
+defense answer on 2026-10 said the references "were highlighted in the Review of Related
+Literature"; that holds for the gate ranges only, not for the rules built on top of them.
+
+> **Source of the Layer 0 thresholds.** The fall detector confirms a fall only when four
+> phases occur in order: free fall, impact, body rotation and post-impact stillness. The
+> impact threshold (25.0 m/s², 2.55 g) lies inside the range of upper fall thresholds reported
+> for threshold-based detectors, about 1.8 to 3.5 g (Bourke, O'Brien, & Lyons, 2007; Li et
+> al., 2009; Gimpel et al., 2015), and the 50 Hz sampling rate lies within the 20 to 100 Hz
+> range reported as suitable (Gimpel et al., 2015). The free-fall threshold (0.31 g) and the
+> stillness duration (8 s) are deliberately stricter than published values (free fall 0.41 to
+> 0.75 g; stillness judged over 1 to 3.5 s), chosen to reduce false alarms from a phone that
+> cannot judge body posture as a worn sensor can. The stillness duration is a design choice
+> and is not taken from a published source. The cited studies used body-worn sensors and
+> simulated falls, so their values guide the design and do not validate it.
+
+> **Adaptive rules.** SEENior does not classify situations such as a sleeping senior dropping
+> the phone or an active senior falling while walking. It adapts to each senior's own history
+> instead. After two or more fall alerts in 14 days are closed as false alarms, the impact and
+> stillness thresholds rise by 5% per false alarm up to 30%, and the senior receives 120
+> seconds to respond instead of 60. An anomaly in inactivity or movement is logged without a
+> prompt when the screen was on within the last five minutes. Repeated false alarms in one
+> signal and time block loosen that block's trigger for 14 days, never reaching the extreme
+> threshold, and alerts that were acted on take the loosening back. These rules and their
+> parameters (5%, 30%, 120 s, five minutes, 14 days) are the authors' engineering design. They
+> were checked by simulation and unit tests and have not been validated on real falls.
+
+> **Limitations.** A first dropped phone still raises a High-risk alert with a 60-second
+> window, because tolerance applies only after repeated false alarms. A hard drop onto a floor
+> followed by stillness can satisfy all four phases. Detection accuracy has not been measured
+> on a public dataset; a replay of SisFall (Sucerquia, López, & Vargas-Bonilla, 2017) is
+> planned.
+
+## What the system records about the situation (added 2026-10-21)
+
+Each fall alert now stores `fall_context` (local `Alerts`, migration 5->8 on the phone; cloud
+`alerts.fall_context`, migration 0019): `pre_dev` (mean distance of the phone's acceleration from
+1 g over the two seconds before the free fall), `active` (1 when `pre_dev` >= 1.5 m/s2) and
+`night` (1 in the senior's night block). A dropped phone at rest reads `pre_dev=0.1;active=0;night=1`;
+a fall while walking reads `pre_dev=2.8;active=1;night=0`. It is a **record, not a rule**: no
+gate and no tolerance step reads it, a test asserts that. The 1.5 m/s2 cut is an engineering
+starting point, not a published value. Literature for the idea that pre-fall activity matters and
+that a dropped phone is a known false alarm: Luque et al. 2014 (reference 7).
+
+Query for the panel (cloud shows only falls that escalated; the phone's `Alerts` shows all):
+
+```sql
+SELECT created_at, status, risk_level, fall_context, fall_tolerance, fall_evidence
+FROM alerts WHERE trigger_type = 'fall_pattern' ORDER BY created_at DESC;
+```
+
+**Reference list entries** for the paper: references 1, 2, 4, 5 and 6 above (Kangas et al.
+2008 only if it is cited in the text).
 
 **To turn this into accuracy figures** replay the SisFall dataset (reference 5) through
 `FallDetector` and report how many falls it confirms and how many everyday activities it

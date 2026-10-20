@@ -101,6 +101,42 @@ class FallDetector(
     var lastEvidence: FallEvidence? = null
         private set
 
+    /**
+     * How much the phone was moving in the two seconds before the free fall of the most recent
+     * confirmed fall: mean distance from 1 g, m/s2. Null when too few samples came before the
+     * drop. Recorded for [FallContext] only; no gate reads it.
+     */
+    var lastPreFallMotion: Float? = null
+        private set
+
+    private var pendingPreFallMotion: Float? = null
+
+    // Ring of recent |magnitude - 1 g|, newest at motionHead - 1. Fed only while idle, so it holds
+    // what happened before a candidate fall began. Two small primitive arrays, no per-sample garbage.
+    private val motionAtMs = LongArray(MOTION_CAPACITY)
+    private val motionDev = FloatArray(MOTION_CAPACITY)
+    private var motionHead = 0
+    private var motionCount = 0
+
+    private fun recordMotion(nowMs: Long, magnitude: Float) {
+        motionAtMs[motionHead] = nowMs
+        motionDev[motionHead] = abs(magnitude - GRAVITY)
+        motionHead = (motionHead + 1) % MOTION_CAPACITY
+        if (motionCount < MOTION_CAPACITY) motionCount++
+    }
+
+    private fun preFallMotion(nowMs: Long): Float? {
+        var sum = 0f
+        var n = 0
+        for (i in 0 until motionCount) {
+            val idx = (motionHead - 1 - i + MOTION_CAPACITY) % MOTION_CAPACITY
+            if (nowMs - motionAtMs[idx] > PRE_FALL_WINDOW_MS) break
+            sum += motionDev[idx]
+            n++
+        }
+        return if (n >= PRE_FALL_MIN_SAMPLES) sum / n else null
+    }
+
     /** Feeds one accelerometer sample in. Returns true once per confirmed fall, on the sample that completes the stillness window. */
     fun onAcceleration(timestampNanos: Long, magnitude: Float): Boolean {
         val nowMs = timestampNanos / NANOS_PER_MS
@@ -108,9 +144,12 @@ class FallDetector(
 
         when (phase) {
             Phase.IDLE ->
-                if (magnitude <= config.freeFallMax) {
+                if (magnitude > config.freeFallMax) {
+                    recordMotion(nowMs, magnitude)
+                } else {
                     phase = Phase.FREE_FALL
                     freeFallStartMs = nowMs
+                    pendingPreFallMotion = preFallMotion(nowMs)
                     trace("1/4 free fall begins (mag ${f(magnitude)} <= ${f(config.freeFallMax)})")
                 }
 
@@ -160,6 +199,7 @@ class FallDetector(
                         return false
                     }
                     cooldownUntilMs = nowMs + config.cooldownMs
+                    lastPreFallMotion = pendingPreFallMotion
                     lastEvidence = FallEvidence(
                         freeFallMs = freeFallEndMs - freeFallStartMs,
                         impactPeak = impactPeak,
@@ -200,6 +240,8 @@ class FallDetector(
         rotationPeak = 0f
         rotationPeakAtMs = Long.MIN_VALUE
         impactRotationPeak = 0f
+        motionCount = 0
+        pendingPreFallMotion = null
     }
 
     /**
@@ -222,6 +264,15 @@ class FallDetector(
 
     private companion object {
         const val NANOS_PER_MS = 1_000_000L
+
+        /** How far back "before the fall" looks. */
+        const val PRE_FALL_WINDOW_MS = 2_000L
+
+        /** Fewer samples than this (0.5 s at 50 Hz) is too little to call the phone moving or resting. */
+        const val PRE_FALL_MIN_SAMPLES = 25
+
+        /** Room for 5 s at 50 Hz, so a faster sensor still fills the window. */
+        const val MOTION_CAPACITY = 256
 
         /** Standard gravity. Not taken from SensorManager so this class stays framework-free. */
         const val GRAVITY = 9.80665f

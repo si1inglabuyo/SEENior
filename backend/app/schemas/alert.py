@@ -20,6 +20,9 @@ class AlertCreate(BaseModel):
     # Fall alerts only (migration 0017): what each gate measured, four summary figures. Same
     # key=value-numbers-only shape, so it can carry nothing but those figures.
     fall_evidence: str | None = Field(default=None, max_length=200, pattern=r"^[a-z_]+=[0-9.]+(;[a-z_]+=[0-9.]+)*$")
+    # Fall alerts only (migration 0019): the movement before the fall and whether it was night.
+    # Same key=value-numbers-only shape.
+    fall_context: str | None = Field(default=None, max_length=200, pattern=r"^[a-z_]+=[0-9.]+(;[a-z_]+=[0-9.]+)*$")
 
 
 class AlertOut(BaseModel):

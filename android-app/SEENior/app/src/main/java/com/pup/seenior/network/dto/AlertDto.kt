@@ -33,7 +33,10 @@ data class CreateAlertRequest(
     val fallTolerance: String? = null,
     // For fall alerts only: what each detector gate measured (free fall, impact, stillness,
     // rotation), four summary figures. Never sensor samples (spec section 11).
-    val fallEvidence: String? = null
+    val fallEvidence: String? = null,
+    // For fall alerts only: how much the phone moved in the 2 s before the drop and whether it
+    // was the senior's night block. Two derived figures and a flag, never sensor samples.
+    val fallContext: String? = null
 )
 
 /** Mirrors backend AlertDispatchRequest (family requesting a barangay welfare check). */

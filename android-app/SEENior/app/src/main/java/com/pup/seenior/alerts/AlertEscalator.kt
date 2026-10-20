@@ -129,7 +129,8 @@ object AlertEscalator {
                         // Not re-read: the trigger moment never changes.
                         triggeredAt = Instant.ofEpochMilli(alert.triggeredAt).toString(),
                         fallTolerance = current?.fallTolerance ?: alert.fallTolerance,
-                        fallEvidence = current?.fallEvidence ?: alert.fallEvidence
+                        fallEvidence = current?.fallEvidence ?: alert.fallEvidence,
+                        fallContext = current?.fallContext ?: alert.fallContext
                     )
                 )
             }

@@ -425,6 +425,7 @@ class SensorCollectionService : Service(), SensorEventListener
         // Read before launching: the detector keeps going on the sensor thread.
         val evidence = fallDetector.lastEvidence?.encode()
         val tolerance = fallToleranceNote
+        val preFallMotion = fallDetector.lastPreFallMotion
         serviceScope.launch {
             AlertResponder.raise(
                 applicationContext,
@@ -432,7 +433,8 @@ class SensorCollectionService : Service(), SensorEventListener
                 "fall_pattern",
                 "high",
                 evidence,
-                tolerance
+                tolerance,
+                preFallMotion
             )
         }
     }

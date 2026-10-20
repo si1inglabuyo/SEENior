@@ -325,5 +325,12 @@ class Alert(Base):
     # figures, never the sample stream, so the privacy boundary holds. Shows the panel which
     # phases satisfied the alert. Null for every other trigger and older rows.
     fall_evidence: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    # Fall alerts only (migration 0019): what the senior was doing when the fall was judged, e.g.
+    # "pre_dev=2.8;active=1;night=0" (mean movement of the phone in the 2 s before the free fall,
+    # m/s2 off 1 g; active=1 when that is at least 1.5; night=1 when the alert fell in the
+    # senior's night block). Two derived figures and a flag, never the sample stream. Recorded so
+    # a dropped phone at rest can be told apart from a fall while moving; it does not change the
+    # detector's decision. Null for every other trigger and older rows.
+    fall_context: Mapped[str | None] = mapped_column(String(200), nullable=True)
 
     senior: Mapped["Senior"] = relationship(back_populates="alerts")

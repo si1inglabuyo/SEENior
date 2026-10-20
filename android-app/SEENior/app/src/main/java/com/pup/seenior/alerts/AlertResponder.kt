@@ -6,6 +6,7 @@ import com.pup.seenior.AppForeground
 import com.pup.seenior.baseline.SeedBaselineGenerator
 import com.pup.seenior.database.SeniorAppDatabase
 import com.pup.seenior.database.entities.Alert
+import com.pup.seenior.detection.FallContext
 import com.pup.seenior.MainActivity
 import com.pup.seenior.location.AlertLocationCapture
 import com.pup.seenior.ui.wellness.WellnessMessages
@@ -42,7 +43,9 @@ object AlertResponder {
         triggerType: String,
         riskLevel: String,
         fallEvidence: String? = null,
-        fallTolerance: String? = null
+        fallTolerance: String? = null,
+        /** For falls: the detector's pre-drop movement reading, recorded in the alert's context note. */
+        preFallMotion: Float? = null
     ): Alert? = raiseLock.withLock {
         val senior = db.seniorDao().getOnboardedSenior() ?: return null
         val onboarding = db.seniorOnboardingDao().getBySeniorId(senior.seniorId) ?: return null
@@ -53,19 +56,22 @@ object AlertResponder {
         val notBefore = now - AlertEscalator.dedupeSecondsFor(triggerType) * 1_000L
         if (db.alertDao().getRecentActiveAlert(senior.seniorId, triggerType, notBefore) != null) return null
 
+        val timeBlock = SeedBaselineGenerator
+            .resolveTimeBlock(now, onboarding.wakeTime, onboarding.sleepTime)
+            .name.lowercase()
+
         val alert = Alert(
             seniorId = senior.seniorId,
             syncId = UUID.randomUUID().toString(),
             triggerType = triggerType,
             riskLevel = riskLevel,
-            timeBlock = SeedBaselineGenerator
-                .resolveTimeBlock(now, onboarding.wakeTime, onboarding.sleepTime)
-                .name.lowercase(),
+            timeBlock = timeBlock,
             // That column belongs to Median-MAD; a fall or button press has no z-score.
             deviationScore = null,
             triggeredAt = now,
             fallEvidence = fallEvidence,
-            fallTolerance = fallTolerance
+            fallTolerance = fallTolerance,
+            fallContext = if (triggerType == "fall_pattern") FallContext.encode(preFallMotion, timeBlock) else null
         )
         val stored = alert.copy(alertId = db.alertDao().insert(alert).toInt())
         onAlertCreated(context, db, stored)

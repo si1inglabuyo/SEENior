@@ -70,5 +70,13 @@ data class Alert(
      * [com.pup.seenior.detection.FallTolerance.Result.encode]). Unlike [fallEvidence] this one
      * is synced to the cloud: it is a setting and two counts, never a sensor reading.
      */
-    @ColumnInfo(name = "fall_tolerance") val fallTolerance: String? = null
+    @ColumnInfo(name = "fall_tolerance") val fallTolerance: String? = null,
+    /**
+     * For `fall_pattern` only: what the senior was doing when the fall was judged (see
+     * [com.pup.seenior.detection.FallContext]): how much the phone moved in the two seconds
+     * before the drop and whether it was their night block. Two derived figures and a flag,
+     * never sensor samples, so it syncs to the cloud (`alerts.fall_context`, migration 0019).
+     * A record, not a rule: no detection gate reads it.
+     */
+    @ColumnInfo(name = "fall_context") val fallContext: String? = null
 )

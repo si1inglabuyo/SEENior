@@ -96,7 +96,7 @@ object FallSimulator {
 
         // No dedup check here: AlertResponder.raise owns that rule and returns null for it.
 
-        val alert = AlertResponder.raise(context, db, "fall_pattern", "high", detector.lastEvidence?.encode(), tolerance.encode())
+        val alert = AlertResponder.raise(context, db, "fall_pattern", "high", detector.lastEvidence?.encode(), tolerance.encode(), detector.lastPreFallMotion)
             ?: return Result.AlreadyActive
         return Result.Raised(alert)
     }
