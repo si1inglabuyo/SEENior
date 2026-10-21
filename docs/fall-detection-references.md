@@ -67,6 +67,18 @@ the table says so.
    stillness (3.5 s window) are far looser than ours (0.31 g, 8 s); 50 Hz sampling is inside
    the range it cites.
 
+8. **Kwon, Y. J., Aung, T., Synovec, S. M., Oberle, A. D., Hanton, C. R., Whittington, J.,
+   Goulding, E. H., Witbrodt, B. C., Bonasera, S. J., & Schenk, A. K. (2017).** Classifying
+   smartphone-based accelerometer data to obtain validated measures of subject activity status,
+   step count, and gait speed [Preprint]. *bioRxiv*. https://doi.org/10.1101/160317
+   Added 2026-10-21 as the only source found for the `active` flag in `fall_context`. **Not read
+   in full:** bioRxiv returned 403, so the figures come from a search summary. Reported there:
+   adults over 55, RMS acceleration of about 0.094 to 0.156 g for walking, at or above 0.156 g
+   for stair climbing. Re-check the numbers and the participant ages before citing. A 2017 JMIR
+   mHealth record (vol. 5, no. 10, e104) may be the peer-reviewed version; unconfirmed, cite the
+   journal version if so. It is outside the 2020 to 2026 range and it is RMS, not our mean
+   distance from 1 g, so the numbers are comparable, not identical.
+
 ## What the sources say, against what the app uses
 
 Unit conversions: 1 g = 9.81 m/s²; 1 rad/s = 57.3 °/s.
@@ -143,8 +155,13 @@ Each fall alert now stores `fall_context` (local `Alerts`, migration 5->8 on the
 `night` (1 in the senior's night block). A dropped phone at rest reads `pre_dev=0.1;active=0;night=1`;
 a fall while walking reads `pre_dev=2.8;active=1;night=0`. It is a **record, not a rule**: no
 gate and no tolerance step reads it, a test asserts that. The 1.5 m/s2 cut is an engineering
-starting point, not a published value. Literature for the idea that pre-fall activity matters and
-that a dropped phone is a known false alarm: Luque et al. 2014 (reference 7).
+provisional starting value. It was chosen before any source was checked, and is not derived from
+one. It sits at the top of the band reported for walking in a smartphone study of adults over 55
+(about 0.094 to 0.156 g RMS, roughly 0.9 to 1.5 m/s2; Kwon et al. 2017 preprint, reference 8,
+a different measure from ours, so only comparable). Say "provisional, consistent with published
+walking ranges, calibration pending", never "taken from" a paper. Literature for the idea that
+pre-fall activity matters and that a dropped phone is a known false alarm: Luque et al. 2014
+(reference 7).
 
 Query for the panel (cloud shows only falls that escalated; the phone's `Alerts` shows all):
 
@@ -153,7 +170,7 @@ SELECT created_at, status, risk_level, fall_context, fall_tolerance, fall_eviden
 FROM alerts WHERE trigger_type = 'fall_pattern' ORDER BY created_at DESC;
 ```
 
-**Reference list entries** for the paper: references 1, 2, 4, 5 and 6 above (Kangas et al.
+**Reference list entries** for the paper: references 1, 2, 4, 5, 6, 7 and 8 above (Kangas et al.
 2008 only if it is cited in the text).
 
 **To turn this into accuracy figures** replay the SisFall dataset (reference 5) through

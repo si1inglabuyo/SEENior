@@ -334,7 +334,10 @@ class FamilyAlertsViewModel(application: Application) : AndroidViewModel(applica
         private val OPEN_STATUSES = setOf("pending", "acknowledged", "escalated")
 
         /** Audit steps that close an incident, newest of which names who closed it. */
-        private val CLOSING_STEPS = setOf("resolved_family", "false_positive_family", "self_cancelled_senior")
+        private val CLOSING_STEPS = setOf(
+            "resolved_family", "false_positive_family", "self_cancelled_senior",
+            "resolved_barangay", "false_positive_barangay"
+        )
 
         /** Screens that only report the situation, so a poll may replace them. The rest are steps the family member is partway through. */
         private val PASSIVE_SCREENS = setOf(
