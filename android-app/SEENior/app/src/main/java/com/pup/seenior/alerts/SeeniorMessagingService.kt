@@ -65,19 +65,21 @@ class SeeniorMessagingService : FirebaseMessagingService() {
 
     /**
      * Tells the server this phone got the push, so it skips the SMS it would send after the
-     * grace period. Only an online phone can do this, which is the point. Two attempts; never fatal.
+     * grace period. Only an online phone can do this, which is the point. Retried with a growing
+     * pause (2, 4, 6, 8, 10 s, about 30 s in all, the server's grace window), since a phone
+     * waking from Doze often has no data path for the first few seconds. Never fatal.
      */
     private fun confirmReceipt(alertSyncId: String) {
         val app = applicationContext
         val jwt = FamilySession.getToken(app)?.takeIf { FamilySession.hasLiveSession(app) } ?: return
         scope.launch {
-            repeat(2) { attempt ->
+            repeat(RECEIPT_ATTEMPTS) { attempt ->
                 val ok = runCatching {
                     RetrofitClient.api.confirmAlertPushReceived(alertSyncId, "Bearer $jwt")
                 }.onFailure { Log.w(TAG, "Push receipt failed (attempt ${attempt + 1})", it) }
                     .isSuccess
                 if (ok) return@launch
-                delay(2_000)
+                delay(RECEIPT_RETRY_STEP_MS * (attempt + 1))
             }
         }
     }
@@ -92,5 +94,7 @@ class SeeniorMessagingService : FirebaseMessagingService() {
 
     private companion object {
         const val TAG = "SeeniorMessaging"
+        const val RECEIPT_ATTEMPTS = 6
+        const val RECEIPT_RETRY_STEP_MS = 2_000L
     }
 }
