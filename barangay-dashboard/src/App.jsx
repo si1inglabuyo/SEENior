@@ -8,14 +8,16 @@ import Dashboard from './components/Dashboard'
 import IncidentQueue from './components/IncidentQueue'
 import AlertHistory from './components/AlertHistory'
 import SeniorRoster from './components/SeniorRoster'
+import Reports from './components/Reports'
 import Settings from './components/Settings'
 
-// No router library: the view is one piece of state. Five keys, matching Sidebar's NAV.
+// No router library: the view is one piece of state. Six keys, matching Sidebar's NAV.
 const TITLES = {
   dashboard: 'Dashboard',
   alerts: 'Alerts',
   history: 'Alert History',
   seniors: 'Seniors',
+  reports: 'Reports',
   settings: 'Settings',
 }
 
@@ -58,6 +60,7 @@ export default function App() {
         />
       )}
       {view === 'seniors' && <SeniorRoster onSessionLost={signOut} />}
+      {view === 'reports' && <Reports onSessionLost={signOut} />}
       {view === 'settings' && <Settings onSessionLost={signOut} />}
     </AppShell>
   )
