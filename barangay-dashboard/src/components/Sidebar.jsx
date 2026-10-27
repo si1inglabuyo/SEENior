@@ -3,6 +3,7 @@ import {
   IconAlerts,
   IconHistory,
   IconSeniors,
+  IconChart,
   IconSettings,
   IconLogout,
 } from '../icons'
@@ -14,6 +15,7 @@ const NAV = [
   { id: 'alerts', label: 'Alerts', Icon: IconAlerts },
   { id: 'history', label: 'Alert History', Icon: IconHistory },
   { id: 'seniors', label: 'Seniors', Icon: IconSeniors },
+  { id: 'reports', label: 'Reports', Icon: IconChart },
   { id: 'settings', label: 'Settings', Icon: IconSettings },
 ]
 

@@ -792,3 +792,45 @@ h4 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase;
 .routine-bar { height: 8px; border-radius: 4px; background: var(--accent-soft); overflow: hidden; }
 .routine-bar-fill { height: 100%; border-radius: 4px; background: var(--accent); }
 .routine-line { margin: 6px 0 0; font-size: 13px; }
+
+/* --- printable reports (Reports tab) --- */
+.rpt-form { display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: flex-end; }
+.rpt-form label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 600; color: var(--muted); }
+.rpt-form select, .rpt-form input { padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 14px; color: var(--ink); background: var(--surface); }
+.rpt-hint { font-size: 12px; margin: 12px 0 0; }
+
+.rpt { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 28px 32px; margin-top: 20px; max-width: 820px; font-size: 13px; }
+.rpt h1 { margin: 0; font-size: 22px; color: var(--brand); }
+.rpt h2 { margin: 18px 0 6px; font-size: 14px; text-transform: none; letter-spacing: 0; color: var(--brand); border-bottom: 1px solid var(--line); padding-bottom: 3px; }
+.rpt-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; border-bottom: 3px solid var(--brand); padding-bottom: 8px; }
+.rpt-head small, .rpt-meta small { display: block; color: var(--muted); }
+.rpt-meta { text-align: right; }
+.rpt-kpis { display: flex; gap: 10px; margin-top: 8px; }
+.rpt-kpis > div { flex: 1; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: var(--bg); }
+.rpt-kpis b { display: block; font-size: 19px; color: var(--brand); }
+.rpt-kpis span { font-size: 11px; color: var(--muted); }
+.rpt-table { width: 100%; border-collapse: collapse; }
+.rpt-table th, .rpt-table td { padding: 5px 8px; text-align: left; border-bottom: 1px solid var(--line); font-size: 12.5px; }
+.rpt-table th { background: var(--bg); font-size: 11.5px; }
+.rpt-table .n { text-align: right; }
+.rpt-kv td:first-child { width: 30%; color: var(--muted); }
+.rpt-cols { display: flex; gap: 18px; }
+.rpt-cols > section { flex: 1; min-width: 0; }
+.rpt-bar { display: inline-block; height: 10px; background: var(--brand); border-radius: 2px; vertical-align: middle; }
+.rpt-chart { width: 100%; height: auto; }
+.rpt-list { margin: 4px 0; padding-left: 20px; line-height: 1.5; }
+.rpt-note { font-size: 11px; margin: 6px 0 0; }
+.rpt-box { min-height: 60px; border: 1px solid var(--line); border-radius: 4px; }
+.rpt-sig { display: flex; gap: 40px; margin-top: 34px; }
+.rpt-sig > div { flex: 1; border-top: 1px solid var(--ink); padding-top: 4px; font-size: 12px; text-align: center; }
+.rpt-conf { margin: 22px 0 0; border-top: 1px solid var(--line); padding-top: 8px; font-size: 10.5px; color: var(--muted); }
+
+@media print {
+  @page { size: A4; margin: 14mm; }
+  .sidebar, .page-header, .page-footer, .rpt-controls, .toast { display: none !important; }
+  .shell { display: block; }
+  .page-body { padding: 0; }
+  body, .main { background: #fff; }
+  .rpt { border: 0; border-radius: 0; padding: 0; margin: 0; max-width: none; }
+  .rpt h2, .rpt-table tr, .rpt-kpis, .rpt-sig { break-inside: avoid; }
+}
