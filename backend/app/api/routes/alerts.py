@@ -177,20 +177,6 @@ async def deliver_family_sms_after_grace(
         logger.exception("Delayed family SMS task crashed for alert %s", alert_sync_id)
 
 
-async def barangay_phone_numbers(db: AsyncSession, barangay: str) -> list[str]:
-    """Phone numbers of active barangay responders assigned to this barangay."""
-    result = await db.execute(
-        select(User.phone).where(
-            User.role == UserRole.BARANGAY_RESPONDER,
-            User.barangay == barangay,
-            User.is_active,
-            User.deleted_at.is_(None),
-            User.phone.is_not(None),
-        )
-    )
-    return list(result.scalars().all())
-
-
 async def deliver_alert_sms(numbers: list[str], message: str, *, context: str) -> int:
     """Sends the SMS fallback as a background task. Failures are logged, never raised.
 

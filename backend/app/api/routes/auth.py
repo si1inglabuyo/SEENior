@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
@@ -8,7 +8,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
-from app.core import push, ratelimit
+from app.core import push, ratelimit, sms, twofactor
 from app.core.config import settings
 from app.core.security import (
     _DUMMY_PASSWORD_HASH,
@@ -16,7 +16,7 @@ from app.core.security import (
     hash_password,
     verify_password,
 )
-from app.db.models import Contact, DeviceToken, UnlinkActor, User, UserRole
+from app.db.models import Contact, DeviceToken, LoginChallenge, UnlinkActor, User, UserRole
 from app.db.session import get_db
 from app.schemas.auth import (
     AccountDeletionRequest,
@@ -27,6 +27,9 @@ from app.schemas.auth import (
     PasswordSetRequest,
     RegisterRequest,
     Token,
+    TwoFactorChallenge,
+    TwoFactorResendRequest,
+    TwoFactorVerifyRequest,
     UserOut,
     UserUpdate,
 )
@@ -34,13 +37,57 @@ from app.schemas.auth import (
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-@router.post("/login", response_model=Token)
+def _now() -> datetime:
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+def _invalid_code() -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="That code is not valid. Please sign in again.",
+    )
+
+
+async def _send_code(db: AsyncSession, user: User, challenge: LoginChallenge) -> None:
+    """Generates a fresh code for `challenge`, stores its hash and texts it to the account.
+
+    Fails closed: if the text cannot be sent the challenge is left unusable and the caller
+    gets a 503, because a responder who never receives a code must not be let in without one.
+    The send is counted against the per-account SMS cap first, so retries can't run up credits.
+    """
+    await ratelimit.check("2fa-sms-user", str(user.id), limit=6, window_seconds=3600)
+    code = twofactor.new_code()
+    challenge.code_hash = twofactor.hash_code(challenge.id, code)
+    result = await sms.send_sms([user.two_factor_phone], twofactor.sms_message(code))
+    if result.sent < 1:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Could not send the verification code. Please try again in a moment.",
+        )
+    now = _now()
+    challenge.expires_at = now + timedelta(seconds=twofactor.CODE_TTL_SECONDS)
+    challenge.last_sent_at = now
+
+
+def _challenge_out(challenge: LoginChallenge, user: User) -> TwoFactorChallenge:
+    return TwoFactorChallenge(
+        challenge_id=challenge.id,
+        phone_hint=twofactor.mask_phone(user.two_factor_phone or ""),
+        expires_in=twofactor.CODE_TTL_SECONDS,
+        resend_after=twofactor.RESEND_COOLDOWN_SECONDS,
+    )
+
+
+@router.post("/login", response_model=Token | TwoFactorChallenge)
 async def login(
     request: Request,
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: AsyncSession = Depends(get_db),
-) -> Token:
+) -> Token | TwoFactorChallenge:
     """Password sign-in for both roles.
+
+    An account with two-factor on gets a `TwoFactorChallenge` instead of a token; the token
+    is issued by `/auth/login/verify` once the texted code is entered.
 
     Throttled per IP and per submitted identifier, so neither a single host nor a spread
     of hosts can work through passwords against one account.
@@ -77,8 +124,101 @@ async def login(
             detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    if user.two_factor_enabled:
+        if not user.two_factor_phone:
+            # Never fall back to password-only: that would let anyone who has the password
+            # skip the second factor by an account having no number.
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Two-factor sign-in is on but this account has no code phone number. "
+                "Please contact the OSCA officer.",
+            )
+        # One pending sign-in per account: starting again discards the old code.
+        await db.execute(delete(LoginChallenge).where(LoginChallenge.user_id == user.id))
+        challenge = LoginChallenge(user_id=user.id, code_hash="", expires_at=_now())
+        db.add(challenge)
+        await db.flush()
+        try:
+            await _send_code(db, user, challenge)
+        except HTTPException:
+            await db.rollback()
+            raise
+        await db.commit()
+        return _challenge_out(challenge, user)
     token = create_access_token(subject=str(user.id), role=user.role.value)
     return Token(access_token=token)
+
+
+async def _load_challenge(db: AsyncSession, challenge_id: str) -> tuple[LoginChallenge, User]:
+    """The live challenge and its account, or the same 401 for every way it can be wrong."""
+    challenge = await db.get(LoginChallenge, challenge_id)
+    if challenge is None or challenge.consumed:
+        raise _invalid_code()
+    user = await db.get(User, challenge.user_id)
+    if user is None or not user.is_active:
+        raise _invalid_code()
+    return challenge, user
+
+
+@router.post("/login/verify", response_model=Token)
+async def verify_login_code(
+    payload: TwoFactorVerifyRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> Token:
+    """Second step of a two-factor sign-in: trade the texted code for a token."""
+    await ratelimit.check("2fa-verify-ip", ratelimit.client_ip(request), limit=20, window_seconds=300)
+    challenge, user = await _load_challenge(db, payload.challenge_id)
+
+    if challenge.attempts >= twofactor.MAX_WRONG_GUESSES or challenge.expires_at < _now():
+        raise _invalid_code()
+
+    # Counted and saved before the comparison, so parallel guesses can't each get a free try.
+    challenge.attempts += 1
+    await db.commit()
+
+    if not twofactor.code_matches(challenge.id, payload.code, challenge.code_hash):
+        raise _invalid_code()
+
+    challenge.consumed = True
+    await db.commit()
+    return Token(access_token=create_access_token(subject=str(user.id), role=user.role.value))
+
+
+@router.post("/login/resend", response_model=TwoFactorChallenge)
+async def resend_login_code(
+    payload: TwoFactorResendRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> TwoFactorChallenge:
+    """Texts a new code for a pending sign-in, at most twice and not more than once in 30 s.
+
+    Wrong guesses already made still count against the challenge, so resending doesn't reset
+    them.
+    """
+    await ratelimit.check("2fa-resend-ip", ratelimit.client_ip(request), limit=10, window_seconds=300)
+    challenge, user = await _load_challenge(db, payload.challenge_id)
+    now = _now()
+
+    if (now - challenge.created_at).total_seconds() > twofactor.CHALLENGE_MAX_AGE_SECONDS:
+        raise _invalid_code()
+    if challenge.sends >= twofactor.MAX_SENDS:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="No more codes can be sent for this sign-in. Please sign in again.",
+        )
+    wait = twofactor.RESEND_COOLDOWN_SECONDS - (now - challenge.last_sent_at).total_seconds()
+    if wait > 0:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Please wait a moment before asking for another code.",
+            headers={"Retry-After": str(int(wait) + 1)},
+        )
+
+    await _send_code(db, user, challenge)
+    challenge.sends += 1
+    await db.commit()
+    return _challenge_out(challenge, user)
 
 
 @router.post(

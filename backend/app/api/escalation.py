@@ -17,7 +17,6 @@ from sqlalchemy.orm import selectinload
 
 from app.api.routes.alerts import (
     append_step,
-    barangay_phone_numbers,
     deliver_alert_push,
     deliver_alert_sms,
     deliver_family_sms_after_grace,
@@ -219,20 +218,8 @@ async def sweep_overdue_alerts(db: AsyncSession) -> tuple[int, int]:
             append_step(alert, "escalated_barangay_auto", reason=reason)
             escalated_barangay += 1
             logger.info("Auto-escalated alert %s to barangay", alert.sync_id)
-
-            barangay_numbers = await barangay_phone_numbers(db, alert.senior.barangay)
-            if barangay_numbers:
-                smses.append((
-                    barangay_numbers,
-                    sms.barangay_alert_message(
-                        alert.senior.first_name,
-                        alert.senior.barangay,
-                        alert.senior.address,
-                        alert.risk_level.value,
-                        reason,
-                    ),
-                    f"barangay/{alert.sync_id}",
-                ))
+            # No text to the barangay: responders are alerted on the desktop dashboard only.
+            # SMS is for the family tier.
 
     if notified_family or escalated_barangay:
         await db.commit()

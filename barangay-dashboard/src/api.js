@@ -32,9 +32,36 @@ export async function login(username, password) {
     body: new URLSearchParams({ username, password }),
   })
   const data = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(data.detail || 'Could not sign in')
+  if (!res.ok) throw new Error(errorMessage(data, res.status))
+  // An account with two-factor on gets a challenge instead of a token: the server has texted
+  // a code, and the caller shows the code screen.
+  if (data.two_factor_required) return data
   localStorage.setItem(TOKEN_KEY, data.access_token)
-  return data.access_token
+  return null
+}
+
+// Second step of a two-factor sign-in: trade the texted code for the token.
+export async function verifyLoginCode(challengeId, code) {
+  const res = await fetch(`${BASE}/auth/login/verify`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ challenge_id: challengeId, code: code.trim() }),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(errorMessage(data, res.status))
+  localStorage.setItem(TOKEN_KEY, data.access_token)
+}
+
+// Asks for another text. Returns the refreshed challenge (new resend timer).
+export async function resendLoginCode(challengeId) {
+  const res = await fetch(`${BASE}/auth/login/resend`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ challenge_id: challengeId }),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(errorMessage(data, res.status))
+  return data
 }
 
 export async function api(path, options = {}) {

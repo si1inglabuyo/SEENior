@@ -168,11 +168,6 @@ def test_family_sms_has_a_filipino_version_and_unknown_languages_fall_back_to_en
     assert "pressed the SOS button" in sms.family_alert_message("Reviman", "high", "sos", language="xx")
 
 
-def test_barangay_sms_carries_the_address_and_what_to_do():
-    text = sms.barangay_alert_message("Reviman", "Barangay 123", "14 Sampaguita St", "high", "SOS pressed by the senior", at=AT)
-    assert "Barangay 123" in text and "14 Sampaguita St" in text and "Respond immediately" in text
-
-
 def test_messages_fit_a_small_number_of_sms_segments():
     # Credits are billed per 153-character segment, so keep the common messages short.
     for kind in ("sos", "fall_pattern", "inactivity"):
