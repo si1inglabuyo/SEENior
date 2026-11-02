@@ -1,23 +1,7 @@
 import { BLOCKS, BLOCK_LABEL, FEATURES, cell, headline, summarize } from '../routine'
 import { maskPhone, dateTimeLabel } from '../format'
 import { triggerShort } from '../labels'
-import { outcomeOf, spanLabel } from '../reportData'
-
-const OUTCOME_LABEL = {
-  resolved: 'Resolved',
-  false_alarm: 'False alarm',
-  acknowledged: 'Acknowledged by family',
-  attending: 'Responder attending',
-  open: 'Still open',
-}
-
-// What the alert reached, read off the timeline (not stored anywhere).
-function reached(alert) {
-  const steps = (alert.escalation_steps || []).map((e) => e && e.step)
-  if (steps.some((s) => s === 'escalated_barangay' || s === 'escalated_barangay_auto')) return 'Barangay'
-  if (steps.some((s) => s === 'escalated_family' || s === 'escalated_family_server')) return 'Family'
-  return 'Cloud only'
-}
+import { OUTCOME_LABEL, outcomeOf, reachedOf, spanLabel } from '../reportData'
 
 const dateLabel = (iso) =>
   new Date(`${iso}T00:00:00Z`).toLocaleDateString(undefined, { timeZone: 'UTC', day: 'numeric', month: 'short', year: 'numeric' })
@@ -25,7 +9,7 @@ const dateLabel = (iso) =>
 // One senior's summary for a chosen period. Deliberately shows no street address or full phone
 // number: those unlock only during an open alert (see SeniorDetail), and a filed report is not
 // an open alert. The pook and a masked number are enough to follow up.
-export default function SeniorReport({ data, detail, routine, generatedAt, generatedBy }) {
+export default function SeniorReport({ data, detail, routine, generatedAt }) {
   const r = data
   const rows = routine?.rows ?? []
   const lead = rows.length ? headline(summarize(rows)) : null
@@ -41,7 +25,7 @@ export default function SeniorReport({ data, detail, routine, generatedAt, gener
         </div>
         <div className="rpt-meta">
           <b>{dateLabel(r.fromIso)} – {dateLabel(r.toIso)}</b>
-          <small>Generated {generatedAt}{generatedBy ? ` · by responder #${generatedBy}` : ''}</small>
+          <small>Generated {generatedAt}</small>
         </div>
       </header>
 
@@ -86,7 +70,7 @@ export default function SeniorReport({ data, detail, routine, generatedAt, gener
                 <td>{dateTimeLabel(a.created_at)}</td>
                 <td>{triggerShort(a.trigger_type)}</td>
                 <td>{a.risk_level[0].toUpperCase() + a.risk_level.slice(1)}</td>
-                <td>{reached(a)}</td>
+                <td>{reachedOf(a)}</td>
                 <td>{OUTCOME_LABEL[outcomeOf(a)]}</td>
               </tr>
             ))}

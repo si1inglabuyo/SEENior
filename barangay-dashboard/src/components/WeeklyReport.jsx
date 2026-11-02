@@ -37,7 +37,7 @@ function DayChart({ perDay }) {
 }
 
 // The weekly summary, laid out for A4. Figures come from reportData.buildWeekly.
-export default function WeeklyReport({ data, generatedAt, generatedBy }) {
+export default function WeeklyReport({ data, generatedAt }) {
   const r = data
   const triggers = Object.entries(r.triggers).sort((a, b) => b[1] - a[1])
   const topTrigger = Math.max(1, ...triggers.map(([, n]) => n))
@@ -53,7 +53,7 @@ export default function WeeklyReport({ data, generatedAt, generatedBy }) {
         </div>
         <div className="rpt-meta">
           <b>Week of {short(r.weekStart)} – {long(r.weekEnd)}</b>
-          <small>Generated {generatedAt}{generatedBy ? ` · by responder #${generatedBy}` : ''}</small>
+          <small>Generated {generatedAt}</small>
         </div>
       </header>
 

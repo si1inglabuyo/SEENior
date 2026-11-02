@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react'
-import { api, currentUserId } from '../api'
+import { api } from '../api'
 import { recordAccess } from '../audit'
-import { addDays, buildSenior, buildWeekly, lastCompleteWeek, mondayOf } from '../reportData'
+import { addDays, buildIncident, buildSenior, buildWeekly, lastCompleteWeek, mondayOf } from '../reportData'
+import { dateTimeLabel } from '../format'
+import { triggerShort } from '../labels'
 import SectionCard from './SectionCard'
 import WeeklyReport from './WeeklyReport'
 import SeniorReport from './SeniorReport'
+import IncidentReport from './IncidentReport'
 import { IconChart } from '../icons'
 
 const todayIso = () => new Date(Date.now() + 8 * 3600 * 1000).toISOString().slice(0, 10)
@@ -12,7 +15,7 @@ const todayIso = () => new Date(Date.now() + 8 * 3600 * 1000).toISOString().slic
 // Printable reports for the barangay. Built in the browser from the same endpoints the other
 // screens use; "Print / Save as PDF" hands the page to the browser's print dialog.
 export default function Reports({ onSessionLost }) {
-  const [kind, setKind] = useState('weekly') // 'weekly' | 'senior'
+  const [kind, setKind] = useState('weekly') // 'weekly' | 'senior' | 'incident'
   const [weekStart, setWeekStart] = useState(() => lastCompleteWeek())
   const [seniors, setSeniors] = useState([])
   const [syncId, setSyncId] = useState('')
@@ -21,6 +24,9 @@ export default function Reports({ onSessionLost }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [report, setReport] = useState(null)
+  // The last 60 days of alerts that reached the cloud, newest first, for the incident picker.
+  const [incidents, setIncidents] = useState([])
+  const [alertId, setAlertId] = useState('')
 
   useEffect(() => {
     api('/barangay/seniors')
@@ -31,12 +37,22 @@ export default function Reports({ onSessionLost }) {
       })
   }, [onSessionLost])
 
+  useEffect(() => {
+    if (kind !== 'incident') return
+    const today = todayIso()
+    api(`/barangay/alerts?scope=all&date_from=${addDays(today, -59)}&date_to=${today}`)
+      .then((rows) => setIncidents([...rows].sort((a, b) => (a.created_at < b.created_at ? 1 : -1))))
+      .catch((err) => {
+        if (err.message.includes('expired')) onSessionLost()
+        else setError(err.message)
+      })
+  }, [kind, onSessionLost])
+
   async function generate() {
     setBusy(true)
     setError('')
     setReport(null)
     const generatedAt = new Date().toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
-    const generatedBy = currentUserId()
     try {
       if (kind === 'weekly') {
         const monday = mondayOf(weekStart)
@@ -45,7 +61,12 @@ export default function Reports({ onSessionLost }) {
           api('/barangay/seniors'),
         ])
         recordAccess('report_generated', { kind: 'weekly', week_start: monday })
-        setReport({ kind, generatedAt, generatedBy, data: buildWeekly({ alerts, seniors: roster, weekStart: monday }) })
+        setReport({ kind, generatedAt, data: buildWeekly({ alerts, seniors: roster, weekStart: monday }) })
+      } else if (kind === 'incident') {
+        const alert = incidents.find((a) => a.sync_id === alertId)
+        if (!alert) throw new Error('Choose an incident first.')
+        recordAccess('report_generated', { kind: 'incident', alert_sync_id: alert.sync_id, sync_id: alert.senior_sync_id })
+        setReport({ kind, generatedAt, alert, data: buildIncident(alert) })
       } else {
         if (!syncId) throw new Error('Choose a senior first.')
         if (fromIso > toIso) throw new Error('The start date is after the end date.')
@@ -54,7 +75,7 @@ export default function Reports({ onSessionLost }) {
         // The fingerprint is behavioural, so reading it is logged like the "View routine" click.
         recordAccess('routine_view', { sync_id: syncId })
         const routine = await api(`/seniors/${syncId}/routine`).catch(() => null)
-        setReport({ kind, generatedAt, generatedBy, detail, routine, data: buildSenior({ detail, fromIso, toIso }) })
+        setReport({ kind, generatedAt, detail, routine, data: buildSenior({ detail, fromIso, toIso }) })
       }
     } catch (err) {
       if (err.message.includes('expired')) {
@@ -76,12 +97,25 @@ export default function Reports({ onSessionLost }) {
             <select value={kind} onChange={(e) => { setKind(e.target.value); setReport(null) }}>
               <option value="weekly">Weekly summary (whole barangay)</option>
               <option value="senior">Senior summary (one person)</option>
+              <option value="incident">Incident report (one alert)</option>
             </select>
           </label>
           {kind === 'weekly' ? (
             <label>
               Week starting (Monday)
               <input type="date" value={weekStart} onChange={(e) => e.target.value && setWeekStart(mondayOf(e.target.value))} />
+            </label>
+          ) : kind === 'incident' ? (
+            <label>
+              Incident
+              <select value={alertId} onChange={(e) => setAlertId(e.target.value)}>
+                <option value="">Choose…</option>
+                {incidents.map((a) => (
+                  <option key={a.sync_id} value={a.sync_id}>
+                    {dateTimeLabel(a.created_at)} · {a.senior_name} · {triggerShort(a.trigger_type)}
+                  </option>
+                ))}
+              </select>
             </label>
           ) : (
             <>
@@ -114,14 +148,18 @@ export default function Reports({ onSessionLost }) {
           )}
         </div>
         {error && <p className="error">{error}</p>}
-        <p className="muted rpt-hint">
-          Reports are built from alerts that reached the cloud. Choosing “Save as PDF” in the print
-          window keeps a copy; turn off “Headers and footers” for a clean page.
-        </p>
       </SectionCard>
 
       {report?.kind === 'weekly' && (
-        <WeeklyReport data={report.data} generatedAt={report.generatedAt} generatedBy={report.generatedBy} />
+        <WeeklyReport data={report.data} generatedAt={report.generatedAt} />
+      )}
+      {report?.kind === 'incident' && (
+        <IncidentReport
+          alert={report.alert}
+          data={report.data}
+          generatedAt={report.generatedAt}
+         
+        />
       )}
       {report?.kind === 'senior' && (
         <SeniorReport
@@ -129,7 +167,7 @@ export default function Reports({ onSessionLost }) {
           detail={report.detail}
           routine={report.routine}
           generatedAt={report.generatedAt}
-          generatedBy={report.generatedBy}
+         
         />
       )}
     </>
