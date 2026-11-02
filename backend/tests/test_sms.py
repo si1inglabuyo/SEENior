@@ -172,3 +172,19 @@ def test_messages_fit_a_small_number_of_sms_segments():
     # Credits are billed per 153-character segment, so keep the common messages short.
     for kind in ("sos", "fall_pattern", "inactivity"):
         assert len(sms.family_alert_message("Reviman", "high", kind, at=AT)) <= 306
+
+
+def test_a_number_is_not_texted_when_another_account_on_it_confirmed_the_push():
+    from app.api.routes.alerts import family_numbers_still_needing_sms
+
+    # Two accounts share 09171234567; only one confirmed. A third person never confirmed.
+    rows = [
+        (9, "09171234567", "en"),
+        (21, "+639171234567", "en"),
+        (7, "09189876543", "fil"),
+    ]
+    assert family_numbers_still_needing_sms(rows, {9}) == {"fil": ["09189876543"]}
+    assert family_numbers_still_needing_sms(rows, set()) == {
+        "en": ["09171234567"], "fil": ["09189876543"],
+    }
+    assert family_numbers_still_needing_sms(rows, {9, 7, 21}) == {}

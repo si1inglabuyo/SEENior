@@ -111,6 +111,34 @@ def push_received_user_ids(alert: Alert) -> set[int]:
     return ids
 
 
+def _phone_key(phone: str) -> str:
+    """A phone number reduced to its last ten digits, so '09171234567' and '+639171234567'
+    count as the same handset."""
+    return "".join(ch for ch in phone if ch.isdigit())[-10:]
+
+
+def family_numbers_still_needing_sms(
+    rows: list[tuple[int, str, str]], received: set[int]
+) -> dict[str, list[str]]:
+    """Groups by language the numbers to text, from (user_id, phone, language) rows.
+
+    A number is skipped once ANY account on it confirmed the push. Two accounts can share one
+    handset (someone signed up twice, or a device moved between accounts), and the push only
+    reaches the account the device is registered to, so judging by account texted a phone that
+    already had the alert.
+    """
+    confirmed = {_phone_key(phone) for user_id, phone, _ in rows if user_id in received}
+    grouped: dict[str, list[str]] = {}
+    seen: set[str] = set()
+    for user_id, phone, language in rows:
+        key = _phone_key(phone)
+        if user_id in received or key in confirmed or key in seen:
+            continue
+        seen.add(key)
+        grouped.setdefault(language if language == "fil" else "en", []).append(phone)
+    return grouped
+
+
 async def deliver_family_sms_after_grace(
     alert_sync_id: UUID,
     senior_id: int,
@@ -151,11 +179,9 @@ async def deliver_family_sms_after_grace(
                 )
                 .distinct()
             )
-            grouped: dict[str, list[str]] = {}
-            for user_id, phone, language in rows.all():
-                if user_id in received:
-                    continue
-                grouped.setdefault(language if language == "fil" else "en", []).append(phone)
+            grouped = family_numbers_still_needing_sms(
+                [(user_id, phone, language) for user_id, phone, language in rows.all()], received
+            )
 
         sent = 0
         for language, numbers in grouped.items():
