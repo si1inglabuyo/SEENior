@@ -11,7 +11,7 @@ const span = (seconds) => (seconds === null ? '—' : spanLabel(seconds))
 // how it ended. Deliberately shows no street address, coordinates or full phone number: those
 // unlock only while an alert is open (see AlertDetailsModal), and a filed report is a record,
 // not a dispatch sheet. Whether a GPS fix was captured is stated; the fix itself is not printed.
-export default function IncidentReport({ alert, data, generatedAt, generatedBy }) {
+export default function IncidentReport({ alert, data, generatedAt }) {
   const fall = alert.trigger_type === 'fall_pattern' ? fallContext(alert.fall_context, alert.fall_tolerance) : null
 
   return (
@@ -23,7 +23,7 @@ export default function IncidentReport({ alert, data, generatedAt, generatedBy }
         </div>
         <div className="rpt-meta">
           <b>Incident {data.reference}</b>
-          <small>Generated {generatedAt}{generatedBy ? ` · by responder #${generatedBy}` : ''}</small>
+          <small>Generated {generatedAt}</small>
         </div>
       </header>
 

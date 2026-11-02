@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { api, currentUserId } from '../api'
+import { api } from '../api'
 import { recordAccess } from '../audit'
 import { addDays, buildIncident, buildSenior, buildWeekly, lastCompleteWeek, mondayOf } from '../reportData'
 import { dateTimeLabel } from '../format'
@@ -53,7 +53,6 @@ export default function Reports({ onSessionLost }) {
     setError('')
     setReport(null)
     const generatedAt = new Date().toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
-    const generatedBy = currentUserId()
     try {
       if (kind === 'weekly') {
         const monday = mondayOf(weekStart)
@@ -62,12 +61,12 @@ export default function Reports({ onSessionLost }) {
           api('/barangay/seniors'),
         ])
         recordAccess('report_generated', { kind: 'weekly', week_start: monday })
-        setReport({ kind, generatedAt, generatedBy, data: buildWeekly({ alerts, seniors: roster, weekStart: monday }) })
+        setReport({ kind, generatedAt, data: buildWeekly({ alerts, seniors: roster, weekStart: monday }) })
       } else if (kind === 'incident') {
         const alert = incidents.find((a) => a.sync_id === alertId)
         if (!alert) throw new Error('Choose an incident first.')
         recordAccess('report_generated', { kind: 'incident', alert_sync_id: alert.sync_id, sync_id: alert.senior_sync_id })
-        setReport({ kind, generatedAt, generatedBy, alert, data: buildIncident(alert) })
+        setReport({ kind, generatedAt, alert, data: buildIncident(alert) })
       } else {
         if (!syncId) throw new Error('Choose a senior first.')
         if (fromIso > toIso) throw new Error('The start date is after the end date.')
@@ -76,7 +75,7 @@ export default function Reports({ onSessionLost }) {
         // The fingerprint is behavioural, so reading it is logged like the "View routine" click.
         recordAccess('routine_view', { sync_id: syncId })
         const routine = await api(`/seniors/${syncId}/routine`).catch(() => null)
-        setReport({ kind, generatedAt, generatedBy, detail, routine, data: buildSenior({ detail, fromIso, toIso }) })
+        setReport({ kind, generatedAt, detail, routine, data: buildSenior({ detail, fromIso, toIso }) })
       }
     } catch (err) {
       if (err.message.includes('expired')) {
@@ -149,21 +148,17 @@ export default function Reports({ onSessionLost }) {
           )}
         </div>
         {error && <p className="error">{error}</p>}
-        <p className="muted rpt-hint">
-          Reports are built from alerts that reached the cloud. Choosing “Save as PDF” in the print
-          window keeps a copy; turn off “Headers and footers” for a clean page.
-        </p>
       </SectionCard>
 
       {report?.kind === 'weekly' && (
-        <WeeklyReport data={report.data} generatedAt={report.generatedAt} generatedBy={report.generatedBy} />
+        <WeeklyReport data={report.data} generatedAt={report.generatedAt} />
       )}
       {report?.kind === 'incident' && (
         <IncidentReport
           alert={report.alert}
           data={report.data}
           generatedAt={report.generatedAt}
-          generatedBy={report.generatedBy}
+         
         />
       )}
       {report?.kind === 'senior' && (
@@ -172,7 +167,7 @@ export default function Reports({ onSessionLost }) {
           detail={report.detail}
           routine={report.routine}
           generatedAt={report.generatedAt}
-          generatedBy={report.generatedBy}
+         
         />
       )}
     </>

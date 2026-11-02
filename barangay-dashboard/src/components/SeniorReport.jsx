@@ -9,7 +9,7 @@ const dateLabel = (iso) =>
 // One senior's summary for a chosen period. Deliberately shows no street address or full phone
 // number: those unlock only during an open alert (see SeniorDetail), and a filed report is not
 // an open alert. The pook and a masked number are enough to follow up.
-export default function SeniorReport({ data, detail, routine, generatedAt, generatedBy }) {
+export default function SeniorReport({ data, detail, routine, generatedAt }) {
   const r = data
   const rows = routine?.rows ?? []
   const lead = rows.length ? headline(summarize(rows)) : null
@@ -25,7 +25,7 @@ export default function SeniorReport({ data, detail, routine, generatedAt, gener
         </div>
         <div className="rpt-meta">
           <b>{dateLabel(r.fromIso)} – {dateLabel(r.toIso)}</b>
-          <small>Generated {generatedAt}{generatedBy ? ` · by responder #${generatedBy}` : ''}</small>
+          <small>Generated {generatedAt}</small>
         </div>
       </header>
 
