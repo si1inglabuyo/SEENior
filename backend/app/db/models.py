@@ -95,6 +95,14 @@ class User(Base):
     # app's language; barangay accounts never read it.
     language_preference: Mapped[str] = mapped_column(String(8), server_default="en")
     is_active: Mapped[bool] = mapped_column(default=True)
+    # Migration 0020. When true, a correct password is not enough: the account must also
+    # enter the 6-digit code texted to `phone`. Set by the OSCA officer; off by default so an
+    # account without a working phone number can never be locked out by it.
+    two_factor_enabled: Mapped[bool] = mapped_column(default=False, server_default="false")
+    # Where the sign-in code is texted. Deliberately not `phone`: escalation texts every
+    # responder's `phone` when an alert reaches the barangay, and a number kept only for
+    # sign-in codes must never receive alerts.
+    two_factor_phone: Mapped[str | None] = mapped_column(String(20), nullable=True)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
     # Soft deletion (migration 0010): a null deleted_at means a live account. On delete the
@@ -115,6 +123,28 @@ class User(Base):
         """True for Google-only accounts. The family app uses it to offer "Set a password"
         instead of "Change password"."""
         return self.password_hash is not None
+
+
+class LoginChallenge(Base):
+    """One pending SMS sign-in code (migration 0020).
+
+    Created after a correct password for a two-factor account. Only a keyed hash of the code
+    is stored, and `attempts` counts wrong guesses across every resend, so asking for a new
+    code never buys more guesses. The row is short-lived: it expires in minutes and is
+    cleared whenever the account starts a new sign-in.
+    """
+
+    __tablename__ = "login_challenges"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    code_hash: Mapped[str] = mapped_column(String(64))
+    expires_at: Mapped[datetime]
+    attempts: Mapped[int] = mapped_column(default=0, server_default="0")
+    sends: Mapped[int] = mapped_column(default=1, server_default="1")
+    last_sent_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    consumed: Mapped[bool] = mapped_column(default=False, server_default="false")
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
 
 class DeviceToken(Base):

@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { login } from '../api'
+import { useEffect, useState } from 'react'
+import { login, resendLoginCode, verifyLoginCode } from '../api'
 import { IconEye, IconEyeOff } from '../icons'
 
 export default function Login({ onSignedIn }) {
@@ -8,19 +8,112 @@ export default function Login({ onSignedIn }) {
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  // Set when the password was right but the account also needs the texted code.
+  const [challenge, setChallenge] = useState(null)
+  const [code, setCode] = useState('')
+  const [wait, setWait] = useState(0)
+
+  // Counts down the pause before another text can be requested.
+  useEffect(() => {
+    if (wait <= 0) return undefined
+    const timer = setTimeout(() => setWait((seconds) => seconds - 1), 1000)
+    return () => clearTimeout(timer)
+  }, [wait])
 
   async function submit(event) {
     event.preventDefault()
     setBusy(true)
     setError('')
     try {
-      await login(username.trim(), password)
+      const pending = await login(username.trim(), password)
+      if (pending) {
+        setChallenge(pending)
+        setWait(pending.resend_after)
+      } else {
+        onSignedIn()
+      }
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function submitCode(event) {
+    event.preventDefault()
+    setBusy(true)
+    setError('')
+    try {
+      await verifyLoginCode(challenge.challenge_id, code)
       onSignedIn()
     } catch (err) {
       setError(err.message)
     } finally {
       setBusy(false)
     }
+  }
+
+  async function resend() {
+    setBusy(true)
+    setError('')
+    try {
+      const fresh = await resendLoginCode(challenge.challenge_id)
+      setChallenge(fresh)
+      setWait(fresh.resend_after)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  function startOver() {
+    setChallenge(null)
+    setCode('')
+    setPassword('')
+    setError('')
+  }
+
+  if (challenge) {
+    return (
+      <div className="login-page">
+        <form className="login-card" onSubmit={submitCode}>
+          <h1>SEENior</h1>
+          <p className="login-sub">Enter your verification code</p>
+          <p className="login-hint">
+            We sent a 6-digit code by text message to {challenge.phone_hint}. It expires in{' '}
+            {Math.round(challenge.expires_in / 60)} minutes.
+          </p>
+
+          <label htmlFor="code">Verification code</label>
+          <input
+            id="code"
+            value={code}
+            onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            maxLength={6}
+            autoFocus
+            required
+          />
+
+          {error && <p className="error">{error}</p>}
+
+          <button type="submit" disabled={busy || code.length !== 6}>
+            {busy ? 'Checking…' : 'Verify and sign in'}
+          </button>
+          <p className="login-hint">
+            <button type="button" className="link-button" onClick={resend} disabled={busy || wait > 0}>
+              {wait > 0 ? `Send a new code in ${wait}s` : 'Send a new code'}
+            </button>
+            {' · '}
+            <button type="button" className="link-button" onClick={startOver}>
+              Back to sign in
+            </button>
+          </p>
+        </form>
+      </div>
+    )
   }
 
   return (

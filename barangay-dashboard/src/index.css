@@ -55,6 +55,12 @@ h4 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase;
   border-radius: 6px; font-size: 15px; font-weight: 600; cursor: pointer;
 }
 .login-card button:disabled { opacity: .6; cursor: default; }
+/* Text-style buttons under the code box (resend, back). Undo the green button look above. */
+.login-card .link-button {
+  padding: 0; background: none; color: var(--brand); font-size: 13px; font-weight: 600;
+  text-decoration: underline;
+}
+.login-card .link-button:disabled { color: var(--muted); text-decoration: none; }
 /* The eye sits inside the password input. The wrapper carries the gap the input normally
    has, so the button can be centred on the input itself. The rule above styles every button
    in the card as the green Sign in button, so this one has to undo that explicitly. */

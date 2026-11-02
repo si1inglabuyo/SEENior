@@ -61,9 +61,6 @@ def sent(monkeypatch):
     async def tokens(_db, _senior_id):
         return ["token-1"]
 
-    async def numbers(_db, _barangay):
-        return ["09170000000"]
-
     async def push(tokens_, payload):
         log.pushes.append((tokens_, payload))
 
@@ -74,7 +71,6 @@ def sent(monkeypatch):
         log.family_sms.append(args)
 
     monkeypatch.setattr(escalation, "family_device_tokens", tokens)
-    monkeypatch.setattr(escalation, "barangay_phone_numbers", numbers)
     monkeypatch.setattr(escalation, "deliver_alert_push", push)
     monkeypatch.setattr(escalation, "deliver_alert_sms", sms)
     monkeypatch.setattr(escalation, "deliver_family_sms_after_grace", family_sms)
@@ -171,7 +167,7 @@ def test_barangay_is_escalated_after_the_family_window(monkeypatch, sent):
     assert counts == (0, 1)
     assert alert.status == AlertStatus.ESCALATED
     assert "escalated_barangay_auto" in _steps(alert)
-    assert len(sent.sms) == 1 and "Barangay 123" in sent.sms[0][1]
+    assert sent.sms == []  # the barangay is alerted on the dashboard, never by text
 
 
 def test_sos_notifies_family_and_barangay_in_the_same_pass(monkeypatch, sent):
@@ -181,7 +177,7 @@ def test_sos_notifies_family_and_barangay_in_the_same_pass(monkeypatch, sent):
 
     assert counts == (1, 1)
     assert _steps(alert) == ["escalated_family_server", "escalated_barangay_auto"]
-    assert len(sent.pushes) == 1 and len(sent.sms) == 1
+    assert len(sent.pushes) == 1 and sent.sms == []
     assert alert.escalation_steps[-1]["reason"] == "SOS pressed by the senior"
 
 
@@ -193,7 +189,7 @@ def test_a_senior_with_no_family_goes_straight_to_the_barangay(monkeypatch, sent
     assert counts == (0, 1)
     assert _steps(alert) == ["no_family_contact", "escalated_barangay_auto"]
     assert "escalated_family_server" not in _steps(alert)  # nobody was actually told
-    assert not sent.pushes and not sent.family_sms and len(sent.sms) == 1
+    assert not sent.pushes and not sent.family_sms and not sent.sms
 
 
 def test_the_server_does_not_repeat_what_the_phone_already_did(monkeypatch, sent):

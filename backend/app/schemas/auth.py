@@ -75,3 +75,23 @@ class AccountDeletionRequest(BaseModel):
 
     reason: str = Field(min_length=1, max_length=64)
     note: str | None = Field(default=None, max_length=500)
+
+
+class TwoFactorChallenge(BaseModel):
+    """Returned by /auth/login instead of a token when the account needs an SMS code."""
+
+    two_factor_required: bool = True
+    challenge_id: str
+    # The number the code was sent to, masked down to its last four digits.
+    phone_hint: str
+    expires_in: int
+    resend_after: int
+
+
+class TwoFactorVerifyRequest(BaseModel):
+    challenge_id: str = Field(min_length=1, max_length=36)
+    code: str = Field(min_length=1, max_length=12)
+
+
+class TwoFactorResendRequest(BaseModel):
+    challenge_id: str = Field(min_length=1, max_length=36)

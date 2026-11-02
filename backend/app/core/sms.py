@@ -43,14 +43,6 @@ _TRIGGER_LABELS_FIL = {
     "ml_flag": "hindi karaniwang gawi ngayong araw",
 }
 
-# Shortened barangay escalation reasons for the SMS; the timeline keeps the full sentence.
-_SHORT_REASONS = {
-    "SOS pressed by the senior": "SOS pressed",
-    "No family contact is linked to this senior": "no family contact",
-    "No response from the senior or any family contact": "no response from senior/family",
-}
-
-
 def _trigger_label(trigger_type: str) -> str:
     return _TRIGGER_LABELS.get(trigger_type, trigger_type)
 
@@ -229,15 +221,4 @@ def _family_alert_message_fil(
     return (
         f"ALERTO ({risk_level.capitalize()} Risk) {when}: Hindi sumagot si {senior_name} sa "
         f"safety check ({reason}). {ack} {tail}"
-    )
-
-
-def barangay_alert_message(
-    senior_name: str, barangay: str, address: str, risk_level: str, reason: str,
-    at: datetime | None = None,
-) -> str:
-    short_reason = _SHORT_REASONS.get(reason, reason)
-    return (
-        f"{risk_level.upper()} RISK ALERT ({_clock(at)}): {senior_name} ({barangay}) - "
-        f"{short_reason}. Respond immediately. Address: {address}"
     )
