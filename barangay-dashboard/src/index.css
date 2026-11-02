@@ -826,6 +826,7 @@ h4 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase;
 .rpt-chart { width: 100%; height: auto; }
 .rpt-list { margin: 4px 0; padding-left: 20px; line-height: 1.5; }
 .rpt-note { font-size: 11px; margin: 6px 0 0; }
+.rpt-note-quote { margin-top: 2px; font-style: italic; color: var(--muted); }
 .rpt-box { min-height: 60px; border: 1px solid var(--line); border-radius: 4px; }
 .rpt-sig { display: flex; gap: 40px; margin-top: 34px; }
 .rpt-sig > div { flex: 1; border-top: 1px solid var(--ink); padding-top: 4px; font-size: 12px; text-align: center; }

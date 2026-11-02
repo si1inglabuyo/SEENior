@@ -120,3 +120,55 @@ test('spanLabel', () => {
   assert.equal(spanLabel(125), '2 min 05 s')
   assert.equal(spanLabel(6360), '1 h 46 min')
 })
+
+// ---- one incident ----
+
+import { buildIncident, incidentReference, reachedOf } from './reportData.js'
+
+test('incidentReference is the first eight characters of the sync id, upper case', () => {
+  assert.equal(incidentReference('3f2a9c1e-77aa-4b2e-9d10-aaaaaaaaaaaa'), '3F2A9C1E')
+  assert.equal(incidentReference(null), '')
+})
+
+test('buildIncident reads who acted and how fast from the escalation steps', () => {
+  const a = alert('2026-10-20T01:00:00', {
+    sync_id: '3f2a9c1e-77aa-4b2e-9d10-aaaaaaaaaaaa',
+    status: 'resolved',
+    resolved_at: '2026-10-20T01:20:00',
+    escalation_steps: [
+      { step: 'acknowledged_barangay', at: '2026-10-20T01:12:00' },
+      { step: 'escalated_barangay_auto', at: '2026-10-20T01:10:00' },
+      { step: 'escalated_family_server', at: '2026-10-20T01:01:00' },
+      { step: 'resolved_barangay', at: '2026-10-20T01:20:00' },
+    ],
+  })
+  const r = buildIncident(a)
+  assert.equal(r.reference, '3F2A9C1E')
+  assert.equal(r.outcome, 'resolved')
+  assert.equal(r.reached, 'Barangay')
+  assert.deepEqual(r.times, { family: 60, barangay: 600, attending: 120, closed: 1200 })
+  assert.equal(r.openSeconds, 1200)
+  // Steps are shown in the order they happened, whatever order they were stored in.
+  assert.deepEqual(r.steps.map((s) => s.entry.step), [
+    'escalated_family_server', 'escalated_barangay_auto', 'acknowledged_barangay', 'resolved_barangay',
+  ])
+  assert.equal(r.steps[0].sinceSeconds, 60)
+})
+
+test('buildIncident copes with an open alert and a missing timeline', () => {
+  const r = buildIncident(alert('2026-10-20T01:00:00', { status: 'escalated', escalation_steps: null }))
+  assert.equal(r.outcome, 'open')
+  assert.equal(r.closedAt, null)
+  assert.equal(r.openSeconds, null)
+  assert.deepEqual(r.steps, [])
+  assert.deepEqual(r.times, { family: null, barangay: null, attending: null, closed: null })
+  assert.equal(reachedOf({ escalation_steps: [] }), 'Cloud only')
+})
+
+test('a false alarm counts as closed and is reported as a false alarm', () => {
+  const r = buildIncident(alert('2026-10-20T01:00:00', {
+    status: 'false_positive', resolved_at: '2026-10-20T01:05:00',
+  }))
+  assert.equal(r.outcome, 'false_alarm')
+  assert.equal(r.times.closed, 300)
+})

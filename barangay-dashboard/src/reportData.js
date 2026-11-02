@@ -55,6 +55,22 @@ export function outcomeOf(alert) {
   return attending ? 'attending' : 'open'
 }
 
+export const OUTCOME_LABEL = {
+  resolved: 'Resolved',
+  false_alarm: 'False alarm',
+  acknowledged: 'Acknowledged by family',
+  attending: 'Responder attending',
+  open: 'Still open',
+}
+
+// What the alert reached, read off the timeline (not stored anywhere).
+export function reachedOf(alert) {
+  const steps = (alert.escalation_steps || []).map((e) => e && e.step)
+  if (steps.some((s) => s === 'escalated_barangay' || s === 'escalated_barangay_auto')) return 'Barangay'
+  if (steps.some((s) => s === 'escalated_family' || s === 'escalated_family_server')) return 'Family'
+  return 'Cloud only'
+}
+
 const avg = (xs) => (xs.length ? Math.round(xs.reduce((a, b) => a + b, 0) / xs.length) : null)
 const max = (xs) => (xs.length ? Math.max(...xs) : null)
 
@@ -206,4 +222,42 @@ export function spanLabel(seconds) {
   if (seconds < 3600) return `${Math.floor(seconds / 60)} min ${String(seconds % 60).padStart(2, '0')} s`
   const m = Math.round(seconds / 60)
   return `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, '0')} min`
+}
+
+// ---- one incident ----
+
+// A short reference a responder can quote on the phone: the first eight characters of the alert's
+// anonymous sync id. Not secret and not sequential, so it says nothing about how many alerts exist.
+export const incidentReference = (syncId) => String(syncId || '').replace(/-/g, '').slice(0, 8).toUpperCase()
+
+// Everything one alert's report needs, from the alert row alone (GET /barangay/alerts). The
+// timeline is the escalation_steps the phone, the family app and the server clock appended; each
+// row also gets the seconds since the alert was detected so a reader can see how quickly each
+// tier acted. Alert metadata only: no sensor readings exist in this row.
+export function buildIncident(alert) {
+  const created = toMs(alert.created_at)
+  const closed = ['resolved', 'false_positive'].includes(alert.status) ? toMs(alert.resolved_at) : null
+  const famAt = stepAt(alert, 'escalated_family', 'escalated_family_server')
+  const brgyAt = stepAt(alert, 'escalated_barangay', 'escalated_barangay_auto')
+  const ackAt = stepAt(alert, 'acknowledged_barangay')
+
+  const steps = (Array.isArray(alert.escalation_steps) ? alert.escalation_steps : [])
+    .filter(Boolean)
+    .map((entry) => ({ entry, sinceSeconds: gap(created, toMs(entry.at)) }))
+    .sort((a, b) => (toMs(a.entry.at) ?? Infinity) - (toMs(b.entry.at) ?? Infinity))
+
+  return {
+    reference: incidentReference(alert.sync_id),
+    outcome: outcomeOf(alert),
+    reached: reachedOf(alert),
+    closedAt: closed === null ? null : alert.resolved_at,
+    openSeconds: gap(created, closed),
+    steps,
+    times: {
+      family: gap(created, famAt),
+      barangay: gap(created, brgyAt),
+      attending: gap(brgyAt, ackAt),
+      closed: gap(created, closed),
+    },
+  }
 }
