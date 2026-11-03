@@ -162,6 +162,18 @@ class FamilyAlertsViewModel(application: Application) : AndroidViewModel(applica
                     } else {
                         AlertScreen.ALL_CLEAR
                     }
+                } else if (screen in ALERT_STEP_SCREENS) {
+                    // The family member is partway through a step (acknowledged, calling, map,
+                    // dispatch form), so a poll may not replace the screen. But if the alert they
+                    // are on has since been closed elsewhere (the senior tapped "I'm fine", another
+                    // family member or the barangay closed it), the step is moot: leave it.
+                    val shown = activeAlert
+                    val latest = shown?.let { s -> fetchedHistory.firstOrNull { it.alert.syncId == s.syncId }?.alert }
+                    if (latest != null && latest.status !in OPEN_STATUSES) {
+                        activeAlert = null
+                        resolvedSummary = null
+                        screen = AlertScreen.ALL_CLEAR
+                    }
                 }
             } catch (e: HttpException) {
                 error = if (SessionState.handleIfUnauthorized(getApplication(), e))
@@ -346,6 +358,14 @@ class FamilyAlertsViewModel(application: Application) : AndroidViewModel(applica
             AlertScreen.DETAIL,
             AlertScreen.LOAD_FAILED,
             AlertScreen.RESOLVED
+        )
+
+        /** Steps tied to one open alert; they end by themselves when that alert is closed remotely. */
+        private val ALERT_STEP_SCREENS = setOf(
+            AlertScreen.ACKNOWLEDGED,
+            AlertScreen.CALL_SENIOR,
+            AlertScreen.LOCATION,
+            AlertScreen.DISPATCH
         )
 
         /** Matches the Home tab's cadence, since both read the same endpoint. */
