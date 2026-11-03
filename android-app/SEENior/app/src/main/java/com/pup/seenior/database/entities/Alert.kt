@@ -44,7 +44,10 @@ data class Alert(
     @ColumnInfo(name = "location_cluster_id") val locationClusterId: String? = null,
     /**
      * "pending", "logged", "self_cancelled", "acknowledged_family", "escalated_barangay",
-     * "resolved" or "false_positive".
+     * "resolved", "false_positive" or "auto_cleared".
+     *
+     * "auto_cleared": a routine anomaly closed because the senior unlocked the phone before the
+     * family was told. Never counted as a false alarm (it is outside the tolerance queries).
      *
      * "logged" is the low-risk tier: an anomaly Layer 3 judged not worth telling anyone about.
      * It sits outside every status set the response chain queries, so it raises no prompt,

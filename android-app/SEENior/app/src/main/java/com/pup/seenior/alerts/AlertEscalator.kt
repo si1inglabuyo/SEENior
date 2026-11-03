@@ -1,5 +1,6 @@
 package com.pup.seenior.alerts
 
+import android.content.Context
 import android.util.Log
 import com.pup.seenior.database.SeniorAppDatabase
 import com.pup.seenior.database.entities.Alert
@@ -84,6 +85,47 @@ object AlertEscalator {
         // Matches FallDetector's cooldown. Past it, a new fall is new information.
         "fall_pattern" -> 60
         else -> 600
+    }
+
+    /** Routine-anomaly triggers only. SOS and falls are deliberately absent: a hurt, conscious senior may still use the phone. */
+    private val PHONE_USE_CLEARABLE = setOf("inactivity", "movement", "screen_idle", "charging", "ml_flag")
+
+    /** Whether using the phone may close an alert of this kind and state. Pure, so it can be unit tested. */
+    fun clearableByPhoneUse(alert: Alert): Boolean =
+        alert.status == "pending" &&
+            alert.triggerType in PHONE_USE_CLEARABLE &&
+            !hasEscalatedToFamily(alert) &&
+            !alert.isSynced
+
+    /**
+     * The senior unlocked the phone while a routine anomaly was still waiting on them and the
+     * family had not been told, so the alert is closed as `auto_cleared`.
+     *
+     * Deliberately NOT `self_cancelled`: the senior never said it was a mistake, so this must
+     * not count as a false alarm for [com.pup.seenior.detection.FalseAlarmTolerance]. The row is
+     * kept with a reason in its timeline, not deleted. Nothing goes to the cloud because the
+     * alert never left the phone. Taken under [escalateLock] so it cannot race the escalation.
+     * Returns the ids it closed.
+     */
+    suspend fun clearForPhoneUse(context: Context, db: SeniorAppDatabase): List<Int> = escalateLock.withLock {
+        val senior = db.seniorDao().getOnboardedSenior() ?: return emptyList()
+        val cleared = mutableListOf<Int>()
+        for (alert in db.alertDao().getPendingAlerts()) {
+            // Re-read under the lock: the state may have moved since the list was built.
+            val current = db.alertDao().getById(alert.alertId) ?: continue
+            if (current.seniorId != senior.seniorId || !clearableByPhoneUse(current)) continue
+            val now = System.currentTimeMillis()
+            db.alertDao().updateEscalationSteps(
+                current.alertId,
+                appendStep(current.escalationSteps, "auto_cleared", now, mapOf("reason" to "phone_use"))
+            )
+            db.alertDao().updateStatus(current.alertId, "auto_cleared", now)
+            AlertAlarm.stop(current.alertId)
+            AlertNotifier.cancel(context, current.alertId)
+            EscalationScheduler.cancel(context, current.alertId)
+            cleared += current.alertId
+        }
+        cleared
     }
 
     /** Whether the family tier has already been notified for this alert. */

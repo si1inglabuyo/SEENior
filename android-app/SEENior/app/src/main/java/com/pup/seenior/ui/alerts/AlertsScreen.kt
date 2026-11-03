@@ -333,6 +333,7 @@ private fun statusLabel(status: String, copy: SeniorStrings.Copy): String = when
     "escalated_barangay" -> copy.alertStatusBarangayNotified
     "resolved" -> copy.alertStatusResolved
     "self_cancelled" -> copy.alertStatusSelfCancelled
+    "auto_cleared" -> copy.alertStatusAutoCleared
     "false_positive" -> copy.alertStatusFalsePositive
     else -> status
 }

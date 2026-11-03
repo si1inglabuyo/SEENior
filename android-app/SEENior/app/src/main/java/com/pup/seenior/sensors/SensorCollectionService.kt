@@ -27,6 +27,7 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
+import com.pup.seenior.AppForeground
 import com.pup.seenior.R
 import com.pup.seenior.alerts.AlertEscalator
 import com.pup.seenior.alerts.AlertResponder
@@ -132,8 +133,30 @@ class SensorCollectionService : Service(), SensorEventListener
                     Intent.ACTION_SCREEN_OFF ->
                         if (screenOffSince == null) screenOffSince = System.currentTimeMillis()
                     Intent.ACTION_SCREEN_ON -> screenOffSince = null
-                    Intent.ACTION_USER_PRESENT -> screenUnlockCount++
+                    Intent.ACTION_USER_PRESENT -> {
+                        screenUnlockCount++
+                        clearAlertsOnPhoneUse()
+                    }
                 }
+            }
+        }
+    }
+
+    /**
+     * A real unlock (not just the screen lighting up) while a routine anomaly is waiting on the
+     * senior closes it quietly, see [AlertEscalator.clearForPhoneUse]. Skipped while the app is
+     * on screen, because then the wellness prompt is the thing being looked at and the senior
+     * should answer it; this covers the case where it was dismissed or ignored.
+     */
+    private fun clearAlertsOnPhoneUse() {
+        if (AppForeground.isForeground) return
+        serviceScope.launch {
+            runCatching {
+                val cleared = AlertEscalator.clearForPhoneUse(
+                    applicationContext,
+                    SeniorAppDatabase.getInstance(applicationContext)
+                )
+                if (cleared.isNotEmpty()) Log.i(TAG_SCREEN, "phone use cleared alerts $cleared")
             }
         }
     }
