@@ -224,6 +224,45 @@ class FallScenarioTest {
     }
 
     @Test
+    fun `the context note shows its own working and the working reproduces pre_dev`() {
+        val detector = FallDetector()
+        assertTrue(FallSimulator.replay(FallSimulator.stream(), detector))
+        val note = FallContext.encode(detector.lastPreFallMotion, "afternoon", detector.lastPreFallSamples)
+        val parts = note.split(';').associate { it.substringBefore('=') to it.substringAfter('=') }
+        val n = parts.getValue("n").toInt()
+        assertTrue("needs the minimum samples, got $n", n >= FallDetector.PRE_FALL_MIN_SAMPLES)
+        assertEquals("2000", parts.getValue("win_ms"))
+        assertEquals("1.5", parts.getValue("thr"))
+        // Redoing the sum / n by hand lands on the stored pre_dev (to its one decimal).
+        assertEquals(parts.getValue("pre_dev").toFloat(), parts.getValue("sum").toFloat() / n, 0.06f)
+        assertTrue(note.length < 200)
+    }
+
+    @Test
+    fun `the note also records steps from the same window, and no gate reads them`() {
+        val detector = FallDetector()
+        detector.stepSensorPresent = true
+        // Three steps inside the second of standing before the drop at 1000 ms.
+        listOf(300L, 600L, 900L).forEach { detector.onStep(it * 1_000_000L) }
+        assertTrue(replayDefault(detector))
+        assertEquals(3, detector.lastPreFallSteps)
+        val note = FallContext.encode(detector.lastPreFallMotion, "afternoon", detector.lastPreFallSamples, detector.lastPreFallSteps)
+        val parts = note.split(';').associate { it.substringBefore('=') to it.substringAfter('=') }
+        assertEquals("3", parts.getValue("steps"))
+        assertTrue(note.length < 200)
+        // Still decodes with the extra key present.
+        assertEquals(false, FallContext.decode(note)!!.active)
+        // A phone with no step detector leaves steps out rather than claiming zero.
+        val noSensor = FallDetector()
+        assertTrue(replayDefault(noSensor))
+        assertEquals(null, noSensor.lastPreFallSteps)
+        assertTrue(!FallContext.encode(1f, "night", 50, noSensor.lastPreFallSteps).contains("steps"))
+    }
+
+    private fun replayDefault(detector: FallDetector): Boolean =
+        FallSimulator.replay(FallSimulator.stream(), detector)
+
+    @Test
     fun `the context note round trips and unreadable ones decode to null`() {
         val note = FallContext.encode(2.84f, "night")
         assertEquals("pre_dev=2.8;active=1;night=1", note)

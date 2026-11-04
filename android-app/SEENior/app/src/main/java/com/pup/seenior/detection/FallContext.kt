@@ -26,10 +26,29 @@ object FallContext {
     /** Mean deviation from 1 g (m/s2) at or above which the phone counts as having been moving. */
     const val ACTIVE_MIN = 1.5f
 
-    /** `pre_dev=2.8;active=1;night=0`, with `pre_dev` and `active` omitted when motion is unknown. */
-    fun encode(preFallMotion: Float?, timeBlock: String): String = buildString {
+    /**
+     * `pre_dev=2.8;n=100;sum=280.00;win_ms=2000;thr=1.5;active=1;night=0`, with the motion keys
+     * omitted when motion is unknown. The working is stored so a reader can redo it:
+     * `pre_dev` = `sum` / `n`, where `sum` adds up |acceleration - 1 g| (m/s2) over the `n`
+     * samples in the `win_ms` before the free fall, and `active` is `pre_dev` >= `thr`.
+     * `sum` and `n` are two totals, not the sample stream.
+     */
+    fun encode(
+        preFallMotion: Float?,
+        timeBlock: String,
+        samples: Int? = null,
+        steps: Int? = null
+    ): String = buildString {
         if (preFallMotion != null) {
             append("pre_dev=").append(String.format(Locale.US, "%.1f", preFallMotion))
+            if (samples != null) {
+                append(";n=").append(samples)
+                append(";sum=").append(String.format(Locale.US, "%.2f", preFallMotion * samples))
+                append(";win_ms=").append(FallDetector.PRE_FALL_WINDOW_MS)
+                append(";thr=").append(String.format(Locale.US, "%.1f", ACTIVE_MIN))
+            }
+            // Steps the step detector heard in the same window; left out when the phone has none.
+            if (steps != null) append(";steps=").append(steps)
             append(";active=").append(if (preFallMotion >= ACTIVE_MIN) 1 else 0)
             append(';')
         }

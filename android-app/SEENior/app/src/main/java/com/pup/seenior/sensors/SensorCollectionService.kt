@@ -209,6 +209,7 @@ class SensorCollectionService : Service(), SensorEventListener
         accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
         stepCounter = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER)
         gyroscope = sensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE)
+        val stepDetector = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_DETECTOR)
         significantMotion = sensorManager.getDefaultSensor(Sensor.TYPE_SIGNIFICANT_MOTION)
 
         // Rotation confirms a fall, but not every phone has a gyroscope; without one, don't
@@ -232,6 +233,11 @@ class SensorCollectionService : Service(), SensorEventListener
         // The step counter reports a running total and isn't needed for fall detection, so it
         // stays at the low rate.
         stepCounter?.let { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL) }
+        // One event per step, only to say whether the person was walking just before a drop. It is
+        // written into the fall note and read by no gate. Its timestamps are event time, so the
+        // batching delay does not matter.
+        fallDetector.stepSensorPresent = stepDetector != null
+        stepDetector?.let { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL) }
 
         // Logged so a missing sensor is visible. Read with: adb logcat -s SensorWake
         Log.i(TAG_WAKE, "significant motion available=" + (significantMotion != null))
@@ -391,6 +397,7 @@ class SensorCollectionService : Service(), SensorEventListener
                 )
                 fallDetector.onRotation(event.timestamp, angularSpeed)
             }
+            Sensor.TYPE_STEP_DETECTOR -> fallDetector.onStep(event.timestamp)
             Sensor.TYPE_STEP_COUNTER -> synchronized(stateLock) {
                 latestStepCount = event.values[0].toInt()
                 stepCounterReported = true
@@ -449,6 +456,8 @@ class SensorCollectionService : Service(), SensorEventListener
         val evidence = fallDetector.lastEvidence?.encode()
         val tolerance = fallToleranceNote
         val preFallMotion = fallDetector.lastPreFallMotion
+        val preFallSamples = fallDetector.lastPreFallSamples
+        val preFallSteps = fallDetector.lastPreFallSteps
         serviceScope.launch {
             AlertResponder.raise(
                 applicationContext,
@@ -457,7 +466,9 @@ class SensorCollectionService : Service(), SensorEventListener
                 "high",
                 evidence,
                 tolerance,
-                preFallMotion
+                preFallMotion,
+                preFallSamples,
+                preFallSteps
             )
         }
     }

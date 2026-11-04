@@ -111,6 +111,50 @@ class FallDetector(
 
     private var pendingPreFallMotion: Float? = null
 
+    /**
+     * Steps heard in the same 2 s window before the drop, for [FallContext] only (no gate reads
+     * it). Null when the phone has no step detector.
+     */
+    var lastPreFallSteps: Int? = null
+        private set
+
+    /** Set by the caller from whether the phone has a step detector; without one, steps are left out. */
+    @Volatile
+    var stepSensorPresent = false
+
+    // Ring of the time of each step.
+    private val stepAtMs = LongArray(STEP_CAPACITY)
+    private var stepHead = 0
+    private var stepRingCount = 0
+    private var preFallStartMs = 0L
+
+    /** Feeds one step-detector event in (one step). */
+    fun onStep(timestampNanos: Long) {
+        stepAtMs[stepHead] = timestampNanos / NANOS_PER_MS
+        stepHead = (stepHead + 1) % STEP_CAPACITY
+        if (stepRingCount < STEP_CAPACITY) stepRingCount++
+    }
+
+    /**
+     * Steps heard in the window before the drop. Counted at confirmation, not at the drop,
+     * because batched step events can arrive after it.
+     */
+    private fun preFallSteps(): Int? {
+        if (!stepSensorPresent) return null
+        var n = 0
+        for (i in 0 until stepRingCount) {
+            val t = stepAtMs[(stepHead - 1 - i + STEP_CAPACITY) % STEP_CAPACITY]
+            if (t in (preFallStartMs - PRE_FALL_WINDOW_MS)..preFallStartMs) n++
+        }
+        return n
+    }
+
+    /** How many samples [lastPreFallMotion] averaged, so the database can show the working. */
+    var lastPreFallSamples: Int? = null
+        private set
+    private var pendingPreFallSamples: Int? = null
+    private var scratchSamples = 0
+
     // Ring of recent |magnitude - 1 g|, newest at motionHead - 1. Fed only while idle, so it holds
     // what happened before a candidate fall began. Two small primitive arrays, no per-sample garbage.
     private val motionAtMs = LongArray(MOTION_CAPACITY)
@@ -134,6 +178,7 @@ class FallDetector(
             sum += motionDev[idx]
             n++
         }
+        scratchSamples = n
         return if (n >= PRE_FALL_MIN_SAMPLES) sum / n else null
     }
 
@@ -150,6 +195,8 @@ class FallDetector(
                     phase = Phase.FREE_FALL
                     freeFallStartMs = nowMs
                     pendingPreFallMotion = preFallMotion(nowMs)
+                    pendingPreFallSamples = if (pendingPreFallMotion != null) scratchSamples else null
+                    preFallStartMs = nowMs
                     trace("1/4 free fall begins (mag ${f(magnitude)} <= ${f(config.freeFallMax)})")
                 }
 
@@ -200,6 +247,8 @@ class FallDetector(
                     }
                     cooldownUntilMs = nowMs + config.cooldownMs
                     lastPreFallMotion = pendingPreFallMotion
+                    lastPreFallSamples = pendingPreFallSamples
+                    lastPreFallSteps = preFallSteps()
                     lastEvidence = FallEvidence(
                         freeFallMs = freeFallEndMs - freeFallStartMs,
                         impactPeak = impactPeak,
@@ -241,7 +290,9 @@ class FallDetector(
         rotationPeakAtMs = Long.MIN_VALUE
         impactRotationPeak = 0f
         motionCount = 0
+        stepRingCount = 0
         pendingPreFallMotion = null
+        pendingPreFallSamples = null
     }
 
     /**
@@ -262,19 +313,22 @@ class FallDetector(
 
     private fun rotationConfirms(): Boolean = impactRotationPeak >= config.rotationMin
 
-    private companion object {
-        const val NANOS_PER_MS = 1_000_000L
+    companion object {
+        private const val NANOS_PER_MS = 1_000_000L
 
-        /** How far back "before the fall" looks. */
+        /** How far back "before the fall" looks. Public: [FallContext] writes it into the note. */
         const val PRE_FALL_WINDOW_MS = 2_000L
 
         /** Fewer samples than this (0.5 s at 50 Hz) is too little to call the phone moving or resting. */
         const val PRE_FALL_MIN_SAMPLES = 25
 
         /** Room for 5 s at 50 Hz, so a faster sensor still fills the window. */
-        const val MOTION_CAPACITY = 256
+        /** 64 steps is far more than fit in the 2 s window plus the 8 s wait for confirmation. */
+        private const val STEP_CAPACITY = 64
+
+        private const val MOTION_CAPACITY = 256
 
         /** Standard gravity. Not taken from SensorManager so this class stays framework-free. */
-        const val GRAVITY = 9.80665f
+        private const val GRAVITY = 9.80665f
     }
 }
