@@ -245,6 +245,14 @@ object OnboardingStrings {
                     "Keep your phone charged and with you for the monitoring system to function reliably.",
                     "Provide accurate personal information during account setup."
                 )
+            ),
+            Section(
+                "5. Not an Emergency Service",
+                bullets = listOf(
+                    "SEENior is not an emergency service. If you are in immediate danger, call your local emergency number.",
+                    "The barangay responds during its duty hours. Outside those hours, an alert waits on the barangay dashboard until the hall opens.",
+                    "No response time is guaranteed, for the barangay, your family or any other responder."
+                )
             )
         ),
         termsConsentPrefix = "I acknowledge that I have carefully read and accepted the ",
@@ -396,6 +404,14 @@ object OnboardingStrings {
                 bullets = listOf(
                     "Panatilihing may baterya ang iyong cellphone at dala ito, upang maayos na gumana ang pagbantay.",
                     "Magbigay ng tama at totoong impormasyon sa pag-setup ng account."
+                )
+            ),
+            Section(
+                "5. Hindi Ito Serbisyong Pang-emergency",
+                bullets = listOf(
+                    "Ang SEENior ay hindi serbisyong pang-emergency. Kung nasa agarang panganib kayo, tumawag sa inyong lokal na emergency number.",
+                    "Tumutugon ang barangay sa oras ng kanilang tungkulin. Sa labas ng oras na iyon, maghihintay ang alerto sa dashboard ng barangay hanggang magbukas ang hall.",
+                    "Walang garantisadong oras ng pagtugon, mula sa barangay, sa inyong pamilya o sa sinumang responder."
                 )
             )
         ),

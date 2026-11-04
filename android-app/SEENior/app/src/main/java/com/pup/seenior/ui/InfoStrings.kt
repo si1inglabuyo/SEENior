@@ -103,7 +103,8 @@ object InfoStrings {
             "Answer the wellness check when it appears" to
                 "If SEENior notices something unusual, it will ask \"Are you safe and well?\" and tell " +
                 "you why it is asking. Tapping \"I'm safe\" stops the alert right there. If you do " +
-                "not answer, your family contact is notified, and then your barangay responder."
+                "not answer, your family contact is notified, and then your barangay responder. The " +
+                "barangay responds during duty hours, and no response time is guaranteed."
         ),
 
         faqsTitle = "FAQs",
@@ -184,7 +185,8 @@ object InfoStrings {
                 "SEENior is provided \"as is\" and is a support tool only. It is not a substitute for " +
                     "professional medical care, emergency services, or human supervision. The developers " +
                     "are not liable for missed or delayed alerts caused by device, network, or " +
-                    "third-party service failures."
+                    "third-party service failures. The barangay responds during its duty hours, and " +
+                    "no response time is guaranteed."
             )
         ),
         privacyScaffoldTitle = "Privacy policy",
@@ -216,7 +218,7 @@ object InfoStrings {
                 "4. Who can see your data",
                 bullets = listOf(
                     "Your emergency contacts — receive alert notifications and your location only during active alert events.",
-                    "Barangay responders — receive escalated alerts only when your contacts do not respond within the set timeframe.",
+                    "Barangay responders — receive escalated alerts only when your contacts do not respond within the set timeframe. They respond during duty hours.",
                     "Development team — may access anonymized, aggregated data for academic research purposes only, with no individual identification."
                 )
             )
@@ -272,7 +274,8 @@ object InfoStrings {
                 "ba kayo? Maayos po ba kayo?\" at sasabihin kung bakit ito nagtatanong. Ang pagpindot " +
                 "sa \"Maayos po ako\" ay agad na hihinto sa alerto. Kung hindi kayo sasagot, " +
                 "aabisuhan ang iyong contact sa pamilya, at pagkatapos ay ang iyong barangay " +
-                "responder."
+                "responder. Tumutugon ang barangay sa oras ng tungkulin, at walang garantisadong " +
+                "oras ng pagtugon."
         ),
 
         faqsTitle = "Mga Madalas Itanong",
@@ -357,7 +360,8 @@ object InfoStrings {
                     "ito kapalit ng propesyonal na pangangalagang medikal, ng mga serbisyong " +
                     "pang-emergency, o ng tunay na pagbabantay ng tao. Hindi mananagot ang mga " +
                     "developer sa mga alertong hindi naipadala o naantala dahil sa problema sa " +
-                    "cellphone, sa network, o sa serbisyo ng ibang kompanya."
+                    "cellphone, sa network, o sa serbisyo ng ibang kompanya. Tumutugon ang barangay " +
+                    "sa oras ng kanilang tungkulin, at walang garantisadong oras ng pagtugon."
             )
         ),
         privacyScaffoldTitle = "Privacy Policy",
@@ -389,7 +393,7 @@ object InfoStrings {
                 "4. Sino ang nakakakita ng iyong datos",
                 bullets = listOf(
                     "Ang iyong mga emergency contact — tumatanggap ng abiso at ng iyong lokasyon tuwing may aktibong alerto lamang.",
-                    "Ang mga barangay responder — tumatanggap ng alerto kapag hindi sumagot ang iyong mga contact sa loob ng takdang panahon.",
+                    "Ang mga barangay responder — tumatanggap ng alerto kapag hindi sumagot ang iyong mga contact sa loob ng takdang panahon. Tumutugon sila sa oras ng tungkulin.",
                     "Ang development team — maaaring makakita ng datos na walang pangalan at pinagsama-sama, para lamang sa pananaliksik na pang-akademiko, na hindi matutukoy ang sinuman."
                 )
             )

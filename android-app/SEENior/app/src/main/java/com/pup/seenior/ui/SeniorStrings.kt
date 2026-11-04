@@ -63,11 +63,11 @@ object SeniorStrings {
         /** The barangay name is a proper noun and stays as written in both languages. */
         fun alertsFamilyAndBarangay(barangay: String): String = when {
             this === FILIPINO_COPY && barangay.isBlank() ->
-                "Aabisuhan ang iyong pamilya at barangay kung walang sagot"
+                "Aabisuhan ang iyong pamilya at barangay kung walang sagot.\nTumutugon ang barangay sa oras ng tungkulin."
             this === FILIPINO_COPY ->
-                "Aabisuhan ang iyong pamilya at Barangay " + barangay + "\nkung walang sagot"
-            barangay.isBlank() -> "Alerts family and your barangay if no response"
-            else -> "Alerts family and Barangay " + barangay + "\nif no response"
+                "Aabisuhan ang iyong pamilya at Barangay " + barangay + "\nkung walang sagot. Tumutugon sila sa oras ng tungkulin."
+            barangay.isBlank() -> "Alerts family and your barangay if no response.\nThe barangay responds during duty hours."
+            else -> "Alerts family and Barangay " + barangay + "\nif no response. They respond during duty hours."
         }
     }
 

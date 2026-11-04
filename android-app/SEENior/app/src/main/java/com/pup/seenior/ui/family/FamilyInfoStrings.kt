@@ -205,7 +205,8 @@ object FamilyInfoStrings {
                 "SEENior is provided \"as is\" and is a support tool only. It is not a substitute for " +
                     "professional medical care, emergency services, or human supervision. The developers " +
                     "are not liable for missed or delayed alerts caused by device, network, or " +
-                    "third-party service failures."
+                    "third-party service failures. The barangay responds during its duty hours, and " +
+                    "no response time is guaranteed."
             )
         ),
         privacyScaffoldTitle = "Privacy policy",
@@ -384,7 +385,8 @@ object FamilyInfoStrings {
                     "ito kapalit ng propesyonal na pangangalagang medikal, ng mga serbisyong " +
                     "pang-emergency, o ng tunay na pagbabantay ng tao. Hindi mananagot ang mga " +
                     "developer sa mga alertong hindi naipadala o naantala dahil sa problema sa " +
-                    "cellphone, sa network, o sa serbisyo ng ibang kompanya."
+                    "cellphone, sa network, o sa serbisyo ng ibang kompanya. Tumutugon ang barangay " +
+                    "sa oras ng kanilang tungkulin, at walang garantisadong oras ng pagtugon."
             )
         ),
         privacyScaffoldTitle = "Privacy Policy",

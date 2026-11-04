@@ -377,20 +377,20 @@ object FamilyStrings {
             if (language == WellnessMessages.FILIPINO) "Tinanong ang senior sa $time" else "Senior prompted at $time"
 
         fun barangayWindow(minutes: Int): String =
-            if (language == WellnessMessages.FILIPINO) "Barangay - $minutes minutong window"
-            else "Barangay - $minutes mins window"
+            if (language == WellnessMessages.FILIPINO) "Aabisuhan ang barangay pagkatapos ng $minutes minuto kung hindi pa naresolba"
+            else "Barangay is notified after $minutes mins if unresolved"
 
         fun barangayDispatchedBody(name: String): String =
-            if (language == WellnessMessages.FILIPINO) "Naabisuhan na ang mga barangay responder tungkol sa alerto ni $name."
-            else "Barangay responders have been notified about $name's alert."
+            if (language == WellnessMessages.FILIPINO) "Naabisuhan na ang barangay tungkol sa alerto ni $name. Tumutugon sila sa oras ng tungkulin, kaya kung lampas na sa oras, maghihintay ito hanggang magbukas ang barangay hall."
+            else "The barangay has been notified about $name's alert. They respond during duty hours, so after hours it waits until the hall opens."
 
         val barangayWillNotifyBody: String
-            get() = if (language == WellnessMessages.FILIPINO) "Aabisuhan ang mga barangay responder kung hindi ito maresolba agad."
-            else "Barangay responders will be notified if this isn't resolved soon."
+            get() = if (language == WellnessMessages.FILIPINO) "Aabisuhan ang barangay kung hindi ito maresolba agad. Tumutugon sila sa oras ng tungkulin."
+            else "The barangay will be notified if this isn't resolved soon. They respond during duty hours."
 
         fun barangayNotifyWindow(minutes: Int): String =
-            if (language == WellnessMessages.FILIPINO) "Aabisuhan ang barangay kung hindi maresolba sa loob ng $minutes minuto"
-            else "Barangay will be notified if unresolved in $minutes minutes"
+            if (language == WellnessMessages.FILIPINO) "Aabisuhan ang barangay kung hindi maresolba sa loob ng $minutes minuto (tumutugon sa oras ng tungkulin)"
+            else "Barangay will be notified if unresolved in $minutes minutes (responds during duty hours)"
 
         fun callName(name: String): String = if (language == WellnessMessages.FILIPINO) "Tawagan si $name" else "Call $name"
 
@@ -408,9 +408,9 @@ object FamilyStrings {
 
         fun dispatchExplainer(name: String): String =
             if (language == WellnessMessages.FILIPINO)
-                "Ito ay humihiling ng opisyal na welfare check mula sa Barangay. Ipapadala ang isang responder sa lokasyon ni $name."
+                "Humihiling ito sa Barangay ng welfare check para kay $name, na susuriin nila sa oras ng tungkulin. Walang garantisadong oras ng pagtugon."
             else
-                "This requests an official welfare check from the Barangay. A responder will be dispatched to $name's location."
+                "This asks the Barangay to review a welfare-check request for $name during duty hours. No response time is guaranteed."
 
         fun lastKnownLocationCaptured(time: String): String =
             if (language == WellnessMessages.FILIPINO) "Huling kilalang lokasyon. Nakuha noong $time."
@@ -541,8 +541,8 @@ object FamilyStrings {
             else "Could not acknowledge (server error $code)."
 
         fun couldNotDispatchBarangay(code: Int): String =
-            if (language == WellnessMessages.FILIPINO) "Hindi maipadala sa barangay (server error $code)."
-            else "Could not dispatch barangay (server error $code)."
+            if (language == WellnessMessages.FILIPINO) "Hindi naipadala ang kahilingan sa barangay (server error $code)."
+            else "Could not send the request to the barangay (server error $code)."
 
         fun couldNotResolve(code: Int): String =
             if (language == WellnessMessages.FILIPINO) "Hindi maresolba (server error $code)."
@@ -766,7 +766,7 @@ object FamilyStrings {
         alertAcknowledgedTitle = "Alert Acknowledged",
         locationLabel = "LOCATION",
         nextStepsLabel = "NEXT STEPS",
-        dispatchBarangayResponders = "Dispatch barangay responders",
+        dispatchBarangayResponders = "Request a barangay welfare check",
         callSeniorHeader = "Call Senior",
         contactInformationLabel = "CONTACT INFORMATION",
         phoneLabel = "Mobile Phone",
@@ -775,14 +775,14 @@ object FamilyStrings {
         alertLocationHeader = "Alert Location",
         navigateHereButton = "Navigate here",
         navigateToHomeAddressButton = "Navigate to home address",
-        dispatchBarangayHeader = "Dispatch Barangay",
-        reasonForDispatchLabel = "REASON FOR DISPATCH",
+        dispatchBarangayHeader = "Request a Welfare Check",
+        reasonForDispatchLabel = "REASON FOR REQUEST",
         dispatchReasonNoMovement = "No movement / unresponsive",
         dispatchReasonFallSuspected = "Fall suspected",
         dispatchReasonMedicalEmergency = "Medical emergency",
         dispatchReasonOther = "Other",
         additionalNotesPlaceholder = "Additional notes for responder…",
-        dispatchNowButton = "Dispatch now",
+        dispatchNowButton = "Send request",
         alertResolvedHeader = "Alert Resolved",
         incidentSummaryLabel = "ALERT DETAILS",
         summaryAlertId = "Alert ID",
@@ -965,7 +965,7 @@ object FamilyStrings {
         alertAcknowledgedTitle = "Nakumpirma ang Alerto",
         locationLabel = "LOKASYON",
         nextStepsLabel = "SUSUNOD NA HAKBANG",
-        dispatchBarangayResponders = "Ipadala ang mga barangay responder",
+        dispatchBarangayResponders = "Humiling ng welfare check sa barangay",
         callSeniorHeader = "Tawagan ang Senior",
         contactInformationLabel = "IMPORMASYON NG KONTAK",
         phoneLabel = "Mobile Phone",
@@ -974,14 +974,14 @@ object FamilyStrings {
         alertLocationHeader = "Lokasyon ng Alerto",
         navigateHereButton = "Pumunta dito",
         navigateToHomeAddressButton = "Pumunta sa tirahan",
-        dispatchBarangayHeader = "Ipadala sa Barangay",
-        reasonForDispatchLabel = "DAHILAN PARA SA PAGPAPADALA",
+        dispatchBarangayHeader = "Humiling ng Welfare Check",
+        reasonForDispatchLabel = "DAHILAN NG KAHILINGAN",
         dispatchReasonNoMovement = "Walang galaw / hindi tumutugon",
         dispatchReasonFallSuspected = "Pinaghihinalaang nadapa",
         dispatchReasonMedicalEmergency = "Medical emergency",
         dispatchReasonOther = "Iba pa",
         additionalNotesPlaceholder = "Karagdagang tala para sa responder…",
-        dispatchNowButton = "Ipadala ngayon",
+        dispatchNowButton = "Ipadala ang kahilingan",
         alertResolvedHeader = "Naresolbang Alerto",
         incidentSummaryLabel = "DETALYE NG ALERTO",
         summaryAlertId = "Alert ID",

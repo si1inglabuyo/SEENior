@@ -91,7 +91,7 @@ object WellnessMessages {
         sosCancel = "Cancel — I'm Okay",
         sosAutoFooter = "If no action, SOS sends automatically",
         sosBarangayRole = "Barangay",
-        sosNoContacts = "No family contacts linked yet. Your barangay will still be alerted.",
+        sosNoContacts = "No family contacts linked yet. Your barangay will still be alerted, and they respond during duty hours.",
         homePendingTitle = "Waiting for Signal",
         homePendingBody = if (triggerType == "sos")
             "You pressed SOS. It will reach your family the moment this phone is back online."
@@ -174,7 +174,7 @@ object WellnessMessages {
         sosCancel = "Kanselahin — Maayos po ako",
         sosAutoFooter = "Kung walang aksyon, awtomatikong ipapadala ang SOS",
         sosBarangayRole = "Barangay",
-        sosNoContacts = "Wala pang naka-link na pamilya. Aabisuhan pa rin ang inyong barangay.",
+        sosNoContacts = "Wala pang naka-link na pamilya. Aabisuhan pa rin ang inyong barangay, na tumutugon sa oras ng tungkulin.",
         homePendingTitle = "Hinihintay ang Signal",
         homePendingBody = if (triggerType == "sos")
             "Napindot po ninyo ang SOS. Ipapadala ito sa inyong pamilya sa oras na bumalik ang signal."
