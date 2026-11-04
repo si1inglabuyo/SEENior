@@ -111,6 +111,70 @@ class FallDetector(
 
     private var pendingPreFallMotion: Float? = null
 
+    /**
+     * The other two pre-drop readings, for [FallContext] only (no gate reads them): how fast the
+     * phone was turning, and how many steps the step detector heard, in the same 2 s window.
+     */
+    var lastPreFallExtra: FallContext.Extra? = null
+        private set
+    private var pendingRotMean: Float? = null
+    private var pendingRotSamples: Int? = null
+
+    /** Set by the caller from whether the phone has a step detector; without one, steps are left out. */
+    @Volatile
+    var stepSensorPresent = false
+
+    // Rings like the motion one: gyroscope speeds, and the time of each step.
+    private val gyroAtMs = LongArray(MOTION_CAPACITY)
+    private val gyroVal = FloatArray(MOTION_CAPACITY)
+    private var gyroHead = 0
+    private var gyroCount = 0
+    private val stepAtMs = LongArray(STEP_CAPACITY)
+    private var stepHead = 0
+    private var stepRingCount = 0
+    private var preFallStartMs = 0L
+
+    /** Feeds one step-detector event in (one step). */
+    fun onStep(timestampNanos: Long) {
+        stepAtMs[stepHead] = timestampNanos / NANOS_PER_MS
+        stepHead = (stepHead + 1) % STEP_CAPACITY
+        if (stepRingCount < STEP_CAPACITY) stepRingCount++
+    }
+
+    private fun recordRotation(nowMs: Long, angularSpeed: Float) {
+        gyroAtMs[gyroHead] = nowMs
+        gyroVal[gyroHead] = angularSpeed
+        gyroHead = (gyroHead + 1) % MOTION_CAPACITY
+        if (gyroCount < MOTION_CAPACITY) gyroCount++
+    }
+
+    /** Mean turning speed over the window before [nowMs], and how many samples it used; null if too few. */
+    private fun preFallRotation(nowMs: Long): Pair<Float, Int>? {
+        var sum = 0f
+        var n = 0
+        for (i in 0 until gyroCount) {
+            val idx = (gyroHead - 1 - i + MOTION_CAPACITY) % MOTION_CAPACITY
+            if (nowMs - gyroAtMs[idx] > PRE_FALL_WINDOW_MS) break
+            sum += gyroVal[idx]
+            n++
+        }
+        return if (n >= PRE_FALL_MIN_SAMPLES) sum / n to n else null
+    }
+
+    /**
+     * Steps heard in the window before the drop. Counted at confirmation, not at the drop,
+     * because batched step events can arrive after it.
+     */
+    private fun preFallSteps(): Int? {
+        if (!stepSensorPresent) return null
+        var n = 0
+        for (i in 0 until stepRingCount) {
+            val t = stepAtMs[(stepHead - 1 - i + STEP_CAPACITY) % STEP_CAPACITY]
+            if (t in (preFallStartMs - PRE_FALL_WINDOW_MS)..preFallStartMs) n++
+        }
+        return n
+    }
+
     /** How many samples [lastPreFallMotion] averaged, so the database can show the working. */
     var lastPreFallSamples: Int? = null
         private set
@@ -158,6 +222,8 @@ class FallDetector(
                     freeFallStartMs = nowMs
                     pendingPreFallMotion = preFallMotion(nowMs)
                     pendingPreFallSamples = if (pendingPreFallMotion != null) scratchSamples else null
+                    preFallRotation(nowMs).also { pendingRotMean = it?.first; pendingRotSamples = it?.second }
+                    preFallStartMs = nowMs
                     trace("1/4 free fall begins (mag ${f(magnitude)} <= ${f(config.freeFallMax)})")
                 }
 
@@ -209,6 +275,7 @@ class FallDetector(
                     cooldownUntilMs = nowMs + config.cooldownMs
                     lastPreFallMotion = pendingPreFallMotion
                     lastPreFallSamples = pendingPreFallSamples
+                    lastPreFallExtra = FallContext.Extra(pendingRotMean, pendingRotSamples, preFallSteps())
                     lastEvidence = FallEvidence(
                         freeFallMs = freeFallEndMs - freeFallStartMs,
                         impactPeak = impactPeak,
@@ -231,6 +298,8 @@ class FallDetector(
     fun onRotation(timestampNanos: Long, angularSpeed: Float) {
         val nowMs = timestampNanos / NANOS_PER_MS
 
+        if (phase == Phase.IDLE) recordRotation(nowMs, angularSpeed)
+
         if (phase == Phase.SETTLING && abs(nowMs - impactMs) <= config.rotationMemoryMs) {
             impactRotationPeak = maxOf(impactRotationPeak, angularSpeed)
         }
@@ -250,6 +319,10 @@ class FallDetector(
         rotationPeakAtMs = Long.MIN_VALUE
         impactRotationPeak = 0f
         motionCount = 0
+        gyroCount = 0
+        stepRingCount = 0
+        pendingRotMean = null
+        pendingRotSamples = null
         pendingPreFallMotion = null
         pendingPreFallSamples = null
     }
@@ -282,6 +355,9 @@ class FallDetector(
         const val PRE_FALL_MIN_SAMPLES = 25
 
         /** Room for 5 s at 50 Hz, so a faster sensor still fills the window. */
+        /** 64 steps is far more than fit in the 2 s window plus the 8 s wait for confirmation. */
+        private const val STEP_CAPACITY = 64
+
         private const val MOTION_CAPACITY = 256
 
         /** Standard gravity. Not taken from SensorManager so this class stays framework-free. */

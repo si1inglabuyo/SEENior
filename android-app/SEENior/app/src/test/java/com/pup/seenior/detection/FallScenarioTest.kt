@@ -239,6 +239,34 @@ class FallScenarioTest {
     }
 
     @Test
+    fun `the note also records turning speed and steps from the same window, and no gate reads them`() {
+        val detector = FallDetector()
+        detector.stepSensorPresent = true
+        // Three steps inside the second of standing before the drop at 1000 ms, one long before.
+        listOf(300L, 600L, 900L).forEach { detector.onStep(it * 1_000_000L) }
+        assertTrue(replayDefault(detector))
+        val extra = detector.lastPreFallExtra!!
+        assertEquals(3, extra.steps)
+        assertTrue("needs the minimum gyro samples", extra.rotSamples!! >= FallDetector.PRE_FALL_MIN_SAMPLES)
+        val note = FallContext.encode(detector.lastPreFallMotion, "afternoon", detector.lastPreFallSamples, extra)
+        val parts = note.split(';').associate { it.substringBefore('=') to it.substringAfter('=') }
+        assertEquals("3", parts.getValue("steps"))
+        // rot = rot_sum / rot_n, to the two decimals stored.
+        assertEquals(parts.getValue("rot").toFloat(), parts.getValue("rot_sum").toFloat() / parts.getValue("rot_n").toInt(), 0.02f)
+        assertTrue(note.length < 200)
+        // A phone with no step detector leaves steps out rather than claiming zero.
+        val noSensor = FallDetector()
+        assertTrue(replayDefault(noSensor))
+        assertEquals(null, noSensor.lastPreFallExtra!!.steps)
+        assertTrue(!FallContext.encode(1f, "night", 50, noSensor.lastPreFallExtra).contains("steps"))
+        // Still decodes with the extra keys present.
+        assertEquals(true, FallContext.decode(note)!!.active == false)
+    }
+
+    private fun replayDefault(detector: FallDetector): Boolean =
+        FallSimulator.replay(FallSimulator.stream(), detector)
+
+    @Test
     fun `the context note round trips and unreadable ones decode to null`() {
         val note = FallContext.encode(2.84f, "night")
         assertEquals("pre_dev=2.8;active=1;night=1", note)
