@@ -6,7 +6,7 @@ import StatusPill from './StatusPill'
 // identical markup on both screens (the only difference is which alerts each hands in). The
 // row itself carries no controls: it shows who the alert is about, when it fired, and the
 // type/status badges, and the whole row is a button that opens the Details modal.
-// Acknowledge / Resolve / False Positive live inside that modal.
+// Acknowledge / Resolve / False Alert live inside that modal.
 
 // `dispatch` is the optional dispatchOf() result: the tier badge and how the response is going.
 // `afterHours` adds the label for an alert that arrived while the hall was closed.

@@ -7,7 +7,7 @@ const PILL = {
   attending: { text: 'Attending', cls: 'pill-attending' },
   acknowledged: { text: 'Family Handling', cls: 'pill-neutral' },
   resolved: { text: 'Resolved', cls: 'pill-resolved' },
-  false_positive: { text: 'False Positive', cls: 'pill-false' },
+  false_positive: { text: 'False Alert', cls: 'pill-false' },
 }
 
 export default function StatusPill({ status }) {

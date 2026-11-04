@@ -37,11 +37,11 @@ export default function OutcomeDonut({ outcomes, onNavigate }) {
     },
     {
       key: 'false_positive',
-      label: 'False Positive',
+      label: 'False Alert',
       value: o.false_positive || 0,
       color: FALSE_COLOR,
       onClick: () =>
-        onNavigate('history', { status: 'false_positive', label: 'False Positive alerts' }),
+        onNavigate('history', { status: 'false_positive', label: 'False Alerts' }),
     },
   ]
 

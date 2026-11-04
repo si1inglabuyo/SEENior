@@ -22,12 +22,12 @@ export const ALERT_ACTIONS = {
     endpoint: 'resolve',
   },
   falsePositive: {
-    rowLabel: 'False Positive',
-    dialogTitle: 'False Positive Alert',
-    dialogMessage: 'Mark this emergency as false positive alert?',
-    confirmLabel: 'False Positive',
+    rowLabel: 'False Alert',
+    dialogTitle: 'False Alert',
+    dialogMessage: 'Mark this emergency as a false alert?',
+    confirmLabel: 'False Alert',
     tone: 'danger',
-    successMessage: 'Successfully Marked as False Positive',
+    successMessage: 'Successfully Marked as False Alert',
     endpoint: 'false-positive',
   },
 }

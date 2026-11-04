@@ -36,7 +36,7 @@ export const STATUS_LABEL = {
   escalated: 'Needs a welfare check',
   attending: 'A responder is attending',
   resolved: 'Closed',
-  false_positive: 'False Positive',
+  false_positive: 'False Alert',
 }
 
 // Every step name written by any tier (phone, family app, server clock). Unknown codes fall
@@ -55,7 +55,7 @@ export const STEP_LABEL = {
   resolved_family: 'Closed by family',
   acknowledged_barangay: 'Responder is attending',
   resolved_barangay: 'Closed by responder',
-  false_positive_barangay: 'Marked a false positive by responder',
+  false_positive_barangay: 'Marked a false alert by responder',
 }
 
 // `escalated_barangay_auto` is one step code covering three different reasons the server's

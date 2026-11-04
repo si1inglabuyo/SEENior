@@ -53,7 +53,7 @@ function CallFirst({ alert, call, busy, onSend }) {
         ))}
       </div>
       {call === 'cleared' && (
-        <p className="dispatch-hint muted">Close it as Resolved or False Positive below.</p>
+        <p className="dispatch-hint muted">Close it as Resolved or False Alert below.</p>
       )}
     </div>
   )

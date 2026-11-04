@@ -179,7 +179,7 @@ function IncidentActions({ alert, onAct, busy }) {
   const BUTTONS = [
     { key: 'acknowledge', label: 'Acknowledge', cls: '' },
     { key: 'resolve', label: 'Resolved', cls: 'details-action-ok' },
-    { key: 'falsePositive', label: 'False Positive', cls: 'details-action-danger' },
+    { key: 'falsePositive', label: 'False Alert', cls: 'details-action-danger' },
   ]
 
   return (
@@ -203,12 +203,12 @@ function IncidentActions({ alert, onAct, busy }) {
           rows={3}
           value={remarks}
           onChange={(e) => setRemarks(e.target.value)}
-          placeholder="Add a note for the incident log — e.g. why this is a false positive, or who attended. Leave blank to skip."
+          placeholder="Add a note for the incident log — e.g. why this is a false alert, or who attended. Leave blank to skip."
         />
       </label>
       {isAttending(alert) && (
         <p className="details-attending-note muted">
-          A responder is already attending. Close it as Resolved or False Positive once it is
+          A responder is already attending. Close it as Resolved or False Alert once it is
           settled.
         </p>
       )}
@@ -283,7 +283,7 @@ export default function AlertDetailsModal({ alert, onClose, onAct, actionBusy, d
 
         {/* Last Known Location is an operational aid for a responder who still has to reach
             the senior -- it only makes sense while the incident is open. Once it's resolved
-            or marked a false positive (all of Alert History, and the closed rows on the
+            or marked a false alert (all of Alert History, and the closed rows on the
             Alerts tab) there is nobody to dispatch, so the panel is hidden. */}
         {isActiveAlert(alert) && (
           <>
