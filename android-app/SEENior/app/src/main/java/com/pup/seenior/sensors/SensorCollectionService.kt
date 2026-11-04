@@ -449,6 +449,7 @@ class SensorCollectionService : Service(), SensorEventListener
         val evidence = fallDetector.lastEvidence?.encode()
         val tolerance = fallToleranceNote
         val preFallMotion = fallDetector.lastPreFallMotion
+        val preFallSamples = fallDetector.lastPreFallSamples
         serviceScope.launch {
             AlertResponder.raise(
                 applicationContext,
@@ -457,7 +458,8 @@ class SensorCollectionService : Service(), SensorEventListener
                 "high",
                 evidence,
                 tolerance,
-                preFallMotion
+                preFallMotion,
+                preFallSamples
             )
         }
     }

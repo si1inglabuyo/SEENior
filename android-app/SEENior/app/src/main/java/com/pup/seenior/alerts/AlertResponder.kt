@@ -45,7 +45,9 @@ object AlertResponder {
         fallEvidence: String? = null,
         fallTolerance: String? = null,
         /** For falls: the detector's pre-drop movement reading, recorded in the alert's context note. */
-        preFallMotion: Float? = null
+        preFallMotion: Float? = null,
+        /** How many samples that reading averaged; stored so the note shows its own working. */
+        preFallSamples: Int? = null
     ): Alert? = raiseLock.withLock {
         val senior = db.seniorDao().getOnboardedSenior() ?: return null
         val onboarding = db.seniorOnboardingDao().getBySeniorId(senior.seniorId) ?: return null
@@ -71,7 +73,7 @@ object AlertResponder {
             triggeredAt = now,
             fallEvidence = fallEvidence,
             fallTolerance = fallTolerance,
-            fallContext = if (triggerType == "fall_pattern") FallContext.encode(preFallMotion, timeBlock) else null
+            fallContext = if (triggerType == "fall_pattern") FallContext.encode(preFallMotion, timeBlock, preFallSamples) else null
         )
         val stored = alert.copy(alertId = db.alertDao().insert(alert).toInt())
         onAlertCreated(context, db, stored)

@@ -111,6 +111,12 @@ class FallDetector(
 
     private var pendingPreFallMotion: Float? = null
 
+    /** How many samples [lastPreFallMotion] averaged, so the database can show the working. */
+    var lastPreFallSamples: Int? = null
+        private set
+    private var pendingPreFallSamples: Int? = null
+    private var scratchSamples = 0
+
     // Ring of recent |magnitude - 1 g|, newest at motionHead - 1. Fed only while idle, so it holds
     // what happened before a candidate fall began. Two small primitive arrays, no per-sample garbage.
     private val motionAtMs = LongArray(MOTION_CAPACITY)
@@ -134,6 +140,7 @@ class FallDetector(
             sum += motionDev[idx]
             n++
         }
+        scratchSamples = n
         return if (n >= PRE_FALL_MIN_SAMPLES) sum / n else null
     }
 
@@ -150,6 +157,7 @@ class FallDetector(
                     phase = Phase.FREE_FALL
                     freeFallStartMs = nowMs
                     pendingPreFallMotion = preFallMotion(nowMs)
+                    pendingPreFallSamples = if (pendingPreFallMotion != null) scratchSamples else null
                     trace("1/4 free fall begins (mag ${f(magnitude)} <= ${f(config.freeFallMax)})")
                 }
 
@@ -200,6 +208,7 @@ class FallDetector(
                     }
                     cooldownUntilMs = nowMs + config.cooldownMs
                     lastPreFallMotion = pendingPreFallMotion
+                    lastPreFallSamples = pendingPreFallSamples
                     lastEvidence = FallEvidence(
                         freeFallMs = freeFallEndMs - freeFallStartMs,
                         impactPeak = impactPeak,
@@ -242,6 +251,7 @@ class FallDetector(
         impactRotationPeak = 0f
         motionCount = 0
         pendingPreFallMotion = null
+        pendingPreFallSamples = null
     }
 
     /**
@@ -262,19 +272,19 @@ class FallDetector(
 
     private fun rotationConfirms(): Boolean = impactRotationPeak >= config.rotationMin
 
-    private companion object {
-        const val NANOS_PER_MS = 1_000_000L
+    companion object {
+        private const val NANOS_PER_MS = 1_000_000L
 
-        /** How far back "before the fall" looks. */
+        /** How far back "before the fall" looks. Public: [FallContext] writes it into the note. */
         const val PRE_FALL_WINDOW_MS = 2_000L
 
         /** Fewer samples than this (0.5 s at 50 Hz) is too little to call the phone moving or resting. */
         const val PRE_FALL_MIN_SAMPLES = 25
 
         /** Room for 5 s at 50 Hz, so a faster sensor still fills the window. */
-        const val MOTION_CAPACITY = 256
+        private const val MOTION_CAPACITY = 256
 
         /** Standard gravity. Not taken from SensorManager so this class stays framework-free. */
-        const val GRAVITY = 9.80665f
+        private const val GRAVITY = 9.80665f
     }
 }

@@ -224,6 +224,21 @@ class FallScenarioTest {
     }
 
     @Test
+    fun `the context note shows its own working and the working reproduces pre_dev`() {
+        val detector = FallDetector()
+        assertTrue(FallSimulator.replay(FallSimulator.stream(), detector))
+        val note = FallContext.encode(detector.lastPreFallMotion, "afternoon", detector.lastPreFallSamples)
+        val parts = note.split(';').associate { it.substringBefore('=') to it.substringAfter('=') }
+        val n = parts.getValue("n").toInt()
+        assertTrue("needs the minimum samples, got $n", n >= FallDetector.PRE_FALL_MIN_SAMPLES)
+        assertEquals("2000", parts.getValue("win_ms"))
+        assertEquals("1.5", parts.getValue("thr"))
+        // Redoing the sum / n by hand lands on the stored pre_dev (to its one decimal).
+        assertEquals(parts.getValue("pre_dev").toFloat(), parts.getValue("sum").toFloat() / n, 0.06f)
+        assertTrue(note.length < 200)
+    }
+
+    @Test
     fun `the context note round trips and unreadable ones decode to null`() {
         val note = FallContext.encode(2.84f, "night")
         assertEquals("pre_dev=2.8;active=1;night=1", note)
