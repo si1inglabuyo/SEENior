@@ -51,6 +51,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.pup.seenior.ui.AfterHoursNotice
 import com.pup.seenior.ui.theme.SeniorColors
 import com.pup.seenior.ui.wellness.WellnessMessages
 import com.pup.seenior.ui.wellness.WellnessPromptScreen
@@ -118,6 +119,10 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                         viewModel.firstName,
                         onStandDown = { viewModel.standDown(delivery.alert) }
                     )
+                    // Help has gone out. If the hall is shut the barangay will not answer until it
+                    // opens, so say so here and give the numbers to call. Draws nothing while open.
+                    Spacer(Modifier.height(12.dp))
+                    AfterHoursNotice(viewModel.language)
                 }
 
                 Spacer(Modifier.height(16.dp))

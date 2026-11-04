@@ -4,6 +4,7 @@ import android.app.Activity
 import android.app.Application
 import android.os.Bundle
 import android.util.Log
+import com.pup.seenior.afterhours.AfterHoursStore
 import com.pup.seenior.database.SeniorAppDatabase
 import com.pup.seenior.diagnostics.CrashReporting
 import com.pup.seenior.network.DeviceKeyStore
@@ -46,6 +47,15 @@ class SeniorApplication : Application() {
         scheduleMonitoringWatchdog()
         trackForegroundState()
         removeDuplicateSeniors()
+        refreshAfterHours()
+    }
+
+    /**
+     * Fetches the after-hours hotlines and hall hours, at most every six hours (the store decides).
+     * Public data with no login, so it runs for family phones too. A failure leaves the cached copy.
+     */
+    private fun refreshAfterHours() {
+        appScope.launch { AfterHoursStore.refreshIfStale(this@SeniorApplication) }
     }
 
     /**
@@ -80,7 +90,10 @@ class SeniorApplication : Application() {
                 val wasInBackground = startedActivities == 0
                 startedActivities++
                 AppForeground.isForeground = true
-                if (wasInBackground) reportHeartbeatOnForeground()
+                if (wasInBackground) {
+                    reportHeartbeatOnForeground()
+                    refreshAfterHours()
+                }
             }
 
             override fun onActivityStopped(activity: Activity) {

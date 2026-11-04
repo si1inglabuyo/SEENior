@@ -59,6 +59,7 @@ import com.pup.seenior.location.Geohash
 import com.pup.seenior.network.dto.AlertDto
 import com.pup.seenior.network.dto.ContactDto
 import com.pup.seenior.network.dto.SeniorDto
+import com.pup.seenior.ui.AfterHoursNotice
 
 // Matches the mockup's fixed "10 minutes" copy; not read from a backend setting.
 private const val BARANGAY_WINDOW_MINUTES = 10
@@ -335,6 +336,9 @@ private fun AlertDetailContent(alert: AlertDto, senior: SeniorDto, onAcknowledge
             EscalationRow(Icons.Filled.HourglassEmpty, FamilyColors.Blue, copy.escalationFamilyNotifiedPending)
             EscalationRow(Icons.Filled.AccountBalance, FamilyColors.Blue, copy.barangayWindow(BARANGAY_WINDOW_MINUTES))
 
+            // If the hall is shut the barangay does not answer until it opens: say so and give the numbers to call.
+            AfterHoursNotice(copy.language, Modifier.padding(top = 16.dp))
+
             SectionLabel(copy.lastKnownLocationLabel, Modifier.padding(top = 24.dp, bottom = 10.dp))
             AlertLocationMap(
                 clusterId = alert.locationClusterId,
@@ -391,6 +395,9 @@ private fun AcknowledgedContent(
                     modifier = Modifier.padding(top = 18.dp)
                 )
             }
+
+            // If the hall is shut the barangay does not answer until it opens: say so and give the numbers to call.
+            AfterHoursNotice(copy.language, Modifier.padding(top = 16.dp))
 
             FallContextCard(alert, senior)
 
@@ -534,6 +541,9 @@ private fun DispatchBarangayContent(
                 bg = FamilyColors.OrangeBg,
                 textColor = FamilyColors.WarningText
             )
+
+            // If the hall is shut the barangay does not answer until it opens: say so and give the numbers to call.
+            AfterHoursNotice(copy.language, Modifier.padding(top = 16.dp))
 
             SectionLabel(copy.reasonForDispatchLabel, Modifier.padding(top = 24.dp, bottom = 10.dp))
             // DISPATCH_REASON_CODES are the English values sent to the server; only the label is translated.

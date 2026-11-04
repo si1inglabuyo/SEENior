@@ -39,6 +39,7 @@ import com.pup.seenior.database.entities.Alert
 import com.pup.seenior.ui.SeniorStrings
 import com.pup.seenior.ui.home.HelpDelivery
 import com.pup.seenior.ui.home.HomeViewModel
+import com.pup.seenior.ui.AfterHoursNotice
 import com.pup.seenior.ui.theme.SeniorColors
 import com.pup.seenior.ui.wellness.WellnessMessages
 import java.text.SimpleDateFormat
@@ -110,6 +111,10 @@ fun AlertsScreen(homeViewModel: HomeViewModel, viewModel: AlertsViewModel = view
                             mlFlagScore = viewModel.mlFlagScores[delivery.alert.alertId],
                             onStandDown = { homeViewModel.standDown(delivery.alert) }
                         )
+                        // An open alert is heading to, or is at, the barangay. If the hall is shut
+                        // nobody answers until it opens: say so, with numbers to call.
+                        Spacer(Modifier.height(12.dp))
+                        AfterHoursNotice(language)
                     } else {
                         EmptyNotice(copy.alertsNoActive)
                     }

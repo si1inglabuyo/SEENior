@@ -38,6 +38,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.pup.seenior.database.entities.Contact
+import com.pup.seenior.ui.AfterHoursNotice
 import com.pup.seenior.ui.theme.SeniorColors
 
 private val SosRed = Color(0xFFC62828)
@@ -54,6 +55,7 @@ private val SosBarangayAmber = Color(0xFFE08A1E)
 @Composable
 fun SosCountdownScreen(
     copy: WellnessMessages.Copy,
+    language: String,
     secondsRemaining: Int,
     totalSeconds: Int,
     contacts: List<Contact>,
@@ -124,6 +126,11 @@ fun SosCountdownScreen(
                     contactsKnown = contactsKnown,
                     barangay = barangay
                 )
+
+                // The barangay is listed above as if it answers at any hour. When the hall is shut
+                // it does not, so say so and give the numbers to call. Draws nothing while open.
+                Spacer(Modifier.height(14.dp))
+                AfterHoursNotice(language)
             }
 
             Column(
@@ -231,7 +238,8 @@ private fun WillAlertCard(
             )
         }
 
-        // The barangay tier is listed whether or not any family is linked; it is always available.
+        // The barangay tier is listed whether or not any family is linked. The alert always reaches
+        // its dashboard; whether anyone answers depends on the hall's hours (see AfterHoursNotice).
         if (barangay.isNotBlank()) {
             WillAlertRow(
                 name = "Brgy. $barangay",

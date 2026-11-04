@@ -50,6 +50,10 @@ interface ApiService {
 
     // ---- Senior side (no login; the phone proves itself with its device key) ----
 
+    // Who to call, and the hall's duty hours, for when the barangay hall is closed. Public.
+    @GET("config/after-hours")
+    suspend fun afterHours(): com.pup.seenior.afterhours.AfterHoursConfig
+
     // The pooks a senior can choose from in a barangay. Public reference data.
     @GET("seniors/pooks")
     suspend fun pooks(@Query("barangay") barangay: String): List<PookDto>
