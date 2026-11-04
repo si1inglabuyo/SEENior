@@ -112,23 +112,17 @@ class FallDetector(
     private var pendingPreFallMotion: Float? = null
 
     /**
-     * The other two pre-drop readings, for [FallContext] only (no gate reads them): how fast the
-     * phone was turning, and how many steps the step detector heard, in the same 2 s window.
+     * Steps heard in the same 2 s window before the drop, for [FallContext] only (no gate reads
+     * it). Null when the phone has no step detector.
      */
-    var lastPreFallExtra: FallContext.Extra? = null
+    var lastPreFallSteps: Int? = null
         private set
-    private var pendingRotMean: Float? = null
-    private var pendingRotSamples: Int? = null
 
     /** Set by the caller from whether the phone has a step detector; without one, steps are left out. */
     @Volatile
     var stepSensorPresent = false
 
-    // Rings like the motion one: gyroscope speeds, and the time of each step.
-    private val gyroAtMs = LongArray(MOTION_CAPACITY)
-    private val gyroVal = FloatArray(MOTION_CAPACITY)
-    private var gyroHead = 0
-    private var gyroCount = 0
+    // Ring of the time of each step.
     private val stepAtMs = LongArray(STEP_CAPACITY)
     private var stepHead = 0
     private var stepRingCount = 0
@@ -139,26 +133,6 @@ class FallDetector(
         stepAtMs[stepHead] = timestampNanos / NANOS_PER_MS
         stepHead = (stepHead + 1) % STEP_CAPACITY
         if (stepRingCount < STEP_CAPACITY) stepRingCount++
-    }
-
-    private fun recordRotation(nowMs: Long, angularSpeed: Float) {
-        gyroAtMs[gyroHead] = nowMs
-        gyroVal[gyroHead] = angularSpeed
-        gyroHead = (gyroHead + 1) % MOTION_CAPACITY
-        if (gyroCount < MOTION_CAPACITY) gyroCount++
-    }
-
-    /** Mean turning speed over the window before [nowMs], and how many samples it used; null if too few. */
-    private fun preFallRotation(nowMs: Long): Pair<Float, Int>? {
-        var sum = 0f
-        var n = 0
-        for (i in 0 until gyroCount) {
-            val idx = (gyroHead - 1 - i + MOTION_CAPACITY) % MOTION_CAPACITY
-            if (nowMs - gyroAtMs[idx] > PRE_FALL_WINDOW_MS) break
-            sum += gyroVal[idx]
-            n++
-        }
-        return if (n >= PRE_FALL_MIN_SAMPLES) sum / n to n else null
     }
 
     /**
@@ -222,7 +196,6 @@ class FallDetector(
                     freeFallStartMs = nowMs
                     pendingPreFallMotion = preFallMotion(nowMs)
                     pendingPreFallSamples = if (pendingPreFallMotion != null) scratchSamples else null
-                    preFallRotation(nowMs).also { pendingRotMean = it?.first; pendingRotSamples = it?.second }
                     preFallStartMs = nowMs
                     trace("1/4 free fall begins (mag ${f(magnitude)} <= ${f(config.freeFallMax)})")
                 }
@@ -275,7 +248,7 @@ class FallDetector(
                     cooldownUntilMs = nowMs + config.cooldownMs
                     lastPreFallMotion = pendingPreFallMotion
                     lastPreFallSamples = pendingPreFallSamples
-                    lastPreFallExtra = FallContext.Extra(pendingRotMean, pendingRotSamples, preFallSteps())
+                    lastPreFallSteps = preFallSteps()
                     lastEvidence = FallEvidence(
                         freeFallMs = freeFallEndMs - freeFallStartMs,
                         impactPeak = impactPeak,
@@ -298,8 +271,6 @@ class FallDetector(
     fun onRotation(timestampNanos: Long, angularSpeed: Float) {
         val nowMs = timestampNanos / NANOS_PER_MS
 
-        if (phase == Phase.IDLE) recordRotation(nowMs, angularSpeed)
-
         if (phase == Phase.SETTLING && abs(nowMs - impactMs) <= config.rotationMemoryMs) {
             impactRotationPeak = maxOf(impactRotationPeak, angularSpeed)
         }
@@ -319,10 +290,7 @@ class FallDetector(
         rotationPeakAtMs = Long.MIN_VALUE
         impactRotationPeak = 0f
         motionCount = 0
-        gyroCount = 0
         stepRingCount = 0
-        pendingRotMean = null
-        pendingRotSamples = null
         pendingPreFallMotion = null
         pendingPreFallSamples = null
     }

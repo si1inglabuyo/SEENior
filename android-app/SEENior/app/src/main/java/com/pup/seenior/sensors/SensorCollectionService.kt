@@ -457,7 +457,7 @@ class SensorCollectionService : Service(), SensorEventListener
         val tolerance = fallToleranceNote
         val preFallMotion = fallDetector.lastPreFallMotion
         val preFallSamples = fallDetector.lastPreFallSamples
-        val preFallExtra = fallDetector.lastPreFallExtra
+        val preFallSteps = fallDetector.lastPreFallSteps
         serviceScope.launch {
             AlertResponder.raise(
                 applicationContext,
@@ -468,7 +468,7 @@ class SensorCollectionService : Service(), SensorEventListener
                 tolerance,
                 preFallMotion,
                 preFallSamples,
-                preFallExtra
+                preFallSteps
             )
         }
     }

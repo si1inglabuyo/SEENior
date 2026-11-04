@@ -33,14 +33,11 @@ object FallContext {
      * samples in the `win_ms` before the free fall, and `active` is `pre_dev` >= `thr`.
      * `sum` and `n` are two totals, not the sample stream.
      */
-    /** The gyroscope and step readings from the same window; each null when it could not be read. */
-    data class Extra(val rotMean: Float?, val rotSamples: Int?, val steps: Int?)
-
     fun encode(
         preFallMotion: Float?,
         timeBlock: String,
         samples: Int? = null,
-        extra: Extra? = null
+        steps: Int? = null
     ): String = buildString {
         if (preFallMotion != null) {
             append("pre_dev=").append(String.format(Locale.US, "%.1f", preFallMotion))
@@ -50,13 +47,8 @@ object FallContext {
                 append(";win_ms=").append(FallDetector.PRE_FALL_WINDOW_MS)
                 append(";thr=").append(String.format(Locale.US, "%.1f", ACTIVE_MIN))
             }
-            // Same working as pre_dev: rot = rot_sum / rot_n, mean turning speed in rad/s.
-            if (extra?.rotMean != null && extra.rotSamples != null) {
-                append(";rot=").append(String.format(Locale.US, "%.2f", extra.rotMean))
-                append(";rot_n=").append(extra.rotSamples)
-                append(";rot_sum=").append(String.format(Locale.US, "%.2f", extra.rotMean * extra.rotSamples))
-            }
-            if (extra?.steps != null) append(";steps=").append(extra.steps)
+            // Steps the step detector heard in the same window; left out when the phone has none.
+            if (steps != null) append(";steps=").append(steps)
             append(";active=").append(if (preFallMotion >= ACTIVE_MIN) 1 else 0)
             append(';')
         }
