@@ -18,6 +18,7 @@ import { fallContext } from '../fallContext'
 import Modal from './Modal'
 import LocationMap from './LocationMap'
 import StatusPill from './StatusPill'
+import DispatchPanel from './DispatchPanel'
 
 // "Last Known Location": the senior's position when the alert fired, stored as a geohash.
 // It is a precise fix held under RA 10173 section 12(c), not anonymised. Shown on a live
@@ -215,7 +216,7 @@ function IncidentActions({ alert, onAct, busy }) {
   )
 }
 
-export default function AlertDetailsModal({ alert, onClose, onAct, actionBusy }) {
+export default function AlertDetailsModal({ alert, onClose, onAct, actionBusy, dispatch, activeAlerts }) {
   return (
     <Modal onClose={onClose} labelledBy="alert-details-title" className="details-modal">
       <button type="button" className="modal-close" onClick={onClose} aria-label="Close">
@@ -268,6 +269,18 @@ export default function AlertDetailsModal({ alert, onClose, onAct, actionBusy })
       </div>
 
       <div className="details-body">
+        {dispatch?.pooks && isActiveAlert(alert) && (
+          <DispatchPanel
+            alert={alert}
+            activeAlerts={activeAlerts}
+            teamList={dispatch.teamList}
+            serviceList={dispatch.serviceList}
+            busy={dispatch.busy}
+            error={dispatch.error}
+            onSend={dispatch.send}
+          />
+        )}
+
         {/* Last Known Location is an operational aid for a responder who still has to reach
             the senior -- it only makes sense while the incident is open. Once it's resolved
             or marked a false positive (all of Alert History, and the closed rows on the
