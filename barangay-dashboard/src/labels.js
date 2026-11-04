@@ -1,4 +1,5 @@
 // Translates the API's short codes into wording a responder can read.
+import { dispatchStepLabel } from './dispatch.js'
 
 export const TRIGGER_LABEL = {
   inactivity: 'No movement for an unusual stretch',
@@ -121,7 +122,7 @@ export function stepLabel(entry, alert) {
   const step = (entry && entry.step) ?? entry
   if (step === 'escalated_barangay_auto') return escalatedBarangayAutoLabel(entry, alert)
   if (step === 'no_family_contact') return noFamilyContactLabel(alert)
-  return STEP_LABEL[step] || step
+  return STEP_LABEL[step] || dispatchStepLabel(entry) || step
 }
 export const triggerLabel = (trigger) => TRIGGER_LABEL[trigger] || trigger
 export const triggerShort = (trigger) => TRIGGER_SHORT[trigger] || trigger

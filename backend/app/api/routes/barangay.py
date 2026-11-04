@@ -22,6 +22,7 @@ from app.db.models import (
     AlertStatus,
     Contact,
     ContactType,
+    Pook,
     Senior,
     TriggerType,
     User,
@@ -35,6 +36,8 @@ from app.schemas.barangay import (
     BarangaySeniorOut,
     BarangayStats,
     DayCount,
+    DispatchAction,
+    PookSummary,
     ResponderAction,
 )
 
@@ -227,6 +230,116 @@ async def _responder_alert(sync_id: UUID, db: AsyncSession, responder: User) -> 
 def _responder_name(responder: User) -> str:
     # full_name can be null for barangay accounts, so fall back to the username.
     return responder.full_name or responder.username
+
+
+def _resources_out(escalation_steps: list | None) -> set[str]:
+    """The teams and services out on one alert, read off its timeline. Mirrors resourcesOut()
+    in dispatch.js."""
+    out: set[str] = set()
+    for step in escalation_steps or []:
+        if not isinstance(step, dict):
+            continue
+        if step.get("step") == "team_sent":
+            out.add(step.get("team"))
+        elif step.get("step") == "help_requested":
+            out.add(step.get("service"))
+        elif step.get("step") == "help_cancelled":
+            out.discard(step.get("service"))
+    return out
+
+
+def _dispatch_step(payload: DispatchAction, out_here: set[str]) -> tuple[str, dict[str, str]]:
+    """The timeline step for one operator action, or a 422 if the action is incomplete."""
+    # The admin names the responders on the dashboard, so any non-blank name is accepted.
+    team = (payload.team or "").strip()
+    service = (payload.service or "").strip()
+    if payload.action == "send_team" and team:
+        return "team_sent", {"team": team}
+    if payload.action == "request_help" and service:
+        return "help_requested", {"service": service}
+    if payload.action == "cancel_help" and service in out_here:
+        return "help_cancelled", {"service": service}
+    if payload.action == "call_result" and payload.result:
+        return "call_result", {"result": payload.result}
+    raise HTTPException(
+        status_code=422,
+        detail="That is not a valid dispatch action",
+    )
+
+
+async def _out_on_other_alerts(alert: Alert, barangay: str, db: AsyncSession) -> set[str]:
+    """Everything out on this barangay's other open alerts."""
+    result = await db.execute(
+        select(Alert.escalation_steps)
+        .join(Senior, Senior.id == Alert.senior_id)
+        .where(
+            _barangay_filter(barangay),
+            Senior.deleted_at.is_(None),
+            Alert.status == AlertStatus.ESCALATED,
+            Alert.id != alert.id,
+        )
+    )
+    out: set[str] = set()
+    for steps in result.scalars().all():
+        out |= _resources_out(steps)
+    return out
+
+
+@router.get("/pooks", response_model=list[PookSummary])
+async def list_barangay_pooks(
+    db: AsyncSession = Depends(get_db),
+    responder: User = Depends(responder_only),
+) -> list[Pook]:
+    """The responder's own pooks, for the dashboard's pook grid."""
+    barangay = _assigned_barangay(responder)
+    result = await db.execute(
+        select(Pook)
+        .where(func.lower(Pook.barangay) == barangay.strip().lower())
+        .order_by(Pook.sector.desc(), Pook.id)
+    )
+    return list(result.scalars().all())
+
+
+@router.post("/alerts/{sync_id}/dispatch", response_model=BarangayAlertOut)
+async def dispatch_incident(
+    sync_id: UUID,
+    payload: DispatchAction,
+    db: AsyncSession = Depends(get_db),
+    responder: User = Depends(responder_only),
+) -> BarangayAlertOut:
+    """Records one thing the operator did on an open alert, as a step on its timeline.
+
+    Sending someone also marks the alert as attended, so the dashboard's status and the family
+    app read the same as an Acknowledge. A team or service already out is refused with a 409,
+    so two operators cannot send the same one.
+    """
+    alert = await _responder_alert(sync_id, db, responder)
+    if alert.status != AlertStatus.ESCALATED:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This incident is not open at the barangay tier",
+        )
+    out_here = _resources_out(alert.escalation_steps)
+    step, extra = _dispatch_step(payload, out_here)
+
+    sending = extra.get("team") or (extra.get("service") if step == "help_requested" else None)
+    if sending:
+        if sending in out_here or sending in await _out_on_other_alerts(
+            alert, _assigned_barangay(responder), db
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"{sending} is already out on an alert.",
+            )
+
+    name = _responder_name(responder)
+    append_step(alert, step, by=name, **extra)
+    if sending and not _is_attending(alert.status, alert.escalation_steps):
+        append_step(alert, "acknowledged_barangay", by=name)
+    await db.commit()
+    # No db.refresh() here: it would expire the loaded `senior` and make _alert_out lazy-load,
+    # which fails on an async session.
+    return _alert_out(alert)
 
 
 @router.patch("/alerts/{sync_id}/acknowledge", response_model=BarangayAlertOut)
