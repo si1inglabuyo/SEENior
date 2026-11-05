@@ -1,6 +1,6 @@
 import enum
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 
 from sqlalchemy import Enum, Float, ForeignKey, JSON, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -185,6 +185,25 @@ class Pook(Base):
     # (including Hardin ng Rosas and Hardin ng Bougainvilla)".
     description: Mapped[str | None] = mapped_column(String(255), nullable=True)
     sector: Mapped[str] = mapped_column(String(16))  # "north" or "south"
+
+
+class HallClosedDay(Base):
+    """A weekday the barangay hall is shut (holiday, power cut), marked by a responder (migration 0021).
+
+    Weekends and the 8-to-5 hours are not rows: those live in `core/after_hours.py`. One row per
+    (barangay, Manila calendar day). The apps and the dashboard read the days from today on, so
+    an old row does nothing and needs no cleanup. It only changes what the apps *say* about when
+    a responder is on duty; escalation never reads it, so a stale row cannot hold back an alert.
+    """
+
+    __tablename__ = "hall_closed_days"
+    __table_args__ = (UniqueConstraint("barangay", "day", name="uq_hall_closed_day"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    barangay: Mapped[str] = mapped_column(String(128), index=True)
+    day: Mapped[date] = mapped_column()
+    set_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
 
 class Senior(Base):

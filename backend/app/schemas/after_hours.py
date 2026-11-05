@@ -23,3 +23,9 @@ class AfterHoursOut(BaseModel):
     version: int
     hall: HallHoursOut
     hotlines: list[HotlineOut]
+    # Extra weekdays the hall is shut, 'YYYY-MM-DD' in Manila, today onward.
+    closed_days: list[str] = []
+
+
+class ClosedDaysOut(BaseModel):
+    closed_days: list[str]
