@@ -107,7 +107,67 @@ object AlertEscalator {
      * alert never left the phone. Taken under [escalateLock] so it cannot race the escalation.
      * Returns the ids it closed.
      */
-    suspend fun clearForPhoneUse(context: Context, db: SeniorAppDatabase): List<Int> = escalateLock.withLock {
+    suspend fun clearForPhoneUse(context: Context, db: SeniorAppDatabase): List<Int> =
+        clearUnsentForPhoneUse(context, db) + clearEscalatedForPhoneUse(context, db)
+
+    /**
+     * Whether using the phone may close an alert that has already reached the cloud, so the
+     * family and the barangay know about it. Same routine triggers as [clearableByPhoneUse]; SOS
+     * and falls are never closed this way. The phone only asks: the server refuses if anyone has
+     * started working on the alert, see [clearEscalatedForPhoneUse].
+     */
+    fun escalatedClearableByPhoneUse(alert: Alert): Boolean =
+        (alert.status == "pending" || alert.status == "escalated_barangay") &&
+            alert.triggerType in PHONE_USE_CLEARABLE &&
+            alert.isSynced
+
+    /**
+     * The senior unlocked the phone while an alert the family or barangay already know about is
+     * open. The server decides: it closes the alert only if no family member or responder has
+     * taken it on, and answers with the alert either way. The phone closes its own row as
+     * `auto_cleared` only when the server did, so the three screens never disagree. If the phone
+     * is offline or the server refuses, nothing changes and the next unlock tries again.
+     * The cloud call is made outside [escalateLock] so a slow network never stalls escalation.
+     */
+    private suspend fun clearEscalatedForPhoneUse(context: Context, db: SeniorAppDatabase): List<Int> {
+        val senior = db.seniorDao().getOnboardedSenior() ?: return emptyList()
+        val cleared = mutableListOf<Int>()
+        for (alert in db.alertDao().getOpenAlerts()) {
+            if (alert.seniorId != senior.seniorId || !escalatedClearableByPhoneUse(alert)) continue
+            if (!askCloudToClearForPhoneUse(db, alert)) continue
+            escalateLock.withLock {
+                val current = db.alertDao().getById(alert.alertId) ?: return@withLock
+                if (!escalatedClearableByPhoneUse(current)) return@withLock
+                val now = System.currentTimeMillis()
+                db.alertDao().updateEscalationSteps(
+                    current.alertId,
+                    appendStep(
+                        appendStep(current.escalationSteps, "auto_cleared", now, mapOf("reason" to "phone_use")),
+                        STEP_CANCEL_SYNCED,
+                        now
+                    )
+                )
+                db.alertDao().updateStatus(current.alertId, "auto_cleared", now)
+                AlertAlarm.stop(current.alertId)
+                AlertNotifier.cancel(context, current.alertId)
+                EscalationScheduler.cancel(context, current.alertId)
+                cleared += current.alertId
+            }
+        }
+        return cleared
+    }
+
+    /** True only when the cloud reports the alert closed. Offline, refused or an error is false. */
+    private suspend fun askCloudToClearForPhoneUse(db: SeniorAppDatabase, alert: Alert): Boolean = try {
+        val reply = SeniorCloudSync(db).withCachedSyncId { seniorSyncId ->
+            RetrofitClient.api.cancelAlert(alert.syncId, CancelAlertRequest(seniorSyncId, reason = "phone_use"))
+        }
+        reply.status == "resolved"
+    } catch (e: Exception) {
+        false
+    }
+
+    private suspend fun clearUnsentForPhoneUse(context: Context, db: SeniorAppDatabase): List<Int> = escalateLock.withLock {
         val senior = db.seniorDao().getOnboardedSenior() ?: return emptyList()
         val cleared = mutableListOf<Int>()
         for (alert in db.alertDao().getPendingAlerts()) {

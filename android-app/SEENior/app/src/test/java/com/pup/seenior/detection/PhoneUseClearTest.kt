@@ -48,6 +48,26 @@ class PhoneUseClearTest {
     }
 
     @Test
+    fun anAlertThatReachedTheCloudMayBeClosedWhenTheServerAgrees() {
+        listOf("pending", "escalated_barangay").forEach {
+            assertTrue(it, AlertEscalator.escalatedClearableByPhoneUse(alert("inactivity", status = it, synced = true)))
+        }
+    }
+
+    @Test
+    fun escalatedSosFallsAndUnsyncedAlertsAreNeverAskedAbout() {
+        assertFalse(AlertEscalator.escalatedClearableByPhoneUse(alert("sos", synced = true)))
+        assertFalse(AlertEscalator.escalatedClearableByPhoneUse(alert("fall_pattern", synced = true)))
+        assertFalse(AlertEscalator.escalatedClearableByPhoneUse(alert("inactivity", synced = false)))
+    }
+
+    @Test
+    fun escalatedClearOnlyForOpenStatuses() {
+        listOf("logged", "self_cancelled", "acknowledged_family", "resolved", "auto_cleared", "false_positive")
+            .forEach { assertFalse(it, AlertEscalator.escalatedClearableByPhoneUse(alert("inactivity", status = it, synced = true))) }
+    }
+
+    @Test
     fun clearedStatusIsOutsideTheFalseAlarmStatuses() {
         // Mirrors AlertDao.getToleratedDeviationScores: only these two feed the tolerance.
         val feedsTolerance = setOf("self_cancelled", "false_positive")

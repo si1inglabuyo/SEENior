@@ -432,6 +432,37 @@ def append_step(alert: Alert, step: str, **extra: str | None) -> None:
     alert.escalation_steps = steps
 
 
+# Routine anomalies only, mirroring AlertEscalator.PHONE_USE_CLEARABLE on the phone. A hurt but
+# conscious senior may still use the phone, and a fallen phone may be picked up by someone else.
+PHONE_USE_CLEARABLE = {
+    TriggerType.INACTIVITY,
+    TriggerType.MOVEMENT,
+    TriggerType.SCREEN_IDLE,
+    TriggerType.CHARGING,
+    TriggerType.ML_FLAG,
+}
+# Timeline steps showing a person has taken the alert on. Once any exists, only a person closes it.
+WORK_STEPS = {
+    "acknowledged_family",
+    "acknowledged_barangay",
+    "team_sent",
+    "help_requested",
+    "responder_unavailable",
+    "call_result",
+}
+
+
+def phone_use_may_close(alert: Alert) -> bool:
+    """Whether the senior using their phone may close this alert, family and barangay included."""
+    if alert.trigger_type not in PHONE_USE_CLEARABLE:
+        return False
+    if alert.status == AlertStatus.ACKNOWLEDGED:  # family took it on
+        return False
+    return not any(
+        isinstance(s, dict) and s.get("step") in WORK_STEPS for s in (alert.escalation_steps or [])
+    )
+
+
 @router.patch("/{sync_id}/cancel", response_model=AlertOut)
 async def cancel_alert(
     sync_id: UUID,
@@ -460,10 +491,19 @@ async def cancel_alert(
     if alert.status in (AlertStatus.RESOLVED, AlertStatus.FALSE_POSITIVE):
         return alert
 
+    phone_use = payload.reason == "phone_use"
+    if phone_use and not phone_use_may_close(alert):
+        # Somebody has started working on it, or it is an SOS or a fall. A phone being used
+        # proves nothing about those, so it stays open. The unchanged alert tells the phone.
+        return alert
+
     alert.status = AlertStatus.RESOLVED
     alert.resolved_at = datetime.now(timezone.utc).replace(tzinfo=None)
-    # RESOLVED, with the timeline recording that the senior closed it, so no new enum value.
-    append_step(alert, "self_cancelled_senior", by=alert.senior.first_name)
+    # RESOLVED, with the timeline recording who closed it, so no new enum value.
+    if phone_use:
+        append_step(alert, "auto_cleared_phone_use")
+    else:
+        append_step(alert, "self_cancelled_senior", by=alert.senior.first_name)
     await db.commit()
     await db.refresh(alert)
     return alert

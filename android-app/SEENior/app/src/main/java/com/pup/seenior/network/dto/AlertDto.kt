@@ -47,7 +47,10 @@ data class CreateAlertRequest(
 /** Mirrors backend AlertCancel. The senior's id travels with the alert's so the server can
  *  check they belong together; the senior has no account, so this pairing is the credential. */
 data class CancelAlertRequest(
-    val seniorSyncId: String
+    val seniorSyncId: String,
+    // "phone_use" when the senior only used their phone and said nothing: the server then closes
+    // the alert only if nobody has started working on it. Null is the senior's own answer.
+    val reason: String? = null
 )
 
 /** Mirrors backend AlertSeverityUpdate: an already-sent alert that Layer 1 re-classified
