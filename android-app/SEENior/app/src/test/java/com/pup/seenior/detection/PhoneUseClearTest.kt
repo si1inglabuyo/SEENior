@@ -23,15 +23,14 @@ class PhoneUseClearTest {
 
     @Test
     fun routineAnomaliesAreClearable() {
-        listOf("inactivity", "movement", "screen_idle", "charging", "ml_flag").forEach {
+        listOf("inactivity", "movement", "screen_idle", "charging", "ml_flag", "fall_pattern").forEach {
             assertTrue(it, AlertEscalator.clearableByPhoneUse(alert(it)))
         }
     }
 
     @Test
-    fun sosAndFallsAreNeverClearable() {
+    fun sosIsNeverClearable() {
         assertFalse(AlertEscalator.clearableByPhoneUse(alert("sos")))
-        assertFalse(AlertEscalator.clearableByPhoneUse(alert("fall_pattern")))
     }
 
     @Test
@@ -45,6 +44,26 @@ class PhoneUseClearTest {
     fun onlyPendingAlertsAreClearable() {
         listOf("logged", "self_cancelled", "acknowledged_family", "escalated_barangay", "resolved", "auto_cleared")
             .forEach { assertFalse(it, AlertEscalator.clearableByPhoneUse(alert("inactivity", status = it))) }
+    }
+
+    @Test
+    fun anAlertThatReachedTheCloudMayBeClosedWhenTheServerAgrees() {
+        listOf("pending", "escalated_barangay").forEach {
+            assertTrue(it, AlertEscalator.escalatedClearableByPhoneUse(alert("inactivity", status = it, synced = true)))
+        }
+    }
+
+    @Test
+    fun escalatedSosAndUnsyncedAlertsAreNeverAskedAbout() {
+        assertFalse(AlertEscalator.escalatedClearableByPhoneUse(alert("sos", synced = true)))
+        assertTrue(AlertEscalator.escalatedClearableByPhoneUse(alert("fall_pattern", synced = true)))
+        assertFalse(AlertEscalator.escalatedClearableByPhoneUse(alert("inactivity", synced = false)))
+    }
+
+    @Test
+    fun escalatedClearOnlyForOpenStatuses() {
+        listOf("logged", "self_cancelled", "acknowledged_family", "resolved", "auto_cleared", "false_positive")
+            .forEach { assertFalse(it, AlertEscalator.escalatedClearableByPhoneUse(alert("inactivity", status = it, synced = true))) }
     }
 
     @Test

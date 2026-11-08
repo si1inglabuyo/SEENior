@@ -188,6 +188,10 @@ interface AlertDao {
     @Query("SELECT * FROM Alerts WHERE status = 'pending' ORDER BY triggered_at ASC")
     suspend fun getPendingAlerts(): List<Alert>
 
+    /** Alerts still open, including ones the barangay tier has been told about. For the phone-use clear. */
+    @Query("SELECT * FROM Alerts WHERE status IN ('pending', 'escalated_barangay') ORDER BY triggered_at ASC")
+    suspend fun getOpenAlerts(): List<Alert>
+
     @Query("UPDATE Alerts SET status = :status, resolved_at = :resolvedAt WHERE alert_id = :alertId")
     suspend fun updateStatus(alertId: Int, status: String, resolvedAt: Long? = null)
 

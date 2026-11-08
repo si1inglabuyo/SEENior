@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -52,6 +53,10 @@ class AlertCancel(BaseModel):
     """
 
     senior_sync_id: UUID
+    # "phone_use": the senior merely used their phone, they did not say anything. The server
+    # closes the alert only if nobody has started working on it; otherwise it stays open and the
+    # unchanged alert comes back. Absent means the senior answered themselves.
+    reason: Literal["phone_use"] | None = None
 
 
 class AlertSeverityUpdate(BaseModel):
