@@ -49,8 +49,8 @@ function CallFirst({ alert, call, busy, onSend, onResolve }) {
 }
 
 // A phone number shown large so it can be read across the desk, with a Copy button for dialling
-// it on the staff's own phone and a tel: link for computers that can place calls.
-function CopyNumber({ display, dial, big }) {
+// it on the staff's own phone. Calls are placed by hand, so there is no Call link.
+function CopyNumber({ display, big }) {
   const [copied, setCopied] = useState(false)
 
   async function copy() {
@@ -69,9 +69,6 @@ function CopyNumber({ display, dial, big }) {
       <button type="button" className="btn-outline copy-number-btn" onClick={copy}>
         {copied ? 'Copied' : 'Copy'}
       </button>
-      <a className="copy-number-call" href={`tel:${dial.replace(/[^\d+]/g, '')}`}>
-        Call
-      </a>
     </span>
   )
 }
@@ -83,7 +80,7 @@ function PookResponderCard({ alert, pook, reached, outElsewhere, unavailable, bu
     <div className="dispatch-action">
       <p className="dispatch-action-title">Phone the {pook.name} responder</p>
       <p className="pook-responder-line">{name}</p>
-      <CopyNumber display={pook.responder_phone} dial={pook.responder_phone} big />
+      <CopyNumber display={pook.responder_phone} big />
       {reached ? (
         <p className="dispatch-hint tone-green">{name} is on the way.</p>
       ) : outElsewhere ? (
@@ -159,7 +156,7 @@ function OutsideHelp({ alert, services, mine, out, hotlines, busy, onSend }) {
               <div className="outside-help-who">
                 <span className="outside-help-name">{service}</span>
                 {numbersOf(service).map((n) => (
-                  <CopyNumber key={n.dial} display={n.display} dial={n.dial} />
+                  <CopyNumber key={n.dial} display={n.display} />
                 ))}
               </div>
               <button
