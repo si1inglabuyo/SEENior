@@ -15,7 +15,7 @@ export default function AlertRow({ alert, onShowDetails, dispatch, afterHours = 
 
   return (
     <li
-      className="queue-row queue-row-clickable"
+      className={`queue-row queue-row-clickable${dispatch && dispatch.tier <= 2 && dispatch.tone !== 'green' ? ' queue-row-urgent' : ''}`}
       role="button"
       tabIndex={0}
       onClick={() => onShowDetails(alert)}

@@ -692,6 +692,28 @@ h4 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase;
 .details-action-danger:hover:not(:disabled) { border-color: var(--high); background: var(--danger-soft); }
 .details-action-ok { color: var(--ok); border-color: #bfe3cd; }
 .details-action-ok:hover:not(:disabled) { border-color: var(--ok); background: var(--ok-soft); }
+.urgent-banner {
+  position: sticky; top: 0; z-index: 40; display: flex; align-items: center; justify-content: space-between;
+  gap: 16px; flex-wrap: wrap; margin-bottom: 14px; padding: 12px 16px; border-radius: 10px;
+  background: var(--high); color: #fff; animation: urgent-pulse 1.6s ease-in-out infinite;
+}
+.urgent-banner-text { display: flex; flex-wrap: wrap; gap: 6px; font-size: 15px; }
+.urgent-banner-btns { display: flex; gap: 8px; }
+.urgent-banner-btn {
+  font: inherit; font-size: 13px; font-weight: 700; padding: 7px 14px; border-radius: 8px; cursor: pointer;
+  border: 1px solid #fff; background: #fff; color: var(--high);
+}
+.urgent-banner-btn:disabled { opacity: 0.7; cursor: default; }
+@keyframes urgent-pulse { 50% { box-shadow: 0 0 0 4px rgba(196, 69, 60, 0.35); } }
+@media (prefers-reduced-motion: reduce) { .urgent-banner { animation: none; } }
+.queue-row-urgent { border-left: 4px solid var(--high); background: var(--danger-soft); }
+.remark-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.remark-chip {
+  font: inherit; font-size: 13px; padding: 6px 12px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--line); background: #fff; color: var(--ink);
+}
+.remark-chip:hover { border-color: var(--ink); }
+.remark-chip.is-on { background: var(--ok-soft); border-color: var(--ok); color: var(--ok); font-weight: 700; }
 .details-remarks { display: grid; gap: 6px; margin-top: 10px; font-size: 13px; font-weight: 700; }
 .details-remarks textarea {
   font: inherit; font-weight: 400; font-size: 14px; padding: 9px 12px;

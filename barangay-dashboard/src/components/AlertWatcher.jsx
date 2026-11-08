@@ -1,6 +1,6 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { api, POLL_MS } from '../api'
-import { triggerLabel } from '../labels'
+import { isAttending, triggerLabel } from '../labels'
 
 // Always mounted while signed in. Polls the active queue and, when a new incident appears,
 // alerts the responder with a chime, a browser notification (if permitted) and a count in
@@ -52,9 +52,20 @@ function playChime() {
   }
 }
 
-// An SOS or a High-risk incident keeps sounding until the responder reacts to it.
+// An SOS, a fall or a High-risk incident keeps sounding, and keeps a red banner on every page,
+// until somebody takes a step on it (any dispatch step marks it attended). Clicking elsewhere
+// does not silence it; the banner's Silence button mutes it for a minute.
 const REPEAT_MS = 4000
-const isUrgent = (a) => a.trigger_type === 'sos' || a.risk_level === 'high'
+const SILENCE_MS = 60_000
+// Older than this and it is stale test data or yesterday's problem, not something to ring for.
+const WAITING_MAX_AGE_MS = 24 * 60 * 60 * 1000
+const isUrgent = (a) => a.trigger_type === 'sos' || a.trigger_type === 'fall_pattern' || a.risk_level === 'high'
+const urgentLabel = (a) => (a.trigger_type === 'sos' ? 'SOS' : a.trigger_type === 'fall_pattern' ? 'Fall' : 'High risk')
+const ageMs = (a) => Date.now() - Date.parse(/(Z|[+-]\d{2}:\d{2})$/.test(a.created_at) ? a.created_at : `${a.created_at}Z`)
+
+// Urgent alerts that reached the barangay and nobody has started on.
+const waitingOn = (list) =>
+  list.filter((a) => isUrgent(a) && a.status === 'escalated' && !isAttending(a) && ageMs(a) < WAITING_MAX_AGE_MS)
 
 export default function AlertWatcher({ onSessionLost, onGoToAlerts }) {
   const knownIds = useRef(null) // Set<sync_id> from the previous poll; null until first load
@@ -65,6 +76,15 @@ export default function AlertWatcher({ onSessionLost, onGoToAlerts }) {
     goToAlerts.current = onGoToAlerts
   }, [onGoToAlerts])
   const repeatTimer = useRef(null)
+  const silenceTimer = useRef(null)
+  const [waiting, setWaiting] = useState([])
+  const [silenced, setSilenced] = useState(false)
+
+  function silence() {
+    setSilenced(true)
+    clearTimeout(silenceTimer.current)
+    silenceTimer.current = setTimeout(() => setSilenced(false), SILENCE_MS)
+  }
 
   function stopRepeating() {
     if (repeatTimer.current) {
@@ -73,11 +93,11 @@ export default function AlertWatcher({ onSessionLost, onGoToAlerts }) {
     }
   }
 
-  // Unlocks audio on the first gesture, and silences a repeating alarm on any later one.
+  // Unlocks audio on the first gesture. It does not stop the alarm: only acting on the alert
+  // (or the banner's Silence button) does.
   useEffect(() => {
     function onGesture() {
       audioContext()
-      stopRepeating()
     }
     window.addEventListener('pointerdown', onGesture)
     window.addEventListener('keydown', onGesture)
@@ -85,8 +105,18 @@ export default function AlertWatcher({ onSessionLost, onGoToAlerts }) {
       window.removeEventListener('pointerdown', onGesture)
       window.removeEventListener('keydown', onGesture)
       stopRepeating()
+      clearTimeout(silenceTimer.current)
     }
   }, [])
+
+  // Sounds while an urgent alert is waiting and the banner has not been silenced.
+  useEffect(() => {
+    if (waiting.length === 0 || silenced) {
+      stopRepeating()
+      return
+    }
+    if (!repeatTimer.current) repeatTimer.current = setInterval(playChime, REPEAT_MS)
+  }, [waiting, silenced])
 
   useEffect(() => {
     ensureNotificationPermission()
@@ -102,6 +132,7 @@ export default function AlertWatcher({ onSessionLost, onGoToAlerts }) {
       }
       if (cancelled || !Array.isArray(list)) return
 
+      setWaiting(waitingOn(list))
       const ids = new Set(list.map((a) => a.sync_id))
       if (knownIds.current === null) {
         knownIds.current = ids // first load after a page open -- adopt silently
@@ -113,9 +144,6 @@ export default function AlertWatcher({ onSessionLost, onGoToAlerts }) {
       if (fresh.length === 0) return
 
       playChime()
-      if (fresh.some(isUrgent) && !repeatTimer.current) {
-        repeatTimer.current = setInterval(playChime, REPEAT_MS)
-      }
       unseenCount.current += fresh.length
       document.title = `(${unseenCount.current}) ${baseTitle.current}`
 
@@ -152,7 +180,6 @@ export default function AlertWatcher({ onSessionLost, onGoToAlerts }) {
   useEffect(() => {
     function clearBadge() {
       if (document.visibilityState === 'visible') {
-        stopRepeating()
         unseenCount.current = 0
         document.title = baseTitle.current
       }
@@ -165,5 +192,28 @@ export default function AlertWatcher({ onSessionLost, onGoToAlerts }) {
     }
   }, [])
 
-  return null
+  if (waiting.length === 0) return null
+  const first = waiting[0]
+  return (
+    <div className="urgent-banner" role="alert">
+      <div className="urgent-banner-text">
+        <strong>
+          {urgentLabel(first)}: {first.senior_name}
+          {first.senior_pook ? ` · ${first.senior_pook}` : ''}
+        </strong>
+        <span>
+          {waiting.length > 1 ? ` and ${waiting.length - 1} more` : ''} not attended yet. Phone the
+          pook responder.
+        </span>
+      </div>
+      <div className="urgent-banner-btns">
+        <button type="button" className="urgent-banner-btn" onClick={() => goToAlerts.current?.()}>
+          Open alerts
+        </button>
+        <button type="button" className="urgent-banner-btn" onClick={silence} disabled={silenced}>
+          {silenced ? 'Silenced for 1 min' : 'Silence 1 min'}
+        </button>
+      </div>
+    </div>
+  )
 }

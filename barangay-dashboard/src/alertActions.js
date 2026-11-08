@@ -9,6 +9,9 @@ export const ALERT_ACTIONS = {
     confirmLabel: 'Resolve',
     tone: 'ok',
     successMessage: 'Successfully Marked as Resolved',
+    // Resolved is the ordinary way to finish, so it closes on the first tap. False Alert still
+    // asks, because it also teaches the detector to be less sensitive.
+    confirm: false,
     // Path segment for PATCH /barangay/alerts/{sync_id}/{endpoint}.
     endpoint: 'resolve',
   },

@@ -171,7 +171,16 @@ function FallContext({ alert }) {
   )
 }
 
-// The three action buttons sit below the map. The remarks box is optional; a note is
+// One tap fills the remark below, which can still be edited. Saved with the status change.
+const REMARK_CHIPS = [
+  'Called, senior fine',
+  'Responder attended, senior safe',
+  'Family already with senior',
+  'Could not reach, family handling it',
+  'Test or duplicate alert',
+]
+
+// The action buttons sit below the map. The remarks box is optional; a note is
 // saved with the status change.
 function IncidentActions({ alert, onAct, busy }) {
   const [remarks, setRemarks] = useState('')
@@ -193,6 +202,19 @@ function IncidentActions({ alert, onAct, busy }) {
             onClick={() => onAct(alert, key, remarks)}
           >
             {label}
+          </button>
+        ))}
+      </div>
+      <div className="remark-chips" role="group" aria-label="Quick remarks">
+        {REMARK_CHIPS.map((chip) => (
+          <button
+            key={chip}
+            type="button"
+            className={remarks === chip ? 'remark-chip is-on' : 'remark-chip'}
+            aria-pressed={remarks === chip}
+            onClick={() => setRemarks(remarks === chip ? '' : chip)}
+          >
+            {chip}
           </button>
         ))}
       </div>
