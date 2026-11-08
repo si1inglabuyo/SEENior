@@ -339,8 +339,9 @@ async def dispatch_incident(
 ) -> BarangayAlertOut:
     """Records one thing the operator did on an open alert, as a step on its timeline.
 
-    Sending someone also marks the alert as attended, so the dashboard's status and the family
-    app read the same as an Acknowledge. A team or service already out is refused with a 409,
+    Any action (a call result, reaching or missing the pook's responder, requesting help) also
+    marks the alert as attended, so the dashboard's status and the family app read the same as an
+    Acknowledge. A team or service already out is refused with a 409,
     so two operators cannot send the same one.
     """
     alert = await _responder_alert(sync_id, db, responder)
@@ -368,7 +369,9 @@ async def dispatch_incident(
 
     name = _responder_name(responder)
     append_step(alert, step, by=name, **extra)
-    if sending and not _is_attending(alert.status, alert.escalation_steps):
+    # Acting on an alert is claiming it, so the first thing an operator does marks it attended
+    # and the Acknowledge click is not needed. Cancelling a request is only an undo, not a claim.
+    if step != "help_cancelled" and not _is_attending(alert.status, alert.escalation_steps):
         append_step(alert, "acknowledged_barangay", by=name)
     await db.commit()
     # No db.refresh() here: it would expire the loaded `senior` and make _alert_out lazy-load,
