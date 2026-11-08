@@ -6,6 +6,8 @@ import { api } from '../api'
 // exactly as it did until the backend side is deployed.
 export function useDispatch({ onReload, onSessionLost }) {
   const [pooks, setPooks] = useState(null)
+  // The emergency hotlines the apps show after hours, reused here as the outside-help list.
+  const [hotlines, setHotlines] = useState([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
@@ -22,6 +24,12 @@ export function useDispatch({ onReload, onSessionLost }) {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     loadPooks()
   }, [loadPooks])
+
+  useEffect(() => {
+    api('/config/after-hours')
+      .then((config) => setHotlines(Array.isArray(config?.hotlines) ? config.hotlines : []))
+      .catch(() => setHotlines([]))
+  }, [])
 
   // Each action becomes one step on the alert's timeline. Reloads either way, so a refused
   // action still shows the server's current state.
@@ -57,5 +65,5 @@ export function useDispatch({ onReload, onSessionLost }) {
     }
   }
 
-  return { pooks, busy, error, send, savePookResponder, clearError: () => setError('') }
+  return { pooks, hotlines, busy, error, send, savePookResponder, clearError: () => setError('') }
 }

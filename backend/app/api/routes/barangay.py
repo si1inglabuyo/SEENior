@@ -256,6 +256,10 @@ def _dispatch_step(payload: DispatchAction, out_here: set[str]) -> tuple[str, di
     service = (payload.service or "").strip()
     if payload.action == "send_team" and team:
         return "team_sent", {"team": team}
+    if payload.action == "responder_unavailable" and team:
+        # The pook's responder was phoned and could not come. Only a note on the timeline: it
+        # sends nobody and does not mark the alert as attended.
+        return "responder_unavailable", {"team": team}
     if payload.action == "request_help" and service:
         return "help_requested", {"service": service}
     if payload.action == "cancel_help" and service in out_here:
@@ -348,7 +352,11 @@ async def dispatch_incident(
     out_here = _resources_out(alert.escalation_steps)
     step, extra = _dispatch_step(payload, out_here)
 
-    sending = extra.get("team") or (extra.get("service") if step == "help_requested" else None)
+    sending = None
+    if step == "team_sent":
+        sending = extra.get("team")
+    elif step == "help_requested":
+        sending = extra.get("service")
     if sending:
         if sending in out_here or sending in await _out_on_other_alerts(
             alert, _assigned_barangay(responder), db

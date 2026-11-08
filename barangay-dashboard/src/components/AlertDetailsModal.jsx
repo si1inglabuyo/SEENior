@@ -273,6 +273,8 @@ export default function AlertDetailsModal({ alert, onClose, onAct, actionBusy, d
           <DispatchPanel
             alert={alert}
             activeAlerts={activeAlerts}
+            pooks={dispatch.pooks}
+            hotlines={dispatch.hotlines}
             teamList={dispatch.teamList}
             serviceList={dispatch.serviceList}
             busy={dispatch.busy}
