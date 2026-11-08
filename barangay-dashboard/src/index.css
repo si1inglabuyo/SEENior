@@ -1042,8 +1042,10 @@ h4 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase;
 .copy-number-big { font-size: 26px; letter-spacing: 0.02em; }
 .copy-number-small { font-size: 15px; }
 .copy-number-btn { min-height: 32px; padding: 4px 10px; }
-.copy-number-call { font-size: 13px; }
 .outside-help { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
 .outside-help-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
 .outside-help-who { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .outside-help-name { font-weight: 600; font-size: 14px; }
+.queue-row-phone { margin: 2px 0 0; font-size: 14px; font-weight: 700; }
+.queue-row-phone a { color: inherit; text-decoration: none; }
+.queue-row-phone a:hover { text-decoration: underline; }

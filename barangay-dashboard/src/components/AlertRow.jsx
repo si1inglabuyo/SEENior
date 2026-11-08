@@ -1,5 +1,6 @@
 import { alertCategory, CATEGORY_CLASS, CATEGORY_LABEL, displayStatus, pookTitle } from '../labels'
 import { initials, dateTimeLabel } from '../format'
+import { isActiveAlert } from '../historyFilters'
 import StatusPill from './StatusPill'
 
 // One incident row, shared by the Alerts queue and Alert History's chronological view --
@@ -32,6 +33,18 @@ export default function AlertRow({ alert, onShowDetails, dispatch, afterHours = 
         <p className="queue-row-meta">
           <span className="queue-row-time">{dateTimeLabel(alert.created_at)}</span>
         </p>
+        {/* Only while the incident is open: the responder needs the number to call at once. */}
+        {isActiveAlert(alert) && alert.senior_mobile && (
+          <p className="queue-row-phone">
+            <a
+              href={`tel:${alert.senior_mobile.replace(/\s/g, '')}`}
+              onClick={(e) => e.stopPropagation()}
+              onKeyDown={(e) => e.stopPropagation()}
+            >
+              {alert.senior_mobile}
+            </a>
+          </p>
+        )}
         {dispatch && (
           <p className={`queue-row-dispatch tone-${dispatch.tone}`}>{dispatch.text}</p>
         )}
