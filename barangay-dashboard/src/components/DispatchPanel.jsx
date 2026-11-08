@@ -48,29 +48,10 @@ function CallFirst({ alert, call, busy, onSend, onResolve }) {
   )
 }
 
-// A phone number shown large so it can be read across the desk, with a Copy button for dialling
-// it on the staff's own phone. Calls are placed by hand, so there is no Call link.
+// A phone number shown large so it can be read across the desk. Calls are placed by hand, so
+// there is no Call link and no Copy button.
 function CopyNumber({ display, big }) {
-  const [copied, setCopied] = useState(false)
-
-  async function copy() {
-    try {
-      await navigator.clipboard.writeText(display)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1800)
-    } catch {
-      /* clipboard blocked -- the number is still on screen to read */
-    }
-  }
-
-  return (
-    <span className="copy-number">
-      <strong className={big ? 'copy-number-big' : 'copy-number-small'}>{display}</strong>
-      <button type="button" className="btn-outline copy-number-btn" onClick={copy}>
-        {copied ? 'Copied' : 'Copy'}
-      </button>
-    </span>
-  )
+  return <strong className={big ? 'copy-number-big' : 'copy-number-small'}>{display}</strong>
 }
 
 // The pook's designated responder: the first person the desk staff phone for this area.
@@ -155,9 +136,11 @@ function OutsideHelp({ alert, services, mine, out, hotlines, busy, onSend }) {
             <li key={service} className="outside-help-row">
               <div className="outside-help-who">
                 <span className="outside-help-name">{service}</span>
-                {numbersOf(service).map((n) => (
-                  <CopyNumber key={n.dial} display={n.display} />
-                ))}
+                <span className="outside-help-numbers">
+                  {numbersOf(service).map((n) => (
+                    <CopyNumber key={n.dial} display={n.display} />
+                  ))}
+                </span>
               </div>
               <button
                 type="button"
