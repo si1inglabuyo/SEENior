@@ -1047,3 +1047,6 @@ h4 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase;
 .outside-help-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
 .outside-help-who { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .outside-help-name { font-weight: 600; font-size: 14px; }
+.queue-row-phone { margin: 2px 0 0; font-size: 14px; font-weight: 700; }
+.queue-row-phone a { color: inherit; text-decoration: none; }
+.queue-row-phone a:hover { text-decoration: underline; }
