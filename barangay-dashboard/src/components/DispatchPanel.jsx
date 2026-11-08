@@ -235,7 +235,7 @@ export default function DispatchPanel({
       </div>
       <p className={`dispatch-state tone-${tone}`}>{text}</p>
       {!isAttending(alert) && (
-        <p className="dispatch-hint muted">Any step below marks you as attending. No need to Acknowledge first.</p>
+        <p className="dispatch-hint muted">Any step below marks you as attending.</p>
       )}
 
       {callFirst && teams.length === 0 && (

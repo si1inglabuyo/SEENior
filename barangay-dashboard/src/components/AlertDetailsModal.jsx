@@ -177,7 +177,6 @@ function IncidentActions({ alert, onAct, busy }) {
   const [remarks, setRemarks] = useState('')
 
   const BUTTONS = [
-    { key: 'acknowledge', label: 'Acknowledge', cls: '' },
     { key: 'resolve', label: 'Resolved', cls: 'details-action-ok' },
     { key: 'falsePositive', label: 'False Alert', cls: 'details-action-danger' },
   ]
