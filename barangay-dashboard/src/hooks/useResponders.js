@@ -1,12 +1,14 @@
 import { useState } from 'react'
-import { DEFAULT_SERVICES, DEFAULT_TEAMS, responderProblem } from '../dispatch'
+import { DEFAULT_SERVICES, DEFAULT_TEAMS, RETIRED_SERVICES, responderProblem } from '../dispatch'
 
 const KEY = 'seenior.responders'
 
 function loadLists() {
   try {
     const saved = JSON.parse(localStorage.getItem(KEY))
-    if (Array.isArray(saved?.teams) && Array.isArray(saved?.services)) return saved
+    if (Array.isArray(saved?.teams) && Array.isArray(saved?.services)) {
+      return { ...saved, services: saved.services.filter((name) => !RETIRED_SERVICES.includes(name)) }
+    }
   } catch {
     /* unreadable or blocked storage -- fall through to the starting lists */
   }

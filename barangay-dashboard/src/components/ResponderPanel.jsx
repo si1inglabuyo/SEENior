@@ -1,39 +1,39 @@
 import { useState } from 'react'
 import { resourcesOut } from '../dispatch'
 import { IconBuilding } from '../icons'
+import { PookRow } from './PookResponders'
 import ResponderManager from './ResponderManager'
 import SectionCard from './SectionCard'
 
-// Who the barangay still has free. Worked out from the open alerts, so a team is available
-// again as soon as its alert closes. Anyone out stays listed even if this browser's list does
-// not have them, because another computer may have sent them.
+// Each pook with its designated responder and number, editable by whoever monitors the dashboard.
+// A responder who is out on an open alert shows as out, worked out from the open alerts so they
+// are free again as soon as that alert closes.
 export default function ResponderPanel({ alerts, responders, pooks, onSavePook }) {
   const [managing, setManaging] = useState(false)
   const out = resourcesOut(alerts)
-  const names = [...new Set([...responders.teams, ...responders.services, ...Object.keys(out)])]
-  const free = names.filter((name) => !(name in out)).length
   return (
     <SectionCard
       icon={<IconBuilding />}
       title="Responders"
-      action={<span className="pook-grid-hint">{free} of {names.length} free</span>}
+      action={<span className="pook-grid-hint">One per pook. Edit to change</span>}
       className="responder-panel"
     >
-      {names.length === 0 && <p className="muted responder-none">No responders yet.</p>}
-      <ul className="responder-list">
-        {names.map((name) => (
-          <li key={name}>
-            <span>{name}</span>
-            {name in out ? (
-              <span className="responder-out">Out · {out[name]}</span>
-            ) : (
-              <span className="responder-free">Available</span>
-            )}
-          </li>
-        ))}
-      </ul>
+      {!pooks || pooks.length === 0 ? (
+        <p className="muted responder-none">No pooks loaded yet.</p>
+      ) : (
+        <ul className="responder-list responder-pooks">
+          {pooks.map((pook) => (
+            <PookRow
+              key={pook.id}
+              pook={pook}
+              onSave={onSavePook}
+              outAt={pook.responder_name ? out[pook.responder_name] : undefined}
+            />
+          ))}
+        </ul>
+      )}
       <button type="button" className="btn-outline responder-manage" onClick={() => setManaging(true)}>
-        Manage responders
+        Manage hall teams
       </button>
       {managing && (
         <ResponderManager

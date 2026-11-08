@@ -13,7 +13,10 @@
 
 // The starting lists, until an admin edits them under Responders (see useResponders).
 export const DEFAULT_TEAMS = ['Tanod team 1', 'Tanod team 2', 'BHERT team']
-export const DEFAULT_SERVICES = ['Ambulance', 'Health station nurse', 'PRC volunteers', 'BFP volunteers']
+export const DEFAULT_SERVICES = []
+// The starting list used to hold these four. Browsers that saved it still have them, so they are
+// dropped when the list is loaded.
+export const RETIRED_SERVICES = ['Ambulance', 'Health station nurse', 'PRC volunteers', 'BFP volunteers']
 
 // Mirrors the limit on DispatchAction in backend/app/schemas/barangay.py.
 export const MAX_RESPONDER_NAME = 64

@@ -225,7 +225,7 @@ export default function DispatchPanel({
         <>
           <p className="dispatch-hint muted">
             {pook
-              ? `No responder is set for ${pook.name}. Set one under Manage responders.`
+              ? `No responder is set for ${pook.name}. Set one in the Responders panel.`
               : 'This senior has no pook on file, so there is no responder to phone.'}
           </p>
           <HallTeams
