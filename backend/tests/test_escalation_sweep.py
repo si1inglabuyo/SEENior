@@ -181,6 +181,40 @@ def test_sos_notifies_family_and_barangay_in_the_same_pass(monkeypatch, sent):
     assert alert.escalation_steps[-1]["reason"] == "SOS pressed by the senior"
 
 
+def test_the_sweep_still_picks_up_an_sos_the_family_acknowledged(monkeypatch, sent):
+    """Family tapping Acknowledge must not keep an SOS off the dashboard (seen 2026-11-09:
+    acknowledged 12 s after the press, never escalated). The fake DB ignores the query, so the
+    selection rule is checked on the SQL itself."""
+    seen = []
+
+    class Db(_FakeDb):
+        async def execute(self, statement):
+            seen.append(str(statement.compile(compile_kwargs={"literal_binds": True})))
+            return await super().execute(statement)
+
+    async def now(_db):
+        return CREATED
+
+    monkeypatch.setattr(escalation, "db_now", now)
+    asyncio.run(escalation.sweep_overdue_alerts(Db([])))
+    sql = seen[0]
+    assert "alerts.status = 'PENDING'" in sql or "alerts.status = 'pending'" in sql
+    assert "ACKNOWLEDGED" in sql.upper() and "SOS" in sql.upper()
+
+
+def test_an_acknowledged_sos_is_escalated_but_other_acknowledged_alerts_are_left_alone(
+    monkeypatch, sent
+):
+    sos = _alert(TriggerType.SOS, steps=[{"step": "escalated_family"}, {"step": "acknowledged_family"}])
+    sos.status = AlertStatus.ACKNOWLEDGED
+    deadline = (escalation.family_deadline(sos) - CREATED).total_seconds()
+    counts, _ = _sweep(monkeypatch, [sos], deadline)
+
+    assert counts == (0, 1)  # family were already told; only the barangay is added
+    assert sos.status == AlertStatus.ESCALATED
+    assert _steps(sos)[-1] == "escalated_barangay_auto"
+
+
 def test_a_senior_with_no_family_goes_straight_to_the_barangay(monkeypatch, sent):
     alert = _alert(contacts=[])
     deadline = (escalation.family_deadline(alert) - CREATED).total_seconds()

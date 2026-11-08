@@ -11,7 +11,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
-from sqlalchemy import select, text
+from sqlalchemy import and_, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -142,7 +142,15 @@ async def sweep_overdue_alerts(db: AsyncSession) -> tuple[int, int]:
         select(Alert)
         .join(Senior, Senior.id == Alert.senior_id)
         .where(
-            Alert.status == AlertStatus.PENDING,
+            # Family tapping Acknowledge halts the clock for everything except an SOS, which
+            # goes to the barangay on its own deadline whatever family do.
+            or_(
+                Alert.status == AlertStatus.PENDING,
+                and_(
+                    Alert.status == AlertStatus.ACKNOWLEDGED,
+                    Alert.trigger_type == TriggerType.SOS,
+                ),
+            ),
             Alert.risk_level != RiskLevel.LOW,
             # Skip seniors who deleted their account.
             Senior.deleted_at.is_(None),

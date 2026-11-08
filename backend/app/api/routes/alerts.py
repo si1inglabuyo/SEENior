@@ -595,7 +595,9 @@ async def acknowledge_alert(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> Alert:
-    """Family taps "Acknowledge Alert", which halts the barangay escalation clock."""
+    """Family taps "Acknowledge Alert", which halts the barangay escalation clock.
+
+    Not for an SOS: the sweep still sends an acknowledged SOS to the barangay on schedule."""
     alert = await _family_alert(sync_id, db, current_user)
     if alert.status != AlertStatus.PENDING:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Alert is not pending")
