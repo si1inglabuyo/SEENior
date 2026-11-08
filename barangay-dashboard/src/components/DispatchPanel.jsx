@@ -32,7 +32,13 @@ function SeniorPhone({ alert }) {
   )
 }
 
-function CallFirst({ alert, call, busy, onSend }) {
+function CallFirst({ alert, call, busy, onSend, onResolve }) {
+  // "Senior is fine" is the end of the case: log the call, then go straight to closing it as
+  // Resolved with the remark filled in. The confirm dialog still has the last word.
+  async function pick(result) {
+    await onSend(alert, { action: 'call_result', result })
+    if (result === 'cleared' && onResolve) onResolve(alert, 'Called, senior fine')
+  }
   return (
     <div className="dispatch-action">
       <p className="dispatch-action-title">Call the senior first</p>
@@ -47,15 +53,14 @@ function CallFirst({ alert, call, busy, onSend }) {
             className={call === result ? 'btn-outline is-on' : 'btn-outline'}
             aria-pressed={call === result}
             disabled={busy}
-            onClick={() => onSend(alert, { action: 'call_result', result })}
+            onClick={() => pick(result)}
           >
             {label}
           </button>
         ))}
       </div>
       {call === 'cleared' && (
-        <p className="dispatch-hint muted">Close it as Resolved or False Alert below.</p>
-      )}
+        <p className="dispatch-hint muted">Close it as Resolved or False Alert below.</p>      )}
     </div>
   )
 }
@@ -205,6 +210,7 @@ export default function DispatchPanel({
   busy,
   error,
   onSend,
+  onResolve,
 }) {
   const [showHelp, setShowHelp] = useState(false)
   const dispatch = dispatchOf(alert)
@@ -239,7 +245,7 @@ export default function DispatchPanel({
       )}
 
       {callFirst && teams.length === 0 && (
-        <CallFirst alert={alert} call={call} busy={busy} onSend={onSend} />
+        <CallFirst alert={alert} call={call} busy={busy} onSend={onSend} onResolve={onResolve} />
       )}
 
       {hasResponder ? (

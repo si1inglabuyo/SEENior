@@ -279,6 +279,7 @@ export default function AlertDetailsModal({ alert, onClose, onAct, actionBusy, d
             busy={dispatch.busy}
             error={dispatch.error}
             onSend={dispatch.send}
+            onResolve={onAct ? (a, note) => onAct(a, 'resolve', note) : undefined}
           />
         )}
 
