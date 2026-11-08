@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { recordAccess } from '../audit'
 import { maskPhone } from '../format'
 import { TIERS, dispatchOf, freeTeams, resourcesOut } from '../dispatch'
+import { isAttending } from '../labels'
 
 const CALL_BUTTONS = [
   { result: 'cleared', label: 'Senior is fine' },
@@ -233,6 +234,9 @@ export default function DispatchPanel({
         </div>
       </div>
       <p className={`dispatch-state tone-${tone}`}>{text}</p>
+      {!isAttending(alert) && (
+        <p className="dispatch-hint muted">Any step below marks you as attending.</p>
+      )}
 
       {callFirst && teams.length === 0 && (
         <CallFirst alert={alert} call={call} busy={busy} onSend={onSend} />

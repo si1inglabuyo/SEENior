@@ -87,3 +87,62 @@ def test_an_unavailable_responder_does_not_count_as_out():
 def test_a_responder_name_has_a_length_limit():
     with pytest.raises(ValidationError):
         _action(action="send_team", team="x" * 65)
+
+
+# ---- acting on an alert marks it attended -------------------------------------------------
+
+import asyncio
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
+
+from app.db.models import AlertStatus
+
+
+def _dispatch(monkeypatch, payload, steps=None):
+    alert = SimpleNamespace(status=AlertStatus.ESCALATED, escalation_steps=list(steps or []))
+
+    async def fake_alert(sync_id, db, responder):
+        return alert
+
+    async def nothing_elsewhere(alert, barangay, db):
+        return set()
+
+    monkeypatch.setattr(routes, "_responder_alert", fake_alert)
+    monkeypatch.setattr(routes, "_out_on_other_alerts", nothing_elsewhere)
+    monkeypatch.setattr(routes, "_alert_out", lambda a: a)
+    monkeypatch.setattr(routes, "append_step", lambda a, step, **kw: a.escalation_steps.append({"step": step, **kw}))
+    responder = SimpleNamespace(id=1, barangay="U.P. Campus", full_name="Desk", username="desk")
+    asyncio.run(routes.dispatch_incident("sync", payload, AsyncMock(), responder))
+    return [s["step"] for s in alert.escalation_steps]
+
+
+@pytest.mark.parametrize(
+    "fields",
+    [
+        {"action": "call_result", "result": "no_answer"},
+        {"action": "send_team", "team": "Ana Reyes"},
+        {"action": "responder_unavailable", "team": "Ana Reyes"},
+        {"action": "request_help", "service": "Ambulance"},
+    ],
+)
+def test_the_first_action_marks_the_alert_attended(monkeypatch, fields):
+    steps = _dispatch(monkeypatch, _action(**fields))
+    assert steps[-1] == "acknowledged_barangay" and len(steps) == 2
+
+
+def test_a_second_action_does_not_acknowledge_again(monkeypatch):
+    steps = _dispatch(
+        monkeypatch,
+        _action(action="request_help", service="Ambulance"),
+        [{"step": "acknowledged_barangay"}],
+    )
+    assert steps == ["acknowledged_barangay", "help_requested"]
+
+
+def test_cancelling_a_request_is_not_a_claim(monkeypatch):
+    steps = _dispatch(
+        monkeypatch,
+        _action(action="cancel_help", service="Ambulance"),
+        [{"step": "help_requested", "service": "Ambulance"}],
+    )
+    assert steps == ["help_requested", "help_cancelled"]
