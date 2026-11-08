@@ -12,16 +12,8 @@ export function useAlertActions({ onReload, onSessionLost }) {
   const [toast, setToast] = useState(null) // { message }
   const [detailsAlert, setDetailsAlert] = useState(null)
 
-    // Optional remarks from the Details modal. Blank collapses to null.
-  function askAction(alert, actionKey, notes = null) {
-    setDialogError('')
-    const trimmed = typeof notes === 'string' ? notes.trim() : ''
-    setPending({ alert, actionKey, notes: trimmed || null })
-  }
-
-  async function confirmAction() {
-    if (!pending) return
-    const { alert, actionKey, notes } = pending
+  // Sends the action. Returns '' on success or why it failed.
+  async function perform(alert, actionKey, notes) {
     const action = ALERT_ACTIONS[actionKey]
     setBusy(true)
     try {
@@ -34,11 +26,32 @@ export function useAlertActions({ onReload, onSessionLost }) {
       setDetailsAlert(null) // the action was taken from inside Details -- close it too
       setToast({ message: action.successMessage })
       await onReload() // refetch -- show the server's row, not a guessed one
+      return ''
     } catch (err) {
       setBusy(false)
-      setDialogError(err.message)
       if (err.message.includes('expired')) onSessionLost()
+      return err.message
     }
+  }
+
+  // Optional remarks from the Details modal. Blank collapses to null. An action marked
+  // `confirm: false` (Resolved) goes straight through; the others ask first.
+  async function askAction(alert, actionKey, notes = null) {
+    setDialogError('')
+    const trimmed = typeof notes === 'string' ? notes.trim() : ''
+    if (ALERT_ACTIONS[actionKey].confirm === false) {
+      const problem = await perform(alert, actionKey, trimmed || null)
+      if (problem) setToast({ message: `Could not close the alert: ${problem}` })
+      return
+    }
+    setPending({ alert, actionKey, notes: trimmed || null })
+  }
+
+  async function confirmAction() {
+    if (!pending) return
+    const { alert, actionKey, notes } = pending
+    const problem = await perform(alert, actionKey, notes)
+    if (problem) setDialogError(problem)
   }
 
   return {
