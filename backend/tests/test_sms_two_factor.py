@@ -83,6 +83,7 @@ def texts(monkeypatch):
         return sms.SmsResult(sent=len(numbers)) if log.ok else sms.SmsResult(failed=len(numbers))
 
     monkeypatch.setattr(auth.sms, "send_sms", fake_send)
+    monkeypatch.setattr(auth.settings, "two_factor_enforced", True)
     return log
 
 
@@ -137,6 +138,14 @@ def test_text_fits_one_sms_segment():
 
 def test_account_without_two_factor_still_gets_a_token_straight_away(texts):
     db = _FakeDb(_user(two_factor_enabled=False))
+    result = _login(db)
+    assert isinstance(result, Token) and decode_access_token(result.access_token)["sub"] == "7"
+    assert texts.sent == []
+
+
+def test_master_switch_off_signs_in_on_password_alone_and_sends_no_text(texts, monkeypatch):
+    monkeypatch.setattr(auth.settings, "two_factor_enforced", False)
+    db = _FakeDb(_user())  # flag and code phone are still on the account
     result = _login(db)
     assert isinstance(result, Token) and decode_access_token(result.access_token)["sub"] == "7"
     assert texts.sent == []

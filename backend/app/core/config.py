@@ -71,6 +71,12 @@ class Settings:
     # (REQUIRE_DEVICE_KEY=1) once every senior's phone has claimed a key.
     require_device_key: bool = os.environ.get("REQUIRE_DEVICE_KEY") == "1"
 
+    # Master switch for the texted sign-in code. OFF unless TWO_FACTOR_ENFORCED=1, so every
+    # barangay account signs in on password alone while this is unset. Accounts keep their
+    # `two_factor_enabled` flag and code phone, so setting TWO_FACTOR_ENFORCED=1 on Render
+    # restores the code step for exactly the accounts that had it, nothing to re-enter.
+    two_factor_enforced: bool = os.environ.get("TWO_FACTOR_ENFORCED") == "1"
+
     # Interactive API docs (/docs, /redoc, /openapi.json) are off unless ENABLE_API_DOCS=1,
     # so production doesn't publish a map of every endpoint.
     enable_api_docs: bool = os.environ.get("ENABLE_API_DOCS") == "1"

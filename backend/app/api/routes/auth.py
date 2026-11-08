@@ -124,7 +124,7 @@ async def login(
             detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    if user.two_factor_enabled:
+    if settings.two_factor_enforced and user.two_factor_enabled:
         if not user.two_factor_phone:
             # Never fall back to password-only: that would let anyone who has the password
             # skip the second factor by an account having no number.
