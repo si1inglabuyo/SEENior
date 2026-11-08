@@ -179,7 +179,12 @@ export default function IncidentQueue({ onSessionLost }) {
       {pooks ? (
         <div className="queue-columns">
           {queue}
-          <ResponderPanel alerts={rows} responders={responders} />
+          <ResponderPanel
+            alerts={rows}
+            responders={responders}
+            pooks={pooks}
+            onSavePook={dispatch.savePookResponder}
+          />
         </div>
       ) : (
         queue
