@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { MAX_RESPONDER_NAME } from '../dispatch'
 import Modal from './Modal'
+import PookResponders from './PookResponders'
 
 function ResponderRow({ name, outAt, onRename, onRemove }) {
   const [draft, setDraft] = useState(null)
@@ -97,7 +98,7 @@ function ResponderGroup({ title, addLabel, names, out, onAdd, onRename, onRemove
 
 // Add, rename or delete who the barangay can send. Anyone out on an alert stays locked until
 // that alert closes, because the timeline and the Responders panel find them by name.
-export default function ResponderManager({ responders, out, onClose }) {
+export default function ResponderManager({ responders, out, pooks, onSavePook, onClose }) {
   const { teams, services, add, rename, remove } = responders
   return (
     <Modal onClose={onClose} labelledBy="responder-manager-title" className="responder-manager">
@@ -105,6 +106,7 @@ export default function ResponderManager({ responders, out, onClose }) {
         &times;
       </button>
       <h3 id="responder-manager-title">Manage responders</h3>
+      {pooks && onSavePook && <PookResponders pooks={pooks} onSave={onSavePook} />}
       <ResponderGroup
         title="Hall teams"
         addLabel="Add a hall team"

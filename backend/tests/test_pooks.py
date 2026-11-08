@@ -35,7 +35,11 @@ def test_an_update_that_omits_pook_id_is_not_treated_as_clearing_it():
 
 def test_pook_out_shape():
     assert set(PookOut.model_fields) == {"id", "barangay", "name", "description", "sector"}
-    assert {c.name for c in Pook.__table__.c} == set(PookOut.model_fields)
+    # The pook's designated responder (0022) is for the desk only and must never reach PookOut,
+    # which seniors' apps read.
+    columns = {c.name for c in Pook.__table__.c}
+    assert columns - set(PookOut.model_fields) == {"responder_name", "responder_phone"}
+    assert set(PookOut.model_fields) <= columns
 
 
 def test_seed_is_the_sixteen_pooks_in_two_sectors():

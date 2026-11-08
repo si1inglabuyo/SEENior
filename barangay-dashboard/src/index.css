@@ -968,6 +968,15 @@ h4 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase;
   border: 1px solid var(--line); border-radius: 6px; font: inherit;
 }
 .responder-edit input:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
+.pook-responder-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.pook-responder-who { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.pook-responder-detail { font-size: 13px; overflow-wrap: anywhere; }
+.pook-responder-form { display: flex; flex-direction: column; gap: 8px; }
+.pook-responder-form input {
+  min-height: 36px; padding: 6px 10px; min-width: 0;
+  border: 1px solid var(--line); border-radius: 6px; font: inherit;
+}
+.pook-responder-form input:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
 .responder-problem { margin: 6px 0 0; font-size: 13px; }
 .responder-note { margin: 0; font-size: 12px; }
 

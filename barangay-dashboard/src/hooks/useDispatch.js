@@ -41,5 +41,21 @@ export function useDispatch({ onReload, onSessionLost }) {
     setBusy(false)
   }
 
-  return { pooks, busy, error, send, clearError: () => setError('') }
+  // Set or clear one pook's designated responder. Returns why the server refused it, or ''
+  // when it was saved, and swaps the saved pook into the list so every screen shows it.
+  async function savePookResponder(pookId, name, phone) {
+    try {
+      const saved = await api(`/barangay/pooks/${pookId}/responder`, {
+        method: 'PUT',
+        body: JSON.stringify({ responder_name: name, responder_phone: phone }),
+      })
+      setPooks((current) => current && current.map((p) => (p.id === saved.id ? saved : p)))
+      return ''
+    } catch (err) {
+      if (err.message.includes('expired')) onSessionLost()
+      return err.message
+    }
+  }
+
+  return { pooks, busy, error, send, savePookResponder, clearError: () => setError('') }
 }
