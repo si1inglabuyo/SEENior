@@ -87,8 +87,12 @@ object AlertEscalator {
         else -> 600
     }
 
-    /** Routine-anomaly triggers only. SOS and falls are deliberately absent: a hurt, conscious senior may still use the phone. */
-    private val PHONE_USE_CLEARABLE = setOf("inactivity", "movement", "screen_idle", "charging", "ml_flag")
+    /**
+     * Routine anomalies and falls. SOS alone is absent: it is the senior asking for help, so using
+     * the phone proves nothing. A fall is included (2026-11-08) because the commonest false one is
+     * a dropped phone, and picking it up is a real unlock.
+     */
+    private val PHONE_USE_CLEARABLE = setOf("inactivity", "movement", "screen_idle", "charging", "ml_flag", "fall_pattern")
 
     /** Whether using the phone may close an alert of this kind and state. Pure, so it can be unit tested. */
     fun clearableByPhoneUse(alert: Alert): Boolean =
@@ -112,8 +116,8 @@ object AlertEscalator {
 
     /**
      * Whether using the phone may close an alert that has already reached the cloud, so the
-     * family and the barangay know about it. Same routine triggers as [clearableByPhoneUse]; SOS
-     * and falls are never closed this way. The phone only asks: the server refuses if anyone has
+     * family and the barangay know about it. Same triggers as [clearableByPhoneUse]; SOS
+     * is never closed this way. The phone only asks: the server refuses if anyone has
      * started working on the alert, see [clearEscalatedForPhoneUse].
      */
     fun escalatedClearableByPhoneUse(alert: Alert): Boolean =

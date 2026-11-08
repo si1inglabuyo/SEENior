@@ -23,15 +23,14 @@ class PhoneUseClearTest {
 
     @Test
     fun routineAnomaliesAreClearable() {
-        listOf("inactivity", "movement", "screen_idle", "charging", "ml_flag").forEach {
+        listOf("inactivity", "movement", "screen_idle", "charging", "ml_flag", "fall_pattern").forEach {
             assertTrue(it, AlertEscalator.clearableByPhoneUse(alert(it)))
         }
     }
 
     @Test
-    fun sosAndFallsAreNeverClearable() {
+    fun sosIsNeverClearable() {
         assertFalse(AlertEscalator.clearableByPhoneUse(alert("sos")))
-        assertFalse(AlertEscalator.clearableByPhoneUse(alert("fall_pattern")))
     }
 
     @Test
@@ -55,9 +54,9 @@ class PhoneUseClearTest {
     }
 
     @Test
-    fun escalatedSosFallsAndUnsyncedAlertsAreNeverAskedAbout() {
+    fun escalatedSosAndUnsyncedAlertsAreNeverAskedAbout() {
         assertFalse(AlertEscalator.escalatedClearableByPhoneUse(alert("sos", synced = true)))
-        assertFalse(AlertEscalator.escalatedClearableByPhoneUse(alert("fall_pattern", synced = true)))
+        assertTrue(AlertEscalator.escalatedClearableByPhoneUse(alert("fall_pattern", synced = true)))
         assertFalse(AlertEscalator.escalatedClearableByPhoneUse(alert("inactivity", synced = false)))
     }
 

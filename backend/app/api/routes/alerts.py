@@ -432,14 +432,16 @@ def append_step(alert: Alert, step: str, **extra: str | None) -> None:
     alert.escalation_steps = steps
 
 
-# Routine anomalies only, mirroring AlertEscalator.PHONE_USE_CLEARABLE on the phone. A hurt but
-# conscious senior may still use the phone, and a fallen phone may be picked up by someone else.
+# Routine anomalies and falls, mirroring AlertEscalator.PHONE_USE_CLEARABLE on the phone. SOS is
+# left out: it is the senior asking for help. A fall is in because the commonest false one is a
+# dropped phone, and picking it up is a real unlock.
 PHONE_USE_CLEARABLE = {
     TriggerType.INACTIVITY,
     TriggerType.MOVEMENT,
     TriggerType.SCREEN_IDLE,
     TriggerType.CHARGING,
     TriggerType.ML_FLAG,
+    TriggerType.FALL_PATTERN,
 }
 # Timeline steps showing a person has taken the alert on. Once any exists, only a person closes it.
 WORK_STEPS = {

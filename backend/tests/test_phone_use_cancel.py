@@ -22,14 +22,13 @@ def _alert(trigger=TriggerType.INACTIVITY, status=AlertStatus.ESCALATED, steps=N
     )
 
 
-@pytest.mark.parametrize("trigger", ["inactivity", "movement", "screen_idle", "charging", "ml_flag"])
+@pytest.mark.parametrize("trigger", ["inactivity", "movement", "screen_idle", "charging", "ml_flag", "fall_pattern"])
 def test_routine_anomalies_may_be_closed_by_phone_use(trigger):
     assert alerts.phone_use_may_close(_alert(TriggerType(trigger)))
 
 
-@pytest.mark.parametrize("trigger", [TriggerType.SOS, TriggerType.FALL_PATTERN])
-def test_sos_and_falls_never_are(trigger):
-    assert not alerts.phone_use_may_close(_alert(trigger))
+def test_sos_never_is():
+    assert not alerts.phone_use_may_close(_alert(TriggerType.SOS))
 
 
 @pytest.mark.parametrize(
