@@ -1,6 +1,4 @@
 import { useState } from 'react'
-import { recordAccess } from '../audit'
-import { maskPhone } from '../format'
 import { TIERS, dispatchOf, freeTeams, resourcesOut } from '../dispatch'
 import { isAttending } from '../labels'
 
@@ -10,26 +8,11 @@ const CALL_BUTTONS = [
   { result: 'no_answer', label: 'No answer' },
 ]
 
-// The number stays masked until asked for, and asking is written to the access log.
+// Shown in full and tappable: during an open alert the responder needs it at once
+// (RA 10173 section 12(c), vital interests).
 function SeniorPhone({ alert }) {
-  const [shown, setShown] = useState(false)
   if (!alert.senior_mobile) return <span className="muted">No number on file</span>
-  if (shown) return <a href={`tel:${alert.senior_mobile.replace(/\s/g, '')}`}>{alert.senior_mobile}</a>
-  return (
-    <>
-      {maskPhone(alert.senior_mobile)}{' '}
-      <button
-        type="button"
-        className="dispatch-reveal"
-        onClick={() => {
-          setShown(true)
-          recordAccess('senior_phone_reveal', { sync_id: alert.senior_sync_id })
-        }}
-      >
-        Show number
-      </button>
-    </>
-  )
+  return <a href={`tel:${alert.senior_mobile.replace(/\s/g, '')}`}>{alert.senior_mobile}</a>
 }
 
 function CallFirst({ alert, call, busy, onSend, onResolve }) {
