@@ -1,46 +1,57 @@
 import { useState } from 'react'
 import { resourcesOut } from '../dispatch'
 import { IconBuilding } from '../icons'
-import { PookRow } from './PookResponders'
+import Modal from './Modal'
+import PookResponders from './PookResponders'
 import ResponderManager from './ResponderManager'
 import SectionCard from './SectionCard'
 
-// Each pook with its designated responder and number, editable by whoever monitors the dashboard.
-// A responder who is out on an open alert shows as out, worked out from the open alerts so they
-// are free again as soon as that alert closes.
+// A short card on the side; the full pook-by-pook list opens in a popup so it does not stretch
+// the page. Whoever monitors the dashboard edits each pook's responder and number there.
 export default function ResponderPanel({ alerts, responders, pooks, onSavePook }) {
+  const [listOpen, setListOpen] = useState(false)
   const [managing, setManaging] = useState(false)
   const out = resourcesOut(alerts)
+  const list = pooks ?? []
+  const set = list.filter((p) => p.responder_name).length
+  const outNow = list.filter((p) => p.responder_name && p.responder_name in out).length
   return (
-    <SectionCard
-      icon={<IconBuilding />}
-      title="Responders"
-      action={<span className="pook-grid-hint">One per pook. Edit to change</span>}
-      className="responder-panel"
-    >
-      {!pooks || pooks.length === 0 ? (
+    <SectionCard icon={<IconBuilding />} title="Pook Responders" className="responder-panel">
+      {list.length === 0 ? (
         <p className="muted responder-none">No pooks loaded yet.</p>
       ) : (
-        <ul className="responder-list responder-pooks">
-          {pooks.map((pook) => (
-            <PookRow
-              key={pook.id}
-              pook={pook}
-              onSave={onSavePook}
-              outAt={pook.responder_name ? out[pook.responder_name] : undefined}
-            />
-          ))}
-        </ul>
+        <p className="responder-summary">
+          <strong>{set}</strong> of {list.length} pooks have a responder
+          {outNow > 0 && <span className="responder-out"> · {outNow} out now</span>}
+        </p>
       )}
-      <button type="button" className="btn-outline responder-manage" onClick={() => setManaging(true)}>
+      <button
+        type="button"
+        className="btn-outline responder-manage"
+        disabled={list.length === 0}
+        onClick={() => setListOpen(true)}
+      >
+        View and edit responders
+      </button>
+      <button type="button" className="link-btn" onClick={() => setManaging(true)}>
         Manage hall teams
       </button>
+
+      {listOpen && (
+        <Modal onClose={() => setListOpen(false)} labelledBy="pook-responders-title" className="responder-manager">
+          <button type="button" className="modal-close" onClick={() => setListOpen(false)} aria-label="Close">
+            &times;
+          </button>
+          <h3 id="pook-responders-title">Pook Responders</h3>
+          <PookResponders pooks={list} onSave={onSavePook} out={out} />
+        </Modal>
+      )}
       {managing && (
         <ResponderManager
           responders={responders}
           out={out}
-          pooks={pooks}
-          onSavePook={onSavePook}
+          pooks={null}
+          onSavePook={null}
           onClose={() => setManaging(false)}
         />
       )}
