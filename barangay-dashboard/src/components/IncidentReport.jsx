@@ -1,5 +1,5 @@
 import { CATEGORY_LABEL, alertCategory, pookTitle, stepLabel, triggerLabel } from '../labels'
-import { dateTimeLabel, maskPhone } from '../format'
+import { dateTimeLabel } from '../format'
 import { fallContext } from '../fallContext'
 import { OUTCOME_LABEL, spanLabel } from '../reportData'
 
@@ -54,7 +54,7 @@ export default function IncidentReport({ alert, data, generatedAt }) {
                 : 'Not set'}
             </td>
           </tr>
-          <tr><td>Mobile</td><td>{maskPhone(alert.senior_mobile)}</td></tr>
+          <tr><td>Mobile</td><td>{alert.senior_mobile || '—'}</td></tr>
           <tr>
             <td>Family contact</td>
             <td>{alert.senior_has_family_contact ? 'Registered' : 'None — lives alone, so no family was notified'}</td>
