@@ -1050,4 +1050,4 @@ h4 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase;
 .queue-row-phone { margin: 2px 0 0; font-size: 14px; font-weight: 700; }
 .queue-row-phone a { color: inherit; text-decoration: none; }
 .queue-row-phone a:hover { text-decoration: underline; }
-.responder-pooks { max-height: 520px; overflow-y: auto; }
+.responder-summary { margin: 0 0 10px; font-size: 14px; }

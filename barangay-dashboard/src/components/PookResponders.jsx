@@ -85,16 +85,20 @@ export function PookRow({ pook, onSave, outAt }) {
 
 // The pook-by-pook list inside Manage responders. Leaving both fields blank and saving clears
 // the pook's responder.
-export default function PookResponders({ pooks, onSave }) {
+export default function PookResponders({ pooks, onSave, out = {} }) {
   return (
     <section className="responder-group">
-      <h4>Pook responders</h4>
-      <p className="muted responder-note">
+            <p className="muted responder-note">
         The person to phone first for an alert from each pook. Saved for every computer.
       </p>
       <ul className="responder-list">
         {pooks.map((pook) => (
-          <PookRow key={pook.id} pook={pook} onSave={onSave} />
+          <PookRow
+            key={pook.id}
+            pook={pook}
+            onSave={onSave}
+            outAt={pook.responder_name ? out[pook.responder_name] : undefined}
+          />
         ))}
       </ul>
     </section>
