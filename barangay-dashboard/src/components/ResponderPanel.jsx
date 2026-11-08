@@ -7,7 +7,7 @@ import SectionCard from './SectionCard'
 // Who the barangay still has free. Worked out from the open alerts, so a team is available
 // again as soon as its alert closes. Anyone out stays listed even if this browser's list does
 // not have them, because another computer may have sent them.
-export default function ResponderPanel({ alerts, responders }) {
+export default function ResponderPanel({ alerts, responders, pooks, onSavePook }) {
   const [managing, setManaging] = useState(false)
   const out = resourcesOut(alerts)
   const names = [...new Set([...responders.teams, ...responders.services, ...Object.keys(out)])]
@@ -36,7 +36,13 @@ export default function ResponderPanel({ alerts, responders }) {
         Manage responders
       </button>
       {managing && (
-        <ResponderManager responders={responders} out={out} onClose={() => setManaging(false)} />
+        <ResponderManager
+          responders={responders}
+          out={out}
+          pooks={pooks}
+          onSavePook={onSavePook}
+          onClose={() => setManaging(false)}
+        />
       )}
     </SectionCard>
   )

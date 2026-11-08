@@ -37,6 +37,7 @@ from app.schemas.barangay import (
     BarangayStats,
     DayCount,
     DispatchAction,
+    PookResponderUpdate,
     PookSummary,
     ResponderAction,
 )
@@ -298,6 +299,31 @@ async def list_barangay_pooks(
         .order_by(Pook.sector.desc(), Pook.id)
     )
     return list(result.scalars().all())
+
+
+@router.put("/pooks/{pook_id}/responder", response_model=PookSummary)
+async def set_pook_responder(
+    pook_id: int,
+    payload: PookResponderUpdate,
+    db: AsyncSession = Depends(get_db),
+    responder: User = Depends(responder_only),
+) -> Pook:
+    """Set, change or clear the designated responder of one of the responder's own pooks."""
+    barangay = _assigned_barangay(responder)
+    pook = (
+        await db.execute(
+            select(Pook).where(
+                Pook.id == pook_id, func.lower(Pook.barangay) == barangay.strip().lower()
+            )
+        )
+    ).scalar_one_or_none()
+    if pook is None:
+        # Same 404 for "no such pook" and "another barangay's pook".
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pook not found")
+    pook.responder_name = payload.responder_name
+    pook.responder_phone = payload.responder_phone
+    await db.commit()
+    return pook
 
 
 @router.post("/alerts/{sync_id}/dispatch", response_model=BarangayAlertOut)

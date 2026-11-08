@@ -185,6 +185,11 @@ class Pook(Base):
     # (including Hardin ng Rosas and Hardin ng Bougainvilla)".
     description: Mapped[str | None] = mapped_column(String(255), nullable=True)
     sector: Mapped[str] = mapped_column(String(16))  # "north" or "south"
+    # The designated responder the hall staff phone for an alert from this pook (migration 0022),
+    # edited on the barangay dashboard. For the desk only: never sent to a senior's app and never
+    # read by escalation.
+    responder_name: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    responder_phone: Mapped[str | None] = mapped_column(String(32), nullable=True)
 
 
 class HallClosedDay(Base):

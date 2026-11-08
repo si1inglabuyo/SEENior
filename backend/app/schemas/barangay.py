@@ -1,8 +1,9 @@
+import re
 from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.db.models import AlertStatus, RiskLevel, SeniorStatus, TriggerType
 
@@ -123,6 +124,41 @@ class PookSummary(BaseModel):
     id: int
     name: str
     sector: str
+    # Who the hall staff phone for this pook. Shown only on the responder's dashboard.
+    responder_name: str | None = None
+    responder_phone: str | None = None
+
+
+class PookResponderUpdate(BaseModel):
+    """Set or clear a pook's designated responder. Both fields blank clears it.
+
+    The limits are mirrored by MAX_RESPONDER_NAME in barangay-dashboard/src/dispatch.js.
+    """
+
+    responder_name: str | None = Field(default=None, max_length=64)
+    responder_phone: str | None = Field(default=None, max_length=32)
+
+    @field_validator("responder_name")
+    @classmethod
+    def _clean_name(cls, value: str | None) -> str | None:
+        value = (value or "").strip()
+        return value or None
+
+    @field_validator("responder_phone")
+    @classmethod
+    def _clean_phone(cls, value: str | None) -> str | None:
+        value = (value or "").strip()
+        if not value:
+            return None
+        if not re.fullmatch(r"\+?[0-9(][0-9 ()\-]*", value) or len(re.sub(r"\D", "", value)) < 7:
+            raise ValueError("Enter a phone number using digits only, at least 7 of them.")
+        return value
+
+    @model_validator(mode="after")
+    def _name_needs_a_number_and_back(self):
+        if bool(self.responder_name) != bool(self.responder_phone):
+            raise ValueError("Enter both a name and a number, or leave both blank to clear.")
+        return self
 
 
 class DispatchAction(BaseModel):
