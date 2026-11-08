@@ -9,6 +9,7 @@ import {
   triggerLabel,
   pookTitle,
 } from '../labels'
+import { api } from '../api'
 import { reverseGeocode } from '../reverseGeocode'
 import { initials, dateTimeLabel } from '../format'
 import { canActOn } from '../alertActions'
@@ -171,6 +172,69 @@ function FallContext({ alert }) {
   )
 }
 
+// Who to phone: the senior, and each family contact on their record. The family list comes from
+// the senior's record (GET /barangay/seniors/{sync_id}), fetched when an open alert is shown.
+function useFamilyContacts(seniorSyncId) {
+  const [found, setFound] = useState({ id: null, contacts: null, failed: false })
+
+  useEffect(() => {
+    let cancelled = false
+    api(`/barangay/seniors/${seniorSyncId}`)
+      .then((data) => {
+        if (!cancelled) setFound({ id: seniorSyncId, contacts: data.contacts ?? [], failed: false })
+      })
+      .catch(() => {
+        if (!cancelled) setFound({ id: seniorSyncId, contacts: null, failed: true })
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [seniorSyncId])
+
+  return found.id === seniorSyncId ? found : { id: seniorSyncId, contacts: null, failed: false }
+}
+
+function PhoneLink({ number }) {
+  if (!number) return <span className="muted">No number on file</span>
+  return <a href={`tel:${number.replace(/\s/g, '')}`}>{number}</a>
+}
+
+function ContactNumbers({ alert }) {
+  const { contacts, failed } = useFamilyContacts(alert.senior_sync_id)
+  return (
+    <div className="contact-numbers">
+      <h3 className="details-location-title">Contact numbers</h3>
+      <ul className="contact-numbers-list">
+        <li>
+          <span className="contact-numbers-who">
+            {alert.senior_name} <span className="muted">· senior</span>
+          </span>
+          <strong className="contact-numbers-phone">
+            <PhoneLink number={alert.senior_mobile} />
+          </strong>
+        </li>
+        {contacts === null ? (
+          <li className="muted">{failed ? 'Family contacts could not be loaded.' : 'Loading family contacts…'}</li>
+        ) : contacts.length === 0 ? (
+          <li className="muted">No family contact is linked to this senior.</li>
+        ) : (
+          contacts.map((c, i) => (
+            <li key={`${c.name}-${i}`}>
+              <span className="contact-numbers-who">
+                {c.name}
+                {c.relationship_label ? <span className="muted"> · {c.relationship_label}</span> : null}
+              </span>
+              <strong className="contact-numbers-phone">
+                <PhoneLink number={c.phone} />
+              </strong>
+            </li>
+          ))
+        )}
+      </ul>
+    </div>
+  )
+}
+
 // One tap fills the remark below, which can still be edited. Saved with the status change.
 const REMARK_CHIPS = [
   'Called, senior fine',
@@ -290,6 +354,8 @@ export default function AlertDetailsModal({ alert, onClose, onAct, actionBusy, d
       </div>
 
       <div className="details-body">
+        {isActiveAlert(alert) && <ContactNumbers alert={alert} />}
+
         {dispatch?.pooks && isActiveAlert(alert) && (
           <DispatchPanel
             alert={alert}
