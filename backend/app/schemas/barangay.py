@@ -166,7 +166,7 @@ class DispatchAction(BaseModel):
     needs. `team` and `service` are names the admin set on the dashboard; the limit is mirrored
     by MAX_RESPONDER_NAME in barangay-dashboard/src/dispatch.js."""
 
-    action: Literal["send_team", "request_help", "cancel_help", "call_result"]
+    action: Literal["send_team", "responder_unavailable", "request_help", "cancel_help", "call_result"]
     team: str | None = Field(default=None, max_length=64)
     service: str | None = Field(default=None, max_length=64)
     result: Literal["cleared", "needs_team", "no_answer"] | None = None

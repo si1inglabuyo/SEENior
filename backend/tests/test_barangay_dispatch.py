@@ -70,6 +70,20 @@ def test_a_responder_the_admin_added_can_be_sent():
     )
 
 
+def test_an_unavailable_responder_is_noted_but_sends_nobody():
+    assert routes._dispatch_step(_action(action="responder_unavailable", team=" Ana Reyes "), set()) == (
+        "responder_unavailable",
+        {"team": "Ana Reyes"},
+    )
+    with pytest.raises(HTTPException):
+        routes._dispatch_step(_action(action="responder_unavailable"), set())
+
+
+def test_an_unavailable_responder_does_not_count_as_out():
+    steps = [{"step": "responder_unavailable", "team": "Ana Reyes"}]
+    assert routes._resources_out(steps) == set()
+
+
 def test_a_responder_name_has_a_length_limit():
     with pytest.raises(ValidationError):
         _action(action="send_team", team="x" * 65)

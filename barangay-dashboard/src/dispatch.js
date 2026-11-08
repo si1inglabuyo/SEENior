@@ -6,7 +6,8 @@
 //
 // Step codes this file reads (the server adds `at` and `by` to each):
 //   call_result    { result: 'cleared' | 'needs_team' | 'no_answer' }
-//   team_sent      { team }
+//   team_sent      { team }      a pook's responder (or hall team) reached, on the way
+//   responder_unavailable { team }   the pook's responder was phoned and could not come
 //   help_requested { service }
 //   help_cancelled { service }
 
@@ -51,9 +52,10 @@ function toMs(value) {
   return Date.parse(/(Z|[+-]\d{2}:\d{2})$/.test(value) ? value : `${value}Z`)
 }
 
-function summary({ teams, services, call, tier }) {
+function summary({ teams, services, call, tier, unavailable }) {
   const sent = [...teams, ...services]
-  if (sent.length) return { text: `${sent.join(', ')} sent`, tone: 'green' }
+  if (sent.length) return { text: `${sent.join(', ')} on the way`, tone: 'green' }
+  if (unavailable.length) return { text: `${unavailable[unavailable.length - 1]} not available · request outside help`, tone: 'red' }
   if (call === 'cleared') return { text: 'Senior is fine · ready to close', tone: 'green' }
   if (call === 'no_answer') return { text: 'No answer · needs a team', tone: 'red' }
   if (call === 'needs_team') return { text: 'Needs a team', tone: 'red' }
@@ -64,6 +66,7 @@ function summary({ teams, services, call, tier }) {
 export function dispatchOf(alert) {
   const steps = (alert.escalation_steps || []).filter(Boolean)
   const teams = steps.filter((e) => e.step === 'team_sent').map((e) => e.team)
+  const unavailable = steps.filter((e) => e.step === 'responder_unavailable').map((e) => e.team)
   const services = new Set()
   let call = null
   for (const entry of steps) {
@@ -71,7 +74,7 @@ export function dispatchOf(alert) {
     if (entry.step === 'help_cancelled') services.delete(entry.service)
     if (entry.step === 'call_result') call = entry.result
   }
-  const parts = { teams, services: [...services], call, tier: tierOf(alert) }
+  const parts = { teams, services: [...services], call, tier: tierOf(alert), unavailable }
   return { ...parts, ...summary(parts) }
 }
 
@@ -156,7 +159,9 @@ export function dispatchStepLabel(entry) {
     case 'call_result':
       return CALL_LABEL[entry.result]
     case 'team_sent':
-      return `${entry.team} sent from the hall`
+      return `${entry.team} reached, on the way`
+    case 'responder_unavailable':
+      return `${entry.team} not available`
     case 'help_requested':
       return `${entry.service} requested`
     case 'help_cancelled':

@@ -60,7 +60,7 @@ test('the latest call result wins', () => {
 test('anyone sent covers the alert, team or service', () => {
   assert.equal(dispatchOf(alert([team()])).tone, 'green')
   const helped = dispatchOf(alert([{ step: 'help_requested', service: 'PRC volunteers' }]))
-  assert.deepEqual([helped.text, helped.tone], ['PRC volunteers sent', 'green'])
+  assert.deepEqual([helped.text, helped.tone], ['PRC volunteers on the way', 'green'])
 })
 
 test('a cancelled service is no longer out', () => {
@@ -141,6 +141,17 @@ test('a day marked closed counts as after hours, and only that day', () => {
 
 test('timeline wording', () => {
   assert.equal(dispatchStepLabel(call('no_answer')), 'Call: no answer')
-  assert.equal(dispatchStepLabel(team()), 'Tanod team 1 sent from the hall')
+  assert.equal(dispatchStepLabel(team()), 'Tanod team 1 reached, on the way')
+  assert.equal(
+    dispatchStepLabel({ step: 'responder_unavailable', team: 'Ana Reyes' }),
+    'Ana Reyes not available'
+  )
   assert.equal(dispatchStepLabel({ step: 'escalated_family' }), null)
+})
+
+test('an unavailable responder is red and asks for outside help, until someone is sent', () => {
+  const none = { step: 'responder_unavailable', team: 'Ana Reyes' }
+  const a = dispatchOf(alert([none]))
+  assert.deepEqual([a.text, a.tone], ['Ana Reyes not available · request outside help', 'red'])
+  assert.equal(dispatchOf(alert([none, { step: 'help_requested', service: 'Ambulance' }])).tone, 'green')
 })
