@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { MAX_RESPONDER_NAME } from '../dispatch'
 
 // One pook's designated responder: who the hall staff phone for an alert from that area.
-function PookRow({ pook, onSave }) {
+export function PookRow({ pook, onSave, outAt }) {
   const [draft, setDraft] = useState(null)
   const [problem, setProblem] = useState('')
   const [busy, setBusy] = useState(false)
@@ -26,6 +26,7 @@ function PookRow({ pook, onSave }) {
             {pook.responder_name ? (
               <span className="pook-responder-detail">
                 {pook.responder_name} · <strong>{pook.responder_phone}</strong>
+                {outAt && <span className="responder-out"> Out · {outAt}</span>}
               </span>
             ) : (
               <span className="pook-responder-detail muted">No responder set</span>
