@@ -3,8 +3,8 @@ import { IconChart } from '../icons'
 import SectionCard from './SectionCard'
 
 const GROUPS = [
-  { title: 'Send a team', hint: 'Someone goes right away', tiers: TIERS.filter((t) => !t.callFirst) },
-  { title: 'Call first', hint: 'One call may clear it', tiers: TIERS.filter((t) => t.callFirst) },
+  { title: 'Send a team', tiers: TIERS.filter((t) => !t.callFirst) },
+  { title: 'Call first', tiers: TIERS.filter((t) => t.callFirst) },
 ]
 
 // Same colours as the pook grid: red needs a team, amber needs a call, green is covered.
@@ -53,9 +53,6 @@ export default function TierGuide({ alerts, selected, onSelect }) {
       <div className="tier-guide">
         {GROUPS.map((group) => (
           <section className="tier-group" key={group.title}>
-            <h4>
-              {group.title} <span>{group.hint}</span>
-            </h4>
             <div className="tier-group-tiles">
               {group.tiers.map(({ tier, label }) => (
                 <TierTile
