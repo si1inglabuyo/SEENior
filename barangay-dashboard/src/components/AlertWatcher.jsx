@@ -199,11 +199,11 @@ export default function AlertWatcher({ onSessionLost, onGoToAlerts }) {
       <div className="urgent-banner-text">
         <strong>
           {urgentLabel(first)}: {first.senior_name}
-          {first.senior_pook ? ` · ${first.senior_pook}` : ''}
+          {first.senior_pook ? ` · Pook ${first.senior_pook}` : ''}
         </strong>
         <span>
-          {waiting.length > 1 ? ` and ${waiting.length - 1} more` : ''} not attended yet. Phone the
-          pook responder.
+          {' · '}Not attended yet
+          {waiting.length > 1 ? ` · ${waiting.length - 1} more waiting` : ''}
         </span>
       </div>
       <div className="urgent-banner-btns">

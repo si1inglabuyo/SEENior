@@ -12,7 +12,6 @@ import SectionCard from './SectionCard'
 import FilterMenu from './FilterMenu'
 import AlertRow from './AlertRow'
 import AlertActionModals from './AlertActionModals'
-import HallStatus from './HallStatus'
 import PookGrid from './PookGrid'
 import ResponderPanel from './ResponderPanel'
 import TierGuide from './TierGuide'
@@ -52,7 +51,7 @@ export default function IncidentQueue({ onSessionLost }) {
   const actions = useAlertActions({ onReload: load, onSessionLost })
   const dispatch = useDispatch({ onReload: load, onSessionLost })
   const { pooks } = dispatch
-  const { closedDays, setClosedToday } = useHallClosed()
+  const { closedDays } = useHallClosed()
   const responders = useResponders()
 
   const loading = alerts === null
@@ -101,8 +100,6 @@ export default function IncidentQueue({ onSessionLost }) {
 
   return (
     <div className="queue-page">
-      {pooks && <HallStatus closedDays={closedDays} onSetClosedToday={setClosedToday} />}
-
       {pooks && <PookGrid pooks={pooks} alerts={rows} selected={pook} onSelect={setPook} />}
       {pooks && <TierGuide alerts={rows} selected={tier} onSelect={setTier} />}
 

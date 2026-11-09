@@ -10,6 +10,7 @@ import {
   manilaDay,
   pookSummary,
   receivedAfterHours,
+  waitingLabel,
   resourcesOut,
   responderProblem,
   tierOf,
@@ -154,4 +155,15 @@ test('an unavailable responder is red and asks for outside help, until someone i
   const a = dispatchOf(alert([none]))
   assert.deepEqual([a.text, a.tone], ['Ana Reyes not available · request outside help', 'red'])
   assert.equal(dispatchOf(alert([none, { step: 'help_requested', service: 'Ambulance' }])).tone, 'green')
+})
+
+test('waitingLabel shows how long an alert has been open', () => {
+  const now = Date.parse('2026-11-10T03:00:00Z')
+  const at = (iso) => ({ created_at: iso })
+  assert.equal(waitingLabel(at('2026-11-10T02:59:30'), now), 'Waiting under 1 min')
+  assert.equal(waitingLabel(at('2026-11-10T02:56:00'), now), 'Waiting 4 min')
+  assert.equal(waitingLabel(at('2026-11-10T01:00:00'), now), 'Waiting 2 hr')
+  assert.equal(waitingLabel(at('2026-11-10T00:55:00'), now), 'Waiting 2 hr 5 min')
+  assert.equal(waitingLabel(at('2026-11-08T03:00:00'), now), 'Waiting 2 days')
+  assert.equal(waitingLabel(at(null), now), '')
 })

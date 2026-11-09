@@ -4,6 +4,9 @@ import { clockTime } from '../format'
 import { alertCategory, displayStatus } from '../labels'
 import { IconPeople, IconCheck, IconSos } from '../icons'
 import { useAlertActions } from '../hooks/useAlertActions'
+import { useDispatch } from '../hooks/useDispatch'
+import { useHallClosed } from '../hooks/useHallClosed'
+import { useResponders } from '../hooks/useResponders'
 import StatCard from './StatCard'
 import ActiveAlertsPanel from './ActiveAlertsPanel'
 import WeeklyBarChart from './WeeklyBarChart'
@@ -101,6 +104,10 @@ export default function Dashboard({ onSessionLost, onNavigate }) {
 
     // Clicking a row opens the shared Details modal. A successful action reloads the dashboard.
   const actions = useAlertActions({ onReload: () => load(), onSessionLost })
+  // The same response panel the Alerts tab opens, so Details reads the same from either tab.
+  const dispatch = useDispatch({ onReload: () => load(), onSessionLost })
+  const { closedDays } = useHallClosed()
+  const responders = useResponders()
 
     // Polled so actions taken on other screens show up in the stat cards and charts.
   useEffect(() => {
@@ -166,8 +173,12 @@ export default function Dashboard({ onSessionLost, onNavigate }) {
 
       <ActiveAlertsPanel
         alerts={activeAlerts}
+        closedDays={closedDays}
         onViewAll={() => onNavigate('alerts')}
-        onShowDetails={actions.showDetails}
+        onShowDetails={(a) => {
+          dispatch.clearError()
+          actions.showDetails(a)
+        }}
       />
 
       <WeeklyBarChart
@@ -185,7 +196,11 @@ export default function Dashboard({ onSessionLost, onNavigate }) {
         />
       </div>
 
-      <AlertActionModals actions={actions} />
+      <AlertActionModals
+        actions={actions}
+        dispatch={{ ...dispatch, teamList: responders.teams, serviceList: responders.services }}
+        liveAlerts={activeAlerts}
+      />
     </div>
   )
 }

@@ -54,39 +54,51 @@ function CopyNumber({ display, big }) {
   return <strong className={big ? 'copy-number-big' : 'copy-number-small'}>{display}</strong>
 }
 
+// A PH mobile number in the 4-3-4 groups people read aloud ("0900 000 0007"), so it is easy to
+// dial by hand. Anything else (landlines, +63, already spaced) is shown as typed.
+function groupPhone(value) {
+  const digits = (value ?? '').trim()
+  return /^09\d{9}$/.test(digits) ? `${digits.slice(0, 4)} ${digits.slice(4, 7)} ${digits.slice(7)}` : value
+}
+
 // The pook's designated responder: the first person the desk staff phone for this area.
 function PookResponderCard({ alert, pook, reached, outElsewhere, unavailable, busy, onSend }) {
   const name = pook.responder_name
   return (
     <div className="dispatch-action">
-      <p className="dispatch-action-title">Phone the {pook.name} responder</p>
-      <p className="pook-responder-line">{name}</p>
-      <CopyNumber display={pook.responder_phone} big />
-      {reached ? (
-        <p className="dispatch-hint tone-green">{name} is on the way.</p>
-      ) : outElsewhere ? (
-        <p className="dispatch-hint tone-red">{name} is already out on another alert.</p>
-      ) : (
-        <div className="dispatch-btns">
-          <button
-            type="button"
-            className="btn-outline"
-            disabled={busy}
-            onClick={() => onSend(alert, { action: 'send_team', team: name })}
-          >
-            Reached, on the way
-          </button>
-          <button
-            type="button"
-            className={unavailable ? 'btn-outline is-on' : 'btn-outline'}
-            aria-pressed={unavailable}
-            disabled={busy || unavailable}
-            onClick={() => onSend(alert, { action: 'responder_unavailable', team: name })}
-          >
-            Not available
-          </button>
+      <p className="dispatch-action-title">Contact a responder near Pook {pook.name}</p>
+      {/* Same row format as the Contact numbers list: who on the left, number on the right. */}
+      <div className="pook-responder-card">
+        <div className="pook-responder-row">
+          <span className="contact-numbers-who">{name}</span>
+          <strong className="contact-numbers-phone">{groupPhone(pook.responder_phone)}</strong>
         </div>
-      )}
+        {reached ? (
+          <p className="dispatch-hint tone-green">{name} is on the way.</p>
+        ) : outElsewhere ? (
+          <p className="dispatch-hint tone-red">{name} is already out on another alert.</p>
+        ) : (
+          <div className="dispatch-btns">
+            <button
+              type="button"
+              className="btn-outline"
+              disabled={busy}
+              onClick={() => onSend(alert, { action: 'send_team', team: name })}
+            >
+              Reached, on the way
+            </button>
+            <button
+              type="button"
+              className={unavailable ? 'btn-outline is-on' : 'btn-outline'}
+              aria-pressed={unavailable}
+              disabled={busy || unavailable}
+              onClick={() => onSend(alert, { action: 'responder_unavailable', team: name })}
+            >
+              Not available
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
@@ -178,7 +190,7 @@ export default function DispatchPanel({
   const [showHelp, setShowHelp] = useState(false)
   const dispatch = dispatchOf(alert)
   const { teams, services, call, tier, text, tone, unavailable } = dispatch
-  const { label, action, callFirst } = TIERS[tier - 1]
+  const { callFirst } = TIERS[tier - 1]
   const out = resourcesOut(activeAlerts)
 
   const pook = (pooks ?? []).find((p) => p.name === alert.senior_pook)
@@ -195,13 +207,7 @@ export default function DispatchPanel({
 
   return (
     <div className="dispatch-panel">
-      <div className="dispatch-head">
-        <span className={`tier-badge tier-badge-${tier}`}>Tier {tier}</span>
-        <div>
-          <p className="dispatch-action-title">{label}</p>
-          <p className="dispatch-hint muted">{action}</p>
-        </div>
-      </div>
+      {/* The tier badge itself sits in the details header, next to the status pill. */}
       <p className={`dispatch-state tone-${tone}`}>{text}</p>
       {!isAttending(alert) && (
         <p className="dispatch-hint muted">Any step below marks you as attending.</p>
@@ -236,6 +242,18 @@ export default function DispatchPanel({
             onSend={onSend}
           />
         </>
+      )}
+
+      {/* The pook's responder is out on another alert or cannot come: a hall team can still go,
+          so a second alert from the same pook is not left with outside hotlines only. */}
+      {notReachable && (
+        <HallTeams
+          alert={alert}
+          free={freeTeams(activeAlerts, teamList)}
+          teamList={teamList}
+          busy={busy}
+          onSend={onSend}
+        />
       )}
 
       {helpOpen ? (

@@ -80,6 +80,20 @@ export function dispatchOf(alert) {
   return { ...parts, ...summary(parts) }
 }
 
+// How long an alert has been open, as "Waiting 4 min" / "Waiting 2 hr 5 min", so the oldest-first
+// order inside a tier can be seen on the row. '' when the time is missing.
+export function waitingLabel(alert, now = Date.now()) {
+  const ms = toMs(alert.created_at)
+  if (Number.isNaN(ms)) return ''
+  const minutes = Math.max(0, Math.floor((now - ms) / 60000))
+  if (minutes < 1) return 'Waiting under 1 min'
+  if (minutes < 60) return `Waiting ${minutes} min`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `Waiting ${hours} hr${minutes % 60 ? ` ${minutes % 60} min` : ''}`
+  const days = Math.floor(hours / 24)
+  return `Waiting ${days} ${days === 1 ? 'day' : 'days'}`
+}
+
 // Alerts still needing the operator come first, by tier. Within a tier the oldest goes first,
 // so alerts that waited overnight lead when the hall opens, without ever passing a higher
 // tier; a senior living alone goes ahead on a tie. Covered alerts drop below, in the same order.
