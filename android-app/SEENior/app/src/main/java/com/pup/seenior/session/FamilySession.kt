@@ -35,6 +35,8 @@ object FamilySession {
 
     fun clear(context: Context) {
         context.prefs().edit { clear() }
+        // The saved senior list belongs to this login; the next account must not see it.
+        com.pup.seenior.network.ContactsCache.clearFamily(context)
     }
 
     /** Reads the `exp` claim from the JWT payload. Null if the token is malformed or has no expiry. */

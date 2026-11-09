@@ -8,6 +8,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.pup.seenior.database.SeniorAppDatabase
 import com.pup.seenior.database.entities.Contact
+import com.pup.seenior.network.ContactsCache
 import com.pup.seenior.network.RetrofitClient
 import com.pup.seenior.network.SeniorCloudSync
 import com.pup.seenior.network.dto.FamilyContactDto
@@ -46,14 +47,24 @@ class SeniorContactsViewModel(application: Application) : AndroidViewModel(appli
                     cloudSync.withSyncId { id ->
                         cloudSyncId = id
                         RetrofitClient.api.getFamilyContacts(id)
-                    }.also { cacheForSos(it) }
+                    }.also {
+                        cacheForSos(it)
+                        ContactsCache.saveSenior(getApplication(), it)
+                    }
                 } else emptyList()
             } catch (e: HttpException) {
                 error = "Could not load contacts (server error ${e.code()})."
                 loadFailed = true
             } catch (e: IOException) {
-                error = "Could not reach the server. Check your internet connection."
-                loadFailed = true
+                // No signal or too slow: show the last list the server sent, with a note, instead of an empty error.
+                val saved = ContactsCache.loadSenior(getApplication())
+                if (saved != null) {
+                    contacts = saved
+                    error = "Showing your saved list. Could not reach the server."
+                } else {
+                    error = "Could not reach the server. Check your internet connection."
+                    loadFailed = true
+                }
             } finally {
                 isLoading = false
             }

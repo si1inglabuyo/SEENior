@@ -114,6 +114,10 @@ private fun ContactsListScreen(
                 Text(copy.noSeniorsLinkedYet, color = FamilyColors.TextSecondary, fontSize = 15.sp)
             }
         } else {
+            if (viewModel.showingSaved) {
+                Text(copy.showingSavedSeniors, color = FamilyColors.TextSecondary, fontSize = 13.sp,
+                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
+            }
             LazyColumn(modifier = Modifier.weight(1f).padding(horizontal = 24.dp)) {
                 items(filtered, key = { it.id }) { contact ->
                     ContactRow(contact, onClick = { onSelect(contact) })
