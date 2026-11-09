@@ -20,6 +20,7 @@ import Modal from './Modal'
 import LocationMap from './LocationMap'
 import StatusPill from './StatusPill'
 import DispatchPanel from './DispatchPanel'
+import { TIERS, tierOf } from '../dispatch'
 
 // "Last Known Location": the senior's position when the alert fired, stored as a geohash.
 // It is a precise fix held under RA 10173 section 12(c), not anonymised. Shown on a live
@@ -241,7 +242,6 @@ const REMARK_CHIPS = [
   'Responder attended, senior safe',
   'Family already with senior',
   'Could not reach, family handling it',
-  'Test or duplicate alert',
 ]
 
 // The action buttons sit below the map. The remarks box is optional; a note is
@@ -301,6 +301,17 @@ function IncidentActions({ alert, onAct, busy }) {
   )
 }
 
+// "Tier 1"; hovering shows the tier's name and its first action.
+function TierBadge({ alert }) {
+  const tier = tierOf(alert)
+  const { label, action } = TIERS[tier - 1]
+  return (
+    <span className={`tier-badge tier-badge-${tier}`} title={`${label}: ${action}`}>
+      Tier {tier}
+    </span>
+  )
+}
+
 export default function AlertDetailsModal({ alert, onClose, onAct, actionBusy, dispatch, activeAlerts }) {
   return (
     <Modal onClose={onClose} labelledBy="alert-details-title" className="details-modal">
@@ -337,6 +348,8 @@ export default function AlertDetailsModal({ alert, onClose, onAct, actionBusy, d
                 {CATEGORY_LABEL[alertCategory(alert)]}
               </span>
               <StatusPill status={displayStatus(alert)} />
+              {/* The barangay's priority tier, beside the status, while the alert is open. */}
+              {dispatch?.pooks && isActiveAlert(alert) && <TierBadge alert={alert} />}
             </div>
           </div>
         </div>

@@ -1002,7 +1002,6 @@ h4 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase;
 .responder-note { margin: 0; font-size: 12px; }
 
 .dispatch-panel { margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid var(--line); }
-.dispatch-head { display: flex; align-items: flex-start; gap: 10px; }
 .dispatch-state { margin: 8px 0 0; font-size: 14px; font-weight: 700; }
 .dispatch-action { margin-top: 14px; display: grid; gap: 8px; justify-items: start; }
 .dispatch-action-title { margin: 0; font-size: 14px; font-weight: 700; }
@@ -1036,7 +1035,11 @@ h4 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase;
 .preview-bar p { flex: 1 1 360px; margin: 0; }
 .preview-bar-step { font-weight: 800; color: var(--accent-ink); }
 
-.pook-responder-line { margin: 0 0 4px; font-size: 15px; font-weight: 600; }
+.pook-responder-card {
+  justify-self: stretch; display: grid; gap: 10px; padding: 10px 12px;
+  border-left: 4px solid var(--accent); border-radius: 8px; background: #f6f8fb;
+}
+.pook-responder-row { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 4px 12px; }
 .copy-number { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .copy-number-big { font-size: 26px; letter-spacing: 0.02em; }
 .copy-number-small { font-size: 15px; }
