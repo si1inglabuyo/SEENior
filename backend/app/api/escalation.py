@@ -87,10 +87,16 @@ def senior_window(alert: Alert) -> int:
 
 
 def family_deadline(alert: Alert) -> datetime:
-    """When the server stops waiting for the senior and notifies family."""
-    return alert.created_at + timedelta(
-        seconds=senior_window(alert) + settings.escalation_grace_seconds
-    )
+    """When the server stops waiting for the senior and notifies family.
+
+    An SOS has no grace period: the senior's cancel window is already only a few seconds, it is
+    the one alert where someone has asked for help, and the barangay shares this deadline, so a
+    grace here would delay the responder too. The phone's own timer still fires first in the
+    normal case (the sweep checks `has_step` and never repeats a tier), so the server only acts
+    sooner when the phone has not reported.
+    """
+    grace = 0 if alert.trigger_type == TriggerType.SOS else settings.escalation_grace_seconds
+    return alert.created_at + timedelta(seconds=senior_window(alert) + grace)
 
 
 def has_family_tier(senior: Senior) -> bool:

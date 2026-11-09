@@ -181,6 +181,39 @@ def test_sos_notifies_family_and_barangay_in_the_same_pass(monkeypatch, sent):
     assert alert.escalation_steps[-1]["reason"] == "SOS pressed by the senior"
 
 
+def test_an_sos_has_no_grace_period_but_every_other_alert_keeps_it():
+    """Pressed 2026-11-09: the barangay was reached at +44 s because the server waited the
+    10 s cancel window plus the 30 s grace. SOS now acts on the cancel window alone."""
+    sos = _alert(TriggerType.SOS)
+    assert escalation.family_deadline(sos) - CREATED == timedelta(seconds=10)
+    assert escalation.barangay_deadline(sos, True) - CREATED == timedelta(seconds=10)
+    for trigger, window in ((TriggerType.FALL_PATTERN, 60), (TriggerType.INACTIVITY, 600)):
+        other = _alert(trigger)
+        assert escalation.family_deadline(other) - CREATED == timedelta(
+            seconds=window + settings.escalation_grace_seconds
+        )
+
+
+def test_an_sos_is_left_alone_while_the_cancel_window_is_open(monkeypatch, sent):
+    alert = _alert(TriggerType.SOS)
+    counts, _ = _sweep(monkeypatch, [alert], 9)
+    assert counts == (0, 0)
+    assert alert.status == AlertStatus.PENDING and alert.escalation_steps == []
+    assert not sent.pushes and not sent.family_sms
+
+
+def test_an_sos_the_phone_already_sent_to_family_is_not_sent_again(monkeypatch, sent):
+    """The phone reports family first (+0.3 s on 2026-11-09). When the server then escalates the
+    barangay at 10 s, family must not get a second push or text."""
+    alert = _alert(TriggerType.SOS, steps=[{"step": "escalated_family"}])
+    counts, _ = _sweep(monkeypatch, [alert], 11)
+
+    assert counts == (0, 1)
+    assert alert.status == AlertStatus.ESCALATED
+    assert _steps(alert) == ["escalated_family", "escalated_barangay_auto"]
+    assert not sent.pushes and not sent.family_sms
+
+
 def test_the_sweep_still_picks_up_an_sos_the_family_acknowledged(monkeypatch, sent):
     """Family tapping Acknowledge must not keep an SOS off the dashboard (seen 2026-11-09:
     acknowledged 12 s after the press, never escalated). The fake DB ignores the query, so the

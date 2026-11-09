@@ -184,7 +184,7 @@ Alert cancelled       ▼
 
 The senior app mirrors this in the UI only: a senior living alone gets **Home / Profile** instead of the four tabs, with Invite and Contacts re-parented under **Profile → Family contacts** so pairing later is still reachable. `Seniors.living_arrangement` drives *tab visibility only* — never escalation — and pairing a contact flips it back automatically. Keep those two decisions separate: a stale UI flag must never be able to misroute an alert.
 
-**SOS button** (one-swipe, senior-initiated) bypasses the normal wait times — it has only a short cancellation window (to catch accidental presses) and then notifies all parties simultaneously.
+**SOS button** (one-swipe, senior-initiated) bypasses the normal wait times — it has only a short cancellation window (to catch accidental presses) and then notifies all parties simultaneously. The server's backstop for SOS waits the 10 s cancel window only, with none of the 30 s grace other alerts get (changed 2026-11-10 after a drill reached the barangay at +44 s).
 
 **Important interface requirement (from panel feedback):** the senior-facing wellness prompt must show *why* it's asking — a plain-language reason derived from what triggered the alert (e.g., "We noticed you haven't moved in a while during your usual active hours") — not just a bare "are you okay" with no context. This is built from the `trigger_type` and `time_block` fields already in the Alerts table; no extra database fields needed.
 
@@ -296,6 +296,7 @@ Both apps have a **Delete account** flow (senior: Profile → Account; family: P
 - SMS fallback depends on Semaphore PH's gateway availability and cellular signal — not a 100% guarantee in zero-signal areas.
 - **The barangay responds only during the hall's duty hours (added 2026-11-05).** After hours an escalated alert waits on the dashboard until the hall opens, and the system does not guarantee any response time. It is not an emergency service. Family contacts and the SOS screen are the only tiers that act at night and on weekends.
 - **A senior who lives alone, cannot reach the phone after hours and has named no trusted person has nobody to help.** Pairing a family contact or a trusted person (a neighbour or caregiver, via the family app's Caregiver / Other relationship) closes the gap; the app now suggests it. This must also be stated in the paper.
+- **A silent phone does not alert the family (decided 2026-11-10, deliberately not built).** Detection runs on the senior's phone, so a phone that is dead, off, out of signal or frozen by the OS raises nothing itself. What exists: the heartbeat (battery, last seen), a server FCM wake push, a badge on the barangay dashboard and a grey "not heard from" line in the family app. What does not: no push or SMS to family when a heartbeat goes missing. A family member learns of it only by opening the app. Building it would need a "notice sent" record (migration 0023), a tuned silence threshold and repeat rule (a phone left at home or switched off would otherwise trigger it) and SMS credit. Not a bug; do not add it without the user asking. State it in the paper.
 
 ---
 
