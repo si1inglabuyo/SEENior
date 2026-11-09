@@ -133,6 +133,10 @@ fun FamilyHomeScreen(
             } else if (seniorsViewModel.contacts.isEmpty()) {
                 EmptyLinkCard(onLinkSenior)
             } else {
+                if (seniorsViewModel.showingSaved) {
+                    Text(copy.showingSavedSeniors, color = FamilyColors.TextSecondary, fontSize = 13.sp)
+                    Spacer(Modifier.height(8.dp))
+                }
                 seniorsViewModel.contacts.forEach { contact ->
                     SeniorCard(
                         contact = contact,

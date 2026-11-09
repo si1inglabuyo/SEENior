@@ -239,6 +239,7 @@ class SeniorProfileViewModel(application: Application) : AndroidViewModel(applic
             // 3. Erase the local database (all ten tables). clearAllTables() blocks and must run off the main thread.
             withContext(Dispatchers.IO) { db.clearAllTables() }
             DeviceKeyStore.clear()
+            com.pup.seenior.network.ContactsCache.clearSenior(app)
 
             isDeleting = false
             onDeleted()

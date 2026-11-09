@@ -6,6 +6,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.pup.seenior.network.ContactsCache
 import com.pup.seenior.network.RetrofitClient
 import com.pup.seenior.network.dto.ContactDto
 import com.pup.seenior.session.FamilySession
@@ -33,6 +34,10 @@ class FamilySeniorsViewModel(application: Application) : AndroidViewModel(applic
     var loadFailed by mutableStateOf(false)
         private set
 
+    /** True when `contacts` is the saved copy because the server could not be reached. The list may be out of date. */
+    var showingSaved by mutableStateOf(false)
+        private set
+
     // Only meaningful after a successful load; after a failure `contacts` is empty for the wrong reason.
     val canLinkMore: Boolean get() = !loadFailed && contacts.size < MAX_LINKED_SENIORS
 
@@ -42,16 +47,25 @@ class FamilySeniorsViewModel(application: Application) : AndroidViewModel(applic
             isLoading = true
             error = null
             loadFailed = false
+            showingSaved = false
             try {
                 contacts = RetrofitClient.api.getMyContacts("Bearer $token")
+                    .also { ContactsCache.saveFamily(getApplication(), it) }
             } catch (e: HttpException) {
                 error = if (SessionState.handleIfUnauthorized(getApplication(), e))
                     FamilyError.SessionExpired
                 else FamilyError.Server(FamilyError.Action.LoadSeniors, e.code())
                 loadFailed = true
             } catch (e: IOException) {
-                error = FamilyError.Network(FamilyError.NetworkVariant.CheckConnection)
-                loadFailed = true
+                // No signal or too slow: keep showing the last list the server sent, with a note.
+                val saved = ContactsCache.loadFamily(getApplication())
+                if (saved != null) {
+                    contacts = saved
+                    showingSaved = true
+                } else {
+                    error = FamilyError.Network(FamilyError.NetworkVariant.CheckConnection)
+                    loadFailed = true
+                }
             } finally {
                 isLoading = false
             }
