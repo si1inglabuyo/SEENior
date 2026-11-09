@@ -32,7 +32,7 @@ test('tiers follow the agreed order', () => {
   assert.equal(tierOf(alert([], { trigger_type: 'fall_pattern' })), 2)
   assert.equal(tierOf(alert([{ step: 'escalated_barangay' }])), 3)
   assert.equal(tierOf(alert([], { senior_has_family_contact: false })), 4)
-  assert.equal(tierOf(alert()), 5)
+  assert.equal(tierOf(alert()), 4)
 })
 
 test('SOS and falls keep their tier even for a senior living alone', () => {

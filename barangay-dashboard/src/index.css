@@ -932,7 +932,6 @@ h4 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase;
 .tier-badge-2 { background: #3b4656; border-color: #3b4656; color: #fff; }
 .tier-badge-3 { background: #5d6879; border-color: #5d6879; color: #fff; }
 .tier-badge-4 { background: var(--surface); border-color: #3b4656; color: #3b4656; }
-.tier-badge-5 { background: var(--surface); border-color: var(--line); color: #5d6879; }
 .badge-after-hours {
   font-size: 10px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase;
   color: #5d6879; border: 1px dashed #5d6879; border-radius: 999px; padding: 3px 8px; white-space: nowrap;

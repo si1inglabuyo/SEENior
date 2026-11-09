@@ -38,15 +38,14 @@ export const TIERS = [
   { tier: 1, label: 'SOS', action: 'Send a team now', callFirst: false },
   { tier: 2, label: 'Potential fall', action: 'Send a team now', callFirst: false },
   { tier: 3, label: 'Family requested a welfare check', action: 'Send a team', callFirst: false },
-  { tier: 4, label: 'Anomaly, senior lives alone', action: 'Call first, then send a team', callFirst: true },
-  { tier: 5, label: 'Other anomaly', action: 'Call first, then send a team', callFirst: true },
+  { tier: 4, label: 'Anomaly', action: 'Call first, then send a team', callFirst: true },
 ]
 
 export function tierOf(alert) {
   if (alert.trigger_type === 'sos') return 1
   if (alert.trigger_type === 'fall_pattern') return 2
   if ((alert.escalation_steps || []).some((e) => e && e.step === 'escalated_barangay')) return 3
-  return alert.senior_has_family_contact === false ? 4 : 5
+  return 4
 }
 
 // The API sends naive UTC with no zone marker, which JS would read as local time.
