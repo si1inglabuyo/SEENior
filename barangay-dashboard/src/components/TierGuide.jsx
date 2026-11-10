@@ -21,7 +21,7 @@ function statusText(states) {
   return waiting ? `${waiting} waiting` : 'All covered'
 }
 
-function TierTile({ tier, label, states, selected, onSelect }) {
+function TierTile({ tier, label, action, states, selected, onSelect }) {
   const tone = toneOf(states)
   return (
     <button
@@ -35,6 +35,7 @@ function TierTile({ tier, label, states, selected, onSelect }) {
         {tone && <span className="pook-count">{states.length}</span>}
       </span>
       <span className="tier-tile-label">{label}</span>
+      <span className="tier-tile-action">{action}</span>
       <span className="tier-tile-status">{statusText(states)}</span>
     </button>
   )
@@ -54,11 +55,12 @@ export default function TierGuide({ alerts, selected, onSelect }) {
         {GROUPS.map((group) => (
           <section className="tier-group" key={group.title}>
             <div className="tier-group-tiles">
-              {group.tiers.map(({ tier, label }) => (
+              {group.tiers.map(({ tier, label, action }) => (
                 <TierTile
                   key={tier}
                   tier={tier}
                   label={label}
+                  action={action}
                   states={states.filter((s) => s.tier === tier)}
                   selected={selected === tier}
                   onSelect={onSelect}
