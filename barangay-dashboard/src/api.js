@@ -1,5 +1,7 @@
 // Everything that talks to the SEENior API, so no screen deals with tokens or URLs.
 
+import { demoAlerts, demoResponse } from './demoAlerts'
+
 const BASE = import.meta.env.VITE_API_BASE ?? 'https://seenior.onrender.com'
 const TOKEN_KEY = 'seenior.responder.token'
 
@@ -65,6 +67,18 @@ export async function resendLoginCode(challengeId) {
 }
 
 export async function api(path, options = {}) {
+  // TEMPORARY demo alerts (src/demoAlerts.js): calls about them never leave this tab, and they
+  // join the active list. Remove these lines with that file after the demo.
+  const demo = demoResponse(path, options)
+  if (demo !== undefined) return demo
+  if (path.startsWith('/barangay/alerts?') && path.includes('scope=active')) {
+    const live = await apiServer(path, options)
+    return Array.isArray(live) ? [...live, ...demoAlerts()] : live
+  }
+  return apiServer(path, options)
+}
+
+async function apiServer(path, options = {}) {
   const res = await fetch(`${BASE}${path}`, {
     ...options,
     headers: {

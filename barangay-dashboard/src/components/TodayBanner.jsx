@@ -1,7 +1,7 @@
 import { TIERS, dispatchOf } from '../dispatch'
 
-// The top of the Dashboard tab: how many alerts are open, how many still need someone, and how
-// they split across the priority tiers.
+// The top of the Dashboard tab: how the open alerts split across the priority tiers. Orange
+// while any still needs someone.
 export default function TodayBanner({ alerts }) {
   // Nothing to report with no open alerts, so the banner is not shown at all.
   if (alerts.length === 0) return null
@@ -14,14 +14,9 @@ export default function TodayBanner({ alerts }) {
     count: states.filter((s) => s.tier === tier).length,
   }))
 
-  let headline
-  if (waiting === 0) headline = `All ${alerts.length} open ${alerts.length === 1 ? 'alert is' : 'alerts are'} covered.`
-  else headline = `${waiting} of ${alerts.length} open ${alerts.length === 1 ? 'alert needs' : 'alerts need'} a responder.`
-
   return (
     <section className={`today-banner${waiting ? ' has-waiting' : ''}`}>
       <div className="today-banner-text">
-        <p className="today-banner-headline">{headline}</p>
         <ul className="today-banner-tiers">
           {byTier.map(({ tier, label, count }) => (
             <li key={tier} className={count ? '' : 'is-zero'} title={label}>

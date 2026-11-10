@@ -1393,3 +1393,12 @@ h4 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase;
 .history-rows .queue-row-clickable:focus-visible {
   border-radius: 10px; border-bottom-color: transparent;
 }
+
+/* TEMPORARY: demo alerts card at the bottom of the Alerts tab, remove after the demo. */
+.demo-alerts-note { margin: 0 0 12px; }
+.demo-alerts-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.demo-toggle { display: inline-flex; border: 1px solid var(--accent); border-radius: 999px; overflow: hidden; }
+.demo-toggle button {
+  border: 0; background: #fff; color: var(--accent-ink); padding: 7px 14px; font: inherit; font-weight: 700; cursor: pointer;
+}
+.demo-toggle button[aria-pressed="true"] { background: var(--accent); color: #fff; }
