@@ -26,7 +26,7 @@ function TierTile({ tier, label, action, states, selected, onSelect }) {
   return (
     <button
       type="button"
-      className={`tier-tile ${tone ? `tier-tile-${tone}` : ''} ${selected ? 'is-selected' : ''}`}
+      className={`tier-tile tier-tile-t${tier} ${tone ? `tier-tile-${tone}` : ''} ${selected ? 'is-selected' : ''}`}
       aria-pressed={selected}
       onClick={() => onSelect(selected ? undefined : tier)}
     >

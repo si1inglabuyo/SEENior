@@ -1194,25 +1194,6 @@ h4 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase;
   .today-banner-headline { font-size: 18px; }
 }
 
-/* Pook tiles match the tier tiles: white cards whose left edge carries the state. */
-.pook-tile {
-  position: relative; overflow: hidden; padding-left: 14px; border-radius: 10px; color: var(--ink);
-  box-shadow: 0 1px 2px rgba(27,36,48,.05);
-  transition: box-shadow .15s ease, border-color .15s ease, transform .15s ease;
-}
-.pook-tile::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 4px; background: transparent; }
-.pook-tile:hover { border-color: #f1c39b; box-shadow: 0 4px 12px rgba(27,36,48,.08); transform: translateY(-1px); }
-.pook-tile.is-selected { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
-.pook-tile-red, .pook-tile-amber, .pook-tile-green { background: var(--surface); border-color: var(--line); color: var(--ink); }
-.pook-tile-red::before { background: var(--tone-red); }
-.pook-tile-amber::before { background: #c9962e; }
-.pook-tile-green::before { background: var(--tone-green); }
-.pook-tile-amber .pook-count { background: #c9962e; }
-.pook-legend li::before { border-radius: 2px; width: 4px; height: 14px; border: 0; }
-.pook-legend-red::before { background: var(--tone-red); }
-.pook-legend-amber::before { background: #c9962e; }
-.pook-legend-green::before { background: var(--tone-green); }
-
 /* The banner is orange only while an alert still needs someone; otherwise it is calm. */
 .today-banner:not(.has-waiting) {
   color: var(--ink); background: linear-gradient(135deg, #f3faf6, #e3f2ea);
@@ -1382,3 +1363,33 @@ h4 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase;
 
 /* Sidebar menu: bold text. */
 .nav-item { font-weight: 700; }
+
+/* Tier tiles with open alerts: the left edge and the count take the tier badge's colour. The
+   state (needs a team / a call / covered) still shows in the status line under the label. */
+.tier-tile-t1:is(.tier-tile-red, .tier-tile-amber, .tier-tile-green)::before,
+.tier-tile-t1 .pook-count { background: linear-gradient(180deg, #b45a1c, #93450f); }
+.tier-tile-t2:is(.tier-tile-red, .tier-tile-amber, .tier-tile-green)::before,
+.tier-tile-t2 .pook-count { background: linear-gradient(180deg, #d27a30, #b5671f); }
+.tier-tile-t3:is(.tier-tile-red, .tier-tile-amber, .tier-tile-green)::before,
+.tier-tile-t3 .pook-count { background: linear-gradient(180deg, #eea566, #e08a3c); }
+.tier-tile-t4:is(.tier-tile-red, .tier-tile-amber, .tier-tile-green)::before { background: #f1c39b; }
+.tier-tile-t4 .pook-count { background: var(--accent-soft); color: var(--accent-ink); box-shadow: inset 0 0 0 1px #f1c39b; }
+
+/* Pook grid "call first" tiles: a lighter, cleaner yellow than the olive amber. */
+.pook-tile-amber { background: linear-gradient(180deg, #fffcf2, #fff6dc); border-color: #f0d68e; color: #94690b; }
+.pook-tile-amber .pook-count { background: linear-gradient(180deg, #f2c94c, #dcab25); }
+.pook-legend-amber::before { background: #fff6dc; border-color: #f0d68e; }
+
+/* Count bubbles: solid colours, no gradient. */
+.pook-tile-amber .pook-count { background: #dcab25; }
+.tier-tile-t1 .pook-count { background: #a3501a; }
+.tier-tile-t2 .pook-count { background: #c46f27; }
+.tier-tile-t3 .pook-count { background: #e08a3c; }
+
+/* Alert rows in the flat lists: the hover tint is a rounded block with a little room around the
+   text, the same shape as the urgent rows. */
+.history-rows .queue-row { padding-left: 12px; padding-right: 12px; }
+.history-rows .queue-row-clickable:hover,
+.history-rows .queue-row-clickable:focus-visible {
+  border-radius: 10px; border-bottom-color: transparent;
+}
