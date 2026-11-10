@@ -103,13 +103,21 @@ export function isLongWait(alert, tier, now = Date.now()) {
   return !Number.isNaN(ms) && now - ms >= (LONG_WAIT_MINUTES[tier] ?? 15) * 60000
 }
 
-// Alerts still needing the operator come first, by tier. Within a tier the oldest goes first,
-// so alerts that waited overnight lead when the hall opens, without ever passing a higher
-// tier; a senior living alone goes ahead on a tie. Covered alerts drop below, in the same order.
+// How much earlier an alert for a senior with family may have arrived and still be passed by one
+// for a senior living alone, in the same tier. A team's choice for the pilot, not a figure from a
+// source. Kept short so nobody with family is pushed back for long.
+export const ALONE_HEAD_START_MINUTES = 5
+
+// Alerts still needing the operator come first, by tier. Within a tier the oldest goes first, so
+// alerts that waited overnight lead when the hall opens, without ever passing a higher tier. A
+// senior living alone (nobody else was told) goes ahead of a senior with family only when the
+// other alert is at most ALONE_HEAD_START_MINUTES older: their alert counts as that much earlier.
+// Covered alerts drop below, in the same order.
 export function byPriority(alerts) {
   const key = (alert) => {
     const { tier, tone } = dispatchOf(alert)
-    return [tone === 'green' ? 1 : 0, tier, toMs(alert.created_at), alert.senior_has_family_contact === false ? 0 : 1]
+    const headStart = alert.senior_has_family_contact === false ? ALONE_HEAD_START_MINUTES * 60000 : 0
+    return [tone === 'green' ? 1 : 0, tier, toMs(alert.created_at) - headStart]
   }
   return [...alerts].sort((a, b) => {
     const [x, y] = [key(a), key(b)]
