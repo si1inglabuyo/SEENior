@@ -81,5 +81,14 @@ data class Alert(
      * never sensor samples, so it syncs to the cloud (`alerts.fall_context`, migration 0019).
      * A record, not a rule: no detection gate reads it.
      */
-    @ColumnInfo(name = "fall_context") val fallContext: String? = null
+    @ColumnInfo(name = "fall_context") val fallContext: String? = null,
+    /**
+     * For `fall_pattern` only: the working behind [fallContext]'s `pre_dev` (see
+     * [com.pup.seenior.detection.FallTrace]): `dev=0.0034,0.0034,...`, one figure per reading in
+     * the two seconds before the drop, oldest first. Each is the distance of the total
+     * acceleration from 1 g, never the axes. Syncs to the cloud only when a confirmed fall
+     * escalates (`alerts.fall_trace`, migration 0023): the first per-reading series to leave the
+     * phone, added at the panel's request (CLAUDE.md section 11). A record, not a rule.
+     */
+    @ColumnInfo(name = "fall_trace") val fallTrace: String? = null
 )

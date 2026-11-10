@@ -24,6 +24,15 @@ class AlertCreate(BaseModel):
     # Fall alerts only (migration 0019): the movement before the fall and whether it was night.
     # Same key=value-numbers-only shape.
     fall_context: str | None = Field(default=None, max_length=200, pattern=r"^[a-z_]+=[0-9.]+(;[a-z_]+=[0-9.]+)*$")
+    # Fall alerts only (migration 0023): the working behind fall_context's pre_dev, one figure per
+    # reading in the 2 s before the free fall, oldest first, e.g. "dev=0.0034,0.0034". Held to
+    # that exact shape (at most 256 figures, matching the phone's buffer) so it can carry nothing
+    # but those figures: no axes, no timestamps, no free text.
+    fall_trace: str | None = Field(
+        default=None,
+        max_length=2600,
+        pattern=r"^dev=[0-9]{1,3}(\.[0-9]{1,4})?(,[0-9]{1,3}(\.[0-9]{1,4})?){0,255}$",
+    )
 
 
 class AlertOut(BaseModel):

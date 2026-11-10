@@ -236,7 +236,8 @@ object AlertEscalator {
                         triggeredAt = Instant.ofEpochMilli(alert.triggeredAt).toString(),
                         fallTolerance = current?.fallTolerance ?: alert.fallTolerance,
                         fallEvidence = current?.fallEvidence ?: alert.fallEvidence,
-                        fallContext = current?.fallContext ?: alert.fallContext
+                        fallContext = current?.fallContext ?: alert.fallContext,
+                        fallTrace = current?.fallTrace ?: alert.fallTrace
                     )
                 )
             }

@@ -458,6 +458,7 @@ class SensorCollectionService : Service(), SensorEventListener
         val preFallMotion = fallDetector.lastPreFallMotion
         val preFallSamples = fallDetector.lastPreFallSamples
         val preFallSteps = fallDetector.lastPreFallSteps
+        val preFallTrace = fallDetector.lastPreFallTrace
         serviceScope.launch {
             AlertResponder.raise(
                 applicationContext,
@@ -468,7 +469,8 @@ class SensorCollectionService : Service(), SensorEventListener
                 tolerance,
                 preFallMotion,
                 preFallSamples,
-                preFallSteps
+                preFallSteps,
+                preFallTrace
             )
         }
     }

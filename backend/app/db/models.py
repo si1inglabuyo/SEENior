@@ -2,7 +2,7 @@ import enum
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import Enum, Float, ForeignKey, JSON, String, UniqueConstraint
+from sqlalchemy import Enum, Float, ForeignKey, JSON, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
@@ -386,5 +386,14 @@ class Alert(Base):
     # a dropped phone at rest can be told apart from a fall while moving; it does not change the
     # detector's decision. Null for every other trigger and older rows.
     fall_context: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    # Fall alerts only (migration 0023): the working behind fall_context's pre_dev, at the panel's
+    # request. One figure per accelerometer reading in the 2 s before the free fall, oldest first:
+    # "dev=0.0034,0.0034,..." where each is |magnitude - 9.80665| in m/s2. Adding them gives
+    # fall_context's sum; dividing by n gives pre_dev. AMENDS the raw-data boundary (CLAUDE.md
+    # section 11, 2026-11-10): this is the first per-reading series to leave the phone. It is the
+    # distance of the total acceleration from 1 g, never the three axes, never orientation, never
+    # a timestamp. Confirmed falls only; cleared when the senior deletes their account. Null for
+    # every other trigger and older rows.
+    fall_trace: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     senior: Mapped["Senior"] = relationship(back_populates="alerts")

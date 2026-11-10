@@ -297,6 +297,7 @@ async def create_alert(
         fall_tolerance=payload.fall_tolerance if payload.trigger_type == TriggerType.FALL_PATTERN else None,
         fall_evidence=payload.fall_evidence if payload.trigger_type == TriggerType.FALL_PATTERN else None,
         fall_context=payload.fall_context if payload.trigger_type == TriggerType.FALL_PATTERN else None,
+        fall_trace=payload.fall_trace if payload.trigger_type == TriggerType.FALL_PATTERN else None,
     )
 
     # A POST /alerts is always the phone escalating to the family tier, so record that step

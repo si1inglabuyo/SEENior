@@ -40,7 +40,7 @@ import com.pup.seenior.database.entities.SensorData
         MlModelMetadata::class,
         SeniorOnboarding::class
     ],
-    version = 8,
+    version = 9,
     exportSchema = true
 )
 abstract class SeniorAppDatabase : RoomDatabase() {
@@ -132,13 +132,23 @@ abstract class SeniorAppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * 8 -> 9: the per-reading movement series behind a fall's pre_dev. Nullable and not
+         * backfilled: earlier falls keep `null` for "not recorded".
+         */
+        private val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE Alerts ADD COLUMN fall_trace TEXT")
+            }
+        }
+
         fun getInstance(context: Context): SeniorAppDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext,
                     SeniorAppDatabase::class.java,
                     "senior_app.db"
-                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
+                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
                     .build().also { INSTANCE = it }
             }
         }

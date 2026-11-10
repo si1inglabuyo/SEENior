@@ -176,3 +176,37 @@ FROM alerts WHERE trigger_type = 'fall_pattern' ORDER BY created_at DESC;
 **To turn this into accuracy figures** replay the SisFall dataset (reference 5) through
 `FallDetector` and report how many falls it confirms and how many everyday activities it
 wrongly flags. Not yet done.
+
+## The working behind `pre_dev` (added 2026-11-10)
+
+The panel asked to see, in the database, how `pre_dev` is calculated. `fall_context` already
+carries `n` and `sum`, so `sum ÷ n = pre_dev` can be redone by hand. A confirmed fall now also
+carries `fall_trace` (local `Alerts`, migration 8->9; cloud `alerts.fall_trace`, migration 0023):
+
+```
+dev=0.0034,0.0034,0.0034,...        (one figure per reading, oldest first)
+```
+
+Each figure is `|sqrt(x^2 + y^2 + z^2) - 9.80665|` in m/s2 for one accelerometer reading in the 2 s
+before the free fall, to four decimals. Add them for `sum`; divide by the count for `pre_dev`.
+For the simulator's one second of standing that is 50 figures of 0.0034, `sum` 0.17, `pre_dev` 0.0.
+
+**This amends the raw-data boundary** (CLAUDE.md section 11, amendment of 2026-11-10): it is the
+first per-reading series to leave the phone. Only the distance of the total acceleration from 1 g
+is sent, never the three axes, orientation or a timestamp, only for a confirmed fall, and only
+when that alert escalates past the senior. Spacing between readings is not stored (the phone asks
+for 50 Hz, so about 20 ms; the real gaps jitter, which is why `n` is 99 and not always 100).
+It is a record, not a rule: no gate reads it.
+
+Query to put in front of the panel (the cloud only holds falls that escalated):
+
+```sql
+SELECT created_at, fall_context, fall_trace
+FROM alerts
+WHERE trigger_type = 'fall_pattern' AND fall_trace IS NOT NULL
+ORDER BY created_at DESC;
+```
+
+Check by hand, on any row: split `fall_trace` on commas, add the figures, compare with `sum` in
+`fall_context`; divide by `n`, compare with `pre_dev`. Four-decimal rounding can differ from
+`sum` in the second decimal.
