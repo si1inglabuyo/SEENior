@@ -16,7 +16,7 @@ function ResponderRow({ name, outAt, onRename, onRemove }) {
 
   if (draft !== null) {
     return (
-      <li>
+      <li className="pr-row pr-row-editing">
         <form className="responder-edit" onSubmit={save}>
           <input
             aria-label={`New name for ${name}`}
@@ -36,23 +36,21 @@ function ResponderRow({ name, outAt, onRename, onRemove }) {
   }
 
   return (
-    <li>
-      <div className="responder-edit">
-        <span className="responder-name">{name}</span>
-        {outAt ? (
-          <span className="responder-out">Out · {outAt}</span>
-        ) : (
-          <>
-            <button type="button" className="btn-outline" onClick={() => setDraft(name)}>Rename</button>
-            <button type="button" className="btn-outline" onClick={onRemove}>Delete</button>
-          </>
-        )}
-      </div>
+    <li className="pr-row pr-row-team">
+      <span className="pr-who">{name}</span>
+      {outAt ? (
+        <span className="responder-out">Out · {outAt}</span>
+      ) : (
+        <span className="pr-actions">
+          <button type="button" className="pr-edit" onClick={() => setDraft(name)}>Rename</button>
+          <button type="button" className="pr-edit" onClick={onRemove}>Delete</button>
+        </span>
+      )}
     </li>
   )
 }
 
-function ResponderGroup({ title, addLabel, names, out, onAdd, onRename, onRemove }) {
+export function ResponderGroup({ title, addLabel, names, out, onAdd, onRename, onRemove }) {
   const [draft, setDraft] = useState('')
   const [problem, setProblem] = useState('')
 
@@ -64,10 +62,10 @@ function ResponderGroup({ title, addLabel, names, out, onAdd, onRename, onRemove
   }
 
   return (
-    <section className="responder-group">
+    <section className="responder-group pr-sector">
       <h4>{title}</h4>
       {names.length > 0 ? (
-        <ul className="responder-list">
+        <ul className="pr-list">
           {names.map((name) => (
             <ResponderRow
               key={name}
@@ -81,7 +79,7 @@ function ResponderGroup({ title, addLabel, names, out, onAdd, onRename, onRemove
       ) : (
         <p className="muted responder-none">None yet.</p>
       )}
-      <form className="responder-edit" onSubmit={add}>
+      <form className="responder-edit pr-add" onSubmit={add}>
         <input
           aria-label={addLabel}
           placeholder={addLabel}

@@ -3,7 +3,7 @@ import { resourcesOut } from '../dispatch'
 import { IconBuilding } from '../icons'
 import Modal from './Modal'
 import PookResponders from './PookResponders'
-import ResponderManager from './ResponderManager'
+import ResponderManager, { ResponderGroup } from './ResponderManager'
 import SectionCard from './SectionCard'
 
 // A short card on the side; the full pook-by-pook list opens in a popup so it does not stretch
@@ -44,6 +44,19 @@ export default function ResponderPanel({ alerts, responders, pooks, onSavePook }
           </button>
           <h3 id="pook-responders-title">Pook Responders</h3>
           <PookResponders pooks={list} onSave={onSavePook} out={out} />
+          {/* The hall's own people, sent when a pook's responder is out or cannot come. */}
+          <ResponderGroup
+            title="Tanod and volunteers"
+            addLabel="Add a tanod or volunteer"
+            names={responders.teams}
+            out={out}
+            onAdd={(name) => responders.add('teams', name)}
+            onRename={(oldName, name) => responders.rename('teams', oldName, name)}
+            onRemove={(name) => responders.remove('teams', name)}
+          />
+          <p className="muted responder-note">
+            Tanod and volunteers are saved in this browser only, so other computers keep their own list.
+          </p>
         </Modal>
       )}
       {managing && (

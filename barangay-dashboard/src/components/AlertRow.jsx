@@ -1,7 +1,7 @@
 import { alertCategory, CATEGORY_CLASS, CATEGORY_LABEL, displayStatus, pookTitle } from '../labels'
 import { initials, dateTimeLabel } from '../format'
 import { isActiveAlert } from '../historyFilters'
-import { waitingLabel } from '../dispatch'
+import { isLongWait, waitingLabel } from '../dispatch'
 import StatusPill from './StatusPill'
 
 // One incident row, shared by the Alerts queue and Alert History's chronological view --
@@ -35,7 +35,12 @@ export default function AlertRow({ alert, onShowDetails, dispatch, afterHours = 
           <span className="queue-row-time">{dateTimeLabel(alert.created_at)}</span>
           {/* Only while someone still has to act: shows the oldest-first order inside a tier. */}
           {dispatch && dispatch.tone !== 'green' && (
-            <span className="queue-row-waiting"> · {waitingLabel(alert)}</span>
+            <span
+              className={isLongWait(alert, dispatch.tier) ? 'queue-row-waiting is-long' : 'queue-row-waiting'}
+            >
+              {' · '}
+              {waitingLabel(alert)}
+            </span>
           )}
         </p>
         {/* Only while the incident is open: the responder needs the number to call at once. */}

@@ -94,6 +94,15 @@ export function waitingLabel(alert, now = Date.now()) {
   return `Waiting ${days} ${days === 1 ? 'day' : 'days'}`
 }
 
+// Minutes an alert may wait for someone before its row flags the wait in red. A team's choice for
+// the pilot, not a figure from a source: tighter for the tiers that send someone at once.
+export const LONG_WAIT_MINUTES = { 1: 5, 2: 5, 3: 15, 4: 15 }
+
+export function isLongWait(alert, tier, now = Date.now()) {
+  const ms = toMs(alert.created_at)
+  return !Number.isNaN(ms) && now - ms >= (LONG_WAIT_MINUTES[tier] ?? 15) * 60000
+}
+
 // Alerts still needing the operator come first, by tier. Within a tier the oldest goes first,
 // so alerts that waited overnight lead when the hall opens, without ever passing a higher
 // tier; a senior living alone goes ahead on a tie. Covered alerts drop below, in the same order.

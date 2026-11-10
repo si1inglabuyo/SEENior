@@ -301,6 +301,19 @@ function IncidentActions({ alert, onAct, busy }) {
   )
 }
 
+// One numbered part of the details, so the window reads as the steps of handling an alert.
+function DetailsSection({ n, title, children }) {
+  return (
+    <section className="details-section">
+      <h3 className="details-section-head">
+        <span className="details-section-n">{n}</span>
+        {title}
+      </h3>
+      {children}
+    </section>
+  )
+}
+
 // "Tier 1"; hovering shows the tier's name and its first action.
 function TierBadge({ alert }) {
   const tier = tierOf(alert)
@@ -313,6 +326,10 @@ function TierBadge({ alert }) {
 }
 
 export default function AlertDetailsModal({ alert, onClose, onAct, actionBusy, dispatch, activeAlerts }) {
+  // Sections are numbered in the order they appear, so a closed alert (fewer sections) still
+  // counts 1, 2, 3.
+  let count = 0
+  const step = () => ++count
   return (
     <Modal onClose={onClose} labelledBy="alert-details-title" className="details-modal">
       <button type="button" className="modal-close" onClick={onClose} aria-label="Close">
@@ -367,21 +384,27 @@ export default function AlertDetailsModal({ alert, onClose, onAct, actionBusy, d
       </div>
 
       <div className="details-body">
-        {isActiveAlert(alert) && <ContactNumbers alert={alert} />}
+        {isActiveAlert(alert) && (
+          <DetailsSection n={step()} title="Reach the senior">
+            <ContactNumbers alert={alert} />
+          </DetailsSection>
+        )}
 
         {dispatch?.pooks && isActiveAlert(alert) && (
-          <DispatchPanel
-            alert={alert}
-            activeAlerts={activeAlerts}
-            pooks={dispatch.pooks}
-            hotlines={dispatch.hotlines}
-            teamList={dispatch.teamList}
-            serviceList={dispatch.serviceList}
-            busy={dispatch.busy}
-            error={dispatch.error}
-            onSend={dispatch.send}
-            onResolve={onAct ? (a, note) => onAct(a, 'resolve', note) : undefined}
-          />
+          <DetailsSection n={step()} title="Send help">
+            <DispatchPanel
+              alert={alert}
+              activeAlerts={activeAlerts}
+              pooks={dispatch.pooks}
+              hotlines={dispatch.hotlines}
+              teamList={dispatch.teamList}
+              serviceList={dispatch.serviceList}
+              busy={dispatch.busy}
+              error={dispatch.error}
+              onSend={dispatch.send}
+              onResolve={onAct ? (a, note) => onAct(a, 'resolve', note) : undefined}
+            />
+          </DetailsSection>
         )}
 
         {/* Last Known Location is an operational aid for a responder who still has to reach
@@ -389,20 +412,25 @@ export default function AlertDetailsModal({ alert, onClose, onAct, actionBusy, d
             or marked a false alert (all of Alert History, and the closed rows on the
             Alerts tab) there is nobody to dispatch, so the panel is hidden. */}
         {isActiveAlert(alert) && (
-          <>
+          <DetailsSection n={step()} title="Locate the senior">
             <h3 className="details-location-title">Last Known Location</h3>
             <LocationPreview
               address={alert.senior_address}
               clusterId={alert.location_cluster_id}
             />
-          </>
+          </DetailsSection>
         )}
 
-        <FallContext alert={alert} />
+        <DetailsSection n={step()} title="What happened">
+          <FallContext alert={alert} />
+          <EscalationTimeline alert={alert} />
+        </DetailsSection>
 
-        <EscalationTimeline alert={alert} />
-
-        {onAct && <IncidentActions alert={alert} onAct={onAct} busy={actionBusy} />}
+        {onAct && (
+          <DetailsSection n={step()} title="Close the alert">
+            <IncidentActions alert={alert} onAct={onAct} busy={actionBusy} />
+          </DetailsSection>
+        )}
       </div>
     </Modal>
   )

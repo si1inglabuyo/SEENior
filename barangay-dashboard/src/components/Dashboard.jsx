@@ -9,6 +9,7 @@ import { useHallClosed } from '../hooks/useHallClosed'
 import { useResponders } from '../hooks/useResponders'
 import StatCard from './StatCard'
 import ActiveAlertsPanel from './ActiveAlertsPanel'
+import TodayBanner from './TodayBanner'
 import WeeklyBarChart from './WeeklyBarChart'
 import OutcomeDonut from './OutcomeDonut'
 import AlertTypeChart from './AlertTypeChart'
@@ -140,6 +141,7 @@ export default function Dashboard({ onSessionLost, onNavigate }) {
 
   return (
     <div className="dashboard">
+      <TodayBanner alerts={activeAlerts} />
       <div className="stat-row">
         <StatCard
           label="Total Seniors"

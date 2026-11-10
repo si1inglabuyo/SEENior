@@ -69,7 +69,7 @@ function PookResponderCard({ alert, pook, reached, outElsewhere, unavailable, bu
       <p className="dispatch-action-title">Contact a responder near Pook {pook.name}</p>
       {/* Same row format as the Contact numbers list: who on the left, number on the right. */}
       <div className="pook-responder-card">
-        <div className="pook-responder-row">
+        <div className="pook-responder-card-row">
           <span className="contact-numbers-who">{name}</span>
           <strong className="contact-numbers-phone">{groupPhone(pook.responder_phone)}</strong>
         </div>

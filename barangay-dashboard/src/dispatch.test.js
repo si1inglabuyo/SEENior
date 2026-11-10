@@ -11,6 +11,7 @@ import {
   pookSummary,
   receivedAfterHours,
   waitingLabel,
+  isLongWait,
   resourcesOut,
   responderProblem,
   tierOf,
@@ -166,4 +167,14 @@ test('waitingLabel shows how long an alert has been open', () => {
   assert.equal(waitingLabel(at('2026-11-10T00:55:00'), now), 'Waiting 2 hr 5 min')
   assert.equal(waitingLabel(at('2026-11-08T03:00:00'), now), 'Waiting 2 days')
   assert.equal(waitingLabel(at(null), now), '')
+})
+
+test('isLongWait flags a wait past the limit for its tier', () => {
+  const now = Date.parse('2026-11-10T03:00:00Z')
+  const at = (iso) => ({ created_at: iso })
+  assert.equal(isLongWait(at('2026-11-10T02:56:00'), 1, now), false)
+  assert.equal(isLongWait(at('2026-11-10T02:55:00'), 1, now), true)
+  assert.equal(isLongWait(at('2026-11-10T02:50:00'), 4, now), false)
+  assert.equal(isLongWait(at('2026-11-10T02:45:00'), 4, now), true)
+  assert.equal(isLongWait(at(null), 1, now), false)
 })
