@@ -7,6 +7,7 @@ import com.pup.seenior.baseline.SeedBaselineGenerator
 import com.pup.seenior.database.SeniorAppDatabase
 import com.pup.seenior.database.entities.Alert
 import com.pup.seenior.detection.FallContext
+import com.pup.seenior.detection.FallTrace
 import com.pup.seenior.MainActivity
 import com.pup.seenior.location.AlertLocationCapture
 import com.pup.seenior.ui.wellness.WellnessMessages
@@ -49,7 +50,9 @@ object AlertResponder {
         /** How many samples that reading averaged; stored so the note shows its own working. */
         preFallSamples: Int? = null,
         /** Steps heard in the same window; null when the phone has no step detector. */
-        preFallSteps: Int? = null
+        preFallSteps: Int? = null,
+        /** The per-reading figures behind that reading (see [FallTrace]); kept only on a confirmed fall. */
+        preFallTrace: String? = null
     ): Alert? = raiseLock.withLock {
         val senior = db.seniorDao().getOnboardedSenior() ?: return null
         val onboarding = db.seniorOnboardingDao().getBySeniorId(senior.seniorId) ?: return null
@@ -75,7 +78,8 @@ object AlertResponder {
             triggeredAt = now,
             fallEvidence = fallEvidence,
             fallTolerance = fallTolerance,
-            fallContext = if (triggerType == "fall_pattern") FallContext.encode(preFallMotion, timeBlock, preFallSamples, preFallSteps) else null
+            fallContext = if (triggerType == "fall_pattern") FallContext.encode(preFallMotion, timeBlock, preFallSamples, preFallSteps) else null,
+            fallTrace = if (triggerType == "fall_pattern") preFallTrace else null
         )
         val stored = alert.copy(alertId = db.alertDao().insert(alert).toInt())
         onAlertCreated(context, db, stored)

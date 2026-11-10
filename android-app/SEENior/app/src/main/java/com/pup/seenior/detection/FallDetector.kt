@@ -155,6 +155,17 @@ class FallDetector(
     private var pendingPreFallSamples: Int? = null
     private var scratchSamples = 0
 
+    /**
+     * The per-reading figures [lastPreFallMotion] averaged, oldest first (see [FallTrace]), so the
+     * database can show the sum behind pre_dev. For [FallTrace] only; no gate reads it. Null when
+     * [lastPreFallMotion] is.
+     */
+    var lastPreFallTrace: String? = null
+        private set
+    private var pendingPreFallTrace: String? = null
+    private var scratchTrace: String? = null
+    private val traceScratch = FloatArray(MOTION_CAPACITY)
+
     // Ring of recent |magnitude - 1 g|, newest at motionHead - 1. Fed only while idle, so it holds
     // what happened before a candidate fall began. Two small primitive arrays, no per-sample garbage.
     private val motionAtMs = LongArray(MOTION_CAPACITY)
@@ -176,10 +187,16 @@ class FallDetector(
             val idx = (motionHead - 1 - i + MOTION_CAPACITY) % MOTION_CAPACITY
             if (nowMs - motionAtMs[idx] > PRE_FALL_WINDOW_MS) break
             sum += motionDev[idx]
+            traceScratch[n] = motionDev[idx]
             n++
         }
         scratchSamples = n
-        return if (n >= PRE_FALL_MIN_SAMPLES) sum / n else null
+        if (n < PRE_FALL_MIN_SAMPLES) {
+            scratchTrace = null
+            return null
+        }
+        scratchTrace = FallTrace.encode(traceScratch, n)
+        return sum / n
     }
 
     /** Feeds one accelerometer sample in. Returns true once per confirmed fall, on the sample that completes the stillness window. */
@@ -196,6 +213,7 @@ class FallDetector(
                     freeFallStartMs = nowMs
                     pendingPreFallMotion = preFallMotion(nowMs)
                     pendingPreFallSamples = if (pendingPreFallMotion != null) scratchSamples else null
+                    pendingPreFallTrace = if (pendingPreFallMotion != null) scratchTrace else null
                     preFallStartMs = nowMs
                     trace("1/4 free fall begins (mag ${f(magnitude)} <= ${f(config.freeFallMax)})")
                 }
@@ -248,6 +266,7 @@ class FallDetector(
                     cooldownUntilMs = nowMs + config.cooldownMs
                     lastPreFallMotion = pendingPreFallMotion
                     lastPreFallSamples = pendingPreFallSamples
+                    lastPreFallTrace = pendingPreFallTrace
                     lastPreFallSteps = preFallSteps()
                     lastEvidence = FallEvidence(
                         freeFallMs = freeFallEndMs - freeFallStartMs,
@@ -293,6 +312,7 @@ class FallDetector(
         stepRingCount = 0
         pendingPreFallMotion = null
         pendingPreFallSamples = null
+        pendingPreFallTrace = null
     }
 
     /**

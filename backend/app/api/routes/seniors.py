@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_authenticated_senior, require_role
@@ -171,6 +171,9 @@ async def delete_senior(
 
     # The fingerprint describes how this person lives; once they delete, it goes.
     await db.execute(delete(RoutineBaseline).where(RoutineBaseline.senior_id == senior.id))
+    # Likewise the per-reading movement series kept with each fall alert (migration 0023). The
+    # alert rows stay for audit; only the series goes.
+    await db.execute(update(Alert).where(Alert.senior_id == senior.id).values(fall_trace=None))
 
     links = await db.execute(
         select(Contact).where(Contact.senior_id == senior.id, Contact.is_active())

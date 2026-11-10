@@ -40,7 +40,11 @@ data class CreateAlertRequest(
     val fallEvidence: String? = null,
     // For fall alerts only: how much the phone moved in the 2 s before the drop and whether it
     // was the senior's night block. Two derived figures and a flag, never sensor samples.
-    val fallContext: String? = null
+    val fallContext: String? = null,
+    // For fall alerts only: the readings behind pre_dev, one distance-from-1-g figure per reading
+    // in the 2 s before the drop ("dev=0.0034,..."). Never the axes, orientation or timestamps.
+    // The first per-reading series to leave the phone (spec section 11, amended 2026-11-10).
+    val fallTrace: String? = null
 )
 
 /** Mirrors backend AlertDispatchRequest (family requesting a barangay welfare check). */

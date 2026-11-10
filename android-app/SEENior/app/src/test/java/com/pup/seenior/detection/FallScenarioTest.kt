@@ -239,6 +239,63 @@ class FallScenarioTest {
     }
 
     @Test
+    fun `the trace holds one figure per reading and adding them reproduces the context note's sum`() {
+        val detector = FallDetector()
+        assertTrue(FallSimulator.replay(FallSimulator.stream(), detector))
+        val figures = FallTrace.decode(detector.lastPreFallTrace)!!
+        val note = FallContext.encode(detector.lastPreFallMotion, "afternoon", detector.lastPreFallSamples)
+        val parts = note.split(';').associate { it.substringBefore('=') to it.substringAfter('=') }
+
+        // One figure for each reading the average used.
+        assertEquals(detector.lastPreFallSamples, figures.size)
+        assertEquals(parts.getValue("n").toInt(), figures.size)
+        // What the panel will do by hand: add them up, then divide by n.
+        assertEquals(parts.getValue("sum").toFloat(), figures.sum(), 0.02f)
+        assertEquals(detector.lastPreFallMotion!!, figures.sum() / figures.size, 0.01f)
+        // The simulator's lead-in is a second of standing at 9.81, 0.00335 off 1 g each.
+        assertEquals(50, figures.size)
+        figures.forEach { assertEquals(0.0034f, it, 0.0001f) }
+    }
+
+    @Test
+    fun `the trace is written oldest first`() {
+        val b = Builder()
+        // 80 readings whose distance from 1 g climbs by 0.1 each, so the order is unmistakable.
+        repeat(80) { i -> b.emit(upright + i * 0.1f, 0.02f) }
+        b.hold(450, 1.2f, 4.0f)
+        b.emit(45f, 4.0f)
+        b.hold(300, 13f, 2.0f)
+        b.hold(14_000, upright, 0.02f)
+        val detector = FallDetector()
+        assertTrue(FallSimulator.replay(b.samples, detector))
+
+        val figures = FallTrace.decode(detector.lastPreFallTrace)!!
+        assertEquals(detector.lastPreFallSamples, figures.size)
+        assertTrue("oldest first means rising here: $figures", figures.zipWithNext().all { (a, c) -> a < c })
+    }
+
+    @Test
+    fun `no trace is kept when too little came before the drop`() {
+        val b = Builder()
+        b.hold(200, upright, 0.02f) // 10 samples, under the minimum
+        b.hold(450, 1.2f, 4.0f)
+        b.emit(45f, 4.0f)
+        b.hold(300, 13f, 2.0f)
+        b.hold(14_000, upright, 0.02f)
+        val detector = FallDetector()
+        assertTrue(FallSimulator.replay(b.samples, detector))
+        assertEquals(null, detector.lastPreFallMotion)
+        assertEquals(null, detector.lastPreFallTrace)
+    }
+
+    @Test
+    fun `keeping the trace does not change what the detector decides`() {
+        // Same streams, same verdicts as the cases above and below: a fall confirms, a stand-up does not.
+        assertTrue(confirms(FallSimulator.stream()))
+        assertFalse(confirms(FallSimulator.stream(standsUpAfterMs = 2_000)))
+    }
+
+    @Test
     fun `the note also records steps from the same window, and no gate reads them`() {
         val detector = FallDetector()
         detector.stepSensorPresent = true
