@@ -80,7 +80,7 @@ test('resources show where they went, and busy teams are not offered', () => {
   assert.deepEqual(freeTeams([a], ['Tanod team 1', 'Tanod team 2', 'Rescue van']), ['Tanod team 2', 'Rescue van'])
 })
 
-test('priority: tier first, then oldest, then living alone on a tie', () => {
+test('priority: tier first, then oldest, with a head start for living alone', () => {
   const list = [
     alert([], { id: 'anomaly' }),
     alert([], { id: 'sos-new', trigger_type: 'sos', created_at: '2026-11-04T02:05:00' }),
@@ -89,6 +89,21 @@ test('priority: tier first, then oldest, then living alone on a tie', () => {
     alert([], { id: 'fall-alone', trigger_type: 'fall_pattern', senior_has_family_contact: false }),
   ]
   assert.deepEqual(ids(byPriority(list)), ['sos-old', 'sos-new', 'fall-alone', 'fall-family', 'anomaly'])
+})
+
+test('living alone goes ahead of an alert with family only within 5 minutes', () => {
+  const family = alert([], { id: 'family', created_at: '2026-11-04T02:00:00' })
+  const aloneSoon = alert([], { id: 'alone-4min', created_at: '2026-11-04T02:04:00', senior_has_family_contact: false })
+  const aloneLate = alert([], { id: 'alone-6min', created_at: '2026-11-04T02:06:00', senior_has_family_contact: false })
+  assert.deepEqual(ids(byPriority([family, aloneSoon])), ['alone-4min', 'family'])
+  assert.deepEqual(ids(byPriority([family, aloneLate])), ['family', 'alone-6min'])
+  assert.deepEqual(ids(byPriority([aloneLate, family, aloneSoon])), ['alone-4min', 'family', 'alone-6min'])
+})
+
+test('living alone never passes a higher tier', () => {
+  const sos = alert([], { id: 'sos-family', trigger_type: 'sos', created_at: '2026-11-04T02:04:00' })
+  const anomaly = alert([], { id: 'anomaly-alone', created_at: '2026-11-04T02:00:00', senior_has_family_contact: false })
+  assert.deepEqual(ids(byPriority([anomaly, sos])), ['sos-family', 'anomaly-alone'])
 })
 
 test('a covered alert drops below anything still needing the operator', () => {

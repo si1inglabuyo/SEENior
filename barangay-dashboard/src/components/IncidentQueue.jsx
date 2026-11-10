@@ -15,6 +15,7 @@ import AlertActionModals from './AlertActionModals'
 import PookGrid from './PookGrid'
 import ResponderPanel from './ResponderPanel'
 import TierGuide from './TierGuide'
+import DemoAlertsCard from './DemoAlertsCard'
 
 // The Alerts tab: every incident open at the barangay tier. Closed ones move to Alert
 // History. The type dropdown and search filter rows on the client, using the same
@@ -186,6 +187,9 @@ export default function IncidentQueue({ onSessionLost }) {
       ) : (
         queue
       )}
+
+      {/* TEMPORARY: demo alerts for the defense, remove after the demo. */}
+      <DemoAlertsCard pooks={pooks} onChange={load} />
 
       <AlertActionModals
         actions={actions}
