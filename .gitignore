@@ -29,3 +29,4 @@ seenior-db/
 
 # Raw walk-test recordings (accelerometer data from volunteers). Stay on this machine, never in git.
 docs/evidence/recordings/
+__pycache__/
