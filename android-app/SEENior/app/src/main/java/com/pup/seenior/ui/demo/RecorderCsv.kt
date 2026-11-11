@@ -10,7 +10,8 @@ import java.util.Locale
  * way. SEENior-only columns follow: the app's own 2 s pre_dev figure ([MotionWindow]), the steps
  * detected since the recording started, and the acceleration without gravity (Android's linear
  * acceleration sensor, the same quantity as phyphox's "Acceleration (without g)"), taken as the
- * latest linear reading at each accelerometer reading. Blank on phones without that sensor.
+ * latest linear reading at each accelerometer reading, and the gyroscope (rotation speed, used by
+ * the fall detector's rotation gate), taken the same way. Blank on phones without that sensor.
  *
  * No Android imports, so JUnit can drive it.
  */
@@ -32,7 +33,9 @@ object RecorderCsv {
             "\"Acceleration z (m/s^2)\",\"Absolute acceleration (m/s^2)\"," +
             "\"SEENior 2 s value (m/s^2)\",\"Steps\"," +
             "\"Linear acceleration x (m/s^2)\",\"Linear acceleration y (m/s^2)\"," +
-            "\"Linear acceleration z (m/s^2)\",\"Absolute linear acceleration (m/s^2)\""
+            "\"Linear acceleration z (m/s^2)\",\"Absolute linear acceleration (m/s^2)\"," +
+            "\"Gyroscope x (rad/s)\",\"Gyroscope y (rad/s)\",\"Gyroscope z (rad/s)\"," +
+            "\"Absolute rotation (rad/s)\""
 
     /**
      * One reading. [value] is blank until the 2 s window holds enough readings; [linear] (x, y, z
@@ -41,7 +44,8 @@ object RecorderCsv {
      */
     fun row(
         seconds: Double, x: Float, y: Float, z: Float, absolute: Float, value: Float?, steps: Int,
-        linear: FloatArray? = null
+        linear: FloatArray? = null,
+        gyro: FloatArray? = null
     ): String {
         val base = String.format(
             Locale.US, "%.6f,%.6f,%.6f,%.6f,%.6f,%s,%d",
@@ -51,7 +55,11 @@ object RecorderCsv {
             val abs = kotlin.math.sqrt(it[0] * it[0] + it[1] * it[1] + it[2] * it[2])
             "${fmt(it[0])},${fmt(it[1])},${fmt(it[2])},${fmt(abs)}"
         } ?: ",,,"
-        return "$base,$lin"
+        val rot = gyro?.let {
+            val abs = kotlin.math.sqrt(it[0] * it[0] + it[1] * it[1] + it[2] * it[2])
+            "${fmt(it[0])},${fmt(it[1])},${fmt(it[2])},${fmt(abs)}"
+        } ?: ",,,"
+        return "$base,$lin,$rot"
     }
 
     private fun fmt(v: Float) = String.format(Locale.US, "%.6f", v)

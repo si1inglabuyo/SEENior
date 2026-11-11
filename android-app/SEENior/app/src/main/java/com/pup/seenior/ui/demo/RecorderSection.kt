@@ -121,6 +121,26 @@ fun RecorderSection(viewModel: RecorderViewModel = viewModel()) {
             Stat("Time", "%d:%02d".format(viewModel.elapsedSeconds / 60, viewModel.elapsedSeconds % 60))
         }
 
+        Text("Fall check (SEENior's own detector, never raises an alert)", fontSize = 15.sp,
+            fontWeight = FontWeight.Bold, color = SeniorColors.TextPrimary, modifier = Modifier.padding(top = 8.dp))
+        FallCheckPanel(
+            ui = FallCheckUi(
+                snapshot = viewModel.fallSnapshot,
+                accel = viewModel.accelSeries,
+                rotation = viewModel.rotationSeries,
+                originMs = viewModel.graphOriginMs,
+                paused = viewModel.graphPaused,
+                captured = viewModel.graphCaptured,
+                hasGyroscope = viewModel.hasGyroscope
+            ),
+            onPause = { viewModel.pauseGraphs() },
+            onResume = { viewModel.resumeGraphs() },
+            onReset = { viewModel.resetFallCheck() }
+        )
+
+        Text("Record a trial", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = SeniorColors.TextPrimary,
+            modifier = Modifier.padding(top = 8.dp))
+
         OutlinedTextField(
             value = viewModel.participant,
             onValueChange = { viewModel.participant = it },

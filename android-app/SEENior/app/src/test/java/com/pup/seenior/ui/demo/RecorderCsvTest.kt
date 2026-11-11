@@ -16,14 +16,14 @@ class RecorderCsvTest {
             ),
             columns.take(5)
         )
-        assertEquals(11, columns.size)
-        assertEquals("\"Absolute linear acceleration (m/s^2)\"", columns.last())
+        assertEquals(15, columns.size)
+        assertEquals("\"Absolute rotation (rad/s)\"", columns.last())
     }
 
     @Test
     fun `rows use a decimal point and leave the value blank until it exists`() {
         assertEquals(
-            "0.020000,0.100000,-0.200000,9.810000,9.812600,,0,,,,",
+            "0.020000,0.100000,-0.200000,9.810000,9.812600,,0,,,,,,,,",
             RecorderCsv.row(0.02, 0.1f, -0.2f, 9.81f, 9.8126f, null, 0)
         )
         assertTrue(RecorderCsv.row(1.0, 0f, 0f, 9.8f, 9.8f, 0.25f, 3).contains(",0.250000,3,"))
@@ -32,8 +32,15 @@ class RecorderCsvTest {
     @Test
     fun `without-g columns carry the linear acceleration and its absolute value`() {
         val row = RecorderCsv.row(1.0, 0f, 0f, 9.8f, 9.8f, null, 0, floatArrayOf(3f, 0f, 4f))
-        assertTrue(row.endsWith(",3.000000,0.000000,4.000000,5.000000"))
-        assertEquals(11, row.split(",").size)
+        assertTrue(row.contains(",3.000000,0.000000,4.000000,5.000000,"))
+        assertEquals(15, row.split(",").size)
+    }
+
+    @Test
+    fun `gyroscope columns carry rotation and its absolute value`() {
+        val row = RecorderCsv.row(1.0, 0f, 0f, 9.8f, 9.8f, null, 0, null, floatArrayOf(0f, 0.6f, 0.8f))
+        assertTrue(row.endsWith(",0.000000,0.600000,0.800000,1.000000"))
+        assertEquals(15, row.split(",").size)
     }
 
     @Test
