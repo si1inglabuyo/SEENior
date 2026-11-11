@@ -16,15 +16,18 @@ import java.util.Locale
  */
 object RecorderCsv {
 
-    /** Activity codes, following the labels of Kwon et al. (2017), and the band each should land in. */
+    /**
+     * Activity codes and the band each should land in. Each walk names where the phone was carried,
+     * because the threshold has to hold in every position. Walk at your own comfortable pace; for a
+     * senior that already is the slow walk. REST is sitting still with the phone in a pocket.
+     */
     data class Activity(val code: String, val label: String, val expected: String)
 
     val ACTIVITIES = listOf(
-        Activity("SIT", "Sitting quietly", "Still"),
-        Activity("WALK", "Normal walk", "Walking"),
-        Activity("SLOWWALK", "Slow walk", "Walking"),
-        Activity("TABLE", "Phone on table", "Still"),
-        Activity("STAIRS", "Stairs", "Walking"),
+        Activity("WALK_HAND", "Walking, phone in hand", "Walking"),
+        Activity("WALK_POCKET", "Walking, phone in pocket", "Walking"),
+        Activity("WALK_BAG", "Walking, phone in bag", "Walking"),
+        Activity("REST", "Resting, phone in pocket", "Still"),
     )
 
     const val HEADER =

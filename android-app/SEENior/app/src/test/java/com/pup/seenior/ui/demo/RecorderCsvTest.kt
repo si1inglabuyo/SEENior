@@ -45,14 +45,14 @@ class RecorderCsvTest {
 
     @Test
     fun `repeat number follows the files already saved`() {
-        val saved = listOf("P01_WALK_R1.csv", "P01_WALK_R2.csv", "P01_SIT_R1.csv", "P02_WALK_R5.csv")
-        assertEquals(3, RecorderCsv.nextRepeat(saved, "P01", "WALK"))
-        assertEquals(2, RecorderCsv.nextRepeat(saved, "P01", "SIT"))
-        assertEquals(1, RecorderCsv.nextRepeat(saved, "P01", "TABLE"))
+        val saved = listOf("P01_WALK_POCKET_R1.csv", "P01_WALK_POCKET_R2.csv", "P01_REST_R1.csv", "P02_WALK_POCKET_R5.csv")
+        assertEquals(3, RecorderCsv.nextRepeat(saved, "P01", "WALK_POCKET"))
+        assertEquals(2, RecorderCsv.nextRepeat(saved, "P01", "REST"))
+        assertEquals(1, RecorderCsv.nextRepeat(saved, "P01", "WALK_BAG"))
     }
 
     @Test
-    fun `activities follow Kwon et al's labels`() {
-        assertEquals(listOf("SIT", "WALK", "SLOWWALK", "TABLE", "STAIRS"), RecorderCsv.ACTIVITIES.map { it.code })
+    fun `activities name the walk and where the phone is carried`() {
+        assertEquals(listOf("WALK_HAND", "WALK_POCKET", "WALK_BAG", "REST"), RecorderCsv.ACTIVITIES.map { it.code })
     }
 }
