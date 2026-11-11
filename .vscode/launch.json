@@ -1,0 +1,33 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Analyse P01_WALK_POCKET_R1 (with working + plot)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/docs/evidence/recording_analysis.py",
+      "args": [
+        "${workspaceFolder}/docs/evidence/recordings/P01_WALK_POCKET_R1.csv",
+        "--working",
+        "--plot"
+      ],
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "Analyse every recording in docs/evidence/recordings",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/docs/evidence/recording_analysis.py",
+      "args": ["${workspaceFolder}/docs/evidence/recordings", "--plot"],
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "Analyse the file I have open",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/docs/evidence/recording_analysis.py",
+      "args": ["${file}", "--working"],
+      "console": "integratedTerminal"
+    }
+  ]
+}
