@@ -348,7 +348,11 @@ class FallDetector(
 
         private const val MOTION_CAPACITY = 256
 
-        /** Standard gravity. Not taken from SensorManager so this class stays framework-free. */
-        private const val GRAVITY = 9.80665f
+        /**
+         * Standard gravity. Not taken from SensorManager so this class stays framework-free.
+         * Public: [MotionWindow] uses the same value, so the walk-test recorder computes pre_dev
+         * exactly as this detector does.
+         */
+        const val GRAVITY = 9.80665f
     }
 }

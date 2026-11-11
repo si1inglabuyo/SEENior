@@ -52,6 +52,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.pup.seenior.ui.AfterHoursNotice
+import com.pup.seenior.ui.demo.WalkTestRecorderCard
 import com.pup.seenior.ui.theme.SeniorColors
 import com.pup.seenior.ui.wellness.WellnessMessages
 import com.pup.seenior.ui.wellness.WellnessPromptScreen
@@ -133,6 +134,11 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
                 Spacer(Modifier.height(16.dp))
 
                 EmergencyCard(barangay = viewModel.barangay, onSosConfirmed = { viewModel.sendSos() }, copy = copy)
+
+                // Research only: the walk-test recorder, closed by default and absent when
+                // SHOW_DEMO_TOOLS is off. Last on the page, just above the tab bar.
+                Spacer(Modifier.height(16.dp))
+                WalkTestRecorderCard()
 
                 Spacer(Modifier.height(20.dp))
             }
