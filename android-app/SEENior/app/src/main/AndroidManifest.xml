@@ -96,6 +96,16 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <!-- Lets the Demo page's walk-test recorder share its CSV files (res/xml/recorder_paths.xml). -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.recorder"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/recorder_paths" />
+        </provider>
         <service
             android:name=".sensors.SensorCollectionService"
             android:exported="false"

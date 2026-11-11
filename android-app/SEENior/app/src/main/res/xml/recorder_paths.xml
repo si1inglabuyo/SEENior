@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Walk-test recorder files the Demo page may share (RecorderSection). Only the recordings
+     folder is exposed; nothing else in the app's storage is. -->
+<paths>
+    <external-files-path name="recordings" path="recordings/" />
+    <files-path name="recordings_internal" path="recordings/" />
+</paths>
