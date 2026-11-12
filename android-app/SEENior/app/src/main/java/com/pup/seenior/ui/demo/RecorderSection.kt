@@ -2,7 +2,6 @@ package com.pup.seenior.ui.demo
 
 import android.content.Intent
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -27,13 +26,10 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.PathEffect
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
@@ -112,7 +108,7 @@ fun RecorderSection(viewModel: RecorderViewModel = viewModel()) {
             color = SeniorColors.TextSecondary
         )
 
-        LiveGraph(viewModel.graph)
+        LiveGraphs(viewModel)
 
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             Stat("2 s value", viewModel.liveValue?.let { "%.2f m/s²".format(it) } ?: "-")
@@ -191,49 +187,55 @@ fun RecorderSection(viewModel: RecorderViewModel = viewModel()) {
     }
 }
 
-/** The 2 s value over the last 10 s, with the current activity threshold as a dashed line. */
+/**
+ * Two phyphox-style graphs of the live sensor: the 2 s value (with the activity threshold) and
+ * the absolute acceleration. Live shows the last 10 s. Pause freezes them so they can be zoomed
+ * (pinch), panned (drag) and read (tap); one tap marks the same moment on both. Each dot is one
+ * real reading. The full-screen button enlarges a graph.
+ */
 @Composable
-private fun LiveGraph(points: FloatArray) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(140.dp)
-            .background(SeniorColors.GreenLightBg, RoundedCornerShape(10.dp))
-            .border(1.dp, SeniorColors.GreenBorder, RoundedCornerShape(10.dp))
-            .padding(8.dp)
-    ) {
-        Canvas(modifier = Modifier.fillMaxWidth().height(124.dp)) {
-            val h = size.height
-            val w = size.width
-            fun yOf(v: Float) = h - (v.coerceIn(0f, GRAPH_MAX) / GRAPH_MAX) * h
+private fun LiveGraphs(viewModel: RecorderViewModel) {
+    val paused = viewModel.graphPaused
+    val value = viewModel.valueSeries
+    val absolute = viewModel.absSeries
+    val latest = viewModel.latestSeconds
+    val limits = if (value.isEmpty) GraphView(0f, 10f)
+    else GraphView(value.t.first(), value.t.last().coerceAtLeast(value.t.first() + 0.1f))
+    val live = GraphView((latest - LIVE_SECONDS).coerceAtLeast(0f), latest.coerceAtLeast(0.1f))
+    var view by remember(paused) { mutableStateOf(live) }
+    var pickedTime by remember(paused) { mutableStateOf<Float?>(null) }
+    val shown = if (paused) view else live
 
-            val threshold = yOf(FallContext.ACTIVE_MIN)
-            drawLine(
-                color = Color(0xFFD9822B),
-                start = Offset(0f, threshold),
-                end = Offset(w, threshold),
-                strokeWidth = 2f,
-                pathEffect = PathEffect.dashPathEffect(floatArrayOf(12f, 8f))
-            )
-            if (points.size > 1) {
-                val step = w / (RecorderViewModel.GRAPH_POINTS - 1)
-                val offset = (RecorderViewModel.GRAPH_POINTS - points.size) * step
-                val path = Path()
-                points.forEachIndexed { i, v ->
-                    val x = offset + i * step
-                    if (i == 0) path.moveTo(x, yOf(v)) else path.lineTo(x, yOf(v))
-                }
-                drawPath(path, color = SeniorColors.GreenDark, style = Stroke(width = 3f))
-            }
-        }
-        Text(
-            "Dashed line: current threshold %.1f m/s². Top: %.0f m/s².".format(FallContext.ACTIVE_MIN, GRAPH_MAX),
-            fontSize = 10.sp,
-            color = SeniorColors.TextSecondary,
-            modifier = Modifier.align(Alignment.TopStart)
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+        OutlinedButton(
+            onClick = { if (paused) viewModel.resumeGraphs() else viewModel.pauseGraphs() },
+            modifier = Modifier.fillMaxWidth()
+        ) { Text(if (paused) "Back to live" else "Pause graphs", color = SeniorColors.TextPrimary) }
+
+        ZoomGraph(
+            title = "2 s value (pre-fall window)",
+            lines = listOf(GraphSeries(value, SeniorColors.GreenDark, "2 s value")),
+            yMin = 0f, yMax = GRAPH_MAX, unit = "m/s²",
+            thresholds = listOf(GraphLine(FallContext.ACTIVE_MIN, "threshold %.1f".format(FallContext.ACTIVE_MIN), Color(0xFFD9822B))),
+            markers = emptyList(), view = shown, onViewChange = { view = it }, limits = limits,
+            interactive = paused,
+            pickLabel = { i -> "t = %.2f s · 2 s value %.2f m/s²".format(value.t[i], value.v[i]) },
+            pickedTime = pickedTime, onPick = { pickedTime = it }
+        )
+        ZoomGraph(
+            title = "Absolute acceleration",
+            lines = listOf(GraphSeries(absolute, Color(0xFF1F3A5F), "absolute")),
+            yMin = 0f, yMax = 30f, unit = "m/s²",
+            thresholds = listOf(GraphLine(9.80665f, "still 9.8", SeniorColors.TextSecondary)),
+            markers = emptyList(), view = shown, onViewChange = { view = it }, limits = limits,
+            interactive = paused,
+            pickLabel = { i -> "t = %.2f s · absolute %.2f m/s²".format(absolute.t[i], absolute.v[i]) },
+            pickedTime = pickedTime, onPick = { pickedTime = it }
         )
     }
 }
+
+private const val LIVE_SECONDS = 10f
 
 @Composable
 private fun Stat(label: String, value: String) {

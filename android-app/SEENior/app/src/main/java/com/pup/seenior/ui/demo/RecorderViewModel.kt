@@ -61,15 +61,29 @@ class RecorderViewModel(application: Application) : AndroidViewModel(application
     var message by mutableStateOf<String?>(null)
         private set
 
-    /** The last [GRAPH_POINTS] 2 s values, oldest first, for the live graph (refreshed ~10 times a second). */
-    var graph by mutableStateOf(FloatArray(0))
+    /**
+     * The last [GRAPH_POINTS] readings, oldest first, for the live graphs (refreshed ~10 times a
+     * second): the 2 s value and the absolute acceleration, times in seconds since listening began.
+     */
+    var valueSeries by mutableStateOf(Series.EMPTY)
+        private set
+    var absSeries by mutableStateOf(Series.EMPTY)
+        private set
+    /** Time of the newest reading, in the same seconds as the series. */
+    var latestSeconds by mutableStateOf(0f)
+        private set
+    /** Graphs frozen so they can be zoomed and read. Recording, if any, carries on. */
+    var graphPaused by mutableStateOf(false)
         private set
 
     // Sensor-thread state, published to the UI by the ticker below.
     private val window = MotionWindow()
-    private val graphRing = FloatArray(GRAPH_POINTS)
+    private val timeRing = LongArray(GRAPH_POINTS)
+    private val valueRing = FloatArray(GRAPH_POINTS)
+    private val absRing = FloatArray(GRAPH_POINTS)
     private var graphHead = 0
     private var graphCount = 0
+    private var graphOriginMs = -1L
     private val lock = Any()
     // t, x, y, z, abs, value (NaN = blank), steps, linear x, y, z (NaN = blank)
     private val rows = ArrayList<FloatArray>()
@@ -99,9 +113,17 @@ class RecorderViewModel(application: Application) : AndroidViewModel(application
                 latestValue = null
                 linear = null
                 graphCount = 0
+                graphOriginMs = -1L
             }
+            graphPaused = false
         }
     }
+
+    /** Freeze the graphs to read them. */
+    fun pauseGraphs() { graphPaused = true }
+
+    /** Back to the live view. */
+    fun resumeGraphs() { graphPaused = false }
 
     init {
         if (accelerometer == null) message = "This phone has no accelerometer."
@@ -203,7 +225,11 @@ class RecorderViewModel(application: Application) : AndroidViewModel(application
                 val value = window.add(event.timestamp / NANOS_PER_MS, magnitude)
                 synchronized(lock) {
                     latestValue = value
-                    graphRing[graphHead] = value ?: 0f
+                    val ms = event.timestamp / NANOS_PER_MS
+                    if (graphOriginMs < 0) graphOriginMs = ms
+                    timeRing[graphHead] = ms
+                    valueRing[graphHead] = value ?: 0f
+                    absRing[graphHead] = magnitude
                     graphHead = (graphHead + 1) % GRAPH_POINTS
                     if (graphCount < GRAPH_POINTS) graphCount++
                     if (recording && rows.size < MAX_READINGS) {
@@ -241,7 +267,21 @@ class RecorderViewModel(application: Application) : AndroidViewModel(application
                 elapsedSeconds = 0
             }
             full = recording && rows.size >= MAX_READINGS
-            graph = FloatArray(graphCount) { i -> graphRing[(graphHead - graphCount + i + GRAPH_POINTS) % GRAPH_POINTS] }
+            if (!graphPaused && graphCount > 0) {
+                val origin = graphOriginMs
+                val t = FloatArray(graphCount)
+                val v = FloatArray(graphCount)
+                val a = FloatArray(graphCount)
+                for (i in 0 until graphCount) {
+                    val idx = (graphHead - graphCount + i + GRAPH_POINTS) % GRAPH_POINTS
+                    t[i] = (timeRing[idx] - origin) / 1000f
+                    v[i] = valueRing[idx]
+                    a[i] = absRing[idx]
+                }
+                valueSeries = Series(t, v)
+                absSeries = Series(t, a)
+                latestSeconds = t[graphCount - 1]
+            }
         }
         if (full) stop()
     }
@@ -256,8 +296,8 @@ class RecorderViewModel(application: Application) : AndroidViewModel(application
         /** 50 Hz, the same rate the fall detector reads the accelerometer at (SensorCollectionService). */
         const val SAMPLING_PERIOD_US = 20_000
         private const val NANOS_PER_MS = 1_000_000L
-        /** 10 s of history on the live graph. */
-        const val GRAPH_POINTS = 500
+        /** 30 s of history on the graphs (the live view shows the last 10 s; pause to scroll back). */
+        const val GRAPH_POINTS = 1500
         /** 10 minutes at 50 Hz; the recording stops and saves on its own after that. */
         const val MAX_READINGS = 30_000
     }
