@@ -59,7 +59,8 @@ class RecorderCsvTest {
     }
 
     @Test
-    fun `activities follow Kwon et al's labels`() {
-        assertEquals(listOf("SIT", "WALK", "SLOWWALK", "TABLE", "STAIRS"), RecorderCsv.ACTIVITIES.map { it.code })
+    fun `the walk test has its four activities`() {
+        assertEquals(listOf("WALKHAND", "WALKPOCKET", "WALKBAG", "RESTPOCKET"), RecorderCsv.ACTIVITIES.map { it.code })
+        assertEquals(listOf("Walking", "Walking", "Walking", "Still"), RecorderCsv.ACTIVITIES.map { it.expected })
     }
 }

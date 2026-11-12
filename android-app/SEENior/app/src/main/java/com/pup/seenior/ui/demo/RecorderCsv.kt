@@ -17,15 +17,17 @@ import java.util.Locale
  */
 object RecorderCsv {
 
-    /** Activity codes, following the labels of Kwon et al. (2017), and the band each should land in. */
+    /**
+     * The walk test's four activities: walking with the phone carried three common ways, and
+     * resting. Each code goes into the file name; [expected] is the band it should land in.
+     */
     data class Activity(val code: String, val label: String, val expected: String)
 
     val ACTIVITIES = listOf(
-        Activity("SIT", "Sitting quietly", "Still"),
-        Activity("WALK", "Normal walk", "Walking"),
-        Activity("SLOWWALK", "Slow walk", "Walking"),
-        Activity("TABLE", "Phone on table", "Still"),
-        Activity("STAIRS", "Stairs", "Walking"),
+        Activity("WALKHAND", "Walking, phone in hand", "Walking"),
+        Activity("WALKPOCKET", "Walking, phone in pocket", "Walking"),
+        Activity("WALKBAG", "Walking, phone in bag", "Walking"),
+        Activity("RESTPOCKET", "Resting, phone in pocket", "Still"),
     )
 
     const val HEADER =

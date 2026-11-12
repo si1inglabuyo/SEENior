@@ -84,4 +84,26 @@ class FallCheckMonitorTest {
         // A second fall right after: without reset the detector's one-minute pause would ignore it.
         assertTrue(run(FallSimulator.stream(), monitor))
     }
+
+    @Test
+    fun `with no cooldown a second fall right after the first is judged too`() {
+        val monitor = FallCheckMonitor(FallDetector.Config(cooldownMs = 0))
+        val first = FallSimulator.stream()
+        assertTrue(run(first, monitor))
+        // The second fall starts after the first, on the same clock, with no reset in between.
+        val offset = first.last().timestampNanos + 20_000_000L
+        val second = FallSimulator.stream().map { it.copy(timestampNanos = it.timestampNanos + offset) }
+        assertTrue(run(second, monitor))
+        assertEquals(Outcome.CONFIRMED, monitor.snapshot().outcome)
+    }
+
+    @Test
+    fun `the real detector's one-minute cooldown would have ignored that second fall`() {
+        val monitor = FallCheckMonitor()
+        val first = FallSimulator.stream()
+        run(first, monitor)
+        val offset = first.last().timestampNanos + 20_000_000L
+        val second = FallSimulator.stream().map { it.copy(timestampNanos = it.timestampNanos + offset) }
+        assertEquals(false, run(second, monitor))
+    }
 }

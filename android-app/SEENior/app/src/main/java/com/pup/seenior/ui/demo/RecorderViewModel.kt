@@ -6,7 +6,6 @@ import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
-import android.os.SystemClock
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -41,15 +40,18 @@ class RecorderViewModel(application: Application) : AndroidViewModel(application
     private val linearSensor: Sensor? = sensorManager.getDefaultSensor(Sensor.TYPE_LINEAR_ACCELERATION)
     private val gyroscope: Sensor? = sensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE)
 
-    val hasStepDetector: Boolean get() = stepDetector != null
     val hasLinearSensor: Boolean get() = linearSensor != null
     val hasGyroscope: Boolean get() = gyroscope != null
 
     /**
      * The live fall check: SEENior's real detector, production thresholds, never raising an alert.
      * Rotation is required only when the phone has a gyroscope, as in SensorCollectionService.
+     * No one-minute pause after a confirmed fall (the real detector keeps it), so trials can follow
+     * each other straight away.
      */
-    private val fallCheck = FallCheckMonitor(FallDetector.Config(requireRotation = gyroscope != null))
+    private val fallCheck = FallCheckMonitor(
+        FallDetector.Config(requireRotation = gyroscope != null, cooldownMs = 0)
+    )
 
     /** Gate by gate status of the fall check, refreshed about ten times a second. */
     var fallSnapshot by mutableStateOf(FallCheckMonitor.Snapshot.idle(fallCheck.config))
@@ -61,15 +63,56 @@ class RecorderViewModel(application: Application) : AndroidViewModel(application
     var rotationSeries by mutableStateOf(Series.EMPTY)
         private set
 
-    /** Sensor time (ms) the graphs' zero is measured from: the newest reading when live, the start of free fall when captured. */
+    /** The accelerometer's three axes (m/s2), same times as [accelSeries]. */
+    var accelX by mutableStateOf(Series.EMPTY)
+        private set
+    var accelY by mutableStateOf(Series.EMPTY)
+        private set
+    var accelZ by mutableStateOf(Series.EMPTY)
+        private set
+
+    /** The linear accelerometer (without gravity) and gyroscope axes, and the 2 s pre-fall value. */
+    var linX by mutableStateOf(Series.EMPTY)
+        private set
+    var linY by mutableStateOf(Series.EMPTY)
+        private set
+    var linZ by mutableStateOf(Series.EMPTY)
+        private set
+    var gyroX by mutableStateOf(Series.EMPTY)
+        private set
+    var gyroY by mutableStateOf(Series.EMPTY)
+        private set
+    var gyroZ by mutableStateOf(Series.EMPTY)
+        private set
+    var preFallSeries by mutableStateOf(Series.EMPTY)
+        private set
+    /** Absolute linear acceleration: the magnitude of the without-g reading. */
+    var linAbs by mutableStateOf(Series.EMPTY)
+        private set
+
+    /** Show acceleration with gravity (what SEENior's detection uses) or without, as phyphox offers both. */
+    var withGravity by mutableStateOf(true)
+
+    /** A recording is running but paused (phyphox's pause): nothing is added until it is resumed. */
+    var recordingPaused by mutableStateOf(false)
+        private set
+
+    /**
+     * Sensor time (ms) of the graphs' 0 s, as in phyphox: the first reading after the screen opened,
+     * or after Reset live check, or when a recording started. Times count up from there.
+     */
     var graphOriginMs by mutableStateOf(0L)
+        private set
+
+    /** Seconds from 0 s to the newest reading. */
+    var latestSeconds by mutableStateOf(0f)
         private set
 
     /** The graphs are frozen (paused by hand, or holding a captured fall attempt). */
     var graphPaused by mutableStateOf(false)
         private set
 
-    /** The frozen graphs hold a fall attempt, with time 0 at the start of its free fall. */
+    /** The frozen graphs hold a fall attempt. */
     var graphCaptured by mutableStateOf(false)
         private set
 
@@ -85,8 +128,6 @@ class RecorderViewModel(application: Application) : AndroidViewModel(application
     /** Acceleration without gravity right now (magnitude of the linear acceleration sensor). */
     var liveLinear by mutableStateOf<Float?>(null)
         private set
-    var steps by mutableStateOf(0)
-        private set
     var readings by mutableStateOf(0)
         private set
     var savedFile by mutableStateOf<File?>(null)
@@ -94,22 +135,33 @@ class RecorderViewModel(application: Application) : AndroidViewModel(application
     var message by mutableStateOf<String?>(null)
         private set
 
-    /** The last [GRAPH_POINTS] 2 s values, oldest first, for the live graph (refreshed ~10 times a second). */
-    var graph by mutableStateOf(FloatArray(0))
-        private set
-
     // Sensor-thread state, published to the UI by the ticker below.
     private val window = MotionWindow()
-    private val graphRing = FloatArray(GRAPH_POINTS)
-    private var graphHead = 0
-    private var graphCount = 0
     private val lock = Any()
-    // t, x, y, z, abs, value (NaN = blank), steps, linear x, y, z (NaN = blank)
+    // t, x, y, z, abs, value (NaN = blank), steps, linear x, y, z, gyro x, y, z (NaN = blank)
     private val rows = ArrayList<FloatArray>()
     private var linear: FloatArray? = null
     private var gyro: FloatArray? = null
     private val accelHistory = History(HISTORY_POINTS)
+    private val xHistory = History(HISTORY_POINTS)
+    private val yHistory = History(HISTORY_POINTS)
+    private val zHistory = History(HISTORY_POINTS)
     private val gyroHistory = History(HISTORY_POINTS)
+    private val linXHistory = History(HISTORY_POINTS)
+    private val linYHistory = History(HISTORY_POINTS)
+    private val linZHistory = History(HISTORY_POINTS)
+    private val gyroXHistory = History(HISTORY_POINTS)
+    private val gyroYHistory = History(HISTORY_POINTS)
+    private val gyroZHistory = History(HISTORY_POINTS)
+    private val preFallHistory = History(HISTORY_POINTS)
+    private val linAbsHistory = History(HISTORY_POINTS)
+    private val histories = listOf(
+        accelHistory, xHistory, yHistory, zHistory, gyroHistory, linXHistory, linYHistory, linZHistory,
+        gyroXHistory, gyroYHistory, gyroZHistory, preFallHistory, linAbsHistory
+    )
+    /** Null until the first reading after [restartClock]; that reading becomes 0 s. */
+    private var originMs: Long? = null
+    private var capturedStartMs: Long? = null
     private var lastOutcome = FallCheckMonitor.Outcome.NONE
     private var startNanos = 0L
     private var stepCount = 0
@@ -127,7 +179,9 @@ class RecorderViewModel(application: Application) : AndroidViewModel(application
         listening = on
         if (on) {
             window.clear()
+            synchronized(lock) { restartClock() }
             accelerometer?.let { sensorManager.registerListener(this, it, SAMPLING_PERIOD_US) }
+            // Steps go into the CSV's Steps column (not shown on screen).
             stepDetector?.let { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_FASTEST) }
             linearSensor?.let { sensorManager.registerListener(this, it, SAMPLING_PERIOD_US) }
             gyroscope?.let { sensorManager.registerListener(this, it, SAMPLING_PERIOD_US) }
@@ -137,7 +191,6 @@ class RecorderViewModel(application: Application) : AndroidViewModel(application
                 latestValue = null
                 linear = null
                 gyro = null
-                graphCount = 0
             }
         }
     }
@@ -152,8 +205,19 @@ class RecorderViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    /**
+     * phyphox's play button: starts a new recording, or resumes a paused one. While paused nothing
+     * is recorded and the graphs are frozen for reading; the time keeps the real clock, so a pause
+     * shows as a gap in the file rather than joining two moments together.
+     */
     fun start() {
-        if (recording) return
+        if (recording) {
+            if (recordingPaused) {
+                recordingPaused = false
+                resumeGraphs()
+            }
+            return
+        }
         val code = RecorderCsv.cleanParticipant(participant)
         if (code.isEmpty()) {
             message = "Enter a participant code, for example P01."
@@ -164,16 +228,29 @@ class RecorderViewModel(application: Application) : AndroidViewModel(application
             rows.clear()
             stepCount = 0
             startNanos = 0L
+            // Like pressing play in phyphox: the graphs start again at 0 s with the recording.
+            restartClock()
+            graphPaused = false
+            graphCaptured = false
         }
         savedFile = null
         message = null
+        recordingPaused = false
         recording = true
+    }
+
+    /** phyphox's pause: stop adding readings and freeze the graphs, keeping what was recorded. */
+    fun pauseRecording() {
+        if (!recording || recordingPaused) return
+        recordingPaused = true
+        pauseGraphs()
     }
 
     /** Stops and saves. The file name gets the next free repeat number for this participant and activity. */
     fun stop() {
         if (!recording) return
         recording = false
+        recordingPaused = false
         val snapshot = synchronized(lock) { ArrayList(rows).also { rows.clear() } }
         if (snapshot.isEmpty()) {
             message = "Nothing was recorded."
@@ -187,9 +264,16 @@ class RecorderViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    /** Reset: throws away the current recording and starts the graphs again from 0 s. */
     fun discard() {
         recording = false
-        synchronized(lock) { rows.clear() }
+        recordingPaused = false
+        synchronized(lock) {
+            rows.clear()
+            restartClock()
+        }
+        graphPaused = false
+        graphCaptured = false
         message = "Recording discarded."
     }
 
@@ -243,12 +327,21 @@ class RecorderViewModel(application: Application) : AndroidViewModel(application
                 val value = window.add(event.timestamp / NANOS_PER_MS, magnitude)
                 synchronized(lock) {
                     fallCheck.onAcceleration(event.timestamp, magnitude)
-                    accelHistory.add(event.timestamp / NANOS_PER_MS, magnitude)
+                    val ms = event.timestamp / NANOS_PER_MS
+                    if (originMs == null) originMs = ms
+                    accelHistory.add(ms, magnitude)
+                    xHistory.add(ms, x)
+                    yHistory.add(ms, y)
+                    zHistory.add(ms, z)
+                    linear?.let {
+                        linXHistory.add(ms, it[0])
+                        linYHistory.add(ms, it[1])
+                        linZHistory.add(ms, it[2])
+                        linAbsHistory.add(ms, sqrt(it[0] * it[0] + it[1] * it[1] + it[2] * it[2]))
+                    }
+                    value?.let { preFallHistory.add(ms, it) }
                     latestValue = value
-                    graphRing[graphHead] = value ?: 0f
-                    graphHead = (graphHead + 1) % GRAPH_POINTS
-                    if (graphCount < GRAPH_POINTS) graphCount++
-                    if (recording && rows.size < MAX_READINGS) {
+                    if (recording && !recordingPaused && rows.size < MAX_READINGS) {
                         if (startNanos == 0L) startNanos = event.timestamp
                         val seconds = (event.timestamp - startNanos) / 1e9f
                         val lin = linear
@@ -263,7 +356,8 @@ class RecorderViewModel(application: Application) : AndroidViewModel(application
                     }
                 }
             }
-            Sensor.TYPE_STEP_DETECTOR -> synchronized(lock) { if (recording) stepCount++ }
+            // Steps taken while a recording is paused are not counted.
+            Sensor.TYPE_STEP_DETECTOR -> synchronized(lock) { if (recording && !recordingPaused) stepCount++ }
             Sensor.TYPE_LINEAR_ACCELERATION -> synchronized(lock) {
                 linear = floatArrayOf(event.values[0], event.values[1], event.values[2])
             }
@@ -275,7 +369,13 @@ class RecorderViewModel(application: Application) : AndroidViewModel(application
                 synchronized(lock) {
                     gyro = floatArrayOf(gx, gy, gz)
                     fallCheck.onRotation(event.timestamp, speed)
-                    gyroHistory.add(event.timestamp / NANOS_PER_MS, speed)
+                    val ms = event.timestamp / NANOS_PER_MS
+                    if (originMs != null) {
+                        gyroHistory.add(ms, speed)
+                        gyroXHistory.add(ms, gx)
+                        gyroYHistory.add(ms, gy)
+                        gyroZHistory.add(ms, gz)
+                    }
                 }
             }
         }
@@ -288,48 +388,73 @@ class RecorderViewModel(application: Application) : AndroidViewModel(application
         synchronized(lock) {
             liveValue = latestValue
             liveLinear = linear?.let { sqrt(it[0] * it[0] + it[1] * it[1] + it[2] * it[2]) }
-            steps = stepCount
             readings = rows.size
-            if (recording && startNanos != 0L) {
-                elapsedSeconds = ((SystemClock.elapsedRealtimeNanos() - startNanos) / 1_000_000_000L).toInt()
-            } else if (!recording) {
-                elapsedSeconds = 0
-            }
+            elapsedSeconds = if (recording && rows.isNotEmpty()) rows.last()[0].toInt() else 0
             full = recording && rows.size >= MAX_READINGS
-            graph = FloatArray(graphCount) { i -> graphRing[(graphHead - graphCount + i + GRAPH_POINTS) % GRAPH_POINTS] }
 
             val snap = fallCheck.snapshot()
             fallSnapshot = snap
+            // A new attempt began after a captured one: go back to live so it can be watched.
+            val newStart = snap.freeFallStartAtMs
+            val captured = capturedStartMs
+            if (graphCaptured && snap.outcome == FallCheckMonitor.Outcome.NONE && newStart != null &&
+                captured != null && newStart > captured
+            ) {
+                graphPaused = false
+                graphCaptured = false
+            }
             // A fall attempt that got past free fall has just ended: freeze the graphs on it.
             val start = snap.freeFallStartAtMs
             if (lastOutcome == FallCheckMonitor.Outcome.NONE && snap.outcome != FallCheckMonitor.Outcome.NONE &&
                 snap.freeFallEndAtMs != null && start != null
             ) {
-                freezeGraphs(start)
+                freezeGraphs()
                 graphCaptured = true
+                capturedStartMs = start
             }
             lastOutcome = snap.outcome
-            if (!graphPaused) {
-                val newest = accelHistory.newest() ?: 0L
-                graphOriginMs = newest
-                accelSeries = accelHistory.series(newest)
-                rotationSeries = gyroHistory.series(newest)
-            }
+            if (!graphPaused) setGraphs()
         }
         if (full) stop()
     }
 
-    /** Freezes the graphs on what is in memory now, with time 0 at [originMs]. */
-    private fun freezeGraphs(originMs: Long) {
-        graphOriginMs = originMs
-        accelSeries = accelHistory.series(originMs)
-        rotationSeries = gyroHistory.series(originMs)
+    /** Freezes the graphs on what is in memory now. */
+    private fun freezeGraphs() {
+        setGraphs()
         graphPaused = true
+    }
+
+    /** Publishes every history with times in seconds since 0 s. */
+    private fun setGraphs() {
+        val origin = originMs ?: return
+        graphOriginMs = origin
+        latestSeconds = ((accelHistory.newest() ?: origin) - origin) / 1000f
+        accelSeries = accelHistory.series(origin)
+        accelX = xHistory.series(origin)
+        accelY = yHistory.series(origin)
+        accelZ = zHistory.series(origin)
+        rotationSeries = gyroHistory.series(origin)
+        linX = linXHistory.series(origin)
+        linY = linYHistory.series(origin)
+        linZ = linZHistory.series(origin)
+        gyroX = gyroXHistory.series(origin)
+        gyroY = gyroYHistory.series(origin)
+        gyroZ = gyroZHistory.series(origin)
+        preFallSeries = preFallHistory.series(origin)
+        linAbs = linAbsHistory.series(origin)
+    }
+
+    /** Empties the graphs; the next reading becomes 0 s. */
+    private fun restartClock() {
+        histories.forEach { it.clear() }
+        originMs = null
+        latestSeconds = 0f
+        capturedStartMs = null
     }
 
     /** Pauses the live graphs so they can be zoomed and read. */
     fun pauseGraphs() = synchronized(lock) {
-        freezeGraphs(accelHistory.newest() ?: 0L)
+        freezeGraphs()
         graphCaptured = false
     }
 
@@ -343,6 +468,7 @@ class RecorderViewModel(application: Application) : AndroidViewModel(application
         fallCheck.reset()
         lastOutcome = FallCheckMonitor.Outcome.NONE
         fallSnapshot = fallCheck.snapshot()
+        restartClock()
         graphPaused = false
         graphCaptured = false
     }
@@ -357,8 +483,6 @@ class RecorderViewModel(application: Application) : AndroidViewModel(application
         /** 50 Hz, the same rate the fall detector reads the accelerometer at (SensorCollectionService). */
         const val SAMPLING_PERIOD_US = 20_000
         private const val NANOS_PER_MS = 1_000_000L
-        /** 10 s of history on the live graph. */
-        const val GRAPH_POINTS = 500
         /** 10 minutes at 50 Hz; the recording stops and saves on its own after that. */
         const val MAX_READINGS = 30_000
         /** 30 s at 50 Hz kept for the zoomable graphs: room for a whole fall attempt. */
@@ -381,6 +505,11 @@ private class History(private val capacity: Int) {
     }
 
     fun newest(): Long? = if (count == 0) null else times[(head - 1 + capacity) % capacity]
+
+    fun clear() {
+        head = 0
+        count = 0
+    }
 
     /** Everything held, oldest first, with times in seconds relative to [originMs]. */
     fun series(originMs: Long): Series {
