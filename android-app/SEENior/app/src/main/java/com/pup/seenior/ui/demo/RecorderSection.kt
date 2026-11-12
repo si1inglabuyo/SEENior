@@ -13,7 +13,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -120,7 +127,8 @@ fun WalkTestPanel(
             title = title, lines = lines, yMin = yMin, yMax = yMax, unit = unit, thresholds = thresholds,
             markers = emptyList(), view = shown, onViewChange = { view = it }, limits = limits,
             interactive = ui.paused, pickLabel = label, height = height,
-            pickedTime = pickedTime, onPick = { pickedTime = it }
+            pickedTime = pickedTime, onPick = { pickedTime = it },
+            onTogglePause = if (ui.paused) onResumeGraphs else onPauseGraphs
         )
     }
 
@@ -134,7 +142,7 @@ fun WalkTestPanel(
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-        Text("Walk test", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = SeniorColors.TextPrimary)
+        Text("Pre-fall Event", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = SeniorColors.TextPrimary)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth()) {
             OutlinedButton(onClick = if (ui.paused) onResumeGraphs else onPauseGraphs, modifier = Modifier.weight(1f)) {
@@ -221,11 +229,17 @@ fun WalkTestPanel(
             shape = RoundedCornerShape(12.dp),
             colors = ButtonDefaults.buttonColors(containerColor = if (running) Amber else SeniorColors.GreenDark)
         ) {
+            Icon(
+                if (running) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                contentDescription = null,
+                modifier = Modifier.size(22.dp)
+            )
+            Spacer(Modifier.width(8.dp))
             Text(
                 when {
-                    running -> "\u23F8  Pause recording"
-                    ui.recording -> "\u25B6  Resume recording"
-                    else -> "\u25B6  Start recording"
+                    running -> "Pause recording"
+                    ui.recording -> "Resume recording"
+                    else -> "Start recording"
                 },
                 fontSize = 16.sp, fontWeight = FontWeight.Bold
             )

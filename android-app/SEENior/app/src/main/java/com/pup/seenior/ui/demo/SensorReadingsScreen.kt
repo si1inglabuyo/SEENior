@@ -180,7 +180,7 @@ fun SensorReadingsContent(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)
         ) {
             TabButton("Fall detection", tab == SensorTab.FALL_DETECTION, Modifier.weight(1f)) { onTab(SensorTab.FALL_DETECTION) }
-            TabButton("Walk test", tab == SensorTab.WALK_TEST, Modifier.weight(1f)) { onTab(SensorTab.WALK_TEST) }
+            TabButton("Pre-fall Event", tab == SensorTab.WALK_TEST, Modifier.weight(1f)) { onTab(SensorTab.WALK_TEST) }
         }
         Column(
             modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp)
