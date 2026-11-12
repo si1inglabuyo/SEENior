@@ -104,6 +104,14 @@ fun FallDetectionPanel(
     val ay = if (ui.withGravity) ui.accelY else ui.linY
     val az = if (ui.withGravity) ui.accelZ else ui.linZ
 
+    fun magnitudeAt(i: Int): String {
+        val x = ui.accelX.v.getOrNull(i) ?: return ""
+        val y = ui.accelY.v.getOrNull(i) ?: return ""
+        val z = ui.accelZ.v.getOrNull(i) ?: return ""
+        return "t = %.2f s · x %.2f · y %.2f · z %.2f · magnitude %.2f m/s²"
+            .format(ui.accelX.t[i], x, y, z, sqrt(x * x + y * y + z * z))
+    }
+
     fun accelAt(i: Int): String {
         val x = ax.v.getOrNull(i) ?: return ""
         val y = ay.v.getOrNull(i) ?: return ""
@@ -130,8 +138,9 @@ fun FallDetectionPanel(
             fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (ui.paused) Navy else PassGreen
         )
 
+        // 1. Accelerometer (Free Fall): the three axes, with or without gravity.
         ZoomGraph(
-            title = if (ui.withGravity) "Accelerometer (free fall)" else "Accelerometer (free fall, without g)",
+            title = if (ui.withGravity) "Accelerometer (Free Fall)" else "Accelerometer (Free Fall, without g)",
             lines = listOf(
                 GraphSeries(ax, AxisX, "x"),
                 GraphSeries(ay, AxisY, "y"),
@@ -143,22 +152,10 @@ fun FallDetectionPanel(
             pickLabel = ::accelAt, height = 150,
             pickedTime = pickedTime, onPick = { pickedTime = it }
         )
-        if (ui.hasGyroscope) {
-            ZoomGraph(
-                title = "Gyroscope (rotation)",
-                lines = listOf(GraphSeries(ui.rotation, Purple, "rotation")),
-                yMin = 0f, yMax = 8f, unit = "rad/s",
-                thresholds = listOf(GraphLine(c.rotationMin, "rotation %.1f".format(c.rotationMin), Purple)),
-                markers = markers, view = shown, onViewChange = { view = it }, limits = limits, interactive = ui.paused,
-                pickLabel = { i -> "t = %.2f s · rotation %.2f rad/s".format(ui.rotation.t[i], ui.rotation.v[i]) },
-                height = 110, pickedTime = pickedTime, onPick = { pickedTime = it }
-            )
-        } else {
-            Text("Gyroscope (rotation): not on this phone, so the rotation gate is off.", fontSize = 12.sp,
-                color = SeniorColors.TextSecondary)
-        }
+        // 2. Acceleration (Magnitude): always with gravity, the value the detector judges for free
+        // fall and impact, so its tap label shows the with-g readings it is computed from.
         ZoomGraph(
-            title = "Magnitude (impact)",
+            title = "Acceleration (Magnitude)",
             lines = listOf(GraphSeries(ui.magnitude, Navy, "magnitude")),
             yMin = 0f, yMax = 40f, unit = "m/s²",
             thresholds = listOf(
@@ -167,9 +164,24 @@ fun FallDetectionPanel(
                 GraphLine(c.freeFallMax, "free fall %.1f".format(c.freeFallMax), Amber)
             ),
             markers = markers, view = shown, onViewChange = { view = it }, limits = limits, interactive = ui.paused,
-            pickLabel = ::accelAt, height = 150,
+            pickLabel = ::magnitudeAt, height = 150,
             pickedTime = pickedTime, onPick = { pickedTime = it }
         )
+        // 3. Gyroscope (Rotation).
+        if (ui.hasGyroscope) {
+            ZoomGraph(
+                title = "Gyroscope (Rotation)",
+                lines = listOf(GraphSeries(ui.rotation, Purple, "rotation")),
+                yMin = 0f, yMax = 8f, unit = "rad/s",
+                thresholds = listOf(GraphLine(c.rotationMin, "rotation %.1f".format(c.rotationMin), Purple)),
+                markers = markers, view = shown, onViewChange = { view = it }, limits = limits, interactive = ui.paused,
+                pickLabel = { i -> "t = %.2f s · rotation %.2f rad/s".format(ui.rotation.t[i], ui.rotation.v[i]) },
+                height = 110, pickedTime = pickedTime, onPick = { pickedTime = it }
+            )
+        } else {
+            Text("Gyroscope (Rotation): not on this phone, so the rotation gate is off.", fontSize = 12.sp,
+                color = SeniorColors.TextSecondary)
+        }
 
         Text("Readings", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = SeniorColors.TextPrimary)
         GateRow("1. Free fall", "magnitude below %.1f m/s² for %.1f–%.0f s".format(c.freeFallMax, c.freeFallMinMs / 1000f, c.freeFallMaxMs / 1000f),

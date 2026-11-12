@@ -142,7 +142,9 @@ fun SensorReadingsDialog(onClose: () -> Unit, viewModel: RecorderViewModel = vie
                     onShareLast = { viewModel.savedFile?.let { share(context, listOf(it)) } },
                     onShareAll = { share(context, viewModel.savedRecordings) },
                     onPause = { viewModel.pauseRecording() },
-                    onGravity = { viewModel.withGravity = it }
+                    onGravity = { viewModel.withGravity = it },
+                    onPauseGraphs = { viewModel.pauseGraphs() },
+                    onResumeGraphs = { viewModel.resumeGraphs() }
                 )
             }
         )

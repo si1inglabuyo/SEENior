@@ -80,7 +80,7 @@ data class WalkTestUi(
 )
 
 /**
- * The walk test: the linear accelerometer, absolute acceleration, gyroscope and the 2 s pre-fall
+ * The walk test: the accelerometer (with or without g), absolute acceleration and the 2 s pre-fall
  * value as phyphox-style graphs (pause, then zoom and tap; one tap marks the same moment on every
  * graph), and labelled recordings saved as CSV for the walk-test spreadsheet.
  */
@@ -99,7 +99,10 @@ fun WalkTestPanel(
     onShareAll: () -> Unit,
     /** phyphox's pause. */
     onPause: () -> Unit,
-    onGravity: (Boolean) -> Unit = {}
+    onGravity: (Boolean) -> Unit = {},
+    /** Freeze the graphs to read them (recording, if any, carries on). */
+    onPauseGraphs: () -> Unit = {},
+    onResumeGraphs: () -> Unit = {}
 ) {
     val limits = if (ui.absolute.isEmpty) GraphView(0f, 10f)
     else GraphView(ui.absolute.t.first(), ui.absolute.t.last().coerceAtLeast(ui.absolute.t.first() + 0.1f))
@@ -132,7 +135,13 @@ fun WalkTestPanel(
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
         Text("Walk test", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = SeniorColors.TextPrimary)
-        GravityToggle(ui.withGravity, ui.hasLinearSensor, onGravity, Modifier.fillMaxWidth())
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth()) {
+            OutlinedButton(onClick = if (ui.paused) onResumeGraphs else onPauseGraphs, modifier = Modifier.weight(1f)) {
+                Text(if (ui.paused) "Back to live" else "Pause", color = SeniorColors.TextPrimary)
+            }
+            GravityToggle(ui.withGravity, ui.hasLinearSensor, onGravity, Modifier.weight(1.4f))
+        }
 
         val ax = if (ui.withGravity) ui.accelX else ui.linX
         val ay = if (ui.withGravity) ui.accelY else ui.linY
@@ -150,15 +159,6 @@ fun WalkTestPanel(
             if (ui.withGravity) listOf(GraphLine(FallDetector.GRAVITY, "still 9.8", SeniorColors.TextSecondary)) else emptyList(),
             { i -> "t = %.2f s · absolute %.2f m/s²".format(abs.t[i], abs.v[i]) }
         )
-        if (ui.hasGyroscope) {
-            Graph(
-                "Gyroscope (Angular Velocity)",
-                listOf(GraphSeries(ui.gyroX, AxisX, "x"), GraphSeries(ui.gyroY, AxisY, "y"), GraphSeries(ui.gyroZ, AxisZ, "z")),
-                -8f, 8f, "rad/s", emptyList(), xyz(ui.gyroX, ui.gyroX, ui.gyroY, ui.gyroZ, "rad/s")
-            )
-        } else {
-            Text("Gyroscope (Angular Velocity): not on this phone.", fontSize = 12.sp, color = SeniorColors.TextSecondary)
-        }
         Graph(
             "Pre-fall Event (2-second window)",
             listOf(GraphSeries(ui.preFall, PassGreen, "2 s value")),
@@ -215,9 +215,9 @@ fun WalkTestPanel(
         ) {
             Text(
                 when {
-                    running -> "\u23F8  Pause"
-                    ui.recording -> "\u25B6  Resume"
-                    else -> "\u25B6  Start"
+                    running -> "\u23F8  Pause recording"
+                    ui.recording -> "\u25B6  Resume recording"
+                    else -> "\u25B6  Start recording"
                 },
                 fontSize = 16.sp, fontWeight = FontWeight.Bold
             )
