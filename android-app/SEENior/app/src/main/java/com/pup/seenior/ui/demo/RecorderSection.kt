@@ -1,151 +1,204 @@
 package com.pup.seenior.ui.demo
 
-import android.content.Intent
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.getValue
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ShowChart
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.SmallFloatingActionButton
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.content.FileProvider
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.pup.seenior.detection.FallContext
+import com.pup.seenior.detection.FallDetector
 import com.pup.seenior.ui.theme.SeniorColors
-import java.io.File
+import kotlin.math.sin
+import kotlin.math.sqrt
+
+private val Navy = Color(0xFF283593)
+
+/** Everything the walk test screen shows, so it can be drawn in a preview without sensors. */
+data class WalkTestUi(
+    val participant: String,
+    val activityCode: String,
+    val recording: Boolean,
+    /** A recording is running but paused. */
+    val recordingPaused: Boolean = false,
+    /** Show acceleration with gravity (SEENior's) or without (linear acceleration). */
+    val withGravity: Boolean = true,
+    val elapsedSeconds: Int,
+    val liveValue: Float?,
+    val liveLinear: Float?,
+    val hasLinearSensor: Boolean,
+    val hasGyroscope: Boolean,
+    /** Acceleration with gravity, m/s2. */
+    val accelX: Series = Series.EMPTY,
+    val accelY: Series = Series.EMPTY,
+    val accelZ: Series = Series.EMPTY,
+    /** Linear acceleration (without gravity), m/s2. */
+    val linX: Series,
+    val linY: Series,
+    val linZ: Series,
+    /** Absolute acceleration: the magnitude of the accelerometer reading (with gravity), m/s2. */
+    val absolute: Series,
+    /** Absolute linear acceleration: the magnitude without gravity, m/s2. */
+    val linAbs: Series = Series.EMPTY,
+    /** Angular velocity, rad/s. */
+    val gyroX: Series,
+    val gyroY: Series,
+    val gyroZ: Series,
+    /** SEENior's 2 s pre-fall value, m/s2. */
+    val preFall: Series,
+    /** Seconds from 0 s to the newest reading. */
+    val latestSeconds: Float,
+    val paused: Boolean,
+    val message: String?,
+    val savedFileName: String?,
+    val savedCount: Int
+)
 
 /**
- * A small highlighted button for the bottom right of the senior's Home tab, just above the tab
- * bar. It opens the recorder full screen. Hidden entirely when [SHOW_DEMO_TOOLS] is off, so a
- * senior's build never shows it. The screen cannot be closed while recording.
+ * The walk test: the accelerometer (with or without g), absolute acceleration and the 2 s pre-fall
+ * value as phyphox-style graphs (pause, then zoom and tap; one tap marks the same moment on every
+ * graph), and labelled recordings saved as CSV for the walk-test spreadsheet.
  */
 @Composable
-fun WalkTestRecorderButton(modifier: Modifier = Modifier, viewModel: RecorderViewModel = viewModel()) {
-    if (!SHOW_DEMO_TOOLS) return
-    var open by rememberSaveable { mutableStateOf(false) }
-    SmallFloatingActionButton(
-        onClick = { open = true },
-        modifier = modifier,
-        containerColor = SeniorColors.GreenDark,
-        contentColor = Color.White
-    ) {
-        Icon(Icons.AutoMirrored.Filled.ShowChart, contentDescription = "Walk-test recorder")
+fun WalkTestPanel(
+    ui: WalkTestUi,
+    onParticipant: (String) -> Unit,
+    onActivity: (String) -> Unit,
+    /** Start a recording, or resume a paused one (phyphox's play). */
+    onStart: () -> Unit,
+    /** Save the recording as CSV. */
+    onStop: () -> Unit,
+    /** Reset: throw the recording away. */
+    onDiscard: () -> Unit,
+    onShareLast: () -> Unit,
+    onShareAll: () -> Unit,
+    /** phyphox's pause. */
+    onPause: () -> Unit,
+    onGravity: (Boolean) -> Unit = {},
+    /** Freeze the graphs to read them (recording, if any, carries on). */
+    onPauseGraphs: () -> Unit = {},
+    onResumeGraphs: () -> Unit = {}
+) {
+    val limits = if (ui.absolute.isEmpty) GraphView(0f, 10f)
+    else GraphView(ui.absolute.t.first(), ui.absolute.t.last().coerceAtLeast(ui.absolute.t.first() + 0.1f))
+    val live = liveView(ui.latestSeconds)
+    var view by remember(ui.paused) {
+        mutableStateOf(GraphView((limits.end - 10f).coerceAtLeast(limits.start), limits.end.coerceAtLeast(limits.start + 0.1f)))
     }
-    if (open) {
-        Dialog(
-            onDismissRequest = { if (!viewModel.recording) open = false },
-            properties = DialogProperties(usePlatformDefaultWidth = false, dismissOnClickOutside = false)
-        ) {
-            Column(modifier = Modifier.fillMaxSize().background(Color.White)) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth().background(SeniorColors.GreenDark).padding(horizontal = 16.dp, vertical = 6.dp)
-                ) {
-                    Text("Walk-test recorder", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold,
-                        modifier = Modifier.weight(1f))
-                    IconButton(onClick = { open = false }, enabled = !viewModel.recording) {
-                        Icon(Icons.Filled.Close, contentDescription = "Close",
-                            tint = if (viewModel.recording) Color.White.copy(alpha = 0.4f) else Color.White)
-                    }
-                }
-                Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
-                    RecorderSection(viewModel)
-                }
+    var pickedTime by remember(ui.paused) { mutableStateOf<Float?>(null) }
+    val shown = if (ui.paused) view else live
+
+    @Composable
+    fun Graph(title: String, lines: List<GraphSeries>, yMin: Float, yMax: Float, unit: String,
+              thresholds: List<GraphLine>, label: (Int) -> String, height: Int = 120) {
+        ZoomGraph(
+            title = title, lines = lines, yMin = yMin, yMax = yMax, unit = unit, thresholds = thresholds,
+            markers = emptyList(), view = shown, onViewChange = { view = it }, limits = limits,
+            interactive = ui.paused, pickLabel = label, height = height,
+            pickedTime = pickedTime, onPick = { pickedTime = it }
+        )
+    }
+
+    fun xyz(t: Series, x: Series, y: Series, z: Series, unit: String): (Int) -> String = { i ->
+        val vx = x.v.getOrNull(i)
+        val vy = y.v.getOrNull(i)
+        val vz = z.v.getOrNull(i)
+        if (vx == null || vy == null || vz == null) "" else
+            "t = %.2f s · x %.2f · y %.2f · z %.2f · absolute %.2f %s"
+                .format(t.t[i], vx, vy, vz, sqrt(vx * vx + vy * vy + vz * vz), unit)
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+        Text("Walk test", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = SeniorColors.TextPrimary)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth()) {
+            OutlinedButton(onClick = if (ui.paused) onResumeGraphs else onPauseGraphs, modifier = Modifier.weight(1f)) {
+                Text(if (ui.paused) "Back to live" else "Pause", color = SeniorColors.TextPrimary)
             }
+            GravityToggle(ui.withGravity, ui.hasLinearSensor, onGravity, Modifier.weight(1.4f))
         }
-    }
-}
 
-/** Top of the live graph, in m/s2. Readings above it are drawn at the top edge. */
-private const val GRAPH_MAX = 4f
-
-/**
- * Walk-test recorder: labelled accelerometer recordings, exported in phyphox's CSV format plus
- * SEENior's own 2 s value and step count. For the research team, never for the senior.
- */
-@Composable
-fun RecorderSection(viewModel: RecorderViewModel = viewModel()) {
-    val context = LocalContext.current
-    val view = LocalView.current
-
-    // The phone sits in a pocket while recording; keep the screen awake so readings keep coming.
-    DisposableEffect(viewModel.recording) {
-        view.keepScreenOn = viewModel.recording
-        onDispose { view.keepScreenOn = false }
-    }
-    // Sensors only while this section is on screen.
-    DisposableEffect(Unit) {
-        viewModel.listen(true)
-        onDispose { viewModel.listen(false) }
-    }
-
-    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        LiveGraphs(viewModel)
+        val ax = if (ui.withGravity) ui.accelX else ui.linX
+        val ay = if (ui.withGravity) ui.accelY else ui.linY
+        val az = if (ui.withGravity) ui.accelZ else ui.linZ
+        val abs = if (ui.withGravity) ui.absolute else ui.linAbs
+        Graph(
+            if (ui.withGravity) "Accelerometer (Acceleration with g)" else "Accelerometer (Linear Acceleration)",
+            listOf(GraphSeries(ax, AxisX, "x"), GraphSeries(ay, AxisY, "y"), GraphSeries(az, AxisZ, "z")),
+            -20f, 20f, "m/s²", emptyList(), xyz(ax, ax, ay, az, "m/s²")
+        )
+        Graph(
+            if (ui.withGravity) "Accelerometer (Absolute Acceleration)" else "Accelerometer (Absolute Linear Acceleration)",
+            listOf(GraphSeries(abs, Navy, "absolute")),
+            0f, 30f, "m/s²",
+            if (ui.withGravity) listOf(GraphLine(FallDetector.GRAVITY, "still 9.8", SeniorColors.TextSecondary)) else emptyList(),
+            { i -> "t = %.2f s · absolute %.2f m/s²".format(abs.t[i], abs.v[i]) }
+        )
+        Graph(
+            "Pre-fall Event (2-second window)",
+            listOf(GraphSeries(ui.preFall, PassGreen, "2 s value")),
+            0f, 4f, "m/s²",
+            listOf(
+                GraphLine(FallContext.STILL_MAX, "still below %.1f".format(FallContext.STILL_MAX), Color(0xFF6B8E9B)),
+                GraphLine(FallContext.ACTIVE_MIN, "moving from %.1f".format(FallContext.ACTIVE_MIN), Amber)
+            ),
+            { i ->
+                "t = %.2f s · 2 s value %.2f m/s² · %s".format(
+                    ui.preFall.t[i], ui.preFall.v[i], movementName(FallContext.levelOf(ui.preFall.v[i]))
+                )
+            }
+        )
 
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            Stat("2 s value", viewModel.liveValue?.let { "%.2f m/s²".format(it) } ?: "-")
-            Stat("Movement", viewModel.liveValue?.let { levelName(FallContext.levelOf(it)) } ?: "-")
-            Stat("Without g", if (viewModel.hasLinearSensor) viewModel.liveLinear?.let { "%.2f".format(it) } ?: "-" else "no sensor")
-            Stat("Steps", if (viewModel.hasStepDetector) viewModel.steps.toString() else "no sensor")
-            Stat("Time", "%d:%02d".format(viewModel.elapsedSeconds / 60, viewModel.elapsedSeconds % 60))
+            Stat("2 s value", ui.liveValue?.let { "%.2f".format(it) } ?: "-")
+            Stat("Movement", ui.liveValue?.let { movementName(FallContext.levelOf(it)) } ?: "-")
+            Stat("Without g", if (ui.hasLinearSensor) ui.liveLinear?.let { "%.2f".format(it) } ?: "-" else "none")
+            Stat("Time", "%d:%02d".format(ui.elapsedSeconds / 60, ui.elapsedSeconds % 60))
         }
 
         OutlinedTextField(
-            value = viewModel.participant,
-            onValueChange = { viewModel.participant = it },
-            label = { Text("Participant code") },
+            value = ui.participant,
+            onValueChange = onParticipant,
+            label = { Text("Participant") },
             singleLine = true,
-            enabled = !viewModel.recording,
+            enabled = !ui.recording,
             modifier = Modifier.fillMaxWidth()
         )
 
-        Text("Activity", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = SeniorColors.TextSecondary)
+        Text("Activity", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = SeniorColors.TextPrimary)
         RecorderCsv.ACTIVITIES.chunked(2).forEach { pair ->
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                 pair.forEach { activity ->
-                    val selected = viewModel.activityCode == activity.code
+                    val selected = ui.activityCode == activity.code
                     OutlinedButton(
-                        onClick = { viewModel.activityCode = activity.code },
-                        enabled = !viewModel.recording,
-                        modifier = Modifier.weight(1f),
+                        onClick = { onActivity(activity.code) },
+                        enabled = !ui.recording,
+                        modifier = Modifier.weight(1f).height(56.dp),
                         shape = RoundedCornerShape(10.dp),
                         border = BorderStroke(if (selected) 2.dp else 1.dp,
                             if (selected) SeniorColors.GreenDark else SeniorColors.GreenBorder),
@@ -160,98 +213,46 @@ fun RecorderSection(viewModel: RecorderViewModel = viewModel()) {
             }
         }
 
-        if (!viewModel.recording) {
-            Button(
-                onClick = { viewModel.start() },
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = SeniorColors.GreenDark)
-            ) { Text("Start recording", fontSize = 16.sp, fontWeight = FontWeight.Bold) }
-        } else {
-            HoldToStop(onStop = { viewModel.stop() })
-            OutlinedButton(onClick = { viewModel.discard() }, modifier = Modifier.fillMaxWidth()) {
-                Text("Discard this recording", color = SeniorColors.TextSecondary)
+        // phyphox's controls: play / pause, then save or reset.
+        val running = ui.recording && !ui.recordingPaused
+        Button(
+            onClick = if (running) onPause else onStart,
+            modifier = Modifier.fillMaxWidth().height(52.dp),
+            shape = RoundedCornerShape(12.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = if (running) Amber else SeniorColors.GreenDark)
+        ) {
+            Text(
+                when {
+                    running -> "\u23F8  Pause recording"
+                    ui.recording -> "\u25B6  Resume recording"
+                    else -> "\u25B6  Start recording"
+                },
+                fontSize = 16.sp, fontWeight = FontWeight.Bold
+            )
+        }
+        if (ui.recording) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                OutlinedButton(onClick = onStop, enabled = ui.recordingPaused, modifier = Modifier.weight(1f)) {
+                    Text("Save", color = SeniorColors.TextPrimary)
+                }
+                OutlinedButton(onClick = onDiscard, modifier = Modifier.weight(1f)) {
+                    Text("Reset", color = SeniorColors.TextPrimary)
+                }
             }
         }
 
-        viewModel.message?.let {
-            Text(it, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = SeniorColors.GreenDark)
-        }
-
-        viewModel.savedFile?.let { file ->
-            OutlinedButton(onClick = { share(context, listOf(file)) }, modifier = Modifier.fillMaxWidth()) {
-                Text("Share ${file.name}", color = SeniorColors.TextPrimary)
+        ui.message?.let { Text(it, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = SeniorColors.GreenDark) }
+        if (ui.savedFileName != null && !ui.recording) {
+            OutlinedButton(onClick = onShareLast, modifier = Modifier.fillMaxWidth()) {
+                Text("Share ${ui.savedFileName}", color = SeniorColors.TextPrimary)
             }
         }
-
-        val all = viewModel.savedRecordings
-        if (all.isNotEmpty() && !viewModel.recording) {
-            OutlinedButton(onClick = { share(context, all) }, modifier = Modifier.fillMaxWidth()) {
-                Text("Share all ${all.size} recordings", color = SeniorColors.TextPrimary)
+        if (ui.savedCount > 0 && !ui.recording) {
+            OutlinedButton(onClick = onShareAll, modifier = Modifier.fillMaxWidth()) {
+                Text("Share all ${ui.savedCount} recordings", color = SeniorColors.TextPrimary)
             }
         }
     }
-}
-
-/**
- * Two phyphox-style graphs of the live sensor: the 2 s value (with the activity threshold) and
- * the absolute acceleration. Live shows the last 10 s. Pause freezes them so they can be zoomed
- * (pinch), panned (drag) and read (tap); one tap marks the same moment on both. Each dot is one
- * real reading. The full-screen button enlarges a graph.
- */
-@Composable
-private fun LiveGraphs(viewModel: RecorderViewModel) {
-    val paused = viewModel.graphPaused
-    val value = viewModel.valueSeries
-    val absolute = viewModel.absSeries
-    val latest = viewModel.latestSeconds
-    val limits = if (value.isEmpty) GraphView(0f, 10f)
-    else GraphView(value.t.first(), value.t.last().coerceAtLeast(value.t.first() + 0.1f))
-    val live = GraphView((latest - LIVE_SECONDS).coerceAtLeast(0f), latest.coerceAtLeast(0.1f))
-    var view by remember(paused) { mutableStateOf(live) }
-    var pickedTime by remember(paused) { mutableStateOf<Float?>(null) }
-    val shown = if (paused) view else live
-
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-        OutlinedButton(
-            onClick = { if (paused) viewModel.resumeGraphs() else viewModel.pauseGraphs() },
-            modifier = Modifier.fillMaxWidth()
-        ) { Text(if (paused) "Back to live" else "Pause graphs", color = SeniorColors.TextPrimary) }
-
-        ZoomGraph(
-            title = "2 s value (pre-fall window)",
-            lines = listOf(GraphSeries(value, SeniorColors.GreenDark, "2 s value")),
-            yMin = 0f, yMax = GRAPH_MAX, unit = "m/s²",
-            thresholds = listOf(
-                GraphLine(FallContext.STILL_MAX, "still below %.1f".format(FallContext.STILL_MAX), Color(0xFF6B8E9B)),
-                GraphLine(FallContext.ACTIVE_MIN, "moving from %.1f".format(FallContext.ACTIVE_MIN), Color(0xFFD9822B))
-            ),
-            markers = emptyList(), view = shown, onViewChange = { view = it }, limits = limits,
-            interactive = paused,
-            pickLabel = { i ->
-                "t = %.2f s · 2 s value %.2f m/s² · %s".format(value.t[i], value.v[i], levelName(FallContext.levelOf(value.v[i])))
-            },
-            pickedTime = pickedTime, onPick = { pickedTime = it }
-        )
-        ZoomGraph(
-            title = "Absolute acceleration",
-            lines = listOf(GraphSeries(absolute, Color(0xFF1F3A5F), "absolute")),
-            yMin = 0f, yMax = 30f, unit = "m/s²",
-            thresholds = listOf(GraphLine(9.80665f, "still 9.8", SeniorColors.TextSecondary)),
-            markers = emptyList(), view = shown, onViewChange = { view = it }, limits = limits,
-            interactive = paused,
-            pickLabel = { i -> "t = %.2f s · absolute %.2f m/s²".format(absolute.t[i], absolute.v[i]) },
-            pickedTime = pickedTime, onPick = { pickedTime = it }
-        )
-    }
-}
-
-private const val LIVE_SECONDS = 10f
-
-private fun levelName(level: FallContext.Level) = when (level) {
-    FallContext.Level.STILL -> "Still"
-    FallContext.Level.GENTLE -> "Gentle"
-    FallContext.Level.MOVING -> "Moving"
 }
 
 @Composable
@@ -262,28 +263,50 @@ private fun Stat(label: String, value: String) {
     }
 }
 
-/** A long press stops the recording, so a touch in the pocket can't end it by accident. */
+// ----------------------------------------------------------------------------- preview data
+
+/** Eighteen seconds of made-up walking, phone in pocket, on the phyphox clock (0 s at the start). */
+internal fun previewWalkUi(recording: Boolean, paused: Boolean = false): WalkTestUi {
+    val n = 900
+    val t = FloatArray(n) { i -> i * 0.02f }
+    fun s(f: (Float) -> Float) = Series(t, FloatArray(n) { i -> f(t[i]) })
+    val lx = s { 1.5f * sin(it * 11f) }
+    val ly = s { 2.2f * sin(it * 11.3f) }
+    val lz = s { 0.8f * sin(it * 5.6f) }
+    return WalkTestUi(
+        participant = "P03", activityCode = "WALKPOCKET", recording = recording, elapsedSeconds = if (recording) 18 else 0,
+        liveValue = 1.12f, liveLinear = 2.05f, hasLinearSensor = true, hasGyroscope = true,
+        linX = lx, linY = ly, linZ = lz,
+        absolute = s { 9.8f + 2.2f * sin(it * 11.3f) },
+        gyroX = s { 0.9f * sin(it * 5.6f) }, gyroY = s { 0.5f * sin(it * 3.1f) }, gyroZ = s { 1.2f * sin(it * 5.6f + 1f) },
+        preFall = s { 1.1f + 0.15f * sin(it * 0.9f) },
+        latestSeconds = 17.98f, paused = paused, recordingPaused = recording && paused,
+        accelX = s { 1.5f * sin(it * 11f) }, accelY = s { 9.8f + 2.2f * sin(it * 11.3f) }, accelZ = s { 0.8f * sin(it * 5.6f) },
+        linAbs = s { 2.4f + 0.6f * sin(it * 11.3f) },
+        message = if (recording) null else "Saved P03_WALKPOCKET_R2.csv: 1503 readings, 30.1 s.",
+        savedFileName = if (recording) null else "P03_WALKPOCKET_R2.csv", savedCount = if (recording) 0 else 7
+    )
+}
+
+@Preview(showBackground = true, heightDp = 1400, name = "Walk test: recording")
 @Composable
-private fun HoldToStop(onStop: () -> Unit) {
-    Box(
-        contentAlignment = Alignment.Center,
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(52.dp)
-            .background(Color(0xFFC0392B), RoundedCornerShape(12.dp))
-            .pointerInput(Unit) { detectTapGestures(onLongPress = { onStop() }) }
-    ) {
-        Text("Recording. Hold to stop and save", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+private fun WalkTestRecordingPreview() {
+    Column(Modifier.background(Color.White).padding(16.dp).verticalScroll(rememberScrollState())) {
+        WalkTestPanel(previewWalkUi(recording = true), {}, {}, {}, {}, {}, {}, {}, {})
     }
 }
 
-private fun share(context: android.content.Context, files: List<File>) {
-    val authority = "${context.packageName}.recorder"
-    val uris = ArrayList(files.map { FileProvider.getUriForFile(context, authority, it) })
-    val intent = if (uris.size == 1) {
-        Intent(Intent.ACTION_SEND).putExtra(Intent.EXTRA_STREAM, uris.first())
-    } else {
-        Intent(Intent.ACTION_SEND_MULTIPLE).putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris)
-    }.setType("text/csv").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-    context.startActivity(Intent.createChooser(intent, "Share recordings"))
+@Preview(showBackground = true, heightDp = 1400, name = "Walk test: recording paused")
+@Composable
+private fun WalkTestPausedPreview() {
+    Column(Modifier.background(Color.White).padding(16.dp).verticalScroll(rememberScrollState())) {
+        WalkTestPanel(previewWalkUi(recording = true, paused = true), {}, {}, {}, {}, {}, {}, {}, {})
+    }
+}
+
+/** The band the 2 s value falls in, for the walk test (display only; nothing in the detector reads it). */
+internal fun movementName(level: FallContext.Level) = when (level) {
+    FallContext.Level.STILL -> "Still"
+    FallContext.Level.GENTLE -> "Gentle"
+    FallContext.Level.MOVING -> "Moving"
 }

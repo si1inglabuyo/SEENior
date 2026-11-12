@@ -52,7 +52,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.pup.seenior.ui.AfterHoursNotice
-import com.pup.seenior.ui.demo.WalkTestRecorderButton
+import com.pup.seenior.ui.demo.SensorReadingsButton
 import com.pup.seenior.ui.theme.SeniorColors
 import com.pup.seenior.ui.wellness.WellnessMessages
 import com.pup.seenior.ui.wellness.WellnessPromptScreen
@@ -136,13 +136,13 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
 
                 EmergencyCard(barangay = viewModel.barangay, onSosConfirmed = { viewModel.sendSos() }, copy = copy)
 
-                // Room so the recorder button never covers the SOS card.
+                // Room so the Sensor readings button never covers the SOS card.
                 Spacer(Modifier.height(72.dp))
             }
         }
-        // Research only (absent when SHOW_DEMO_TOOLS is off): a small button at the bottom right,
-        // just above the tab bar, that opens the walk-test recorder.
-        WalkTestRecorderButton(modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp))
+        // Sensor readings (research only, absent when SHOW_DEMO_TOOLS is off): a small line-graph
+        // button at the bottom right, just above the tab bar.
+        SensorReadingsButton(modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp))
       }
     }
 }
