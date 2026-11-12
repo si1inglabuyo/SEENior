@@ -52,7 +52,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.pup.seenior.ui.AfterHoursNotice
-import com.pup.seenior.ui.demo.WalkTestRecorderCard
+import com.pup.seenior.ui.demo.WalkTestRecorderButton
 import com.pup.seenior.ui.theme.SeniorColors
 import com.pup.seenior.ui.wellness.WellnessMessages
 import com.pup.seenior.ui.wellness.WellnessPromptScreen
@@ -74,6 +74,7 @@ private val WarningAmberBg = Color(0xFFFDF3E7)
 fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
     val copy = SeniorStrings.forLanguage(viewModel.language)
     Surface(modifier = Modifier.fillMaxSize(), color = Color.White) {
+      Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
             Row(
                 modifier = Modifier
@@ -135,14 +136,14 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
 
                 EmergencyCard(barangay = viewModel.barangay, onSosConfirmed = { viewModel.sendSos() }, copy = copy)
 
-                // Research only: the walk-test recorder, closed by default and absent when
-                // SHOW_DEMO_TOOLS is off. Last on the page, just above the tab bar.
-                Spacer(Modifier.height(16.dp))
-                WalkTestRecorderCard()
-
-                Spacer(Modifier.height(20.dp))
+                // Room so the recorder button never covers the SOS card.
+                Spacer(Modifier.height(72.dp))
             }
         }
+        // Research only (absent when SHOW_DEMO_TOOLS is off): a small button at the bottom right,
+        // just above the tab bar, that opens the walk-test recorder.
+        WalkTestRecorderButton(modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp))
+      }
     }
 }
 

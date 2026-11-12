@@ -9,12 +9,22 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ShowChart
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.SmallFloatingActionButton
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -43,35 +53,43 @@ import com.pup.seenior.ui.theme.SeniorColors
 import java.io.File
 
 /**
- * The recorder as a closed card at the bottom of the senior's Home tab. Closed by default, and
- * hidden entirely when [SHOW_DEMO_TOOLS] is off, so a senior's build never shows it. It cannot be
- * closed while recording.
+ * A small highlighted button for the bottom right of the senior's Home tab, just above the tab
+ * bar. It opens the recorder full screen. Hidden entirely when [SHOW_DEMO_TOOLS] is off, so a
+ * senior's build never shows it. The screen cannot be closed while recording.
  */
 @Composable
-fun WalkTestRecorderCard(viewModel: RecorderViewModel = viewModel()) {
+fun WalkTestRecorderButton(modifier: Modifier = Modifier, viewModel: RecorderViewModel = viewModel()) {
     if (!SHOW_DEMO_TOOLS) return
     var open by rememberSaveable { mutableStateOf(false) }
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .border(1.dp, SeniorColors.GreenBorder, RoundedCornerShape(12.dp))
-            .padding(12.dp)
+    SmallFloatingActionButton(
+        onClick = { open = true },
+        modifier = modifier,
+        containerColor = SeniorColors.GreenDark,
+        contentColor = Color.White
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable(enabled = !viewModel.recording) { open = !open }
+        Icon(Icons.AutoMirrored.Filled.ShowChart, contentDescription = "Walk-test recorder")
+    }
+    if (open) {
+        Dialog(
+            onDismissRequest = { if (!viewModel.recording) open = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false, dismissOnClickOutside = false)
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text("Walk-test recorder", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = SeniorColors.TextPrimary)
-                Text("For the research team", fontSize = 12.sp, color = SeniorColors.TextSecondary)
+            Column(modifier = Modifier.fillMaxSize().background(Color.White)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth().background(SeniorColors.GreenDark).padding(horizontal = 16.dp, vertical = 6.dp)
+                ) {
+                    Text("Walk-test recorder", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.weight(1f))
+                    IconButton(onClick = { open = false }, enabled = !viewModel.recording) {
+                        Icon(Icons.Filled.Close, contentDescription = "Close",
+                            tint = if (viewModel.recording) Color.White.copy(alpha = 0.4f) else Color.White)
+                    }
+                }
+                Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
+                    RecorderSection(viewModel)
+                }
             }
-            Text(if (open || viewModel.recording) "Close" else "Open", fontSize = 14.sp, color = SeniorColors.GreenDark)
-        }
-        if (open || viewModel.recording) {
-            Spacer(Modifier.height(10.dp))
-            RecorderSection(viewModel)
         }
     }
 }
@@ -100,14 +118,6 @@ fun RecorderSection(viewModel: RecorderViewModel = viewModel()) {
     }
 
     Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text(
-            "For the research team. Records the accelerometer at 50 Hz, the rate the fall detector uses, " +
-                "and saves a CSV in phyphox's format with SEENior's 2 s value, steps and acceleration " +
-                "without gravity. Files stay on this phone.",
-            fontSize = 13.sp,
-            color = SeniorColors.TextSecondary
-        )
-
         LiveGraphs(viewModel)
 
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -178,11 +188,6 @@ fun RecorderSection(viewModel: RecorderViewModel = viewModel()) {
             OutlinedButton(onClick = { share(context, all) }, modifier = Modifier.fillMaxWidth()) {
                 Text("Share all ${all.size} recordings", color = SeniorColors.TextPrimary)
             }
-            Text(
-                "Also on the phone at ${viewModel.recordingsDir().absolutePath}",
-                fontSize = 11.sp,
-                color = SeniorColors.TextSecondary
-            )
         }
     }
 }
