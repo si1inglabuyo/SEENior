@@ -10,7 +10,9 @@ import java.util.Locale
  * - `pre_dev`: mean distance of the phone's acceleration from 1 g over the two seconds before the
  *   free fall began (m/s2). Near zero for a phone lying on a bed or held in a resting hand; a few
  *   m/s2 for someone walking.
- * - `active`: 1 when `pre_dev` is at least [ACTIVE_MIN], else 0. Absent when the detector had too
+ * - `active`: 1 when `pre_dev` is at least [ACTIVE_MIN], else 0. The still / gentle / moving band
+ *   ([levelOf]) is derived from `pre_dev` on the phone and is not written into this string: the
+ *   cloud accepts only `key=number` pairs, and the family app and dashboard do not show it yet. Absent when the detector had too
  *   few samples before the drop to say.
  * - `night`: 1 when the alert fell in the senior's night block (their own sleep time to wake time).
  *
@@ -23,8 +25,27 @@ import java.util.Locale
  */
 object FallContext {
 
-    /** Mean deviation from 1 g (m/s2) at or above which the phone counts as having been moving. */
-    const val ACTIVE_MIN = 1.5f
+    /**
+     * Three bands for the 2 s value (mean deviation from 1 g, m/s2), from the 8-person walk test
+     * (docs/evidence): resting phones read about 0.05 to 0.2, and walking spreads from about 0.4 to
+     * 2 and beyond depending on the person and where the phone is carried. One cutoff forced a
+     * yes/no on that middle, so the middle is its own band. Both edges are starting points to be
+     * revisited with recordings from seniors; they are not validated values.
+     */
+    enum class Level { STILL, GENTLE, MOVING }
+
+    /** Below this the phone is hardly moving (resting, asleep, on a table). */
+    const val STILL_MAX = 0.5f
+
+    /** At or above this the phone counts as having been moving. Was 1.5 until 2026-11-12. */
+    const val ACTIVE_MIN = 1.0f
+
+    /** Which band a 2 s value falls in. Display only; nothing in the detector reads it. */
+    fun levelOf(preDev: Float): Level = when {
+        preDev >= ACTIVE_MIN -> Level.MOVING
+        preDev >= STILL_MAX -> Level.GENTLE
+        else -> Level.STILL
+    }
 
     /**
      * `pre_dev=2.8;n=100;sum=280.00;win_ms=2000;thr=1.5;active=1;night=0`, with the motion keys

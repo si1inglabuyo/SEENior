@@ -122,6 +122,7 @@ fun RecorderSection(viewModel: RecorderViewModel = viewModel()) {
 
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             Stat("2 s value", viewModel.liveValue?.let { "%.2f m/s²".format(it) } ?: "-")
+            Stat("Movement", viewModel.liveValue?.let { levelName(FallContext.levelOf(it)) } ?: "-")
             Stat("Without g", if (viewModel.hasLinearSensor) viewModel.liveLinear?.let { "%.2f".format(it) } ?: "-" else "no sensor")
             Stat("Steps", if (viewModel.hasStepDetector) viewModel.steps.toString() else "no sensor")
             Stat("Time", "%d:%02d".format(viewModel.elapsedSeconds / 60, viewModel.elapsedSeconds % 60))
@@ -221,10 +222,15 @@ private fun LiveGraphs(viewModel: RecorderViewModel) {
             title = "2 s value (pre-fall window)",
             lines = listOf(GraphSeries(value, SeniorColors.GreenDark, "2 s value")),
             yMin = 0f, yMax = GRAPH_MAX, unit = "m/s²",
-            thresholds = listOf(GraphLine(FallContext.ACTIVE_MIN, "threshold %.1f".format(FallContext.ACTIVE_MIN), Color(0xFFD9822B))),
+            thresholds = listOf(
+                GraphLine(FallContext.STILL_MAX, "still below %.1f".format(FallContext.STILL_MAX), Color(0xFF6B8E9B)),
+                GraphLine(FallContext.ACTIVE_MIN, "moving from %.1f".format(FallContext.ACTIVE_MIN), Color(0xFFD9822B))
+            ),
             markers = emptyList(), view = shown, onViewChange = { view = it }, limits = limits,
             interactive = paused,
-            pickLabel = { i -> "t = %.2f s · 2 s value %.2f m/s²".format(value.t[i], value.v[i]) },
+            pickLabel = { i ->
+                "t = %.2f s · 2 s value %.2f m/s² · %s".format(value.t[i], value.v[i], levelName(FallContext.levelOf(value.v[i])))
+            },
             pickedTime = pickedTime, onPick = { pickedTime = it }
         )
         ZoomGraph(
@@ -241,6 +247,12 @@ private fun LiveGraphs(viewModel: RecorderViewModel) {
 }
 
 private const val LIVE_SECONDS = 10f
+
+private fun levelName(level: FallContext.Level) = when (level) {
+    FallContext.Level.STILL -> "Still"
+    FallContext.Level.GENTLE -> "Gentle"
+    FallContext.Level.MOVING -> "Moving"
+}
 
 @Composable
 private fun Stat(label: String, value: String) {
