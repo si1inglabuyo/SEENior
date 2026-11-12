@@ -20,6 +20,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Fullscreen
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -93,7 +95,12 @@ fun ZoomGraph(
     pickedTime: Float? = null,
     onPick: (Float) -> Unit = {},
     /** Shows the full-screen button; off for the graph drawn inside the full-screen view. */
-    allowFullscreen: Boolean = true
+    allowFullscreen: Boolean = true,
+    /**
+     * Pauses or resumes the live graphs from inside the full-screen view (phyphox's play/pause
+     * icon). The graph is paused while [interactive], so the icon shows play then, pause when live.
+     */
+    onTogglePause: (() -> Unit)? = null
 ) {
     var fullscreen by remember { mutableStateOf(false) }
     if (fullscreen) {
@@ -102,6 +109,15 @@ fun ZoomGraph(
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                     Text(title, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = SeniorColors.TextPrimary,
                         modifier = Modifier.weight(1f))
+                    if (onTogglePause != null) {
+                        IconButton(onClick = onTogglePause) {
+                            Icon(
+                                if (interactive) Icons.Filled.PlayArrow else Icons.Filled.Pause,
+                                contentDescription = if (interactive) "Play" else "Pause",
+                                tint = SeniorColors.TextPrimary
+                            )
+                        }
+                    }
                     IconButton(onClick = { fullscreen = false }) { Icon(Icons.Filled.Close, contentDescription = "Close") }
                 }
                 BoxWithConstraints(modifier = Modifier.weight(1f).fillMaxWidth()) {

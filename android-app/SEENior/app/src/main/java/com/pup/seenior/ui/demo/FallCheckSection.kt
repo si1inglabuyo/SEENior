@@ -138,9 +138,9 @@ fun FallDetectionPanel(
             fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (ui.paused) Navy else PassGreen
         )
 
-        // 1. Accelerometer (Free Fall): the three axes, with or without gravity.
+        // 1. Accelerometer: the three axes, with or without gravity.
         ZoomGraph(
-            title = if (ui.withGravity) "Accelerometer (Free Fall)" else "Accelerometer (Free Fall, without g)",
+            title = if (ui.withGravity) "Accelerometer (Acceleration with g)" else "Accelerometer (Linear Acceleration)",
             lines = listOf(
                 GraphSeries(ax, AxisX, "x"),
                 GraphSeries(ay, AxisY, "y"),
@@ -150,12 +150,13 @@ fun FallDetectionPanel(
             thresholds = emptyList(), markers = markers,
             view = shown, onViewChange = { view = it }, limits = limits, interactive = ui.paused,
             pickLabel = ::accelAt, height = 150,
-            pickedTime = pickedTime, onPick = { pickedTime = it }
+            pickedTime = pickedTime, onPick = { pickedTime = it },
+            onTogglePause = if (ui.paused) onResume else onPause
         )
-        // 2. Acceleration (Magnitude): always with gravity, the value the detector judges for free
+        // 2. Accelerometer (Absolute Acceleration): always with gravity, the value the detector judges for free
         // fall and impact, so its tap label shows the with-g readings it is computed from.
         ZoomGraph(
-            title = "Acceleration (Magnitude)",
+            title = "Accelerometer (Absolute Acceleration)",
             lines = listOf(GraphSeries(ui.magnitude, Navy, "magnitude")),
             yMin = 0f, yMax = 40f, unit = "m/s²",
             thresholds = listOf(
@@ -165,21 +166,23 @@ fun FallDetectionPanel(
             ),
             markers = markers, view = shown, onViewChange = { view = it }, limits = limits, interactive = ui.paused,
             pickLabel = ::magnitudeAt, height = 150,
-            pickedTime = pickedTime, onPick = { pickedTime = it }
+            pickedTime = pickedTime, onPick = { pickedTime = it },
+            onTogglePause = if (ui.paused) onResume else onPause
         )
-        // 3. Gyroscope (Rotation).
+        // 3. Gyroscope (Angular Velocity).
         if (ui.hasGyroscope) {
             ZoomGraph(
-                title = "Gyroscope (Rotation)",
+                title = "Gyroscope (Angular Velocity)",
                 lines = listOf(GraphSeries(ui.rotation, Purple, "rotation")),
                 yMin = 0f, yMax = 8f, unit = "rad/s",
                 thresholds = listOf(GraphLine(c.rotationMin, "rotation %.1f".format(c.rotationMin), Purple)),
                 markers = markers, view = shown, onViewChange = { view = it }, limits = limits, interactive = ui.paused,
                 pickLabel = { i -> "t = %.2f s · rotation %.2f rad/s".format(ui.rotation.t[i], ui.rotation.v[i]) },
-                height = 110, pickedTime = pickedTime, onPick = { pickedTime = it }
+                height = 110, pickedTime = pickedTime, onPick = { pickedTime = it },
+                onTogglePause = if (ui.paused) onResume else onPause
             )
         } else {
-            Text("Gyroscope (Rotation): not on this phone, so the rotation gate is off.", fontSize = 12.sp,
+            Text("Gyroscope (Angular Velocity): not on this phone, so the rotation gate is off.", fontSize = 12.sp,
                 color = SeniorColors.TextSecondary)
         }
 
