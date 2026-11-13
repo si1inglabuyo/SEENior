@@ -230,33 +230,6 @@ private fun RoutineBody(rows: List<RoutineRowDto>, fil: Boolean) {
         modifier = Modifier.clickable { showNumbers = !showNumbers }.padding(vertical = 4.dp)
     )
     if (showNumbers) RoutineNumbers(rows, fil)
-
-    var showProof by remember { mutableStateOf(false) }
-    Text(
-        if (showProof) (if (fil) "Itago ang paliwanag" else "Hide how this was worked out")
-        else (if (fil) "Paano ito nakuha ng sistema" else "How this was worked out"),
-        color = FamilyColors.Blue,
-        fontSize = 14.sp,
-        fontWeight = FontWeight.Bold,
-        modifier = Modifier.clickable { showProof = !showProof }.padding(vertical = 4.dp)
-    )
-    if (showProof) RoutineProofView(rows, fil)
-}
-
-/** The working behind each line above, from the same summary figures. See [RoutineProof]. */
-@Composable
-private fun RoutineProofView(rows: List<RoutineRowDto>, fil: Boolean) {
-    RoutineProof.build(rows).forEach { b ->
-        Text(RoutineWording.blockLabel(b.block, fil), color = FamilyColors.Blue, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-        listOfNotNull(
-            RoutineProof.activityLine(b, fil),
-            RoutineProof.stillLine(b, fil),
-            RoutineProof.alertLine(b, fil),
-            RoutineProof.phoneLine(b, fil),
-            RoutineProof.seedLine(b, fil)
-        ).forEach { Text(it, color = FamilyColors.TextSecondary, fontSize = 13.sp) }
-    }
-    Text(RoutineProof.footer(fil), color = FamilyColors.TextSecondary, fontSize = 12.sp)
 }
 
 /** The exact figures behind the summary, for anyone who wants them. */
