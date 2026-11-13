@@ -98,10 +98,11 @@ class FalseAlarmToleranceTest {
 
     @Test
     fun `the extra tolerated stillness is the raise times this block's own MAD`() {
-        // Median 40 min, MAD 16 min: 40 + 2.5*16 = 80 min before, 40 + 2.85*16 = 85.6 min after.
+        // Median 40 min, MAD 16 min: the gate is 0.6745 * d / 16, so 2.5 sits at d = 59.3 min
+        // (99.3 min of stillness) and 2.85 at d = 67.6 min.
         val mad = 16.0
-        val extra = (threshold(2.6, 2.6) - FalseAlarmTolerance.BASE_THRESHOLD) * mad
-        assertEquals(5.6, extra, 1e-9)
+        val extra = (threshold(2.6, 2.6) - FalseAlarmTolerance.BASE_THRESHOLD) * mad / MedianMad.MODIFIED_Z_SCALE
+        assertEquals(5.6 / MedianMad.MODIFIED_Z_SCALE, extra, 1e-9)
     }
 
     // ------------------------------------------------------------ real alerts take the slack back
@@ -143,9 +144,10 @@ class FalseAlarmToleranceTest {
 
     @Test
     fun `the minutes added are the raise times the block's MAD`() {
-        // MAD 1,108 s (18.5 min): 0.75 z is 13.9 min with no real alert, half that with one.
+        // MAD 1,108 s (18.5 min). The score is 0.6745 * distance / MAD, so 0.75 z is
+        // 0.75 / 0.6745 * 18.5 = 20.5 min with no real alert, half that with one.
         val mad = 1108.0
-        assertEquals(13.85, FalseAlarmTolerance.explain(listOf(3.0, 3.0)).extraMinutes(mad), 0.01)
-        assertEquals(6.925, FalseAlarmTolerance.explain(listOf(3.0, 3.0), 1).extraMinutes(mad), 0.01)
+        assertEquals(20.53, FalseAlarmTolerance.explain(listOf(3.0, 3.0)).extraMinutes(mad), 0.01)
+        assertEquals(10.27, FalseAlarmTolerance.explain(listOf(3.0, 3.0), 1).extraMinutes(mad), 0.01)
     }
 }

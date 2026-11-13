@@ -2,6 +2,7 @@ package com.pup.seenior.baseline
 
 import com.pup.seenior.database.entities.Baseline
 import com.pup.seenior.database.entities.SeniorOnboarding
+import com.pup.seenior.detection.MedianMad
 import java.util.Calendar
 /**
  * Converts the onboarding answers into conservative, wide-margin seed Baseline rows, so
@@ -10,8 +11,11 @@ import java.util.Calendar
 object SeedBaselineGenerator {
 
     private const val MINUTES_PER_DAY = 24 * 60
-    private const val SEED_MARGIN_RATIO = 0.4
-    private const val NAP_MARGIN_RATIO = 0.6
+    // 0.4 and 0.6 are the spreads the seeds were designed around, as a share of the median. The
+    // score is scaled by 0.6745 (MedianMad.MODIFIED_Z_SCALE), so the MAD is scaled with it, which
+    // keeps a seed's behaviour as designed: a reading of zero still lands exactly on the 2.5 gate.
+    private const val SEED_MARGIN_RATIO = 0.4 * MedianMad.MODIFIED_Z_SCALE
+    private const val NAP_MARGIN_RATIO = 0.6 * MedianMad.MODIFIED_Z_SCALE
     private const val SECONDS_PER_MINUTE = 60.0
 
     // Medians above are in minutes (matching the questionnaire); the Baseline table stores

@@ -249,13 +249,13 @@ class FuzzyRiskClassifierTest {
         // 32 minutes of which were the declared nap.
         val counterReading = 3593.0
         val blockElapsed = 4080L
-        assertEquals(8.2, MedianMad.deviationsScore(
+        assertEquals(5.53, MedianMad.deviationsScore(
             minOf(counterReading, blockElapsed.toDouble()), median, mad, madFloor), 0.05)
 
         // With the nap tail clipped off, the same reading is twenty-eight minutes of stillness.
         val napClipped = minOf(counterReading, secondsSinceNapEnd(15, 28)!!.toDouble())
         assertEquals(1680.0, napClipped, 0.001)
-        assertEquals(2.13, MedianMad.deviationsScore(napClipped, median, mad, madFloor), 0.01)
+        assertEquals(1.44, MedianMad.deviationsScore(napClipped, median, mad, madFloor), 0.01)
         assertTrue(MedianMad.deviationsScore(napClipped, median, mad, madFloor) < 2.5)
     }
 

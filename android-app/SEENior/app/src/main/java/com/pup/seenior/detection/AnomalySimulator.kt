@@ -77,7 +77,8 @@ object AnomalySimulator {
         // Invert the detector's formula so the reading lands at a known z-score against this
         // senior's actual baseline, whatever it is.
         val madFloor = SeedBaselineGenerator.MIN_MAD_FLOOR[signal.featureName] ?: 1.0
-        val effectiveMad = maxOf(targetBaseline.madValue, madFloor)
+        // The score is 0.6745 * |x - median| / MAD, so the distance for a target z is z / 0.6745 MADs.
+        val effectiveMad = maxOf(targetBaseline.madValue, madFloor) / MedianMad.MODIFIED_Z_SCALE
         val target = when (signal) {
             Signal.LOW_MOVEMENT ->
                 // The concerning side is below the median, and a score can't go under zero.

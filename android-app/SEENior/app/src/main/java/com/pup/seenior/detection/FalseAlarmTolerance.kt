@@ -80,7 +80,7 @@ object FalseAlarmTolerance {
         val raise: Double get() = gate - BASE_THRESHOLD
 
         /** The same raise as extra tolerated stillness, given this block's effective MAD in seconds. */
-        fun extraMinutes(effectiveMadSeconds: Double): Double = raise * effectiveMadSeconds / 60.0
+        fun extraMinutes(effectiveMadSeconds: Double): Double = raise * effectiveMadSeconds / MedianMad.MODIFIED_Z_SCALE / 60.0
     }
 
     fun explain(falseAlarmScores: List<Double>, realAlertCount: Int = 0): Breakdown {
