@@ -1402,7 +1402,3 @@ h4 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase;
   border: 0; background: #fff; color: var(--accent-ink); padding: 7px 14px; font: inherit; font-weight: 700; cursor: pointer;
 }
 .demo-toggle button[aria-pressed="true"] { background: var(--accent); color: #fff; }
-
-.routine-proof { margin-top: 12px; display: flex; flex-direction: column; gap: 10px; }
-.routine-proof-block { padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: #fafbfc; }
-.routine-proof-block p { margin: 6px 0 0; }

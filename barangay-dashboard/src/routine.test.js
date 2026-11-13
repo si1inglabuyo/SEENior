@@ -41,29 +41,3 @@ test('progress counts days, not values', () => {
   assert.equal(progress(summarize(fingerprint({ movement: [0.04, 0.1, 0.06, 0.01], days: 0, seed: true }))), 'Just started: based on the setup answers for now.')
   assert.equal(progress(summarize(typical)), 'Learned from the last 14 days.')
 })
-
-// ---- how the system worked this out ----
-import { alertAfterSeconds, proof, proofLines } from './routine.js'
-
-test('the alert point is the median plus 2.5 / 0.6745 MADs', () => {
-  assert.ok(Math.abs(alertAfterSeconds(2040, 720) - 4708.6) < 0.1)
-})
-
-test('a tiny MAD is floored the way the detector floors it', () => {
-  assert.ok(Math.abs(alertAfterSeconds(2040, 60) - (2040 + (2.5 / 0.6745) * 300)) < 0.1)
-})
-
-test('the working names the numbers the card shows', () => {
-  const rows = [
-    { feature_name: 'inactivity_duration', time_block: 'morning', median_value: 2040, mad_value: 720, sample_count: 14, is_seed: false },
-    { feature_name: 'movement_score', time_block: 'morning', median_value: 0.07, mad_value: 0.01, sample_count: 14, is_seed: false },
-    { feature_name: 'step_count', time_block: 'morning', median_value: 900, mad_value: 100, sample_count: 14, is_seed: false },
-    { feature_name: 'screen_unlock_count', time_block: 'morning', median_value: 4, mad_value: 1, sample_count: 14, is_seed: false },
-  ]
-  const text = proofLines(proof(rows)[0]).join(' ')
-  assert.ok(text.includes('34 min'))
-  assert.ok(text.includes('14 days'))
-  assert.ok(text.includes('1 hr 18 min'))
-  assert.ok(text.includes('0.6745'))
-  assert.ok(text.includes('sometimes'))
-})
