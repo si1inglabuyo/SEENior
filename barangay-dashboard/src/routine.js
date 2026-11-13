@@ -149,3 +149,81 @@ export function progress(s) {
 }
 
 export const stillLabel = (seconds) => `Still for up to ${duration(seconds)}`
+
+// ---- how the system worked this out ----
+//
+// Mirrors android-app/.../ui/family/RoutineProof.kt. Built only from the figures the phone
+// already syncs (a median, a MAD and a day count per feature per time block); the per-day
+// readings stay on the phone, so this explains how a line like "Still for up to 34 min" was
+// reached without showing the days themselves. Change both together.
+
+const GATE = 2.5 // Layer 1's trigger gate
+const SCALE = 0.6745 // MedianMad.MODIFIED_Z_SCALE
+const STILL_MAD_FLOOR = 300 // seconds; the detector never divides by less
+export const MADS_TO_GATE = GATE / SCALE
+
+// Stillness at which the score first reaches the gate: median + (2.5 / 0.6745) * MAD. The time of
+// day, phone use and any false-alarm tolerance apply after it, so this is the earliest the system
+// would ask, not a promise it will.
+export function alertAfterSeconds(median, mad) {
+  return median + MADS_TO_GATE * Math.max(mad, STILL_MAD_FLOOR)
+}
+
+const rowOf = (rows, feature, block) =>
+  rows.find((r) => r.feature_name === feature && r.time_block === block) ?? null
+
+export function proof(rows) {
+  const summary = summarize(rows)
+  return summary.blocks.map((b) => {
+    const still = rowOf(rows, 'inactivity_duration', b.block)
+    const inBlock = rows.filter((r) => r.time_block === b.block)
+    return {
+      block: b.block,
+      level: b.level,
+      activityPercent: Math.round(b.activity * 100),
+      movement: rowOf(rows, 'movement_score', b.block)?.median_value ?? null,
+      steps: rowOf(rows, 'step_count', b.block)?.median_value ?? null,
+      stillMedian: still?.median_value ?? null,
+      stillMad: still?.mad_value ?? null,
+      alertAfter: still ? alertAfterSeconds(still.median_value, still.mad_value) : null,
+      unlocks: rowOf(rows, 'screen_unlock_count', b.block)?.median_value ?? null,
+      phone: b.phone,
+      days: Math.max(0, ...inBlock.map((r) => r.sample_count)),
+      hasSeed: inBlock.some((r) => r.is_seed),
+    }
+  })
+}
+
+const PHONE_BAND = { rarely: 'rarely (under 2)', sometimes: 'sometimes (2 to 7)', often: 'often (8 or more)' }
+
+export function proofLines(p) {
+  const lines = []
+  if (p.movement !== null || p.steps !== null) {
+    const parts = [
+      p.movement !== null ? `movement ${p.movement.toFixed(2)}` : null,
+      p.steps !== null ? `steps ${Math.round(p.steps)}` : null,
+    ].filter(Boolean)
+    lines.push(`Activity: ${parts.join(' and ')}. That is ${p.activityPercent}% of their busiest part of the day.`)
+  }
+  if (p.stillMedian !== null && p.stillMad !== null) {
+    lines.push(
+      `Stillness: each day, the longest stretch they sat still in this part of the day is recorded. ` +
+        `The middle value over ${p.days} days is ${duration(p.stillMedian)}, and an ordinary day varies by ± ${duration(p.stillMad)}.`
+    )
+    const usedMad = Math.max(p.stillMad, STILL_MAD_FLOOR)
+    lines.push(
+      `The system would first ask if they are safe once stillness passes about ${duration(p.alertAfter)}: ` +
+        `${duration(p.stillMedian)} + ${MADS_TO_GATE.toFixed(2)} × ${duration(usedMad)} = ${duration(p.alertAfter)}. ` +
+        `(2.5 ÷ 0.6745 = ${MADS_TO_GATE.toFixed(2)}.) Time of day and phone use are checked before it asks.`
+    )
+  }
+  if (p.unlocks !== null && p.phone) {
+    lines.push(`Phone: typically ${Math.round(p.unlocks)} unlocks in this part of the day, so ${PHONE_BAND[p.phone]}.`)
+  }
+  if (p.hasSeed) lines.push('Some figures here are still from the setup answers, not yet from real readings.')
+  return lines
+}
+
+export const PROOF_FOOTER =
+  "Each figure is the median of the days the senior's phone recorded, and ± is its median absolute " +
+  'deviation (MAD). Only these summaries are sent; the daily readings stay on the phone.'

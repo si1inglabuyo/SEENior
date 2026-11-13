@@ -3,7 +3,7 @@ import { api, formatTime } from '../api'
 import { recordAccess } from '../audit'
 import {
   BLOCKS, BLOCK_LABEL, FEATURES, LEVEL_LABEL, PHONE_LABEL,
-  cell, headline, progress, stillLabel, summarize,
+  PROOF_FOOTER, cell, headline, proof, proofLines, progress, stillLabel, summarize,
 } from '../routine'
 import { IconChart, IconEye } from '../icons'
 import SectionCard from './SectionCard'
@@ -17,6 +17,7 @@ export default function RoutineCard({ syncId, onSessionLost }) {
   const [routine, setRoutine] = useState(null)
   const [error, setError] = useState('')
   const [showNumbers, setShowNumbers] = useState(false)
+  const [showProof, setShowProof] = useState(false)
 
   async function open() {
     setPhase('loading')
@@ -87,6 +88,24 @@ export default function RoutineCard({ syncId, onSessionLost }) {
           <button type="button" className="history-more-btn" onClick={() => setShowNumbers((v) => !v)}>
             {showNumbers ? 'Hide numbers' : 'Show numbers'}
           </button>
+
+          <button type="button" className="history-more-btn" onClick={() => setShowProof((v) => !v)}>
+            {showProof ? 'Hide how this was worked out' : 'How this was worked out'}
+          </button>
+
+          {showProof && (
+            <div className="routine-proof">
+              {proof(rows).map((p) => (
+                <div key={p.block} className="routine-proof-block">
+                  <strong>{BLOCK_LABEL[p.block]}</strong>
+                  {proofLines(p).map((line) => (
+                    <p key={line} className="muted routine-line">{line}</p>
+                  ))}
+                </div>
+              ))}
+              <p className="muted routine-note">{PROOF_FOOTER}</p>
+            </div>
+          )}
 
           {showNumbers && (
             <>
