@@ -1,5 +1,6 @@
 package com.pup.seenior.ui.family
 
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.background
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -104,7 +105,7 @@ fun LinkScreen(viewModel: FamilyPairingViewModel, onVerified: () -> Unit) {
                                 Box(
                                     modifier = Modifier
                                         .weight(1f)
-                                        .height(56.dp)
+                                        .heightIn(min = 56.dp)
                                         .border(1.5.dp, if (ch.isNotEmpty()) FamilyColors.Blue else FamilyColors.FieldBorder, RoundedCornerShape(10.dp)),
                                     contentAlignment = Alignment.Center
                                 ) {

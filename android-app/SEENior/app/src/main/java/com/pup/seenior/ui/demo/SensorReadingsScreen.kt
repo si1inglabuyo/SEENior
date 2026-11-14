@@ -114,7 +114,14 @@ fun SensorReadingsDialog(onClose: () -> Unit, viewModel: RecorderViewModel = vie
                     onPause = { viewModel.pauseGraphs() },
                     onResume = { viewModel.resumeGraphs() },
                     onReset = { viewModel.resetFallCheck() },
-                    onGravity = { viewModel.withGravity = it }
+                    onGravity = { viewModel.withGravity = it },
+                    onSaveAttempt = { viewModel.saveFallAttempt() },
+                    onShareLast = { viewModel.savedFallFile?.let { share(context, listOf(it)) } },
+                    onShareAll = { share(context, viewModel.fallRecordings) },
+                    onDeleteAll = { viewModel.deleteFallRecordings() },
+                    savedMessage = viewModel.fallMessage,
+                    savedFileName = viewModel.savedFallFile?.name,
+                    savedCount = viewModel.fallRecordings.size
                 )
             },
             walkTest = {
@@ -132,7 +139,7 @@ fun SensorReadingsDialog(onClose: () -> Unit, viewModel: RecorderViewModel = vie
                         preFall = viewModel.preFallSeries,
                         latestSeconds = viewModel.latestSeconds, paused = viewModel.graphPaused,
                         message = viewModel.message,
-                        savedFileName = viewModel.savedFile?.name, savedCount = viewModel.savedRecordings.size
+                        savedFileName = viewModel.savedFile?.name, savedCount = viewModel.preFallRecordings.size
                     ),
                     onParticipant = { viewModel.participant = it },
                     onActivity = { viewModel.activityCode = it },
@@ -140,7 +147,8 @@ fun SensorReadingsDialog(onClose: () -> Unit, viewModel: RecorderViewModel = vie
                     onStop = { viewModel.stop() },
                     onDiscard = { viewModel.discard() },
                     onShareLast = { viewModel.savedFile?.let { share(context, listOf(it)) } },
-                    onShareAll = { share(context, viewModel.savedRecordings) },
+                    onShareAll = { share(context, viewModel.preFallRecordings) },
+                    onDeleteAll = { viewModel.deletePreFallRecordings() },
                     onPause = { viewModel.pauseRecording() },
                     onGravity = { viewModel.withGravity = it },
                     onPauseGraphs = { viewModel.pauseGraphs() },

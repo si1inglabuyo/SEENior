@@ -1,5 +1,6 @@
 package com.pup.seenior.ui.wellness
 
+import androidx.compose.foundation.layout.heightIn
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -178,7 +179,7 @@ private fun PromptBody(
                     onClick = { viewModel.markSafe(onFinished) },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(70.dp),
+                        .heightIn(min = 70.dp),
                     shape = RoundedCornerShape(18.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = SeniorColors.Green)
                 ) {
@@ -210,7 +211,7 @@ private fun PromptBody(
                     enabled = !viewModel.isSending,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(62.dp),
+                        .heightIn(min = 62.dp),
                     shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = AlertRedSoftBg,
@@ -340,7 +341,7 @@ private fun AlertSentBody(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(56.dp)
+                        .heightIn(min = 56.dp)
                         .background(Color.White, RoundedCornerShape(14.dp))
                         .clickable { viewModel.standDown(onFinished) },
                     horizontalArrangement = Arrangement.Center,

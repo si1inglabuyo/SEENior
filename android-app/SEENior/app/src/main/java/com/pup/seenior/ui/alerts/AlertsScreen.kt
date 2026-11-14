@@ -1,5 +1,7 @@
 package com.pup.seenior.ui.alerts
 
+import androidx.compose.foundation.layout.heightIn
+import com.pup.seenior.ui.FitText
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -206,7 +208,7 @@ private fun CurrentAlertCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(46.dp)
+                .heightIn(min = 46.dp)
                 .clip(RoundedCornerShape(12.dp))
                 .background(Color.White)
                 .border(1.dp, SeniorColors.Green, RoundedCornerShape(12.dp))
@@ -301,7 +303,7 @@ private fun RiskBadge(riskLevel: String, copy: SeniorStrings.Copy) {
             .background(accent.copy(alpha = 0.15f))
             .padding(horizontal = 10.dp, vertical = 4.dp)
     ) {
-        Text(riskLabel(riskLevel, copy), color = accent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+        FitText(riskLabel(riskLevel, copy), color = accent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
     }
 }
 

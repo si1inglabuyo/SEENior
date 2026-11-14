@@ -1,5 +1,6 @@
 package com.pup.seenior.ui.contacts
 
+import com.pup.seenior.ui.FitText
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -207,7 +208,7 @@ fun GreenHeader(icon: @Composable () -> Unit, title: String, onBack: (() -> Unit
             }
         }
         icon()
-        Text(title, color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 10.dp))
+        FitText(title, color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 10.dp))
     }
 }
 
@@ -231,7 +232,7 @@ private fun CardButton(
         verticalAlignment = Alignment.CenterVertically
     ) {
         icon()
-        Text(
+        FitText(
             label,
             color = if (enabled) SeniorColors.TextPrimary else SeniorColors.TextHint,
             fontSize = if (big) 24.sp else 17.sp,

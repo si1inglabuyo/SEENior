@@ -59,8 +59,37 @@ class RecorderCsvTest {
     }
 
     @Test
-    fun `the walk test has its four activities`() {
-        assertEquals(listOf("WALKHAND", "WALKPOCKET", "WALKBAG", "RESTPOCKET"), RecorderCsv.ACTIVITIES.map { it.code })
-        assertEquals(listOf("Walking", "Walking", "Walking", "Still"), RecorderCsv.ACTIVITIES.map { it.expected })
+    fun `the walk test keeps its original four activities first, then the four everyday ones`() {
+        assertEquals(
+            listOf("WALKHAND", "WALKPOCKET", "WALKBAG", "RESTPOCKET", "WALKSLOW", "SITHAND", "CHAIRSTAND", "BEDLIE"),
+            RecorderCsv.ACTIVITIES.map { it.code }
+        )
+        assertEquals(
+            listOf("Walking", "Walking", "Walking", "Still", "Walking", "Still", "Gentle", "Gentle"),
+            RecorderCsv.ACTIVITIES.map { it.expected }
+        )
+    }
+
+    @Test
+    fun `there are eight activities with distinct codes that are safe in a file name`() {
+        val codes = RecorderCsv.ACTIVITIES.map { it.code }
+        assertEquals(8, codes.size)
+        assertEquals("codes must be unique, or two activities would share files", codes.size, codes.toSet().size)
+        codes.forEach { assertTrue("$it is upper-case letters only", it.all { c -> c in 'A'..'Z' }) }
+    }
+
+    @Test
+    fun `the activity codes keep the prefixes the analysis script reads`() {
+        // docs/evidence/recording_analysis.py: REST* and SIT* = resting, CHAIR* and BED* = a transition
+        // kept out of the threshold sweep, anything else = walking.
+        fun kind(code: String) = when {
+            code.startsWith("REST") || code.startsWith("SIT") -> "still"
+            code.startsWith("CHAIR") || code.startsWith("BED") -> "other"
+            else -> "walking"
+        }
+        val byCode = RecorderCsv.ACTIVITIES.associate { it.code to kind(it.code) }
+        listOf("RESTPOCKET", "SITHAND").forEach { assertEquals(it, "still", byCode[it]) }
+        listOf("WALKHAND", "WALKPOCKET", "WALKBAG", "WALKSLOW").forEach { assertEquals(it, "walking", byCode[it]) }
+        listOf("CHAIRSTAND", "BEDLIE").forEach { assertEquals(it, "other", byCode[it]) }
     }
 }

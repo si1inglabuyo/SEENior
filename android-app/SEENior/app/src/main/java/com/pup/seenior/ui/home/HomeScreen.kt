@@ -1,5 +1,6 @@
 package com.pup.seenior.ui.home
 
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.animation.core.animate
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -201,7 +202,7 @@ private fun HelpDeliveryCard(
             Row(
                 modifier = Modifier
                     .padding(top = 12.dp)
-                    .height(44.dp)
+                    .heightIn(min = 44.dp)
                     .clip(RoundedCornerShape(12.dp))
                     .background(Color.White)
                     .border(1.dp, SeniorColors.Green, RoundedCornerShape(12.dp))

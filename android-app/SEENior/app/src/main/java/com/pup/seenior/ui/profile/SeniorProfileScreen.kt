@@ -1,5 +1,6 @@
 package com.pup.seenior.ui.profile
 
+import com.pup.seenior.ui.FitText
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -550,7 +551,7 @@ fun GreenBackHeader(title: String, onBack: () -> Unit) {
         IconButton(onClick = onBack) {
             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
         }
-        Text(title, color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+        FitText(title, color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
     }
 }
 

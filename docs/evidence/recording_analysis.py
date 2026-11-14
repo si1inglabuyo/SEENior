@@ -143,7 +143,14 @@ def parse_name(path):
     participant = parts[0] if parts else '?'
     activity = '_'.join(parts[1:]) if len(parts) > 1 else '?'
     position = next((x for x in ('HAND', 'POCKET', 'BAG') if x in activity), '-')
-    kind = 'still' if activity.startswith('REST') or activity.startswith('SIT') else 'walking'
+    if activity.startswith('REST') or activity.startswith('SIT'):
+        kind = 'still'
+    elif activity.startswith('CHAIR') or activity.startswith('BED'):
+        # Getting up from a chair or lying down on a bed: a transition, not meant to read as moving
+        # or as resting, so it is reported but kept out of the threshold sweep.
+        kind = 'other'
+    else:
+        kind = 'walking'
     return participant, activity, position, kind
 
 
@@ -155,7 +162,7 @@ def sweep(items):
         means = [x[3] for x in w]
         if kind == 'still':
             rest += means
-        else:
+        elif kind == 'walking':
             walk += means
             by_pos.setdefault(pos, []).extend(means)
     if not walk or not rest:

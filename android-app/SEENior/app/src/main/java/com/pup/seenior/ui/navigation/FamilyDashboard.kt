@@ -1,5 +1,7 @@
 package com.pup.seenior.ui.navigation
 
+import androidx.compose.foundation.layout.heightIn
+import com.pup.seenior.ui.FitText
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
@@ -151,7 +153,7 @@ fun FamilyDashboard(onLoggedOut: () -> Unit) {
                         onClick = { tab = entry },
                         icon = { Icon(entry.icon, contentDescription = entry.label(copy)) },
                         label = {
-                            Text(
+                            FitText(
                                 entry.label(copy),
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 12.sp
@@ -218,7 +220,7 @@ private fun LinkTab(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = 16.dp)
-                        .height(50.dp)
+                        .heightIn(min = 50.dp)
                         .clickable(onClick = onManageContacts),
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically

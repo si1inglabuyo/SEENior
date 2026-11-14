@@ -1,5 +1,7 @@
 package com.pup.seenior.ui.family
 
+import androidx.compose.foundation.layout.heightIn
+import com.pup.seenior.ui.FitText
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -54,7 +56,7 @@ fun BlueHeader(icon: ImageVector, title: String) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(icon, null, tint = Color.White)
-        Text(title, color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 10.dp))
+        FitText(title, color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 10.dp))
     }
 }
 
@@ -73,7 +75,7 @@ fun BackHeader(title: String, background: Color, onBack: () -> Unit) {
         IconButton(onClick = onBack) {
             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = copy.backContentDescription, tint = Color.White)
         }
-        Text(title, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+        FitText(title, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -108,16 +110,17 @@ fun BluePillButton(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(54.dp)
+            .heightIn(min = 54.dp)
             .background(if (enabled) FamilyColors.Blue else FamilyColors.FieldBackground, RoundedCornerShape(14.dp))
             .then(if (enabled) Modifier.clickable(onClick = onClick) else Modifier),
         contentAlignment = Alignment.Center
     ) {
-        Text(
+        FitText(
             text,
             color = if (enabled) Color.White else FamilyColors.TextHint,
             fontSize = 17.sp,
-            fontWeight = FontWeight.Bold
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(horizontal = 12.dp)
         )
     }
 }
@@ -134,7 +137,7 @@ fun ColorPillButton(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .height(54.dp)
+            .heightIn(min = 54.dp)
             .background(color, RoundedCornerShape(14.dp))
             .clickable(onClick = onClick),
         horizontalArrangement = Arrangement.Center,
@@ -144,7 +147,7 @@ fun ColorPillButton(
             Icon(icon, null, tint = Color.White, modifier = Modifier.size(20.dp))
             androidx.compose.foundation.layout.Spacer(Modifier.size(8.dp))
         }
-        Text(text, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+        FitText(text, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 12.dp))
     }
 }
 
@@ -159,7 +162,7 @@ fun OutlinePillButton(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .height(54.dp)
+            .heightIn(min = 54.dp)
             .border(1.dp, FamilyColors.FieldBorder, RoundedCornerShape(14.dp))
             .clickable(onClick = onClick),
         horizontalArrangement = Arrangement.Center,
@@ -169,7 +172,7 @@ fun OutlinePillButton(
             Icon(icon, null, tint = FamilyColors.TextPrimary, modifier = Modifier.size(20.dp))
             androidx.compose.foundation.layout.Spacer(Modifier.size(8.dp))
         }
-        Text(text, color = FamilyColors.TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+        FitText(text, color = FamilyColors.TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 12.dp))
     }
 }
 
@@ -241,7 +244,7 @@ fun CouldNotLoadCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(top = 20.dp)
-                .height(50.dp)
+                .heightIn(min = 50.dp)
                 .border(1.dp, FamilyColors.BlueBorder, RoundedCornerShape(12.dp))
                 .clickable(onClick = onRetry),
             horizontalArrangement = Arrangement.Center,

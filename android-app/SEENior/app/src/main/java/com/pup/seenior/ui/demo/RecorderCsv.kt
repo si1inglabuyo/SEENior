@@ -1,6 +1,9 @@
 package com.pup.seenior.ui.demo
 
+import com.pup.seenior.detection.FallCheckMonitor
+import java.io.File
 import java.util.Locale
+import kotlin.math.sqrt
 
 /**
  * File format for the walk-test recorder.
@@ -18,8 +21,14 @@ import java.util.Locale
 object RecorderCsv {
 
     /**
-     * The walk test's four activities: walking with the phone carried three common ways, and
-     * resting. Each code goes into the file name; [expected] is the band it should land in.
+     * The walk test's activities: walking with the phone carried three common ways, resting, and
+     * four everyday ones a senior does (slow walking, sitting with the phone in hand, getting up
+     * from a chair, lying down on a bed). Each code goes into the file name; [expected] is the band it should land in.
+     *
+     * The codes matter to `docs/evidence/recording_analysis.py`, which reads them back from the file
+     * name: `REST*` and `SIT*` count as resting, `CHAIR*` and `BED*` are reported but kept out of
+     * the walking-versus-resting threshold sweep (a transition is not meant to read as moving), and
+     * everything else counts as walking. Keep new codes in line with that.
      */
     data class Activity(val code: String, val label: String, val expected: String)
 
@@ -28,6 +37,10 @@ object RecorderCsv {
         Activity("WALKPOCKET", "Walking, phone in pocket", "Walking"),
         Activity("WALKBAG", "Walking, phone in bag", "Walking"),
         Activity("RESTPOCKET", "Resting, phone in pocket", "Still"),
+        Activity("WALKSLOW", "Walking slowly, phone in pocket", "Walking"),
+        Activity("SITHAND", "Sitting, using the phone in hand", "Still"),
+        Activity("CHAIRSTAND", "Sitting down and standing up, phone in pocket", "Gentle"),
+        Activity("BEDLIE", "Lying down on a bed and getting up", "Gentle"),
     )
 
     const val HEADER =
@@ -86,4 +99,112 @@ object RecorderCsv {
         }
         return (used.maxOrNull() ?: 0) + 1
     }
+
+    // ------------------------------------------------------------------ fall detection attempts
+
+    /** Header of a saved fall-detection attempt: the same readings as the graphs, plus the event marks. */
+    const val FALL_HEADER =
+        "\"Time (s)\",\"Acceleration x (m/s^2)\",\"Acceleration y (m/s^2)\"," +
+            "\"Acceleration z (m/s^2)\",\"Absolute acceleration (m/s^2)\"," +
+            "\"Linear acceleration x (m/s^2)\",\"Linear acceleration y (m/s^2)\"," +
+            "\"Linear acceleration z (m/s^2)\"," +
+            "\"Gyroscope x (rad/s)\",\"Gyroscope y (rad/s)\",\"Gyroscope z (rad/s)\"," +
+            "\"Absolute rotation (rad/s)\",\"Event\""
+
+    /** For example `FALLCHECK_20261115_031530_CONFIRMED.csv`; [stamp] is `yyyyMMdd_HHmmss`. */
+    fun fallAttemptName(stamp: String, outcome: FallCheckMonitor.Outcome): String {
+        val code = when (outcome) {
+            FallCheckMonitor.Outcome.CONFIRMED -> "CONFIRMED"
+            FallCheckMonitor.Outcome.NOT_CONFIRMED -> "NOTFALL"
+            FallCheckMonitor.Outcome.NONE -> "LIVE"
+        }
+        return "FALLCHECK_${stamp}_$code.csv"
+    }
+
+    /**
+     * The moments the detector marked on the graphs, as (seconds, label) for the Event column:
+     * the start of free fall, the impact, the end of the settle period, and how the attempt ended.
+     */
+    fun fallEvents(snap: FallCheckMonitor.Snapshot, originMs: Long): List<Pair<Float, String>> {
+        fun sec(atMs: Long?) = atMs?.let { (it - originMs) / 1000f }
+        val out = mutableListOf<Pair<Float, String>>()
+        sec(snap.freeFallStartAtMs)?.let { out += it to "FREE_FALL_START" }
+        sec(snap.freeFallEndAtMs)?.let { out += it to "FREE_FALL_END" }
+        sec(snap.impactAtMs)?.let { impact ->
+            out += impact to "IMPACT"
+            val settled = impact + snap.config.settleGraceMs / 1000f
+            out += settled to "SETTLED"
+            if (snap.outcome == FallCheckMonitor.Outcome.CONFIRMED) {
+                out += settled + snap.config.stillnessMs / 1000f to "STILL_CONFIRMED"
+            }
+        }
+        if (snap.outcome == FallCheckMonitor.Outcome.NOT_CONFIRMED) {
+            sec(snap.endedAtMs)?.let { out += it to "STOPPED_NOT_A_FALL" }
+        }
+        return out.sortedBy { it.first }
+    }
+
+    /**
+     * One CSV line per accelerometer reading. The linear-acceleration and gyroscope columns carry
+     * the latest reading of their own sensor at or before that moment (the sensors report on their
+     * own clocks, as in the pre-fall recording) and are blank before that sensor's first reading.
+     * Each event is written on the first row at or after its time.
+     */
+    fun fallAttemptRows(
+        accelX: Series, accelY: Series, accelZ: Series,
+        linX: Series, linY: Series, linZ: Series,
+        gyroX: Series, gyroY: Series, gyroZ: Series,
+        events: List<Pair<Float, String>>
+    ): List<String> {
+        val n = minOf(accelX.t.size, accelY.t.size, accelZ.t.size)
+        val labels = arrayOfNulls<String>(n)
+        for ((at, label) in events) {
+            val i = (0 until n).firstOrNull { accelX.t[it] >= at } ?: continue
+            labels[i] = listOfNotNull(labels[i], label).joinToString(";")
+        }
+
+        /** Index of the newest reading at or before [t], moving on from [from]; -1 if none yet. */
+        fun advance(s: Series, from: Int, t: Float): Int {
+            var i = from
+            while (i + 1 < s.t.size && s.t[i + 1] <= t) i++
+            return i
+        }
+
+        var li = -1
+        var gi = -1
+        val out = ArrayList<String>(n)
+        for (k in 0 until n) {
+            val t = accelX.t[k]
+            val x = accelX.v[k]
+            val y = accelY.v[k]
+            val z = accelZ.v[k]
+            li = advance(linX, li, t)
+            gi = advance(gyroX, gi, t)
+            val lin = if (li >= 0 && li < linY.v.size && li < linZ.v.size)
+                "${fmt(linX.v[li])},${fmt(linY.v[li])},${fmt(linZ.v[li])}" else ",,"
+            val rot = if (gi >= 0 && gi < gyroY.v.size && gi < gyroZ.v.size) {
+                val gx = gyroX.v[gi]
+                val gy = gyroY.v[gi]
+                val gz = gyroZ.v[gi]
+                "${fmt(gx)},${fmt(gy)},${fmt(gz)},${fmt(sqrt(gx * gx + gy * gy + gz * gz))}"
+            } else ",,,"
+            out += String.format(Locale.US, "%.6f,%s,%s,%s,%s,%s,%s,%s", t, fmt(x), fmt(y), fmt(z),
+                fmt(sqrt(x * x + y * y + z * z)), lin, rot, labels[k] ?: "")
+        }
+        return out
+    }
+
+    /** Whether a saved file came from the Fall detection screen (as opposed to a Pre-fall recording). */
+    fun isFallAttempt(fileName: String): Boolean = fileName.startsWith("FALLCHECK_")
+
+    /** The saved recordings in [dir] for one screen: the Fall detection attempts, or the Pre-fall ones. */
+    fun recordings(dir: File, fallAttempts: Boolean): List<File> =
+        dir.listFiles { f -> f.isFile && f.name.endsWith(".csv") && isFallAttempt(f.name) == fallAttempts }
+            .orEmpty().sortedByDescending { it.lastModified() }
+
+    /**
+     * Deletes the saved recordings of one screen and nothing else: the other screen's files, and
+     * anything that is not a `.csv`, are left alone. Returns how many were removed.
+     */
+    fun deleteAll(dir: File, fallAttempts: Boolean): Int = recordings(dir, fallAttempts).count { it.delete() }
 }

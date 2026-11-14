@@ -1,5 +1,6 @@
 package com.pup.seenior.ui.profile
 
+import com.pup.seenior.ui.ResearchersCard
 import com.pup.seenior.ui.ResearcherContacts
 import android.content.Intent
 import android.net.Uri
@@ -194,140 +195,17 @@ fun SeniorFaqsScreen(onBack: () -> Unit) {
 @Composable
 fun SeniorContactSupportScreen(onBack: () -> Unit) {
     val copy = LocalInfoCopy.current
-    val context = LocalContext.current
-    var message by remember { mutableStateOf("") }
 
+    // Only the research team is listed: who to reach, with their number and email.
     InfoScaffold(title = copy.supportTitle, onBack = onBack) {
-        // Both halves are conditional so this degrades to whatever is configured. With neither
-        // set the Profile row is hidden and this is unreachable, but it still must not crash.
-        val supportPhone = SUPPORT_PHONE
-        val supportEmail = SUPPORT_EMAIL
-
-        // ACTION_DIAL, not ACTION_CALL: no CALL_PHONE permission, and the senior confirms the call.
-        if (supportPhone != null) Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .border(1.dp, SeniorColors.FieldBorder, RoundedCornerShape(20.dp))
-                .clickable {
-                    val dialable = supportPhone.filter { it.isDigit() || it == '+' }
-                    runCatching {
-                        context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$dialable")))
-                    }
-                }
-                .padding(18.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(48.dp)
-                    .background(SeniorColors.GreenLightBg, RoundedCornerShape(14.dp)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(Icons.Filled.Phone, null, tint = SeniorColors.Green, modifier = Modifier.size(24.dp))
-            }
-            Column(modifier = Modifier.padding(start = 14.dp)) {
-                Text(copy.callUs, color = SeniorColors.TextPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                Text(supportPhone, color = SeniorColors.TextSecondary, fontSize = 16.sp)
-            }
-        }
-
-        if (supportEmail != null) Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .border(1.dp, SeniorColors.FieldBorder, RoundedCornerShape(20.dp))
-                .padding(18.dp)
-        ) {
-            Text(copy.sendMessage, color = SeniorColors.Green, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-            Text(
-                copy.messageLabel,
-                color = SeniorColors.TextPrimary,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Medium,
-                modifier = Modifier.padding(top = 14.dp, bottom = 8.dp)
-            )
-            OutlinedTextField(
-                value = message,
-                onValueChange = { message = it },
-                modifier = Modifier.fillMaxWidth().height(140.dp),
-                placeholder = { Text(copy.messagePlaceholder, color = SeniorColors.TextHint) },
-                shape = RoundedCornerShape(12.dp),
-                textStyle = TextStyle(fontSize = 18.sp),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
-                colors = OutlinedTextFieldDefaults.colors(
-                    unfocusedContainerColor = SeniorColors.FieldBackground,
-                    focusedContainerColor = SeniorColors.FieldBackground,
-                    unfocusedBorderColor = SeniorColors.FieldBorder,
-                    focusedBorderColor = SeniorColors.Green,
-                    unfocusedTextColor = SeniorColors.TextPrimary,
-                    focusedTextColor = SeniorColors.TextPrimary
-                )
-            )
-            Spacer(Modifier.height(16.dp))
-            // No support-ticket endpoint, so SEND hands the text to the phone's mail app.
-            PrimaryPillButton(
-                text = copy.send,
-                enabled = message.isNotBlank(),
-                onClick = {
-                    val intent = Intent(Intent.ACTION_SENDTO).apply {
-                        data = Uri.parse("mailto:$supportEmail")
-                        putExtra(Intent.EXTRA_SUBJECT, "SEENior support request")
-                        putExtra(Intent.EXTRA_TEXT, message)
-                    }
-                    runCatching { context.startActivity(intent) }.onSuccess { message = "" }
-                }
-            )
-        }
-
-        // The research team, so someone can reach the people who built it.
-        SeniorResearchersCard()
-    }
-}
-
-/** Each researcher's number and email, both tappable: the dialler and the mail app open pre-filled. */
-@Composable
-private fun SeniorResearchersCard() {
-    val copy = LocalInfoCopy.current
-    val context = LocalContext.current
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .border(1.dp, SeniorColors.FieldBorder, RoundedCornerShape(20.dp))
-            .padding(18.dp)
-    ) {
-        Text(copy.researchersHeading, color = SeniorColors.Green, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-        ResearcherContacts.ALL.forEachIndexed { index, researcher ->
-            if (index > 0) HorizontalDivider(color = SeniorColors.FieldBorder, modifier = Modifier.padding(vertical = 12.dp))
-            else Spacer(Modifier.height(12.dp))
-            Text(copy.researcherLabel, color = SeniorColors.TextSecondary, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-            researcher.phone?.let { phone ->
-                Text(
-                    phone,
-                    color = SeniorColors.TextPrimary,
-                    fontSize = 16.sp,
-                    modifier = Modifier
-                        .clickable {
-                            runCatching {
-                                context.startActivity(
-                                    Intent(Intent.ACTION_DIAL, Uri.parse("tel:${ResearcherContacts.dialable(phone)}"))
-                                )
-                            }
-                        }
-                        .padding(vertical = 4.dp)
-                )
-            }
-            Text(
-                researcher.email,
-                color = SeniorColors.Green,
-                fontSize = 15.sp,
-                modifier = Modifier
-                    .clickable {
-                        runCatching {
-                            context.startActivity(Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:${researcher.email}")))
-                        }
-                    }
-                    .padding(vertical = 4.dp)
-            )
-        }
+        ResearchersCard(
+            heading = copy.researchersHeading,
+            label = copy.researcherLabel,
+            accent = SeniorColors.Green,
+            border = SeniorColors.FieldBorder,
+            textPrimary = SeniorColors.TextPrimary,
+            textSecondary = SeniorColors.TextSecondary
+        )
     }
 }
 

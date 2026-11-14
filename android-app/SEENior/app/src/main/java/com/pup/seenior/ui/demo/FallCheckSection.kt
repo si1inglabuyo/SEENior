@@ -78,7 +78,17 @@ fun FallDetectionPanel(
     onPause: () -> Unit,
     onResume: () -> Unit,
     onReset: () -> Unit,
-    onGravity: (Boolean) -> Unit = {}
+    onGravity: (Boolean) -> Unit = {},
+    /** Save what the graphs hold (the last 30 s, or the frozen attempt) as a CSV. */
+    onSaveAttempt: () -> Unit = {},
+    onShareLast: () -> Unit = {},
+    onShareAll: () -> Unit = {},
+    /** Delete this screen's saved attempts (the Pre-fall recordings are not touched). */
+    onDeleteAll: () -> Unit = {},
+    /** What the last save said, the newest saved file's name, and how many recordings are saved. */
+    savedMessage: String? = null,
+    savedFileName: String? = null,
+    savedCount: Int = 0
 ) {
     val snap = ui.snapshot
     val c = snap.config
@@ -200,6 +210,25 @@ fun FallDetectionPanel(
         Result(snap)
         OutlinedButton(onClick = onReset, modifier = Modifier.fillMaxWidth()) {
             Text("Reset", color = SeniorColors.TextPrimary)
+        }
+
+        // Like the Pre-fall Event recordings: save as CSV, then share it. The file holds exactly
+        // what the graphs show, with the detector's marks in an Event column.
+        Text("Recording", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = SeniorColors.TextPrimary)
+        OutlinedButton(onClick = onSaveAttempt, enabled = !ui.magnitude.isEmpty, modifier = Modifier.fillMaxWidth()) {
+            Text(if (ui.captured) "Save this attempt as CSV" else "Save these readings as CSV", color = SeniorColors.TextPrimary)
+        }
+        savedMessage?.let { Text(it, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = SeniorColors.GreenDark) }
+        if (savedFileName != null) {
+            OutlinedButton(onClick = onShareLast, modifier = Modifier.fillMaxWidth()) {
+                Text("Share $savedFileName", color = SeniorColors.TextPrimary)
+            }
+        }
+        if (savedCount > 0) {
+            OutlinedButton(onClick = onShareAll, modifier = Modifier.fillMaxWidth()) {
+                Text("Share all $savedCount recordings", color = SeniorColors.TextPrimary)
+            }
+            DeleteAllRecordingsButton(savedCount, "fall detection", onDeleteAll)
         }
     }
 }

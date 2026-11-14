@@ -1,5 +1,6 @@
 package com.pup.seenior.ui.family
 
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -246,7 +247,7 @@ private fun ContactDetailScreen(
                 modifier = Modifier
                     .padding(horizontal = 20.dp)
                     .fillMaxWidth()
-                    .height(56.dp)
+                    .heightIn(min = 56.dp)
                     .background(Color.White, RoundedCornerShape(16.dp))
                     .border(1.dp, FamilyColors.FieldBorder, RoundedCornerShape(16.dp))
                     .clickable { showConfirm = true },

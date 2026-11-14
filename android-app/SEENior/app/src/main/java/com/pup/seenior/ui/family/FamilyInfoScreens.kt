@@ -1,5 +1,6 @@
 package com.pup.seenior.ui.family
 
+import com.pup.seenior.ui.ResearchersCard
 import com.pup.seenior.ui.ResearcherContacts
 import android.content.Intent
 import android.net.Uri
@@ -299,130 +300,17 @@ private fun feedbackFieldColors() = OutlinedTextFieldDefaults.colors(
 @Composable
 fun FamilyContactSupportScreen(onBack: () -> Unit) {
     val copy = LocalFamilyInfoCopy.current
-    val context = LocalContext.current
-    var message by remember { mutableStateOf("") }
 
+    // Only the research team is listed: who to reach, with their number and email.
     InfoScaffold(title = copy.supportTitle, onBack = onBack) {
-        // Both halves are conditional so this degrades to whatever is configured. With neither
-        // set the Profile row is hidden (FAMILY_SUPPORT_CONTACT_CONFIGURED); this still
-        // survives being reached.
-        val supportPhone = FAMILY_SUPPORT_PHONE
-        val supportEmail = FAMILY_SUPPORT_EMAIL
-
-        if (supportPhone != null) Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .border(1.dp, FamilyColors.FieldBorder, RoundedCornerShape(20.dp))
-                .clickable {
-                    val dialable = supportPhone.filter { it.isDigit() || it == '+' }
-                    runCatching {
-                        context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$dialable")))
-                    }
-                }
-                .padding(18.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier.size(48.dp).background(FamilyColors.BlueLightBg, RoundedCornerShape(14.dp)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(Icons.Filled.Phone, null, tint = FamilyColors.Blue, modifier = Modifier.size(24.dp))
-            }
-            Column(modifier = Modifier.padding(start = 14.dp)) {
-                Text(copy.callUs, color = FamilyColors.TextPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                Text(supportPhone, color = FamilyColors.TextSecondary, fontSize = 16.sp)
-            }
-        }
-
-        if (supportEmail != null) Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .border(1.dp, FamilyColors.FieldBorder, RoundedCornerShape(20.dp))
-                .padding(18.dp)
-        ) {
-            Text(copy.sendMessage, color = FamilyColors.Blue, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-            Text(
-                copy.messageLabel,
-                color = FamilyColors.TextPrimary,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(top = 14.dp, bottom = 8.dp)
-            )
-            OutlinedTextField(
-                value = message,
-                onValueChange = { message = it },
-                modifier = Modifier.fillMaxWidth().height(140.dp),
-                placeholder = { Text(copy.messagePlaceholder, color = FamilyColors.TextHint) },
-                shape = RoundedCornerShape(12.dp),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
-                colors = feedbackFieldColors()
-            )
-            Spacer(Modifier.height(16.dp))
-            // No support-ticket endpoint, so this hands the text to the phone's mail app.
-            BluePillButton(
-                text = copy.send,
-                enabled = message.isNotBlank(),
-                onClick = {
-                    val intent = Intent(Intent.ACTION_SENDTO).apply {
-                        data = Uri.parse("mailto:$supportEmail")
-                        putExtra(Intent.EXTRA_SUBJECT, copy.supportEmailSubject)
-                        putExtra(Intent.EXTRA_TEXT, message)
-                    }
-                    runCatching { context.startActivity(intent) }.onSuccess { message = "" }
-                }
-            )
-        }
-
-        // The research team, so someone can reach the people who built it.
-        FamilyResearchersCard()
-    }
-}
-
-/** Each researcher's number and email, both tappable: the dialler and the mail app open pre-filled. */
-@Composable
-private fun FamilyResearchersCard() {
-    val copy = LocalFamilyInfoCopy.current
-    val context = LocalContext.current
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .border(1.dp, FamilyColors.FieldBorder, RoundedCornerShape(20.dp))
-            .padding(18.dp)
-    ) {
-        Text(copy.researchersHeading, color = FamilyColors.Blue, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-        ResearcherContacts.ALL.forEachIndexed { index, researcher ->
-            if (index > 0) HorizontalDivider(color = FamilyColors.FieldBorder, modifier = Modifier.padding(vertical = 12.dp))
-            else Spacer(Modifier.height(12.dp))
-            Text(copy.researcherLabel, color = FamilyColors.TextSecondary, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-            researcher.phone?.let { phone ->
-                Text(
-                    phone,
-                    color = FamilyColors.TextPrimary,
-                    fontSize = 16.sp,
-                    modifier = Modifier
-                        .clickable {
-                            runCatching {
-                                context.startActivity(
-                                    Intent(Intent.ACTION_DIAL, Uri.parse("tel:${ResearcherContacts.dialable(phone)}"))
-                                )
-                            }
-                        }
-                        .padding(vertical = 4.dp)
-                )
-            }
-            Text(
-                researcher.email,
-                color = FamilyColors.Blue,
-                fontSize = 15.sp,
-                modifier = Modifier
-                    .clickable {
-                        runCatching {
-                            context.startActivity(Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:${researcher.email}")))
-                        }
-                    }
-                    .padding(vertical = 4.dp)
-            )
-        }
+        ResearchersCard(
+            heading = copy.researchersHeading,
+            label = copy.researcherLabel,
+            accent = FamilyColors.Blue,
+            border = FamilyColors.FieldBorder,
+            textPrimary = FamilyColors.TextPrimary,
+            textSecondary = FamilyColors.TextSecondary
+        )
     }
 }
 

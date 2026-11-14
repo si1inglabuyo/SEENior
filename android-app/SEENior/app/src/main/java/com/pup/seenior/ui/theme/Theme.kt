@@ -9,6 +9,9 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalDensity
+import com.pup.seenior.ui.FontScaleGuard
 import androidx.compose.ui.platform.LocalContext
 
 private val DarkColorScheme = darkColorScheme(
@@ -50,9 +53,13 @@ fun SEENiorTheme(
         else -> LightColorScheme
     }
 
-    MaterialTheme(
-        colorScheme = colorScheme,
-        typography = Typography,
-        content = content
-    )
+    // The system font size is honoured up to FontScaleGuard.MAX_FONT_SCALE and no further, so a
+    // word cannot outgrow its tab or button and be cut in half (see FontScaleGuard).
+    CompositionLocalProvider(LocalDensity provides FontScaleGuard.capped(LocalDensity.current)) {
+        MaterialTheme(
+            colorScheme = colorScheme,
+            typography = Typography,
+            content = content
+        )
+    }
 }

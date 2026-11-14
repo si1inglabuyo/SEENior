@@ -1,5 +1,7 @@
 package com.pup.seenior.ui.family
 
+import androidx.compose.foundation.layout.heightIn
+import com.pup.seenior.ui.FitText
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -371,7 +373,7 @@ private fun StatusChip(status: SeniorStatus?) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(Modifier.size(8.dp).background(color, CircleShape))
-        Text(text, color = color, fontSize = 13.sp, modifier = Modifier.padding(start = 6.dp))
+        FitText(text, color = color, fontSize = 13.sp, modifier = Modifier.padding(start = 6.dp))
     }
 }
 
@@ -528,7 +530,7 @@ private fun EmptyLinkCard(onLinkSenior: () -> Unit) {
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(top = 20.dp)
-                .height(50.dp)
+                .heightIn(min = 50.dp)
                 .border(1.dp, FamilyColors.BlueBorder, RoundedCornerShape(12.dp))
                 .clickable(onClick = onLinkSenior),
             horizontalArrangement = Arrangement.Center,

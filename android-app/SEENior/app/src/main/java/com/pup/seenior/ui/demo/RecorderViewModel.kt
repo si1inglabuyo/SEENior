@@ -130,10 +130,42 @@ class RecorderViewModel(application: Application) : AndroidViewModel(application
         private set
     var readings by mutableStateOf(0)
         private set
+    /** The newest Pre-fall recording saved this session (Fall detection keeps its own, [savedFallFile]). */
     var savedFile by mutableStateOf<File?>(null)
         private set
     var message by mutableStateOf<String?>(null)
         private set
+
+    /** What the Fall detection screen says about saving an attempt (kept apart from [message], which belongs to the Pre-fall screen). */
+    var fallMessage by mutableStateOf<String?>(null)
+        private set
+
+    /** The newest Fall detection attempt saved this session. */
+    var savedFallFile by mutableStateOf<File?>(null)
+        private set
+
+    private var messageJob: Job? = null
+    private var fallMessageJob: Job? = null
+
+    /** Shows a short note on the Pre-fall screen and removes it again after [MESSAGE_SECONDS]. */
+    private fun flash(text: String) {
+        messageJob?.cancel()
+        message = text
+        messageJob = viewModelScope.launch {
+            delay(MESSAGE_SECONDS * 1000L)
+            message = null
+        }
+    }
+
+    /** The same for the Fall detection screen, which has its own note. */
+    private fun flashFall(text: String) {
+        fallMessageJob?.cancel()
+        fallMessage = text
+        fallMessageJob = viewModelScope.launch {
+            delay(MESSAGE_SECONDS * 1000L)
+            fallMessage = null
+        }
+    }
 
     // Sensor-thread state, published to the UI by the ticker below.
     private val window = MotionWindow()
@@ -220,7 +252,7 @@ class RecorderViewModel(application: Application) : AndroidViewModel(application
         }
         val code = RecorderCsv.cleanParticipant(participant)
         if (code.isEmpty()) {
-            message = "Enter a participant code, for example P01."
+            flash("Enter a participant code, for example P01.")
             return
         }
         participant = code
@@ -253,14 +285,14 @@ class RecorderViewModel(application: Application) : AndroidViewModel(application
         recordingPaused = false
         val snapshot = synchronized(lock) { ArrayList(rows).also { rows.clear() } }
         if (snapshot.isEmpty()) {
-            message = "Nothing was recorded."
+            flash("Nothing was recorded.")
             return
         }
         viewModelScope.launch {
             val file = withContext(Dispatchers.IO) { write(snapshot) }
             savedFile = file
             refreshSaved()
-            message = "Saved ${file.name}: ${snapshot.size} readings, %.1f s.".format(snapshot.last()[0])
+            flash("Saved ${file.name}: ${snapshot.size} readings, %.1f s.".format(snapshot.last()[0]))
         }
     }
 
@@ -274,16 +306,81 @@ class RecorderViewModel(application: Application) : AndroidViewModel(application
         }
         graphPaused = false
         graphCaptured = false
-        message = "Recording discarded."
+        flash("Recording discarded.")
     }
 
-    /** All recordings saved on this phone, newest first. Refreshed on open and after each save. */
-    var savedRecordings by mutableStateOf<List<File>>(emptyList())
+    /**
+     * Saves what the Fall detection graphs hold (the last 30 s, or the frozen attempt) as a CSV in
+     * the same folder as the Pre-fall recordings, so Share all and Delete all cover both. The
+     * detector's marks (free fall, impact, settled, how it ended) go in the Event column.
+     */
+    fun saveFallAttempt() {
+        val ax = accelX
+        if (ax.isEmpty) {
+            flashFall("Nothing to save yet. Wait for readings to appear.")
+            return
+        }
+        val snap = fallSnapshot
+        val events = RecorderCsv.fallEvents(snap, graphOriginMs)
+        val ay = accelY
+        val az = accelZ
+        val lx = linX
+        val ly = linY
+        val lz = linZ
+        val gx = gyroX
+        val gy = gyroY
+        val gz = gyroZ
+        viewModelScope.launch {
+            val file = withContext(Dispatchers.IO) {
+                val stamp = java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.US).format(java.util.Date())
+                val target = File(recordingsDir(), RecorderCsv.fallAttemptName(stamp, snap.outcome))
+                target.bufferedWriter().use { out ->
+                    out.appendLine(RecorderCsv.FALL_HEADER)
+                    RecorderCsv.fallAttemptRows(ax, ay, az, lx, ly, lz, gx, gy, gz, events).forEach { out.appendLine(it) }
+                }
+                target
+            }
+            savedFallFile = file
+            refreshSaved()
+            flashFall("Saved ${file.name}: ${ax.t.size} readings, %.1f s.".format(ax.t.last() - ax.t.first()))
+        }
+    }
+
+    /** Deletes this screen's saved recordings only (Pre-fall ones). Not while recording. */
+    fun deletePreFallRecordings() {
+        if (recording) return
+        viewModelScope.launch {
+            val removed = withContext(Dispatchers.IO) { RecorderCsv.deleteAll(recordingsDir(), fallAttempts = false) }
+            savedFile = null
+            refreshSaved()
+            flash(deletedText(removed))
+        }
+    }
+
+    /** Deletes the saved Fall detection attempts only; Pre-fall recordings are left alone. */
+    fun deleteFallRecordings() {
+        viewModelScope.launch {
+            val removed = withContext(Dispatchers.IO) { RecorderCsv.deleteAll(recordingsDir(), fallAttempts = true) }
+            savedFallFile = null
+            refreshSaved()
+            flashFall(deletedText(removed))
+        }
+    }
+
+    private fun deletedText(removed: Int) =
+        if (removed == 0) "There were no recordings to delete."
+        else "Deleted $removed recording${if (removed == 1) "" else "s"}."
+
+    /** Saved Pre-fall recordings and saved Fall detection attempts, each newest first and kept apart. */
+    var preFallRecordings by mutableStateOf<List<File>>(emptyList())
+        private set
+    var fallRecordings by mutableStateOf<List<File>>(emptyList())
         private set
 
     private fun refreshSaved() {
-        savedRecordings = recordingsDir().listFiles { f -> f.name.endsWith(".csv") }
-            ?.sortedByDescending { it.lastModified() }.orEmpty()
+        val dir = recordingsDir()
+        preFallRecordings = RecorderCsv.recordings(dir, fallAttempts = false)
+        fallRecordings = RecorderCsv.recordings(dir, fallAttempts = true)
     }
 
     // After the property above, so its state holder exists before the first refresh.
@@ -487,6 +584,8 @@ class RecorderViewModel(application: Application) : AndroidViewModel(application
         const val MAX_READINGS = 30_000
         /** 30 s at 50 Hz kept for the zoomable graphs: room for a whole fall attempt. */
         const val HISTORY_POINTS = 1_500
+        /** How long a short status note ("Saved ...", "Deleted ...") stays on screen. */
+        const val MESSAGE_SECONDS = 4
     }
 }
 

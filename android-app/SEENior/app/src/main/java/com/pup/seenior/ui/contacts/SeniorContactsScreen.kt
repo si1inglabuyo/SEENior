@@ -1,5 +1,6 @@
 package com.pup.seenior.ui.contacts
 
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -180,7 +181,7 @@ private fun ContactCard(contact: FamilyContactDto, onRemove: () -> Unit) {
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(top = 14.dp)
-                .height(52.dp)
+                .heightIn(min = 52.dp)
                 .border(1.dp, SeniorColors.FieldBorder, RoundedCornerShape(14.dp))
                 .clickable { showConfirm = true },
             horizontalArrangement = Arrangement.Center,
@@ -256,7 +257,7 @@ private fun CouldNotLoadState(message: String, onRetry: () -> Unit) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 20.dp)
-                    .height(52.dp)
+                    .heightIn(min = 52.dp)
                     .border(1.dp, SeniorColors.GreenBorder, RoundedCornerShape(14.dp))
                     .clickable(onClick = onRetry),
                 horizontalArrangement = Arrangement.Center,
@@ -310,7 +311,7 @@ private fun EmptyState(inviteActionLabel: String, onGoToInvite: () -> Unit) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 20.dp)
-                    .height(52.dp)
+                    .heightIn(min = 52.dp)
                     .border(1.dp, SeniorColors.GreenBorder, RoundedCornerShape(14.dp))
                     .clickable(onClick = onGoToInvite),
                 horizontalArrangement = Arrangement.Center,

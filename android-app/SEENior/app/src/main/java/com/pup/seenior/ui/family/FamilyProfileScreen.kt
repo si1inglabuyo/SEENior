@@ -1,5 +1,6 @@
 package com.pup.seenior.ui.family
 
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -379,7 +380,7 @@ private fun FamilyEditProfileScreen(viewModel: FamilyProfileViewModel, onBack: (
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(52.dp)
+                    .heightIn(min = 52.dp)
                     .border(1.dp, FamilyColors.BlueBorder, RoundedCornerShape(14.dp))
                     .clickable {
                         viewModel.resetPasswordDialogState()

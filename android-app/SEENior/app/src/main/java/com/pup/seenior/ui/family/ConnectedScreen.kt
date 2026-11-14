@@ -1,5 +1,6 @@
 package com.pup.seenior.ui.family
 
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -162,7 +163,7 @@ fun ConnectedScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 12.dp)
-                    .height(50.dp)
+                    .heightIn(min = 50.dp)
                     .border(1.dp, FamilyColors.FieldBorder, RoundedCornerShape(14.dp))
                     .clickable(enabled = !viewModel.isPairing) {
                         viewModel.pair(onAddAnother)

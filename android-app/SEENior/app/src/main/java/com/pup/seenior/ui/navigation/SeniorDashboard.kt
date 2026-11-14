@@ -1,5 +1,6 @@
 package com.pup.seenior.ui.navigation
 
+import com.pup.seenior.ui.FitText
 import android.Manifest
 import android.app.Activity
 import android.content.ContextWrapper
@@ -395,7 +396,7 @@ fun SeniorDashboard(onAccountDeleted: () -> Unit) {
                             }
                         },
                         label = {
-                            Text(
+                            FitText(
                                 entry.label(copy),
                                 fontWeight = FontWeight.Bold,
                                 fontSize = if (highlighted) 13.sp else 12.sp

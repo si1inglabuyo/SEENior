@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -19,7 +20,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.OutlinedButton
@@ -109,7 +112,9 @@ fun WalkTestPanel(
     onGravity: (Boolean) -> Unit = {},
     /** Freeze the graphs to read them (recording, if any, carries on). */
     onPauseGraphs: () -> Unit = {},
-    onResumeGraphs: () -> Unit = {}
+    onResumeGraphs: () -> Unit = {},
+    /** Delete every saved recording on this phone. Only offered after a confirmation. */
+    onDeleteAll: () -> Unit = {}
 ) {
     val limits = if (ui.absolute.isEmpty) GraphView(0f, 10f)
     else GraphView(ui.absolute.t.first(), ui.absolute.t.last().coerceAtLeast(ui.absolute.t.first() + 0.1f))
@@ -206,7 +211,7 @@ fun WalkTestPanel(
                     OutlinedButton(
                         onClick = { onActivity(activity.code) },
                         enabled = !ui.recording,
-                        modifier = Modifier.weight(1f).height(56.dp),
+                        modifier = Modifier.weight(1f).heightIn(min = 56.dp),
                         shape = RoundedCornerShape(10.dp),
                         border = BorderStroke(if (selected) 2.dp else 1.dp,
                             if (selected) SeniorColors.GreenDark else SeniorColors.GreenBorder),
@@ -265,7 +270,42 @@ fun WalkTestPanel(
             OutlinedButton(onClick = onShareAll, modifier = Modifier.fillMaxWidth()) {
                 Text("Share all ${ui.savedCount} recordings", color = SeniorColors.TextPrimary)
             }
+            DeleteAllRecordingsButton(ui.savedCount, "pre-fall", onDeleteAll)
         }
+    }
+}
+
+/**
+ * Red "Delete all N recordings" with a confirmation, since it cannot be undone. [kind] names whose
+ * recordings these are ("pre-fall" or "fall detection"): each screen deletes only its own.
+ */
+@Composable
+internal fun DeleteAllRecordingsButton(count: Int, kind: String, onConfirm: () -> Unit) {
+    var confirmDelete by remember { mutableStateOf(false) }
+    OutlinedButton(
+        onClick = { confirmDelete = true },
+        modifier = Modifier.fillMaxWidth(),
+        border = BorderStroke(1.dp, FailRed)
+    ) {
+        Text("Delete all $count recordings", color = FailRed)
+    }
+    if (confirmDelete) {
+        AlertDialog(
+            onDismissRequest = { confirmDelete = false },
+            title = { Text("Delete all $kind recordings?") },
+            text = {
+                Text(
+                    "This removes all $count saved $kind recordings from this phone. " +
+                        "It cannot be undone. Share them first if you still need them."
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { confirmDelete = false; onConfirm() }) {
+                    Text("Delete all", color = FailRed, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancel") } }
+        )
     }
 }
 
