@@ -10,19 +10,35 @@ barangay rests on RA 10173 section 12(c) like the rest of what they see, and is 
 dashboard with the same access logging as the other details.
 """
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_authenticated_senior, get_current_user
 from app.api.routes.barangay import _assigned_barangay, _in_barangay
-from app.db.models import Contact, ContactType, RoutineBaseline, Senior, User, UserRole
+from app.db.models import (
+    Contact,
+    ContactType,
+    RoutineBaseline,
+    RoutineBaselineHistory,
+    Senior,
+    User,
+    UserRole,
+)
 from app.db.session import get_db
-from app.schemas.routine import RoutineOut, RoutineRow, RoutineSync
+from app.schemas.routine import (
+    HISTORY_DAYS,
+    RoutineHistoryOut,
+    RoutineHistoryRow,
+    RoutineHistorySync,
+    RoutineOut,
+    RoutineRow,
+    RoutineSync,
+)
 
 router = APIRouter(prefix="/seniors", tags=["routine"])
 
@@ -88,16 +104,8 @@ async def _read_routine(senior: Senior, db: AsyncSession) -> RoutineOut:
     )
 
 
-@router.get("/{sync_id}/routine", response_model=RoutineOut)
-async def read_routine(
-    sync_id: UUID,
-    db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
-) -> RoutineOut:
-    """A senior's fingerprint for the family contact paired to them or the responder covering them.
-
-    Anyone else gets the same 404 as for a senior that doesn't exist.
-    """
+async def _viewable_senior(sync_id: UUID, db: AsyncSession, user: User) -> Senior:
+    """The senior, if this user may see their routine; otherwise the same 404 as for a stranger."""
     senior = (await db.execute(select(Senior).where(Senior.sync_id == sync_id))).scalar_one_or_none()
     allowed = False
     if senior is not None and senior.deleted_at is None:
@@ -115,4 +123,111 @@ async def read_routine(
             allowed = paired.scalar_one() > 0
     if not allowed:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Senior not found")
-    return await _read_routine(senior, db)
+    return senior
+
+
+@router.get("/{sync_id}/routine", response_model=RoutineOut)
+async def read_routine(
+    sync_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> RoutineOut:
+    """A senior's fingerprint for the family contact paired to them or the responder covering them.
+
+    Anyone else gets the same 404 as for a senior that doesn't exist.
+    """
+    return await _read_routine(await _viewable_senior(sync_id, db, user), db)
+
+
+@router.put("/{sync_id}/routine/history", response_model=RoutineHistoryOut)
+async def sync_routine_history(
+    payload: RoutineHistorySync,
+    senior: Senior = Depends(get_authenticated_senior),
+    db: AsyncSession = Depends(get_db),
+) -> RoutineHistoryOut:
+    """Stores the phone's daily copies of the fingerprint (migration 0024) and trims the old ones.
+
+    Upserts per (day, feature, time block), so a re-send changes nothing and a day the phone
+    saved that night replaces the same day it had only estimated. Only the last 30 days are
+    kept: this is the trend of how a routine was learned, not a lifetime log.
+    """
+    if senior.deleted_at is not None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Senior not found")
+
+    today = datetime.now(timezone.utc).date()
+    # A day that hasn't happened yet is a broken clock or someone probing the endpoint.
+    if any(r.day > today + timedelta(days=1) for r in payload.rows):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="day is in the future"
+        )
+    cutoff = today - timedelta(days=HISTORY_DAYS)
+
+    # A repeated cell would make Postgres refuse the whole statement; the last one wins.
+    cells = {
+        (r.day, r.feature_name, r.time_block): r for r in payload.rows if r.day >= cutoff
+    }
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    if cells:
+        stmt = pg_insert(RoutineBaselineHistory).values(
+            [
+                dict(
+                    senior_id=senior.id,
+                    day=r.day,
+                    feature_name=r.feature_name,
+                    time_block=r.time_block,
+                    median_value=r.median_value,
+                    mad_value=r.mad_value,
+                    sample_count=r.sample_count,
+                    is_seed=r.is_seed,
+                    is_estimate=r.is_estimate,
+                    updated_at=now,
+                )
+                for r in cells.values()
+            ]
+        )
+        stmt = stmt.on_conflict_do_update(
+            constraint="uq_routine_history_cell",
+            set_={
+                "median_value": stmt.excluded.median_value,
+                "mad_value": stmt.excluded.mad_value,
+                "sample_count": stmt.excluded.sample_count,
+                "is_seed": stmt.excluded.is_seed,
+                "is_estimate": stmt.excluded.is_estimate,
+                "updated_at": stmt.excluded.updated_at,
+            },
+        )
+        await db.execute(stmt)
+    await db.execute(
+        delete(RoutineBaselineHistory).where(
+            RoutineBaselineHistory.senior_id == senior.id,
+            RoutineBaselineHistory.day < cutoff,
+        )
+    )
+    await db.commit()
+    return await _read_routine_history(senior, db)
+
+
+async def _read_routine_history(senior: Senior, db: AsyncSession) -> RoutineHistoryOut:
+    result = await db.execute(
+        select(RoutineBaselineHistory)
+        .where(RoutineBaselineHistory.senior_id == senior.id)
+        .order_by(
+            RoutineBaselineHistory.day,
+            RoutineBaselineHistory.time_block,
+            RoutineBaselineHistory.feature_name,
+        )
+    )
+    rows = list(result.scalars().all())
+    return RoutineHistoryOut(
+        rows=[RoutineHistoryRow.model_validate(r, from_attributes=True) for r in rows]
+    )
+
+
+@router.get("/{sync_id}/routine/history", response_model=RoutineHistoryOut)
+async def read_routine_history(
+    sync_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> RoutineHistoryOut:
+    """The last 30 days of a senior's fingerprint, under the same access rule as `read_routine`."""
+    return await _read_routine_history(await _viewable_senior(sync_id, db, user), db)

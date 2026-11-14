@@ -22,6 +22,8 @@ import com.pup.seenior.network.dto.PairResponseDto
 import com.pup.seenior.network.dto.RegisterDeviceRequest
 import com.pup.seenior.network.dto.RegisterRequest
 import com.pup.seenior.network.dto.RoutineDto
+import com.pup.seenior.network.dto.RoutineHistoryDto
+import com.pup.seenior.network.dto.RoutineHistorySyncRequest
 import com.pup.seenior.network.dto.RoutineSyncRequest
 import com.pup.seenior.network.dto.SeniorDto
 import com.pup.seenior.network.dto.PookDto
@@ -110,6 +112,13 @@ interface ApiService {
         @Body body: RoutineSyncRequest
     ): RoutineDto
 
+    // The last 30 days of daily fingerprint copies (same median/MAD figures, never raw data).
+    @PUT("seniors/{syncId}/routine/history")
+    suspend fun syncRoutineHistory(
+        @Path("syncId") syncId: String,
+        @Body body: RoutineHistorySyncRequest
+    ): RoutineHistoryDto
+
     @POST("seniors/{syncId}/invite")
     suspend fun generateInvite(@Path("syncId") syncId: String): InviteCodeDto
 
@@ -161,6 +170,13 @@ interface ApiService {
         @Path("syncId") syncId: String,
         @Header("Authorization") auth: String
     ): RoutineDto
+
+    // How a paired senior's routine was learned: daily copies of the fingerprint, 30 days at most.
+    @GET("seniors/{syncId}/routine/history")
+    suspend fun getRoutineHistory(
+        @Path("syncId") syncId: String,
+        @Header("Authorization") auth: String
+    ): RoutineHistoryDto
 
     // ---- Account / profile (family side) ----
 

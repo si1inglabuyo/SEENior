@@ -97,10 +97,34 @@ class NightlyAggregationWorker(
                 dailyAggregateDao
             )
 
+            recordFingerprintHistory(database, senior.seniorId, onboarding)
+
             runIsolationForest(database, senior.seniorId, onboarding)
         }
 
         return Result.success()
+    }
+
+    /**
+     * Saves tonight's copy of the fingerprint for the "how your routine was learned" card, after
+     * filling in the earlier days once from the stored aggregates. Never fatal: a history that
+     * can't be written must not fail the roll-up, purge or fingerprint above it.
+     */
+    private suspend fun recordFingerprintHistory(
+        database: SeniorAppDatabase,
+        seniorId: Int,
+        onboarding: SeniorOnboarding
+    ) {
+        try {
+            com.pup.seenior.baseline.BaselineHistoryRecorder.backfillIfEmpty(
+                seniorId, onboarding, database.dailyAggregateDao(), database.baselineHistoryDao()
+            )
+            com.pup.seenior.baseline.BaselineHistoryRecorder.recordToday(
+                seniorId, java.time.LocalDate.now(), database.baselineDao(), database.baselineHistoryDao()
+            )
+        } catch (e: Exception) {
+            android.util.Log.w("NightlyAggregation", "Fingerprint history not saved", e)
+        }
     }
 
     /**

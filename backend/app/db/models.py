@@ -303,6 +303,37 @@ class RoutineBaseline(Base):
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
 
+class RoutineBaselineHistory(Base):
+    """One day's copy of the Routine Fingerprint (migration 0024), so the family app and the
+    dashboard can show how a routine was learned.
+
+    Same shape as `RoutineBaseline` plus a calendar `day`: a median and a MAD per feature per time
+    block, at most 20 rows a day, and only the last 30 days are kept (the sync trims older ones).
+    A statistical summary, never a sensor reading; `Sensor_Data` and `Daily_Aggregates` still stay
+    on the phone. This amends spec section 11 (see the 2026-11-14 note there).
+
+    `is_estimate` is true for days the phone worked out afterwards from its stored daily summaries
+    with today's rules, and false for a copy it saved that night. The apps say so in plain words.
+    """
+
+    __tablename__ = "routine_baseline_history"
+    __table_args__ = (
+        UniqueConstraint("senior_id", "day", "feature_name", "time_block", name="uq_routine_history_cell"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    senior_id: Mapped[int] = mapped_column(ForeignKey("seniors.id"), index=True)
+    day: Mapped[date] = mapped_column()
+    feature_name: Mapped[str] = mapped_column(String(32))
+    time_block: Mapped[str] = mapped_column(String(16))
+    median_value: Mapped[float] = mapped_column(Float)
+    mad_value: Mapped[float] = mapped_column(Float)
+    sample_count: Mapped[int] = mapped_column()
+    is_seed: Mapped[bool] = mapped_column()
+    is_estimate: Mapped[bool] = mapped_column()
+    updated_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+
 class Contact(Base):
     """Links a Users account (family or barangay responder) to a senior.
 

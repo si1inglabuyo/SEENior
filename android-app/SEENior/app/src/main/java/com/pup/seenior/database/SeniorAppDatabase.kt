@@ -8,6 +8,7 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.pup.seenior.database.dao.AlertDao
 import com.pup.seenior.database.dao.BaselineDao
+import com.pup.seenior.database.dao.BaselineHistoryDao
 import com.pup.seenior.database.dao.ContactDao
 import com.pup.seenior.database.dao.DailyAggregateDao
 import com.pup.seenior.database.dao.FalsePositiveDao
@@ -18,6 +19,7 @@ import com.pup.seenior.database.dao.SeniorOnboardingDao
 import com.pup.seenior.database.dao.SensorDataDao
 import com.pup.seenior.database.entities.Alert
 import com.pup.seenior.database.entities.Baseline
+import com.pup.seenior.database.entities.BaselineHistory
 import com.pup.seenior.database.entities.Contact
 import com.pup.seenior.database.entities.DailyAggregate
 import com.pup.seenior.database.entities.FalsePositive
@@ -38,9 +40,10 @@ import com.pup.seenior.database.entities.SensorData
         PendingAlert::class,
         FalsePositive::class,
         MlModelMetadata::class,
-        SeniorOnboarding::class
+        SeniorOnboarding::class,
+        BaselineHistory::class
     ],
-    version = 9,
+    version = 10,
     exportSchema = true
 )
 abstract class SeniorAppDatabase : RoomDatabase() {
@@ -50,6 +53,7 @@ abstract class SeniorAppDatabase : RoomDatabase() {
     abstract fun sensorDataDao(): SensorDataDao
     abstract fun dailyAggregateDao(): DailyAggregateDao
     abstract fun baselineDao(): BaselineDao
+    abstract fun baselineHistoryDao(): BaselineHistoryDao
     abstract fun alertDao(): AlertDao
     abstract fun pendingAlertDao(): PendingAlertDao
     abstract fun falsePositiveDao(): FalsePositiveDao
@@ -142,13 +146,45 @@ abstract class SeniorAppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * 9 -> 10: a daily copy of the fingerprint, so the app can show how a routine was learned.
+         * A new table only, so nothing existing can be lost. The rows are filled by
+         * `BaselineHistoryRecorder` (backfill from the stored aggregates, then one copy a day).
+         */
+        private val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `Baseline_History` (
+                        `history_id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `senior_id` INTEGER NOT NULL,
+                        `date` TEXT NOT NULL,
+                        `feature_name` TEXT NOT NULL,
+                        `time_block` TEXT NOT NULL,
+                        `median_value` REAL NOT NULL,
+                        `mad_value` REAL NOT NULL,
+                        `sample_count` INTEGER NOT NULL,
+                        `is_seed` INTEGER NOT NULL,
+                        `is_estimate` INTEGER NOT NULL,
+                        FOREIGN KEY(`senior_id`) REFERENCES `Seniors`(`senior_id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_Baseline_History_senior_id` ON `Baseline_History` (`senior_id`)")
+                db.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS `index_Baseline_History_senior_id_date_feature_name_time_block` " +
+                        "ON `Baseline_History` (`senior_id`, `date`, `feature_name`, `time_block`)"
+                )
+            }
+        }
+
         fun getInstance(context: Context): SeniorAppDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext,
                     SeniorAppDatabase::class.java,
                     "senior_app.db"
-                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
+                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
                     .build().also { INSTANCE = it }
             }
         }

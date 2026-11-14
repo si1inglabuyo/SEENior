@@ -43,6 +43,10 @@ interface DailyAggregateDao {
     """)
     suspend fun getRecentDays(seniorId: Int, days: Int): List<DailyAggregate>
 
+    /** Every stored aggregate, oldest first: the input for rebuilding past fingerprints. */
+    @Query("SELECT * FROM Daily_Aggregates WHERE senior_id = :seniorId ORDER BY date ASC, time_block ASC")
+    suspend fun getAllOnce(seniorId: Int): List<DailyAggregate>
+
     /** Trailing N days of a single time block — input for the rolling Baseline recompute. */
     @Query("""
         SELECT * FROM Daily_Aggregates

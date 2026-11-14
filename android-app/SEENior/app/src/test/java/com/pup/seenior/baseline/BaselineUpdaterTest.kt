@@ -228,6 +228,7 @@ class BaselineUpdaterTest {
             days.filter { it.date == date }
         override suspend fun deleteByDateAndTimeBlock(seniorId: Int, date: String, timeBlock: String) = Unit
         override suspend fun getRecentDays(seniorId: Int, days: Int): List<DailyAggregate> = this.days
+        override suspend fun getAllOnce(seniorId: Int): List<DailyAggregate> = days
         override suspend fun getWithoutIsolationForestScore(seniorId: Int): List<DailyAggregate> = emptyList()
         override suspend fun updateIsolationForestScore(aggregateId: Int, score: Double) = Unit
 

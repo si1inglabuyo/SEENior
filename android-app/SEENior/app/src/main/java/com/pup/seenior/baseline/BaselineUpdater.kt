@@ -3,6 +3,7 @@ package com.pup.seenior.baseline
 import com.pup.seenior.database.dao.BaselineDao
 import com.pup.seenior.database.dao.DailyAggregateDao
 import com.pup.seenior.database.entities.Baseline
+import com.pup.seenior.database.entities.DailyAggregate
 import com.pup.seenior.database.entities.SeniorOnboarding
 import com.pup.seenior.detection.AggregateFeatures
 import com.pup.seenior.detection.MedianMad
@@ -42,6 +43,28 @@ object BaselineUpdater {
         val seeds = SeedBaselineGenerator.generate(seniorId, onboarding)
             .associateBy { it.featureName to it.timeBlock }
 
+        val cells = cellsFrom(seniorId, onboarding, seeds) { timeBlock ->
+            dailyAggregateDao.getRecentByTimeBlock(seniorId, timeBlock, ROLLING_WINDOWS_DAYS)
+        }
+        cells.forEach { baselineDao.replaceFeatureBaseline(it) }
+    }
+
+    /**
+     * The cells the fingerprint would change to, given each block's trailing window. Pure: it
+     * writes nothing, so [BaselineHistoryRecorder] can replay it over past days with the very
+     * same rules the nightly update uses. A cell it leaves out is one whose block was too thin
+     * to move, which must keep its last good value.
+     *
+     * [windowFor] returns the trailing (up to 14) aggregates of one time block as of the day
+     * being computed.
+     */
+    internal suspend fun cellsFrom(
+        seniorId: Int,
+        onboarding: SeniorOnboarding,
+        seeds: Map<Pair<String, String>, Baseline>,
+        windowFor: suspend (timeBlock: String) -> List<DailyAggregate>
+    ): List<Baseline> {
+        val cells = mutableListOf<Baseline>()
         for (timeBlock in TIME_BLOCKS) {
             /*
              * Two different counts: `window` is how many days of this block the app has lived
@@ -51,7 +74,7 @@ object BaselineUpdater {
              * baseline describes the trailing 14 days, and reaching further back to make up
              * numbers would widen the window.
              */
-            val window = dailyAggregateDao.getRecentByTimeBlock(seniorId, timeBlock, ROLLING_WINDOWS_DAYS)
+            val window = windowFor(timeBlock)
             val rows = window.filter { AggregateFeatures.isUsable(it, onboarding) }
 
             /*
@@ -61,27 +84,28 @@ object BaselineUpdater {
             if (rows.size < MIN_SAMPLES_TO_BLEND) continue
             if (rows.size < window.size * MIN_USABLE_FRACTION) continue
 
-            suspend fun update(featureName: String, values: List<Double>) =
-                updateFeature(seniorId, timeBlock, featureName, values, window.size, seeds, baselineDao)
+            fun cell(featureName: String, values: List<Double>) {
+                blend(seniorId, timeBlock, featureName, values, window.size, seeds)?.let { cells += it }
+            }
 
-            update("movement_score", rows.map { it.avgMovementScore })
-            update("inactivity_duration", rows.map { it.totalInactivityDuration.toDouble() })
-            update("screen_idle_duration", rows.map { it.avgScreenIdleDuration.toDouble() })
-            update("screen_unlock_count", rows.map { it.totalScreenUnlocks.toDouble() })
-            update("step_count", rows.map { it.totalSteps.toDouble() })
+            cell("movement_score", rows.map { it.avgMovementScore })
+            cell("inactivity_duration", rows.map { it.totalInactivityDuration.toDouble() })
+            cell("screen_idle_duration", rows.map { it.avgScreenIdleDuration.toDouble() })
+            cell("screen_unlock_count", rows.map { it.totalScreenUnlocks.toDouble() })
+            cell("step_count", rows.map { it.totalSteps.toDouble() })
         }
+        return cells
     }
 
-    private suspend fun updateFeature(
+    private fun blend(
         seniorId: Int,
         timeBlock: String,
         featureName: String,
         values: List<Double>,
         windowDays: Int,
-        seeds: Map<Pair<String, String>, Baseline>,
-        baselineDao: BaselineDao
-    ) {
-        val seed = seeds[featureName to timeBlock] ?: return
+        seeds: Map<Pair<String, String>, Baseline>
+    ): Baseline? {
+        val seed = seeds[featureName to timeBlock] ?: return null
 
         val realMedian = MedianMad.median(values)
         val realMad = MedianMad.mad(values, realMedian)
@@ -107,20 +131,18 @@ object BaselineUpdater {
         // fingerprint match what detection uses.
         val madFloor = SeedBaselineGenerator.MIN_MAD_FLOOR[featureName] ?: 1.0
 
-        baselineDao.replaceFeatureBaseline(
-            Baseline(
-                seniorId = seniorId,
-                featureName = featureName,
-                timeBlock = timeBlock,
-                medianValue = median,
-                madValue = maxOf(blendedMad, madFloor),
-                // How many days these numbers were computed from, which after filtering can
-                // differ from how far the hand-over has got.
-                sampleCount = values.size,
-                // Still partly the questionnaire's answer until the hand-over completes.
-                // Read off the weight so it matches how much seed is in the row.
-                isSeed = weight < 1.0
-            )
+        return Baseline(
+            seniorId = seniorId,
+            featureName = featureName,
+            timeBlock = timeBlock,
+            medianValue = median,
+            madValue = maxOf(blendedMad, madFloor),
+            // How many days these numbers were computed from, which after filtering can
+            // differ from how far the hand-over has got.
+            sampleCount = values.size,
+            // Still partly the questionnaire's answer until the hand-over completes.
+            // Read off the weight so it matches how much seed is in the row.
+            isSeed = weight < 1.0
         )
     }
 }

@@ -239,6 +239,7 @@ private fun ContactDetailScreen(
             }
 
             RoutineCard(seniorSyncId = senior.syncId)
+            RoutineHistoryCard(seniorSyncId = senior.syncId)
 
             Spacer(Modifier.height(28.dp))
 
