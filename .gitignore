@@ -30,3 +30,9 @@ seenior-db/
 # Raw walk-test recordings (accelerometer data from volunteers). Stay on this machine, never in git.
 docs/evidence/recordings/
 __pycache__/
+
+# Local tool config with an access token, and stray SQLite files from a phone database copy
+/.mcp.json
+/senior_app.db-shm
+/senior_app.db-wal
+/senior_app.db-journal
