@@ -55,7 +55,27 @@ class RoutineHistoryOut(BaseModel):
     rows: list[RoutineHistoryRow]
 
 
+class RoutineTiming(BaseModel):
+    """When each block starts, and when the phone usually saw the senior first/last active.
+
+    The observed pair is a median over up to 14 days and is null until at least 3 days stand
+    behind it. `*_days` is how many days that median is built from, so the apps can say so.
+    """
+
+    # Minutes after midnight. A bounded int is the only shape accepted, so this carries nothing else.
+    morning_start: int = Field(ge=0, le=1439)
+    afternoon_start: int = Field(ge=0, le=1439)
+    evening_start: int = Field(ge=0, le=1439)
+    night_start: int = Field(ge=0, le=1439)
+    wake_minute: int | None = Field(default=None, ge=0, le=1439)
+    wake_days: int = Field(default=0, ge=0, le=30)
+    evening_last_minute: int | None = Field(default=None, ge=0, le=1439)
+    evening_last_days: int = Field(default=0, ge=0, le=30)
+
+
 class RoutineOut(BaseModel):
     rows: list[RoutineRow]
     # When the phone last synced; null when nothing has arrived yet.
     updated_at: datetime | None = None
+    # Null until a phone that knows about block times has synced.
+    timing: RoutineTiming | None = None

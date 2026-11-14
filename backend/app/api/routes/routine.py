@@ -25,6 +25,7 @@ from app.db.models import (
     ContactType,
     RoutineBaseline,
     RoutineBaselineHistory,
+    RoutineTiming as RoutineTimingRow,
     Senior,
     User,
     UserRole,
@@ -32,6 +33,7 @@ from app.db.models import (
 from app.db.session import get_db
 from app.schemas.routine import (
     HISTORY_DAYS,
+    RoutineTiming,
     RoutineHistoryOut,
     RoutineHistoryRow,
     RoutineHistorySync,
@@ -41,6 +43,9 @@ from app.schemas.routine import (
 )
 
 router = APIRouter(prefix="/seniors", tags=["routine"])
+
+# An observed "usual" time needs at least this many days behind it (mirrors the phone's rule).
+MIN_OBSERVED_DAYS = 3
 
 
 @router.put("/{sync_id}/routine", response_model=RoutineOut)
@@ -98,10 +103,46 @@ async def _read_routine(senior: Senior, db: AsyncSession) -> RoutineOut:
         .order_by(RoutineBaseline.time_block, RoutineBaseline.feature_name)
     )
     rows = list(result.scalars().all())
+    timing = (
+        await db.execute(select(RoutineTimingRow).where(RoutineTimingRow.senior_id == senior.id))
+    ).scalar_one_or_none()
     return RoutineOut(
         rows=[RoutineRow.model_validate(r, from_attributes=True) for r in rows],
         updated_at=max((r.updated_at for r in rows), default=None),
+        timing=RoutineTiming.model_validate(timing, from_attributes=True) if timing else None,
     )
+
+
+@router.put("/{sync_id}/routine/timing", response_model=RoutineTiming)
+async def sync_routine_timing(
+    payload: RoutineTiming,
+    senior: Senior = Depends(get_authenticated_senior),
+    db: AsyncSession = Depends(get_db),
+) -> RoutineTiming:
+    """Stores when this senior's four time blocks start and when the phone usually saw them
+    first and last active (migration 0025). One row per senior, overwritten in place.
+
+    An observed time without at least 3 days behind it is dropped to null, so a single day can
+    never be shown as a "usual" time even by a modified client. Display only: nothing here is
+    read by detection or escalation.
+    """
+    if senior.deleted_at is not None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Senior not found")
+
+    values = payload.model_dump()
+    if values["wake_days"] < MIN_OBSERVED_DAYS:
+        values["wake_minute"] = None
+    if values["evening_last_days"] < MIN_OBSERVED_DAYS:
+        values["evening_last_minute"] = None
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+
+    stmt = pg_insert(RoutineTimingRow).values(senior_id=senior.id, updated_at=now, **values)
+    stmt = stmt.on_conflict_do_update(
+        index_elements=["senior_id"], set_={**values, "updated_at": now}
+    )
+    await db.execute(stmt)
+    await db.commit()
+    return RoutineTiming(**values)
 
 
 async def _viewable_senior(sync_id: UUID, db: AsyncSession, user: User) -> Senior:

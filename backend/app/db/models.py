@@ -334,6 +334,33 @@ class RoutineBaselineHistory(Base):
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
 
+class RoutineTiming(Base):
+    """When each time block of a senior's day starts, and when the phone usually saw them first
+    and last active (migration 0025). One row per senior, overwritten in place.
+
+    The four `*_start` figures are minutes after midnight and come from the wake and sleep times
+    the senior typed at setup, so the apps can say "Morning, 6:00 AM to 11:00 AM" instead of a bare
+    "Morning". `wake_minute` / `evening_last_minute` are a median over the last 14 days (shown
+    only once at least 3 days stand behind them, otherwise null): a statistical summary like the
+    fingerprint, never a single day and never a reading. Display only: nothing in detection or
+    escalation reads this table, so a wrong or missing row cannot misroute an alert.
+    """
+
+    __tablename__ = "routine_timing"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    senior_id: Mapped[int] = mapped_column(ForeignKey("seniors.id"), unique=True)
+    morning_start: Mapped[int] = mapped_column()
+    afternoon_start: Mapped[int] = mapped_column()
+    evening_start: Mapped[int] = mapped_column()
+    night_start: Mapped[int] = mapped_column()
+    wake_minute: Mapped[int | None] = mapped_column(nullable=True)
+    wake_days: Mapped[int] = mapped_column(default=0)
+    evening_last_minute: Mapped[int | None] = mapped_column(nullable=True)
+    evening_last_days: Mapped[int] = mapped_column(default=0)
+    updated_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+
 class Contact(Base):
     """Links a Users account (family or barangay responder) to a senior.
 

@@ -63,7 +63,10 @@ def _db(senior, paired=0):
     lookup.scalar_one_or_none.return_value = senior
     count = MagicMock()
     count.scalar_one.return_value = paired
-    return SimpleNamespace(execute=AsyncMock(side_effect=[lookup, count, MagicMock()]))
+    # Then the fingerprint rows, then the timing row (none yet, so the card shows bare block names).
+    no_timing = MagicMock()
+    no_timing.scalar_one_or_none.return_value = None
+    return SimpleNamespace(execute=AsyncMock(side_effect=[lookup, count, MagicMock(), no_timing]))
 
 
 def _read(senior, user, paired=0):
@@ -197,3 +200,72 @@ def test_history_sync_for_a_deleted_senior_is_404():
     with pytest.raises(HTTPException) as e:
         _sync([HIST], senior=SimpleNamespace(id=1, deleted_at=datetime(2026, 10, 1)))
     assert e.value.status_code == 404
+
+
+# ---- timing (migration 0025) ----
+
+from app.db.models import RoutineTiming as RoutineTimingRow  # noqa: E402
+from app.schemas.routine import RoutineTiming  # noqa: E402
+
+TIMING = dict(morning_start=360, afternoon_start=660, evening_start=960, night_start=1260,
+              wake_minute=490, wake_days=4, evening_last_minute=1120, evening_last_days=4)
+
+
+def test_timing_accepts_block_starts_and_observed_times():
+    t = RoutineTiming(**TIMING)
+    assert (t.morning_start, t.wake_minute, t.wake_days) == (360, 490, 4)
+
+
+def test_timing_observed_times_are_optional():
+    t = RoutineTiming(morning_start=360, afternoon_start=660, evening_start=960, night_start=1260)
+    assert t.wake_minute is None and t.wake_days == 0
+
+
+@pytest.mark.parametrize("bad", [
+    {"morning_start": -1},
+    {"night_start": 1440},            # minutes after midnight only
+    {"wake_minute": 5000},
+    {"wake_days": 99},
+    {"morning_start": "6:00"},        # a number, never text
+])
+def test_timing_rejects_anything_else(bad):
+    with pytest.raises(ValidationError):
+        RoutineTiming(**{**TIMING, **bad})
+
+
+def test_timing_table_holds_one_row_per_senior():
+    assert RoutineTimingRow.__table__.c.senior_id.unique
+
+
+def _put_timing(payload):
+    db = SimpleNamespace(execute=AsyncMock(), commit=AsyncMock())
+    senior = SimpleNamespace(id=1, deleted_at=None)
+    out = asyncio.run(routes.sync_routine_timing(RoutineTiming(**payload), senior=senior, db=db))
+    return out
+
+
+def test_one_or_two_days_never_become_a_usual_time():
+    out = _put_timing({**TIMING, "wake_days": 2, "evening_last_days": 1})
+    assert out.wake_minute is None and out.evening_last_minute is None
+
+
+def test_three_days_are_enough_for_a_usual_time():
+    out = _put_timing({**TIMING, "wake_days": 3, "evening_last_days": 3})
+    assert out.wake_minute == 490 and out.evening_last_minute == 1120
+
+
+def test_deleted_senior_cannot_store_timing():
+    from datetime import datetime
+    db = SimpleNamespace(execute=AsyncMock(), commit=AsyncMock())
+    with pytest.raises(HTTPException) as e:
+        asyncio.run(routes.sync_routine_timing(
+            RoutineTiming(**TIMING), senior=SimpleNamespace(id=1, deleted_at=datetime(2026, 10, 1)), db=db))
+    assert e.value.status_code == 404
+
+
+def test_timing_migration_chains_after_0024():
+    path = Path(__file__).parent.parent / "migrations" / "versions" / "0025_add_routine_timing.py"
+    spec = importlib.util.spec_from_file_location("m0025", path)
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    assert (m.revision, m.down_revision) == ("0025", "0024")
