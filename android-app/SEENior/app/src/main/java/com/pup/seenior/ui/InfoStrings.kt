@@ -43,6 +43,8 @@ object InfoStrings {
         // Contact support
         val supportTitle: String,
         val callUs: String,
+        val researchersHeading: String,
+        val researcherLabel: String,
         val sendMessage: String,
         val messageLabel: String,
         val messagePlaceholder: String,
@@ -144,6 +146,8 @@ object InfoStrings {
 
         supportTitle = "Contact support",
         callUs = "Call us",
+        researchersHeading = "Researchers",
+        researcherLabel = "Researcher",
         sendMessage = "Send us a message",
         messageLabel = "MESSAGE",
         messagePlaceholder = "Suggest a new feature…",
@@ -316,6 +320,8 @@ object InfoStrings {
 
         supportTitle = "Makipag-ugnayan sa support",
         callUs = "Tawagan kami",
+        researchersHeading = "Mga Mananaliksik",
+        researcherLabel = "Mananaliksik",
         sendMessage = "Magpadala ng mensahe",
         messageLabel = "MENSAHE",
         messagePlaceholder = "Magmungkahi ng bagong feature…",

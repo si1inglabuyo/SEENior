@@ -50,9 +50,12 @@ Have a native speaker check the Filipino.)
 
 ## Suggested screen
 
-Inside "View routine", under the current fingerprint: one small line chart per time block of the
-usual stillness, oldest day left, with the starting guess and today's value in a line below
-("Started at a guess of 30 min, now 52 min"). Hide it until there are at least two days.
+No separate card (it duplicated the Daily Routine card). Inside each time block of "View
+routine", under the existing "Still for up to ..." line: a small line chart of the usual
+stillness, oldest day left, with "Started at a guess of 30 min, now 52 min" below it. Draw it
+only for a block that real days have moved off the setup answer (some day with `sample_count`
+above 0; seed cells carry 0), so a new senior sees the card unchanged. The two notes go once at
+the bottom of the card, and only when at least one line was drawn.
 
 ## Rules that still apply
 
@@ -61,3 +64,27 @@ usual stillness, oldest day left, with the starting guess and today's value in a
 - Do not export it, and do not ask for more than 30 days; the server keeps no more.
 - Read only. The phone is the only writer.
 - Nothing here changes escalation. Do not read it in any alert logic.
+
+## Addendum 2026-11-15: block hours and "usually active" times (migration 0025)
+
+Same lane, same rules. `GET /seniors/{sync_id}/routine` now also returns a `timing` object (null
+until the senior's phone has sent one):
+
+```
+"timing": { "morning_start": 360, "afternoon_start": 660, "evening_start": 960, "night_start": 1260,
+            "wake_minute": 490, "wake_days": 4, "evening_last_minute": 1120, "evening_last_days": 4 }
+```
+
+- The `*_start` figures are minutes after midnight, from the wake and sleep times the senior typed
+  at setup. A block ends where the next one starts; night runs on to the next morning's start.
+  Show them under each block name: "Morning, 6:00 AM - 11:00 AM". If `timing` is null, show the bare
+  block name as today.
+- `wake_minute` / `evening_last_minute` are what the phone actually saw: the usual time the senior
+  was first active in the morning and last active in the evening, a median over up to 14 days. They
+  are null until at least 3 days stand behind them. Say it plainly and with the day count: "Usually
+  first active about 8:10 AM (based on 4 days)". Do **not** call it a wake or sleep time.
+- Keep the two apart. The hours are the setup answers; the usual times are observed. The blocks do
+  not move to follow the observed times, and nothing in detection reads either. Use the same wording
+  as the family app (`ui/family/RoutineTimingWording.kt`), including the one-line note under the blocks.
+- Limit worth saying if asked: the phone only sees readings inside a block, so someone who gets up
+  earlier than the wake time they typed shows the typed time.

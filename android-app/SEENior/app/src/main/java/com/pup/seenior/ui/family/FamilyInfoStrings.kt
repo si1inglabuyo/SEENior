@@ -60,6 +60,8 @@ object FamilyInfoStrings {
         // Contact support
         val supportTitle: String,
         val callUs: String,
+        val researchersHeading: String,
+        val researcherLabel: String,
         val sendMessage: String,
         val messageLabel: String,
         val messagePlaceholder: String,
@@ -163,6 +165,8 @@ object FamilyInfoStrings {
 
         supportTitle = "Contact support",
         callUs = "Call us",
+        researchersHeading = "Researchers",
+        researcherLabel = "Researcher",
         sendMessage = "Send us a message",
         messageLabel = "MESSAGE",
         messagePlaceholder = "Tell us what's going on…",
@@ -339,6 +343,8 @@ object FamilyInfoStrings {
 
         supportTitle = "Makipag-ugnayan sa support",
         callUs = "Tawagan kami",
+        researchersHeading = "Mga Mananaliksik",
+        researcherLabel = "Mananaliksik",
         sendMessage = "Magpadala ng mensahe",
         messageLabel = "MENSAHE",
         messagePlaceholder = "Sabihin sa amin ang problema…",

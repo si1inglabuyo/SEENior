@@ -25,6 +25,7 @@ import com.pup.seenior.network.dto.RoutineDto
 import com.pup.seenior.network.dto.RoutineHistoryDto
 import com.pup.seenior.network.dto.RoutineHistorySyncRequest
 import com.pup.seenior.network.dto.RoutineSyncRequest
+import com.pup.seenior.network.dto.RoutineTimingDto
 import com.pup.seenior.network.dto.SeniorDto
 import com.pup.seenior.network.dto.PookDto
 import com.pup.seenior.network.dto.SetPasswordRequest
@@ -111,6 +112,13 @@ interface ApiService {
         @Path("syncId") syncId: String,
         @Body body: RoutineSyncRequest
     ): RoutineDto
+
+    // When each time block starts, and when the phone usually saw the senior first/last active.
+    @PUT("seniors/{syncId}/routine/timing")
+    suspend fun syncRoutineTiming(
+        @Path("syncId") syncId: String,
+        @Body body: RoutineTimingDto
+    ): RoutineTimingDto
 
     // The last 30 days of daily fingerprint copies (same median/MAD figures, never raw data).
     @PUT("seniors/{syncId}/routine/history")

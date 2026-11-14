@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import com.pup.seenior.database.SeniorAppDatabase
 import com.pup.seenior.baseline.BaselineHistoryRecorder
+import com.pup.seenior.baseline.RoutineTimingBuilder
 import com.pup.seenior.database.entities.Baseline
 import com.pup.seenior.database.entities.BaselineHistory
 import java.time.LocalDate
@@ -11,6 +12,7 @@ import com.pup.seenior.network.dto.RoutineHistoryRowDto
 import com.pup.seenior.network.dto.RoutineHistorySyncRequest
 import com.pup.seenior.network.dto.RoutineRowDto
 import com.pup.seenior.network.dto.RoutineSyncRequest
+import com.pup.seenior.network.dto.RoutineTimingDto
 
 /**
  * Sends the senior's Routine Fingerprint to the cloud so the family app and the barangay
@@ -43,6 +45,10 @@ object RoutineSyncer {
                 .since(senior.seniorId, LocalDate.now().minusDays(HISTORY_DAYS).toString())
                 .map { it.toDto() }
             val historySignature = historySignatureOf(history)
+            val timing = db.seniorOnboardingDao().getBySeniorId(senior.seniorId)?.let {
+                RoutineTimingBuilder.build(it, db.dailyAggregateDao().getAllOnce(senior.seniorId), LocalDate.now())
+            }
+            val timingSignature = timing?.let { timingSignatureOf(it) }
             val prefs = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
             SeniorCloudSync(db).withSyncId { syncId ->
@@ -57,6 +63,14 @@ object RoutineSyncer {
                     RetrofitClient.api.syncRoutineHistory(syncId, RoutineHistorySyncRequest(history))
                     prefs.edit().putString(historyKey, historySignature).apply()
                     Log.i(TAG, "Routine history sent (${history.size} rows)")
+                }
+                // The block times and the usual first/last active times. Sent on its own so an
+                // older server that does not know the endpoint cannot stop the fingerprint above.
+                val timingKey = "sent_timing_$syncId"
+                if (timing != null && prefs.getString(timingKey, null) != timingSignature) {
+                    RetrofitClient.api.syncRoutineTiming(syncId, timing)
+                    prefs.edit().putString(timingKey, timingSignature).apply()
+                    Log.i(TAG, "Routine timing sent")
                 }
             }
         } catch (e: Exception) {
@@ -112,6 +126,10 @@ object RoutineSyncer {
             }
             .hashCode()
             .toString()
+
+    internal fun timingSignatureOf(t: RoutineTimingDto): String =
+        "${t.morningStart}:${t.afternoonStart}:${t.eveningStart}:${t.nightStart}:" +
+            "${t.wakeMinute}:${t.wakeDays}:${t.eveningLastMinute}:${t.eveningLastDays}"
 
     /** Same idea as [signatureOf]: a changed day, or an estimate replaced by a saved copy, re-sends. */
     internal fun historySignatureOf(rows: List<RoutineHistoryRowDto>): String =

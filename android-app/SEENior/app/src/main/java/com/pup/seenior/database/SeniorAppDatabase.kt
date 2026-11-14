@@ -43,7 +43,7 @@ import com.pup.seenior.database.entities.SensorData
         SeniorOnboarding::class,
         BaselineHistory::class
     ],
-    version = 10,
+    version = 11,
     exportSchema = true
 )
 abstract class SeniorAppDatabase : RoomDatabase() {
@@ -178,13 +178,26 @@ abstract class SeniorAppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * 10 -> 11: when the senior was first and last active inside each block, for the family
+         * card's "usually first active about ..." line. Two nullable columns, not backfilled: the
+         * raw readings behind earlier rows are already purged, so older rows keep `null` for
+         * "not recorded".
+         */
+        private val MIGRATION_10_11 = object : Migration(10, 11) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE Daily_Aggregates ADD COLUMN first_active_minute INTEGER")
+                db.execSQL("ALTER TABLE Daily_Aggregates ADD COLUMN last_active_minute INTEGER")
+            }
+        }
+
         fun getInstance(context: Context): SeniorAppDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext,
                     SeniorAppDatabase::class.java,
                     "senior_app.db"
-                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
+                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11)
                     .build().also { INSTANCE = it }
             }
         }

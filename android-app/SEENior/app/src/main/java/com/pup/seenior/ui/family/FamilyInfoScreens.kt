@@ -1,5 +1,6 @@
 package com.pup.seenior.ui.family
 
+import com.pup.seenior.ui.ResearcherContacts
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.background
@@ -369,6 +370,57 @@ fun FamilyContactSupportScreen(onBack: () -> Unit) {
                     }
                     runCatching { context.startActivity(intent) }.onSuccess { message = "" }
                 }
+            )
+        }
+
+        // The research team, so someone can reach the people who built it.
+        FamilyResearchersCard()
+    }
+}
+
+/** Each researcher's number and email, both tappable: the dialler and the mail app open pre-filled. */
+@Composable
+private fun FamilyResearchersCard() {
+    val copy = LocalFamilyInfoCopy.current
+    val context = LocalContext.current
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, FamilyColors.FieldBorder, RoundedCornerShape(20.dp))
+            .padding(18.dp)
+    ) {
+        Text(copy.researchersHeading, color = FamilyColors.Blue, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+        ResearcherContacts.ALL.forEachIndexed { index, researcher ->
+            if (index > 0) HorizontalDivider(color = FamilyColors.FieldBorder, modifier = Modifier.padding(vertical = 12.dp))
+            else Spacer(Modifier.height(12.dp))
+            Text(copy.researcherLabel, color = FamilyColors.TextSecondary, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            researcher.phone?.let { phone ->
+                Text(
+                    phone,
+                    color = FamilyColors.TextPrimary,
+                    fontSize = 16.sp,
+                    modifier = Modifier
+                        .clickable {
+                            runCatching {
+                                context.startActivity(
+                                    Intent(Intent.ACTION_DIAL, Uri.parse("tel:${ResearcherContacts.dialable(phone)}"))
+                                )
+                            }
+                        }
+                        .padding(vertical = 4.dp)
+                )
+            }
+            Text(
+                researcher.email,
+                color = FamilyColors.Blue,
+                fontSize = 15.sp,
+                modifier = Modifier
+                    .clickable {
+                        runCatching {
+                            context.startActivity(Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:${researcher.email}")))
+                        }
+                    }
+                    .padding(vertical = 4.dp)
             )
         }
     }

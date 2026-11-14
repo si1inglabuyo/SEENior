@@ -2,29 +2,18 @@ package com.pup.seenior.ui.family
 
 import android.app.Application
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.PathEffect
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.pup.seenior.network.RetrofitClient
 import com.pup.seenior.network.dto.RoutineHistoryRowDto
 import com.pup.seenior.session.FamilySession
@@ -36,8 +25,8 @@ import java.time.LocalDate
 
 /**
  * Loads how a paired senior's routine was learned: one copy of the fingerprint per day, 30 days
- * at most (migration 0024). Read-only. On any failure the card simply stays hidden, since this
- * is a supporting view and must not disturb the rest of the senior's screen.
+ * at most (migration 0024). Read-only. On any failure it stays empty, since this is a supporting
+ * view inside the Daily routine card and must not disturb the rest of the senior's screen.
  */
 class FamilyRoutineHistoryViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -59,16 +48,26 @@ class FamilyRoutineHistoryViewModel(application: Application) : AndroidViewModel
     }
 }
 
-/** The plain-language reading of the history. Pure, so it is unit-tested. */
+/**
+ * The plain-language reading of the history, shown inside each block of the Daily routine card.
+ * Pure, so it is unit-tested.
+ */
 object RoutineHistorySummary {
 
     /** How long the senior is usually still in a block, on one day. */
-    data class Point(val date: String, val seconds: Double, val isEstimate: Boolean)
+    data class Point(val date: String, val seconds: Double, val isEstimate: Boolean, val samples: Int)
 
     data class BlockTrend(val block: String, val points: List<Point>) {
         /** The questionnaire's starting guess: the earliest day shown. */
         val start: Point get() = points.first()
         val latest: Point get() = points.last()
+
+        /**
+         * Whether any real day has moved this block off the setup answer. Seed cells carry a
+         * sample count of 0, so a block with only seed points is a flat line at the guess, which
+         * says nothing and is not drawn.
+         */
+        val learned: Boolean get() = points.any { it.samples > 0 }
     }
 
     data class Trend(
@@ -76,7 +75,12 @@ object RoutineHistorySummary {
         val hasEstimate: Boolean,
         /** First day the phone itself saved a copy, if any. */
         val firstSavedDate: String?
-    )
+    ) {
+        val anyLearned: Boolean get() = blocks.any { it.learned }
+
+        /** The trend to draw for [block], or null when it has learned nothing yet. */
+        fun forBlock(block: String): BlockTrend? = blocks.firstOrNull { it.block == block && it.learned }
+    }
 
     /** One line per block, built from the usual-stillness figure. Null when there is not yet a trend to draw. */
     fun summarize(rows: List<RoutineHistoryRowDto>): Trend? {
@@ -86,15 +90,17 @@ object RoutineHistorySummary {
         val blocks = RoutineWording.BLOCK_ORDER.mapNotNull { block ->
             val points = stillness.filter { it.timeBlock == block }
                 .sortedBy { it.day }
-                .map { Point(it.day, it.medianValue, it.isEstimate) }
+                .map { Point(it.day, it.medianValue, it.isEstimate, it.sampleCount) }
             if (points.size < 2) null else BlockTrend(block, points)
         }
         if (blocks.isEmpty()) return null
 
+        // The notes describe the drawn lines, so they only count blocks that are actually drawn.
+        val drawn = blocks.filter { it.learned }.flatMap { it.points }
         return Trend(
             blocks = blocks,
-            hasEstimate = stillness.any { it.isEstimate },
-            firstSavedDate = stillness.filter { !it.isEstimate }.minOfOrNull { it.day }
+            hasEstimate = drawn.any { it.isEstimate },
+            firstSavedDate = drawn.filter { !it.isEstimate }.minOfOrNull { it.date }
         )
     }
 
@@ -106,12 +112,6 @@ object RoutineHistorySummary {
         return "${(if (fil) MONTHS_FIL else MONTHS_EN)[d.monthValue - 1]} ${d.dayOfMonth}"
     }
 
-    fun title(fil: Boolean) =
-        if (fil) "Paano natutunan ang gawaing ito" else "How this routine was learned"
-
-    fun heading(fil: Boolean) =
-        if (fil) "Karaniwang pinakamahabang hindi paggalaw" else "Usual longest stillness"
-
     fun startedAt(block: BlockTrend, fil: Boolean): String {
         val from = RoutineWording.duration(block.start.seconds, fil)
         val now = RoutineWording.duration(block.latest.seconds, fil)
@@ -119,7 +119,32 @@ object RoutineHistorySummary {
         else "Started at a guess of $from, now $now"
     }
 
-    /** Said once under the charts, in plain words, when any of the days were worked out afterwards. */
+    /**
+     * The usual stillness for [block] as the fingerprint stood on the latest day before [today]
+     * (normally yesterday). It is the app's idea of the senior's normal on that day, not what the
+     * senior did, so it must never be worded as activity. Null when no earlier day exists, or when
+     * that day was still only the setup answer (nothing real behind it, so nothing to compare).
+     */
+    fun previousDay(rows: List<RoutineHistoryRowDto>, block: String, today: LocalDate): Point? =
+        rows.filter { it.featureName == "inactivity_duration" && it.timeBlock == block }
+            .filter { LocalDate.parse(it.day).isBefore(today) }
+            .maxByOrNull { it.day }
+            ?.takeIf { it.sampleCount > 0 }
+            ?.let { Point(it.day, it.medianValue, it.isEstimate, it.sampleCount) }
+
+    /** "Yesterday, the usual was: still for up to 46 min". Names the date when it was not yesterday. */
+    fun previousDayLabel(point: Point, today: LocalDate, fil: Boolean): String {
+        val duration = RoutineWording.duration(point.seconds, fil)
+        val isYesterday = LocalDate.parse(point.date) == today.minusDays(1)
+        val whenText = when {
+            isYesterday -> if (fil) "Kahapon" else "Yesterday"
+            else -> shortDate(point.date, fil)
+        }
+        return if (fil) "$whenText, ang karaniwan ay hindi gumagalaw nang hanggang $duration"
+        else "$whenText, the usual was still for up to $duration"
+    }
+
+    /** Said once under the blocks, in plain words, when any drawn day was worked out afterwards. */
     fun estimateNote(fil: Boolean) =
         if (fil) "Ang mga naunang araw ay tantiya lamang, batay sa naitalang pang-araw-araw na kilos."
         else "Earlier days are an estimate worked out from your parent's saved daily activity."
@@ -129,60 +154,9 @@ object RoutineHistorySummary {
         else "From ${shortDate(date, false)}, the app saved this each night."
 }
 
-@Composable
-fun RoutineHistoryCard(
-    seniorSyncId: String,
-    viewModel: FamilyRoutineHistoryViewModel = viewModel()
-) {
-    val copy = LocalFamilyCopy.current
-    val fil = copy.language == "fil"
-
-    LaunchedEffect(seniorSyncId) { viewModel.load(seniorSyncId) }
-
-    val trend = RoutineHistorySummary.summarize(viewModel.rows) ?: return
-
-    Text(
-        RoutineHistorySummary.title(fil),
-        color = FamilyColors.TextPrimary,
-        fontSize = 13.sp,
-        fontWeight = FontWeight.Bold,
-        modifier = Modifier.padding(top = 24.dp, bottom = 10.dp)
-    )
-
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .border(1.dp, FamilyColors.FieldBorder, RoundedCornerShape(14.dp))
-            .padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        Text(RoutineHistorySummary.heading(fil), color = FamilyColors.TextSecondary, fontSize = 13.sp)
-
-        trend.blocks.forEach { block ->
-            HorizontalDivider(color = FamilyColors.FieldBorder)
-            Text(
-                RoutineWording.blockLabel(block.block, fil),
-                color = FamilyColors.Blue,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Bold
-            )
-            TrendLine(block.points)
-            Text(RoutineHistorySummary.startedAt(block, fil), color = FamilyColors.TextSecondary, fontSize = 13.sp)
-        }
-
-        HorizontalDivider(color = FamilyColors.FieldBorder)
-        if (trend.hasEstimate) {
-            Text(RoutineHistorySummary.estimateNote(fil), color = FamilyColors.TextSecondary, fontSize = 12.sp)
-        }
-        trend.firstSavedDate?.let {
-            Text(RoutineHistorySummary.savedNote(it, fil), color = FamilyColors.TextSecondary, fontSize = 12.sp)
-        }
-    }
-}
-
 /** Days the app saved are solid; days worked out afterwards are dotted. */
 @Composable
-private fun TrendLine(points: List<RoutineHistorySummary.Point>) {
+internal fun TrendLine(points: List<RoutineHistorySummary.Point>) {
     val color = FamilyColors.Blue
     Canvas(modifier = Modifier.fillMaxWidth().height(56.dp)) {
         val low = points.minOf { it.seconds }

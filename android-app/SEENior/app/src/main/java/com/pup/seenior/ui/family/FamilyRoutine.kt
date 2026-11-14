@@ -29,12 +29,16 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.pup.seenior.network.RetrofitClient
 import com.pup.seenior.network.dto.RoutineDto
+import com.pup.seenior.network.dto.RoutineHistoryRowDto
 import com.pup.seenior.network.dto.RoutineRowDto
+import com.pup.seenior.network.dto.RoutineTimingDto
 import com.pup.seenior.session.FamilySession
 import com.pup.seenior.session.SessionState
 import kotlinx.coroutines.launch
 import retrofit2.HttpException
 import java.io.IOException
+import java.time.LocalDate
+import java.time.ZoneId
 
 /**
  * Loads one paired senior's Routine Fingerprint from the cloud. Read-only: the phone is the
@@ -134,11 +138,18 @@ object RoutineWording {
 }
 
 @Composable
-fun RoutineCard(seniorSyncId: String, viewModel: FamilyRoutineViewModel = viewModel()) {
+fun RoutineCard(
+    seniorSyncId: String,
+    viewModel: FamilyRoutineViewModel = viewModel(),
+    historyViewModel: FamilyRoutineHistoryViewModel = viewModel()
+) {
     val copy = LocalFamilyCopy.current
     val fil = copy.language == "fil"
 
-    LaunchedEffect(seniorSyncId) { viewModel.load(seniorSyncId) }
+    LaunchedEffect(seniorSyncId) {
+        viewModel.load(seniorSyncId)
+        historyViewModel.load(seniorSyncId)
+    }
 
     Text(
         if (fil) "Pang-araw-araw na gawain" else "Daily routine",
@@ -167,13 +178,27 @@ fun RoutineCard(seniorSyncId: String, viewModel: FamilyRoutineViewModel = viewMo
                     fontSize = 14.sp
                 )
 
-            is FamilyRoutineViewModel.State.Loaded -> RoutineBody(s.routine.rows, fil)
+            is FamilyRoutineViewModel.State.Loaded ->
+                RoutineBody(
+                    s.routine.rows,
+                    RoutineHistorySummary.summarize(historyViewModel.rows),
+                    historyViewModel.rows,
+                    s.routine.timing,
+                    fil
+                )
         }
     }
 }
 
 @Composable
-private fun RoutineBody(rows: List<RoutineRowDto>, fil: Boolean) {
+private fun RoutineBody(
+    rows: List<RoutineRowDto>,
+    history: RoutineHistorySummary.Trend?,
+    historyRows: List<RoutineHistoryRowDto>,
+    timing: RoutineTimingDto?,
+    fil: Boolean
+) {
+    val today = remember { LocalDate.now(ZoneId.of("Asia/Manila")) }
     if (rows.isEmpty()) {
         Text(
             if (fil) "Wala pang naibabahagi. Lalabas ito kapag nakakonekta na ang telepono ng senior."
@@ -198,6 +223,10 @@ private fun RoutineBody(rows: List<RoutineRowDto>, fil: Boolean) {
             Text(RoutineWording.blockLabel(b.block, fil), color = FamilyColors.Blue, fontSize = 15.sp, fontWeight = FontWeight.Bold)
             Text(RoutineSummary.levelLabel(b.level, fil), color = FamilyColors.TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
         }
+        // The hours this block covers, from the senior's setup answers; absent until their phone has sent them.
+        timing?.let { RoutineTimingWording.range(b.block, it) }?.let {
+            Text(it, color = FamilyColors.TextSecondary, fontSize = 13.sp)
+        }
         // How busy this part of the day is next to the senior's busiest part.
         Box(
             modifier = Modifier
@@ -215,8 +244,35 @@ private fun RoutineBody(rows: List<RoutineRowDto>, fil: Boolean) {
         b.stillSeconds?.let {
             Text(RoutineSummary.stillLabel(it, fil), color = FamilyColors.TextSecondary, fontSize = 13.sp)
         }
+        // What the phone actually saw: when they are usually first active (morning) or last active (evening).
+        timing?.let { RoutineTimingWording.usuallyActive(b.block, it, fil) }?.let {
+            Text(it, color = FamilyColors.TextSecondary, fontSize = 13.sp)
+        }
+        // The same figure as the app held it the day before: its idea of normal, not what the senior did.
+        RoutineHistorySummary.previousDay(historyRows, b.block, today)?.let {
+            Text(RoutineHistorySummary.previousDayLabel(it, today, fil), color = FamilyColors.TextSecondary, fontSize = 13.sp)
+        }
+        // How that figure was learned, only once real days have moved it off the setup answer.
+        history?.forBlock(b.block)?.let { trend ->
+            TrendLine(trend.points)
+            Text(RoutineHistorySummary.startedAt(trend, fil), color = FamilyColors.TextSecondary, fontSize = 13.sp)
+        }
         b.phone?.let {
             Text(RoutineSummary.phoneLabel(it, fil), color = FamilyColors.TextSecondary, fontSize = 13.sp)
+        }
+    }
+
+    if (timing != null && summary.blocks.any { RoutineTimingWording.usuallyActive(it.block, timing, fil) != null }) {
+        Text(RoutineTimingWording.note(fil), color = FamilyColors.TextSecondary, fontSize = 12.sp)
+    }
+
+    // One plain-words explanation of the lines above, only when some line was drawn.
+    if (history != null && history.anyLearned) {
+        if (history.hasEstimate) {
+            Text(RoutineHistorySummary.estimateNote(fil), color = FamilyColors.TextSecondary, fontSize = 12.sp)
+        }
+        history.firstSavedDate?.let {
+            Text(RoutineHistorySummary.savedNote(it, fil), color = FamilyColors.TextSecondary, fontSize = 12.sp)
         }
     }
 
@@ -257,9 +313,16 @@ private fun RoutineNumbers(rows: List<RoutineRowDto>, fil: Boolean) {
             }
         }
     }
+    // The setup guess fades out one fourteenth a day, so a figure keeps its `*` until day 14 even
+    // when it is mostly the senior's own data. Say that, and only when some figure has the `*`.
+    val seedNote = when {
+        rows.none { it.isSeed } -> ""
+        fil -> "* bahagya pang galing sa mga sagot sa setup; mawawala ito pagsapit ng araw 14. "
+        else -> "* still partly from the setup answers; that share fades out by day 14. "
+    }
     Text(
-        if (fil) "* galing pa sa mga sagot sa setup. \"±\" ay ang karaniwang pagbabago sa isang araw."
-        else "* still from the setup answers. \"±\" is how much an ordinary day normally varies.",
+        seedNote + if (fil) "\"±\" ay ang karaniwang pagbabago sa isang araw."
+        else "\"±\" is how much an ordinary day normally varies.",
         color = FamilyColors.TextSecondary,
         fontSize = 12.sp
     )

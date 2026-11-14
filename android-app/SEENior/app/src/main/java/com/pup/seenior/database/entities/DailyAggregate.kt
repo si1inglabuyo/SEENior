@@ -48,5 +48,14 @@ data class DailyAggregate(
     @ColumnInfo(name = "sample_count") val sampleCount: Int? = null,
     /** Isolation Forest path-length anomaly score — set after the daily IF run, null until then */
     @ColumnInfo(name = "isolation_forest_score") val isolationForestScore: Double? = null,
-    @ColumnInfo(name = "created_at") val createdAt: Long = System.currentTimeMillis()
+    @ColumnInfo(name = "created_at") val createdAt: Long = System.currentTimeMillis(),
+    /**
+     * Minute of the day (0-1439, local time) at which the senior first showed sustained activity
+     * inside this block, or null when they did not (or the row predates the column). Taken at
+     * roll-up time, the only moment the raw readings still exist. Used for the family card's
+     * "usually first active about ..." line; detection never reads it.
+     */
+    @ColumnInfo(name = "first_active_minute") val firstActiveMinute: Int? = null,
+    /** Same, for the last sustained activity inside the block. */
+    @ColumnInfo(name = "last_active_minute") val lastActiveMinute: Int? = null
 )

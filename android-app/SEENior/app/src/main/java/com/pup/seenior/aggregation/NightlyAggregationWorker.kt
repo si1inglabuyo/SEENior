@@ -190,6 +190,10 @@ class NightlyAggregationWorker(
         val chargingCount = rows.count { it.isCharging }
         val isChargingMajority = chargingCount > rows.size / 2
 
+        // The only moment this can be taken: once the rows are deleted, nothing can say when the
+        // senior was first and last active in this block.
+        val (firstActive, lastActive) = ActiveTimes.firstAndLastMinute(rows)
+
         return DailyAggregate(
             seniorId = seniorId,
             date = date,
@@ -202,7 +206,9 @@ class NightlyAggregationWorker(
             isChargingMajority = isChargingMajority,
             // The only moment this can be taken: after the rows are deleted, nothing can say
             // whether a block came from a full 52 readings or only a few.
-            sampleCount = rows.size
+            sampleCount = rows.size,
+            firstActiveMinute = firstActive,
+            lastActiveMinute = lastActive
         )
     }
 }
