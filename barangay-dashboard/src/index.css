@@ -1402,3 +1402,9 @@ h4 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase;
   border: 0; background: #fff; color: var(--accent-ink); padding: 7px 14px; font: inherit; font-weight: 700; cursor: pointer;
 }
 .demo-toggle button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+
+/* --- daily routine: how it was learned (30-day trend, one line per part of the day) --- */
+.routine-trend { margin: 16px 0 4px; border-top: 1px solid var(--line); padding-top: 14px; }
+.routine-trend-title { margin: 0 0 2px; font-size: 14px; font-weight: 700; }
+.routine-trend-chart { display: block; width: 100%; height: 56px; margin: 8px 0 2px; }
+.routine-trend-chart line { stroke: var(--accent); stroke-width: 3; stroke-linecap: round; }

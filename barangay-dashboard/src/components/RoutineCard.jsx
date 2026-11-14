@@ -6,6 +6,7 @@ import {
   cell, headline, progress, stillLabel, summarize,
 } from '../routine'
 import { IconChart, IconEye } from '../icons'
+import RoutineTrend from './RoutineTrend'
 import SectionCard from './SectionCard'
 
 // A senior's Routine Fingerprint: what is usual for them in each part of the day. The phone
@@ -15,6 +16,7 @@ import SectionCard from './SectionCard'
 export default function RoutineCard({ syncId, onSessionLost }) {
   const [phase, setPhase] = useState('closed') // 'closed' | 'loading' | 'ok' | 'error'
   const [routine, setRoutine] = useState(null)
+  const [history, setHistory] = useState([])
   const [error, setError] = useState('')
   const [showNumbers, setShowNumbers] = useState(false)
 
@@ -24,6 +26,7 @@ export default function RoutineCard({ syncId, onSessionLost }) {
     try {
       setRoutine(await api(`/seniors/${syncId}/routine`))
       setPhase('ok')
+      loadHistory()
     } catch (err) {
       if (err.message.includes('expired')) {
         onSessionLost()
@@ -31,6 +34,18 @@ export default function RoutineCard({ syncId, onSessionLost }) {
       }
       setError(err.message)
       setPhase('error')
+    }
+  }
+
+  // The day-by-day copies of the same fingerprint (30 days at most). A supporting view: if it
+  // cannot be loaded, the card above is unaffected and this simply stays hidden. It is a history
+  // of the person's routine, so opening it is written to the access log on its own line.
+  async function loadHistory() {
+    recordAccess('routine_history_view', { sync_id: syncId })
+    try {
+      setHistory((await api(`/seniors/${syncId}/routine/history`)).rows ?? [])
+    } catch {
+      setHistory([])
     }
   }
 
@@ -83,6 +98,8 @@ export default function RoutineCard({ syncId, onSessionLost }) {
               </li>
             ))}
           </ul>
+
+          <RoutineTrend rows={history} />
 
           <button type="button" className="history-more-btn" onClick={() => setShowNumbers((v) => !v)}>
             {showNumbers ? 'Hide numbers' : 'Show numbers'}

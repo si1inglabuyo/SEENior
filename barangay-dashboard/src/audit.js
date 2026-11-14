@@ -4,6 +4,7 @@
 //   - 'active_alert_view'    - opening the active-alert view (full address and contacts)
 //   - 'full_history_view'    - expanding a senior's full alert history
 //   - 'routine_view'         - opening a senior's daily routine (Routine Fingerprint)
+//   - 'routine_history_view' - the 30 days of daily fingerprint copies shown under it
 //
 // The log is kept in localStorage on this machine. A central log would need a server table
 // and a POST /barangay/audit route, which belong to the main lane. Once that exists, send
@@ -51,5 +52,6 @@ export const ACCESS_ACTION_LABEL = {
   active_alert_view: 'Opened the active-alert view (full address + family contacts)',
   full_history_view: 'Expanded a senior’s full alert history',
   routine_view: 'Opened a senior’s daily routine',
+  routine_history_view: 'Opened how a senior’s routine was learned (30 days of daily copies)',
   history_full_view: 'Opened the full alert history (beyond the default 30 days)',
 }
