@@ -19,6 +19,8 @@ import com.pup.seenior.network.dto.InviteCodeDto
 import com.pup.seenior.network.dto.LanguagePreferenceRequest
 import com.pup.seenior.network.dto.PairRequest
 import com.pup.seenior.network.dto.PairResponseDto
+import com.pup.seenior.network.dto.OutcomeRecordDto
+import com.pup.seenior.network.dto.RecordOutcomeRequest
 import com.pup.seenior.network.dto.RegisterDeviceRequest
 import com.pup.seenior.network.dto.RegisterRequest
 import com.pup.seenior.network.dto.RoutineDto
@@ -85,6 +87,11 @@ interface ApiService {
         @Path("syncId") syncId: String,
         @Body body: CancelAlertRequest
     ): AlertDto
+
+    // The answer for an alert the senior closed inside the window, which never reached `alerts`.
+    // Idempotent per alert (the phone's own id), so a retry cannot double-count.
+    @POST("alerts/outcomes")
+    suspend fun recordAlertOutcome(@Body body: RecordOutcomeRequest): OutcomeRecordDto
 
     // The senior's "what happened" answer after "I'm safe". A fixed code; set once on the server,
     // so a retry can't overwrite it with a different one.

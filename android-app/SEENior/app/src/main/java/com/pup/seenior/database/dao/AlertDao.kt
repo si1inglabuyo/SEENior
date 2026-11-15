@@ -218,15 +218,17 @@ interface AlertDao {
     @Query("UPDATE Alerts SET outcome_reason = :reason WHERE alert_id = :alertId")
     suspend fun updateOutcomeReason(alertId: Int, reason: String)
 
-    /** Self-cancelled alerts that already reached the cloud and carry an answer, for the retry. */
+    /**
+     * Self-cancelled alerts that carry an answer, escalated or not, for the retry. An alert the
+     * senior closed inside the window never reached the cloud, so its answer is reported too.
+     */
     @Query(
         """
         SELECT * FROM Alerts
-        WHERE senior_id = :seniorId AND status = 'self_cancelled' AND is_synced = 1
-          AND outcome_reason IS NOT NULL
+        WHERE senior_id = :seniorId AND status = 'self_cancelled' AND outcome_reason IS NOT NULL
         """
     )
-    suspend fun getSyncedAlertsWithOutcome(seniorId: Int): List<Alert>
+    suspend fun getAlertsWithOutcome(seniorId: Int): List<Alert>
 
     @Query("UPDATE Alerts SET is_synced = 1 WHERE alert_id = :alertId")
     suspend fun markSynced(alertId: Int)

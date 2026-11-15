@@ -64,6 +64,24 @@ data class UpdateOutcomeRequest(
     val outcomeReason: String
 )
 
+/** Mirrors backend OutcomeRecordCreate: the answer for an alert the senior closed inside the
+ *  response window, which never reached the cloud. Just enough to count it: no location,
+ *  fall evidence, score or steps. [alertSyncId] is the phone's own id, so a retry is safe. */
+data class RecordOutcomeRequest(
+    val seniorSyncId: String,
+    val alertSyncId: String,
+    val triggerType: String,
+    val riskLevel: String,
+    val timeBlock: String,
+    val triggeredAt: String?,
+    val outcomeReason: String
+)
+
+data class OutcomeRecordDto(
+    val alertSyncId: String,
+    val outcomeReason: String
+)
+
 /** Mirrors backend AlertSeverityUpdate: an already-sent alert that Layer 1 re-classified
  *  upwards. Carries the senior's id like [CancelAlertRequest]. */
 data class UpdateSeverityRequest(

@@ -9,6 +9,7 @@ import com.pup.seenior.network.RetrofitClient
 import com.pup.seenior.network.SeniorCloudSync
 import com.pup.seenior.network.dto.CancelAlertRequest
 import com.pup.seenior.network.dto.CreateAlertRequest
+import com.pup.seenior.network.dto.RecordOutcomeRequest
 import com.pup.seenior.network.dto.UpdateLocationRequest
 import com.pup.seenior.network.dto.UpdateOutcomeRequest
 import com.pup.seenior.network.dto.UpdateSeverityRequest
@@ -296,28 +297,47 @@ object AlertEscalator {
             .filterNot { hasStep(it, STEP_CANCEL_SYNCED) }
             .forEach { cancelInCloud(db, it.alertId) }
         // The "what happened" answers the cloud has not heard yet, after the cancels so the alert is closed first.
-        db.alertDao().getSyncedAlertsWithOutcome(seniorId)
+        db.alertDao().getAlertsWithOutcome(seniorId)
             .filterNot { hasStep(it, STEP_OUTCOME_SYNCED) }
             .forEach { syncOutcome(db, it.alertId) }
     }
 
     /**
-     * Tells the cloud what the senior said happened after "I'm safe". A no-op for an alert that
-     * never reached the cloud: the answer stays on the phone with the alert, since the cloud only
-     * ever receives an alert once it escalates past the senior. Returns true when nothing more is
-     * owed (sent, or nothing to send). A failure is swallowed; the watchdog retries.
+     * Tells the cloud what the senior said happened after "I'm safe", wherever the alert got to.
+     *
+     * An alert that already reached the cloud has its answer patched onto the `alerts` row. One the
+     * senior closed inside the response window never did (nobody else is told about a false alarm
+     * they cancelled), so its answer goes to its own record instead: when it fired, its type, risk
+     * level, time block and the answer. Nothing else about that alert leaves the phone: no
+     * location, fall evidence, score or steps, and nobody is notified. Returns true when nothing
+     * more is owed (sent, or nothing to send). A failure is swallowed; the watchdog retries.
      */
     suspend fun syncOutcome(db: SeniorAppDatabase, alertId: Int): Boolean {
         val alert = db.alertDao().getById(alertId) ?: return false
         val reason = alert.outcomeReason ?: return true
-        if (!alert.isSynced) return true
         if (hasStep(alert, STEP_OUTCOME_SYNCED)) return true
         // A stray value is never sent; the server would refuse it anyway.
         if (!OutcomeReasons.isValid(alert.triggerType, reason)) return true
 
         return try {
             SeniorCloudSync(db).withCachedSyncId { seniorSyncId ->
-                RetrofitClient.api.updateAlertOutcome(alert.syncId, UpdateOutcomeRequest(seniorSyncId, reason))
+                // Never re-registers: a 404 here is about one alert, not a stale identity (see
+                // SeniorCloudSync). A phone with no cloud id simply retries later.
+                if (alert.isSynced) {
+                    RetrofitClient.api.updateAlertOutcome(alert.syncId, UpdateOutcomeRequest(seniorSyncId, reason))
+                } else {
+                    RetrofitClient.api.recordAlertOutcome(
+                        RecordOutcomeRequest(
+                            seniorSyncId = seniorSyncId,
+                            alertSyncId = alert.syncId,
+                            triggerType = alert.triggerType,
+                            riskLevel = alert.riskLevel,
+                            timeBlock = alert.timeBlock,
+                            triggeredAt = Instant.ofEpochMilli(alert.triggeredAt).toString(),
+                            outcomeReason = reason
+                        )
+                    )
+                }
             }
             db.alertDao().updateEscalationSteps(
                 alert.alertId,
