@@ -50,6 +50,8 @@ class AlertOut(BaseModel):
     # figures, a flag and a setting; never sensor samples.
     fall_context: str | None = None
     fall_tolerance: str | None = None
+    # What the senior said happened after answering "I'm safe" (migration 0026). A fixed code.
+    outcome_reason: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -66,6 +68,24 @@ class AlertCancel(BaseModel):
     # closes the alert only if nobody has started working on it; otherwise it stays open and the
     # unchanged alert comes back. Absent means the senior answered themselves.
     reason: Literal["phone_use"] | None = None
+
+
+OutcomeReason = Literal["phone_dropped", "fell_fine", "unused_fine", "left_behind_fine", "other"]
+
+# Which codes make sense for which alert. The phone only offers the right set, so this is the
+# server holding the same line against a stray or hand-made request.
+FALL_OUTCOMES = {"phone_dropped", "fell_fine", "other"}
+ANOMALY_OUTCOMES = {"unused_fine", "left_behind_fine", "other"}
+
+
+class AlertOutcome(BaseModel):
+    """The senior's phone reporting the answer to "what happened" after they said they were safe.
+
+    Carries both sync_ids, like AlertCancel. A fixed code, never free text.
+    """
+
+    senior_sync_id: UUID
+    outcome_reason: OutcomeReason
 
 
 class AlertSeverityUpdate(BaseModel):

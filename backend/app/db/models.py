@@ -453,5 +453,10 @@ class Alert(Base):
     # a timestamp. Confirmed falls only; cleared when the senior deletes their account. Null for
     # every other trigger and older rows.
     fall_trace: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # What the senior said happened after answering "I'm safe" (migration 0026), one fixed code:
+    # phone_dropped / fell_fine (falls), unused_fine / left_behind_fine (anomalies), other. Never
+    # free text. A record, not a rule: nothing in detection, escalation or false-alarm tolerance
+    # reads it. Null when the senior skipped the question, and for older rows.
+    outcome_reason: Mapped[str | None] = mapped_column(String(32), nullable=True)
 
     senior: Mapped["Senior"] = relationship(back_populates="alerts")

@@ -25,11 +25,14 @@ from app.db.models import (
 )
 from app.db.session import SessionLocal, get_db
 from app.schemas.alert import (
+    ANOMALY_OUTCOMES,
+    FALL_OUTCOMES,
     AlertCancel,
     AlertCreate,
     AlertDispatchRequest,
     AlertLocationUpdate,
     AlertOut,
+    AlertOutcome,
     AlertSeverityUpdate,
 )
 
@@ -509,6 +512,47 @@ async def cancel_alert(
         append_step(alert, "self_cancelled_senior", by=alert.senior.first_name)
     await db.commit()
     await db.refresh(alert)
+    return alert
+
+
+@router.patch("/{sync_id}/outcome", response_model=AlertOut)
+async def set_alert_outcome(
+    sync_id: UUID,
+    payload: AlertOutcome,
+    x_device_key: str | None = Header(default=None),
+    db: AsyncSession = Depends(get_db),
+) -> Alert:
+    """The senior says what happened after answering "I'm safe" (migration 0026).
+
+    A fixed code, never free text, and a record only: nothing in escalation or detection reads it
+    and it does not change the alert's status. Allowed on an open or a closed alert, since the
+    senior answers just after closing it. Set once and idempotent, so a phone retrying after a lost
+    connection can't overwrite an answer with a different one. No JWT; needs both sync_ids and the
+    device key, like the cancel route.
+    """
+    result = await db.execute(
+        select(Alert).where(Alert.sync_id == sync_id).options(selectinload(Alert.senior))
+    )
+    alert = result.scalar_one_or_none()
+    if alert is None or alert.senior is None or alert.senior.sync_id != payload.senior_sync_id:
+        # One 404 for both, so we don't reveal that the alert exists.
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Alert not found")
+
+    check_device_key(alert.senior, x_device_key)
+
+    allowed = FALL_OUTCOMES if alert.trigger_type == TriggerType.FALL_PATTERN else ANOMALY_OUTCOMES
+    if alert.trigger_type == TriggerType.SOS or payload.outcome_reason not in allowed:
+        # An SOS is never asked, and a fall's codes are not an anomaly's.
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="That answer does not apply to this alert",
+        )
+
+    if alert.outcome_reason is None:
+        alert.outcome_reason = payload.outcome_reason
+        append_step(alert, "outcome_reported", reason=payload.outcome_reason)
+        await db.commit()
+        await db.refresh(alert)
     return alert
 
 
