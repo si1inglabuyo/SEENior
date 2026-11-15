@@ -198,6 +198,36 @@ interface AlertDao {
     @Query("UPDATE Alerts SET escalation_steps = :steps WHERE alert_id = :alertId")
     suspend fun updateEscalationSteps(alertId: Int, steps: String)
 
+    /**
+     * Closed alerts that still owe the senior's "what happened" answer, oldest first. The question
+     * may not be skipped, so this is what brings it back after the app was closed. Marked by the
+     * `outcome_pending` timeline step (see [com.pup.seenior.alerts.AlertEscalator.STEP_OUTCOME_PENDING]).
+     */
+    @Query(
+        """
+        SELECT * FROM Alerts
+        WHERE senior_id = :seniorId AND status = 'self_cancelled' AND outcome_reason IS NULL
+          AND trigger_type != 'sos'
+          AND escalation_steps LIKE '%"outcome_pending"%'
+        ORDER BY triggered_at ASC
+        """
+    )
+    fun observeAwaitingOutcome(seniorId: Int): Flow<List<Alert>>
+
+    /** The senior's one-tap answer to "what happened". A record only; nothing reads it back to decide anything. */
+    @Query("UPDATE Alerts SET outcome_reason = :reason WHERE alert_id = :alertId")
+    suspend fun updateOutcomeReason(alertId: Int, reason: String)
+
+    /** Self-cancelled alerts that already reached the cloud and carry an answer, for the retry. */
+    @Query(
+        """
+        SELECT * FROM Alerts
+        WHERE senior_id = :seniorId AND status = 'self_cancelled' AND is_synced = 1
+          AND outcome_reason IS NOT NULL
+        """
+    )
+    suspend fun getSyncedAlertsWithOutcome(seniorId: Int): List<Alert>
+
     @Query("UPDATE Alerts SET is_synced = 1 WHERE alert_id = :alertId")
     suspend fun markSynced(alertId: Int)
 

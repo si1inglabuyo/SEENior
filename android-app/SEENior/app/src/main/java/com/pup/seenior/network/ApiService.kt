@@ -31,6 +31,7 @@ import com.pup.seenior.network.dto.PookDto
 import com.pup.seenior.network.dto.SetPasswordRequest
 import com.pup.seenior.network.dto.TokenDto
 import com.pup.seenior.network.dto.UpdateLocationRequest
+import com.pup.seenior.network.dto.UpdateOutcomeRequest
 import com.pup.seenior.network.dto.UpdateProfileRequest
 import com.pup.seenior.network.dto.UpdateSeniorRequest
 import com.pup.seenior.network.dto.UpdateSeverityRequest
@@ -83,6 +84,14 @@ interface ApiService {
     suspend fun cancelAlert(
         @Path("syncId") syncId: String,
         @Body body: CancelAlertRequest
+    ): AlertDto
+
+    // The senior's "what happened" answer after "I'm safe". A fixed code; set once on the server,
+    // so a retry can't overwrite it with a different one.
+    @PATCH("alerts/{syncId}/outcome")
+    suspend fun updateAlertOutcome(
+        @Path("syncId") syncId: String,
+        @Body body: UpdateOutcomeRequest
     ): AlertDto
 
     // Upgrade-only and idempotent on the server, so a retry can't talk a level back down.

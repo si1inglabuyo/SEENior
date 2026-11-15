@@ -18,8 +18,8 @@ android {
         applicationId = "com.pup.seenior"
         minSdk = 26
         targetSdk = 37
-        versionCode = 70
-        versionName = "1.69"
+        versionCode = 72
+        versionName = "1.71"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 

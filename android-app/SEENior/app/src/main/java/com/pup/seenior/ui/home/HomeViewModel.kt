@@ -67,6 +67,13 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private var openAlerts by mutableStateOf<List<Alert>>(emptyList())
 
     /**
+     * Closed alerts still owed the "what happened" answer. Kept apart from [openAlerts] on
+     * purpose: they are closed, so they must not feed [helpDelivery] or the closed-alert sync.
+     * The question cannot be skipped, so one of these brings the prompt back until it is answered.
+     */
+    private var awaitingOutcome by mutableStateOf<List<Alert>>(emptyList())
+
+    /**
      * Alerts the senior has already responded to on this screen. Answering "I need help"
      * leaves the alert `pending`, so without this the prompt would reappear immediately. Kept
      * in memory because it only applies to this session.
@@ -143,6 +150,13 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 while (true) {
                     syncClosedAlerts()
                     delay(CLOSED_ALERTS_POLL_MS)
+                }
+            }
+            // Same reason as the collectors above: the alert Flow below never returns.
+            launch {
+                db.alertDao().observeAwaitingOutcome(loaded.seniorId).collectLatest { owed ->
+                    awaitingOutcome = owed
+                    if (handling == null) handling = nextUnanswered()
                 }
             }
             refreshBattery()
@@ -249,8 +263,14 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         handling = nextUnanswered()
     }
 
+    /**
+     * An open alert comes first, since it is counting down. Then a closed one still owed its
+     * "what happened" answer. Those are not held back by [answeredThisSession]: "answered" there
+     * means the prompt was dealt with, and the question is exactly what is still outstanding.
+     */
     private fun nextUnanswered(): Alert? =
         openAlerts.firstOrNull { it.alertId !in answeredThisSession }
+            ?: awaitingOutcome.firstOrNull { it.alertId != handling?.alertId }
 
     /**
      * SOS. Raised directly, since it is a conscious request for help and there is nothing to
@@ -286,7 +306,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             val now = System.currentTimeMillis()
             db.alertDao().updateEscalationSteps(
                 alert.alertId,
-                AlertEscalator.appendStep(alert.escalationSteps, "self_cancelled", now)
+                AlertEscalator.selfCancelledSteps(alert.escalationSteps, alert.triggerType, now)
             )
             db.alertDao().updateStatus(alert.alertId, "self_cancelled", now)
             // Nothing is owed on it any more, including a queued delivery retry.

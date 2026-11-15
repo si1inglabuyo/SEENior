@@ -90,5 +90,15 @@ data class Alert(
      * escalates (`alerts.fall_trace`, migration 0023): the first per-reading series to leave the
      * phone, added at the panel's request (CLAUDE.md section 11). A record, not a rule.
      */
-    @ColumnInfo(name = "fall_trace") val fallTrace: String? = null
+    @ColumnInfo(name = "fall_trace") val fallTrace: String? = null,
+    /**
+     * What the senior said happened, asked once after they answered "I'm safe" (see
+     * [com.pup.seenior.alerts.OutcomeReasons]): one fixed code, never free text. Falls take
+     * `phone_dropped` / `fell_fine`, the other routine alerts `unused_fine` / `left_behind_fine`,
+     * both `other`. Null when the senior skipped it, and for older rows. Synced to the cloud
+     * (`alerts.outcome_reason`, migration 0026) only for an alert that already reached it. A
+     * record, not a rule: detection, escalation and [com.pup.seenior.detection.FalseAlarmTolerance]
+     * never read it.
+     */
+    @ColumnInfo(name = "outcome_reason") val outcomeReason: String? = null
 )

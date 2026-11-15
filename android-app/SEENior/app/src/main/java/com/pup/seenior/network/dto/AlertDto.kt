@@ -57,6 +57,13 @@ data class CancelAlertRequest(
     val reason: String? = null
 )
 
+/** Mirrors backend AlertOutcome: the senior's one-tap answer to "what happened", a fixed code
+ *  from [com.pup.seenior.alerts.OutcomeReasons], never free text. */
+data class UpdateOutcomeRequest(
+    val seniorSyncId: String,
+    val outcomeReason: String
+)
+
 /** Mirrors backend AlertSeverityUpdate: an already-sent alert that Layer 1 re-classified
  *  upwards. Carries the senior's id like [CancelAlertRequest]. */
 data class UpdateSeverityRequest(

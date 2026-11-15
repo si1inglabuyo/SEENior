@@ -89,6 +89,82 @@ fun WellnessPromptScreen(
         PromptStage.ACKNOWLEDGED ->
             AcknowledgedBody(if (viewModel.stoodDown) copy.standDownDone else copy.acknowledged)
         PromptStage.SENT -> AlertSentBody(copy, viewModel, willAlertContacts, willAlertContactsKnown, onFinished)
+        PromptStage.OUTCOME -> {
+            val outcomeCopy = OutcomeMessages.forAlert(language, alert.triggerType)
+            // No question for this trigger means the stage should never have been entered; close
+            // rather than strand the senior on an empty screen.
+            if (outcomeCopy == null) LaunchedEffect(Unit) { onFinished() }
+            else OutcomeBody(outcomeCopy, copy.acknowledged, viewModel, onFinished)
+        }
+    }
+}
+
+/**
+ * The "what happened" question, shown after the alert is already closed. Three large buttons,
+ * no Skip and no timer: it stays until the senior chooses (and returns on the next app start if
+ * the app is closed first). Nothing on this screen can reopen or escalate the alert.
+ */
+@Composable
+private fun OutcomeBody(
+    copy: OutcomeMessages.Copy,
+    acknowledgedMessage: String,
+    viewModel: WellnessPromptViewModel,
+    onFinished: () -> Unit
+) {
+    Surface(modifier = Modifier.fillMaxSize(), color = Color.White) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .systemBarsPadding()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 24.dp, vertical = 20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Check,
+                contentDescription = null,
+                tint = SeniorColors.Green,
+                modifier = Modifier.size(56.dp)
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = acknowledgedMessage,
+                color = SeniorColors.Green,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center
+            )
+            Spacer(Modifier.height(22.dp))
+            Text(
+                text = copy.question,
+                color = SeniorColors.TextPrimary,
+                fontSize = 28.sp,
+                lineHeight = 34.sp,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center
+            )
+            Spacer(Modifier.height(20.dp))
+            copy.options.forEach { option ->
+                Button(
+                    onClick = { viewModel.answerOutcome(option.code, onFinished) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 66.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = SeniorColors.Green)
+                ) {
+                    Text(
+                        text = option.label,
+                        color = Color.White,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center
+                    )
+                }
+                Spacer(Modifier.height(12.dp))
+            }
+        }
     }
 }
 

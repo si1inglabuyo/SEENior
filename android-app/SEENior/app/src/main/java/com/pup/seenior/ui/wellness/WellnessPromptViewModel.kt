@@ -11,12 +11,14 @@ import com.pup.seenior.alerts.AlertEscalator
 import com.pup.seenior.alerts.AlertNotifier
 import com.pup.seenior.alerts.EscalationScheduler
 import com.pup.seenior.alerts.EscalationWorker
+import com.pup.seenior.alerts.OutcomeReasons
 import com.pup.seenior.database.SeniorAppDatabase
 import com.pup.seenior.database.entities.Alert
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-enum class PromptStage { PROMPT, ACKNOWLEDGED, SENT }
+/** OUTCOME is the optional "what happened" question, shown only after the senior has already closed the alert. */
+enum class PromptStage { PROMPT, ACKNOWLEDGED, SENT, OUTCOME }
 
 /**
  * Drives one wellness check from the moment an alert appears until the senior is done.
@@ -53,6 +55,20 @@ class WellnessPromptViewModel(application: Application) : AndroidViewModel(appli
 
     /** Starts the response window. [onFinished] fires once the senior is done, however it ended. */
     fun begin(alert: Alert, onFinished: () -> Unit) {
+        // Already closed, but the senior never answered "what happened" (the app was closed first,
+        // or they closed it from the Home card). Go straight to the question: no countdown, nothing
+        // to escalate. Checked before the guard below because this view model is reused, so its
+        // stage can still be left over from the same alert's earlier prompt.
+        if (AlertEscalator.awaitingOutcome(alert)) {
+            if (this.alert?.alertId != alert.alertId || stage != PromptStage.OUTCOME) {
+                this.alert = alert
+                deliveryWarning = null
+                AlertAlarm.stop(alert.alertId)
+                stage = PromptStage.OUTCOME
+            }
+            return
+        }
+
         if (this.alert?.alertId == alert.alertId && stage != PromptStage.PROMPT) return
         this.alert = alert
         stage = PromptStage.PROMPT
@@ -106,7 +122,7 @@ class WellnessPromptViewModel(application: Application) : AndroidViewModel(appli
             val now = System.currentTimeMillis()
             db.alertDao().updateEscalationSteps(
                 current.alertId,
-                AlertEscalator.appendStep(current.escalationSteps, "self_cancelled", now)
+                AlertEscalator.selfCancelledSteps(current.escalationSteps, current.triggerType, now)
             )
             db.alertDao().updateStatus(current.alertId, "self_cancelled", now)
 
@@ -115,7 +131,7 @@ class WellnessPromptViewModel(application: Application) : AndroidViewModel(appli
             AlertEscalator.cancelInCloud(db, current.alertId)
 
             delay(ACKNOWLEDGED_DISPLAY_MILLIS)
-            onFinished()
+            askOutcomeOrFinish(current, onFinished)
         }
     }
 
@@ -135,7 +151,7 @@ class WellnessPromptViewModel(application: Application) : AndroidViewModel(appli
             val now = System.currentTimeMillis()
             db.alertDao().updateEscalationSteps(
                 current.alertId,
-                AlertEscalator.appendStep(current.escalationSteps, "self_cancelled", now)
+                AlertEscalator.selfCancelledSteps(current.escalationSteps, current.triggerType, now)
             )
             db.alertDao().updateStatus(current.alertId, "self_cancelled", now)
             // Nothing is owed on this alert any more — including any queued delivery retry.
@@ -144,6 +160,32 @@ class WellnessPromptViewModel(application: Application) : AndroidViewModel(appli
 
             stoodDown = true
             delay(ACKNOWLEDGED_DISPLAY_MILLIS)
+            askOutcomeOrFinish(current, onFinished)
+        }
+    }
+
+    /**
+     * The alert is already closed. For an anomaly or a fall, ask what happened; everything else
+     * (SOS) just closes. The question cannot be skipped and has no timer: it stays until the
+     * senior chooses, and [AlertEscalator.STEP_OUTCOME_PENDING] (written when the alert was closed)
+     * brings it back if the app is closed first. Nothing here can reopen, delay or escalate the
+     * alert: the answer is only a record.
+     */
+    private fun askOutcomeOrFinish(current: Alert, onFinished: () -> Unit) {
+        if (OutcomeReasons.isAsked(current.triggerType)) stage = PromptStage.OUTCOME else onFinished()
+    }
+
+    /** One tap on the "what happened" question. Stored locally; sent to the cloud only if the alert is already there. */
+    fun answerOutcome(code: String, onFinished: () -> Unit) {
+        val current = alert ?: return
+        if (stage != PromptStage.OUTCOME) return
+        // A stray value is ignored and the question stays up.
+        if (!OutcomeReasons.isValid(current.triggerType, code)) return
+        stage = PromptStage.ACKNOWLEDGED // shows the thank-you tick and blocks a second tap
+        viewModelScope.launch {
+            db.alertDao().updateOutcomeReason(current.alertId, code)
+            AlertEscalator.syncOutcome(db, current.alertId)
+            delay(OUTCOME_THANKS_MILLIS)
             onFinished()
         }
     }
@@ -203,5 +245,7 @@ class WellnessPromptViewModel(application: Application) : AndroidViewModel(appli
     private companion object {
         const val SENT_DISPLAY_SECONDS = 5
         const val ACKNOWLEDGED_DISPLAY_MILLIS = 1800L
+
+        const val OUTCOME_THANKS_MILLIS = 900L
     }
 }

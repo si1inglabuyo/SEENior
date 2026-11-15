@@ -10,6 +10,7 @@ import com.pup.seenior.network.SeniorCloudSync
 import com.pup.seenior.network.dto.CancelAlertRequest
 import com.pup.seenior.network.dto.CreateAlertRequest
 import com.pup.seenior.network.dto.UpdateLocationRequest
+import com.pup.seenior.network.dto.UpdateOutcomeRequest
 import com.pup.seenior.network.dto.UpdateSeverityRequest
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -52,6 +53,9 @@ object AlertEscalator {
 
     /** Written once the cloud accepted this alert's location cell, so a late fix is retryable. */
     private const val STEP_LOCATION_SYNCED = "location_synced"
+
+    /** Written once the cloud accepted the senior's "what happened" answer, so a failed send is retryable. */
+    private const val STEP_OUTCOME_SYNCED = "outcome_synced"
 
     sealed interface Outcome {
         /** The cloud row exists; the family app can see it. */
@@ -291,6 +295,38 @@ object AlertEscalator {
         db.alertDao().getSelfCancelledSyncedAlerts(seniorId)
             .filterNot { hasStep(it, STEP_CANCEL_SYNCED) }
             .forEach { cancelInCloud(db, it.alertId) }
+        // The "what happened" answers the cloud has not heard yet, after the cancels so the alert is closed first.
+        db.alertDao().getSyncedAlertsWithOutcome(seniorId)
+            .filterNot { hasStep(it, STEP_OUTCOME_SYNCED) }
+            .forEach { syncOutcome(db, it.alertId) }
+    }
+
+    /**
+     * Tells the cloud what the senior said happened after "I'm safe". A no-op for an alert that
+     * never reached the cloud: the answer stays on the phone with the alert, since the cloud only
+     * ever receives an alert once it escalates past the senior. Returns true when nothing more is
+     * owed (sent, or nothing to send). A failure is swallowed; the watchdog retries.
+     */
+    suspend fun syncOutcome(db: SeniorAppDatabase, alertId: Int): Boolean {
+        val alert = db.alertDao().getById(alertId) ?: return false
+        val reason = alert.outcomeReason ?: return true
+        if (!alert.isSynced) return true
+        if (hasStep(alert, STEP_OUTCOME_SYNCED)) return true
+        // A stray value is never sent; the server would refuse it anyway.
+        if (!OutcomeReasons.isValid(alert.triggerType, reason)) return true
+
+        return try {
+            SeniorCloudSync(db).withCachedSyncId { seniorSyncId ->
+                RetrofitClient.api.updateAlertOutcome(alert.syncId, UpdateOutcomeRequest(seniorSyncId, reason))
+            }
+            db.alertDao().updateEscalationSteps(
+                alert.alertId,
+                appendStep(alert.escalationSteps, STEP_OUTCOME_SYNCED, System.currentTimeMillis())
+            )
+            true
+        } catch (e: Exception) {
+            false
+        }
     }
 
     /**
@@ -385,6 +421,30 @@ object AlertEscalator {
 
     private fun hasStep(alert: Alert, step: String): Boolean = steps(alert.escalationSteps)
         .let { arr -> (0 until arr.length()).any { arr.optJSONObject(it)?.optString("step") == step } }
+
+    /**
+     * Written when the senior closes an anomaly or fall alert, to say the "what happened" question
+     * is still owed. The question may not be skipped, so this is what brings it back if the app is
+     * closed before an answer. Lives in the audit timeline so no column or migration is needed; the
+     * DAO finds it with a LIKE on the quoted name, so keep the name free of regex or quote characters.
+     */
+    const val STEP_OUTCOME_PENDING = "outcome_pending"
+
+    /** Whether this closed alert still owes the senior's "what happened" answer. */
+    fun awaitingOutcome(alert: Alert): Boolean =
+        alert.status == "self_cancelled" &&
+            alert.outcomeReason == null &&
+            OutcomeReasons.isAsked(alert.triggerType) &&
+            hasStep(alert, STEP_OUTCOME_PENDING)
+
+    /**
+     * The timeline after the senior closes an alert themselves: the `self_cancelled` step, plus
+     * [STEP_OUTCOME_PENDING] when this kind of alert asks the question (never SOS).
+     */
+    fun selfCancelledSteps(existing: String, triggerType: String, at: Long): String {
+        val closed = appendStep(existing, "self_cancelled", at)
+        return if (OutcomeReasons.isAsked(triggerType)) appendStep(closed, STEP_OUTCOME_PENDING, at) else closed
+    }
 
     /** When the cloud accepted this alert, or null if it has not yet. */
     fun deliveredAt(alert: Alert): Long? {
