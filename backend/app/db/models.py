@@ -303,6 +303,33 @@ class RoutineBaseline(Base):
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
 
+class AlertOutcomeRecord(Base):
+    """The senior's one-tap "what happened" answer for an alert the phone closed itself
+    (migration 0027), so alerts cancelled inside the response window can be counted.
+
+    Such an alert never reaches `alerts` (the family is not told about a false alarm the senior
+    cancelled), so its answer would otherwise stay on the phone. One row per alert: when it fired,
+    its type, risk level and time block, and the answer code. NOT a copy of the alert: no location,
+    no fall evidence or trace, no deviation score. It never notifies anyone and is not shown in the
+    family app or the barangay dashboard; nothing in detection, escalation or false-alarm
+    tolerance reads it. An alert that did escalate keeps its answer in `Alert.outcome_reason`.
+    """
+
+    __tablename__ = "alert_outcomes"
+    __table_args__ = (UniqueConstraint("senior_id", "alert_sync_id", name="uq_alert_outcome_alert"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    senior_id: Mapped[int] = mapped_column(ForeignKey("seniors.id"), index=True)
+    # The phone's own id for the alert; the cloud never had an `alerts` row for it.
+    alert_sync_id: Mapped[uuid.UUID] = mapped_column()
+    trigger_type: Mapped[str] = mapped_column(String(20))
+    risk_level: Mapped[str] = mapped_column(String(10))
+    time_block: Mapped[str] = mapped_column(String(16))
+    triggered_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    outcome_reason: Mapped[str] = mapped_column(String(32))
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+
 class RoutineBaselineHistory(Base):
     """One day's copy of the Routine Fingerprint (migration 0024), so the family app and the
     dashboard can show how a routine was learned.

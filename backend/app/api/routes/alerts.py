@@ -13,6 +13,7 @@ from app.core import push, ratelimit, sms
 from app.core.config import settings
 from app.db.models import (
     Alert,
+    AlertOutcomeRecord,
     AlertStatus,
     Contact,
     ContactType,
@@ -34,6 +35,8 @@ from app.schemas.alert import (
     AlertOut,
     AlertOutcome,
     AlertSeverityUpdate,
+    OutcomeRecordCreate,
+    OutcomeRecordOut,
 )
 
 logger = logging.getLogger(__name__)
@@ -513,6 +516,64 @@ async def cancel_alert(
     await db.commit()
     await db.refresh(alert)
     return alert
+
+
+@router.post("/outcomes", response_model=OutcomeRecordOut)
+async def record_alert_outcome(
+    payload: OutcomeRecordCreate,
+    x_device_key: str | None = Header(default=None),
+    db: AsyncSession = Depends(get_db),
+) -> AlertOutcomeRecord:
+    """The senior's answer for an alert the phone closed inside the response window (migration 0027).
+
+    That alert never reached `alerts`, because nobody else is told about a false alarm the senior
+    cancelled, so there is nothing to patch. This keeps just enough to count it: when it fired, its
+    type, risk level, time block and the answer code. It notifies no one, shows in no app, and
+    nothing in escalation or detection reads it. Idempotent per alert, so a phone retrying after a
+    lost connection cannot double-count. No JWT; needs the senior's sync_id and device key.
+    """
+    result = await db.execute(select(Senior).where(Senior.sync_id == payload.senior_sync_id))
+    senior = result.scalar_one_or_none()
+    if senior is None or senior.deleted_at is not None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Senior not found")
+    check_device_key(senior, x_device_key)
+    await ratelimit.check("alert-outcome", str(payload.senior_sync_id), limit=60, window_seconds=3600)
+
+    allowed = FALL_OUTCOMES if payload.trigger_type == TriggerType.FALL_PATTERN else ANOMALY_OUTCOMES
+    if payload.trigger_type == TriggerType.SOS or payload.outcome_reason not in allowed:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="That answer does not apply to this alert",
+        )
+
+    existing = await db.execute(
+        select(AlertOutcomeRecord).where(
+            AlertOutcomeRecord.senior_id == senior.id,
+            AlertOutcomeRecord.alert_sync_id == payload.alert_sync_id,
+        )
+    )
+    record = existing.scalar_one_or_none()
+    if record is not None:
+        return record
+
+    # Naive UTC to match the timestamp columns; a value with no offset is already UTC.
+    triggered_at = payload.triggered_at
+    if triggered_at is not None and triggered_at.tzinfo is not None:
+        triggered_at = triggered_at.astimezone(timezone.utc).replace(tzinfo=None)
+
+    record = AlertOutcomeRecord(
+        senior_id=senior.id,
+        alert_sync_id=payload.alert_sync_id,
+        trigger_type=payload.trigger_type.value,
+        risk_level=payload.risk_level.value,
+        time_block=payload.time_block,
+        triggered_at=triggered_at,
+        outcome_reason=payload.outcome_reason,
+    )
+    db.add(record)
+    await db.commit()
+    await db.refresh(record)
+    return record
 
 
 @router.patch("/{sync_id}/outcome", response_model=AlertOut)

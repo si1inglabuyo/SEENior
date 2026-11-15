@@ -88,6 +88,30 @@ class AlertOutcome(BaseModel):
     outcome_reason: OutcomeReason
 
 
+class OutcomeRecordCreate(BaseModel):
+    """The phone reporting the answer for an alert the senior closed inside the response window.
+
+    That alert never reached the cloud, so there is no `alerts` row to patch; this carries just
+    enough to count it. No location, evidence, score or steps (migration 0027).
+    """
+
+    senior_sync_id: UUID
+    # The phone's own id for the alert. Makes a retry safe: one row per alert.
+    alert_sync_id: UUID
+    trigger_type: TriggerType
+    risk_level: RiskLevel
+    time_block: Literal["morning", "afternoon", "evening", "night"]
+    triggered_at: datetime | None = None
+    outcome_reason: OutcomeReason
+
+
+class OutcomeRecordOut(BaseModel):
+    alert_sync_id: UUID
+    outcome_reason: str
+
+    model_config = {"from_attributes": True}
+
+
 class AlertSeverityUpdate(BaseModel):
     """The senior's phone reporting that an open alert has got worse (re-classified).
 

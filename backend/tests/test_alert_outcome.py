@@ -86,3 +86,66 @@ def test_somebody_elses_alert_looks_like_no_alert(monkeypatch):
     with pytest.raises(HTTPException) as e:
         asyncio.run(alerts.set_alert_outcome(uuid4(), body, None, db))
     assert e.value.status_code == 404
+
+
+# ---- An alert the senior closed inside the window (migration 0027) ----------------------------
+
+from app.schemas.alert import OutcomeRecordCreate  # noqa: E402
+
+
+def _record(monkeypatch, trigger, code, existing=None, senior_deleted=False):
+    senior = SimpleNamespace(
+        id=7, sync_id=uuid4(), deleted_at=object() if senior_deleted else None,
+    )
+    results = [
+        SimpleNamespace(scalar_one_or_none=lambda: senior),
+        SimpleNamespace(scalar_one_or_none=lambda: existing),
+    ]
+    db = AsyncMock()
+    db.execute.side_effect = results
+    db.add = lambda row: added.append(row)
+    added: list = []
+    monkeypatch.setattr(alerts, "check_device_key", lambda s, key: None)
+    monkeypatch.setattr(alerts.ratelimit, "check", AsyncMock())
+    body = OutcomeRecordCreate(
+        senior_sync_id=senior.sync_id, alert_sync_id=uuid4(), trigger_type=trigger,
+        risk_level="high", time_block="night", outcome_reason=code,
+    )
+    out = asyncio.run(alerts.record_alert_outcome(body, None, db))
+    return out, added, db
+
+
+def test_a_cancelled_fall_answer_is_kept_as_its_own_row(monkeypatch):
+    out, added, db = _record(monkeypatch, "fall_pattern", "phone_dropped")
+    assert len(added) == 1 and added[0].outcome_reason == "phone_dropped"
+    assert added[0].trigger_type == "fall_pattern" and added[0].time_block == "night"
+    db.commit.assert_awaited_once()
+
+
+def test_it_carries_nothing_but_the_agreed_fields():
+    fields = set(OutcomeRecordCreate.model_fields)
+    assert fields == {
+        "senior_sync_id", "alert_sync_id", "trigger_type", "risk_level",
+        "time_block", "triggered_at", "outcome_reason",
+    }
+
+
+def test_a_retry_returns_the_first_row_and_adds_none(monkeypatch):
+    first = SimpleNamespace(alert_sync_id=uuid4(), outcome_reason="phone_dropped")
+    out, added, db = _record(monkeypatch, "fall_pattern", "fell_fine", existing=first)
+    assert out is first and added == []
+    db.commit.assert_not_awaited()
+
+
+def test_an_sos_or_a_mismatched_code_is_refused(monkeypatch):
+    with pytest.raises(HTTPException) as e:
+        _record(monkeypatch, "sos", "other")
+    assert e.value.status_code == 422
+    with pytest.raises(HTTPException):
+        _record(monkeypatch, "inactivity", "phone_dropped")
+
+
+def test_a_deleted_senior_gets_a_404(monkeypatch):
+    with pytest.raises(HTTPException) as e:
+        _record(monkeypatch, "fall_pattern", "other", senior_deleted=True)
+    assert e.value.status_code == 404
