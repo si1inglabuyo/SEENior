@@ -27,6 +27,7 @@ import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -154,7 +155,7 @@ private fun OutcomeBody(
             )
             Spacer(Modifier.height(20.dp))
             if (typing) {
-                OutcomeDetailInput(copy, viewModel, onFinished)
+                OutcomeDetailInput(copy, viewModel, onFinished) { typing = false }
                 return@Column
             }
             copy.options.forEach { option ->
@@ -189,18 +190,10 @@ private fun OutcomeBody(
 private fun OutcomeDetailInput(
     copy: OutcomeMessages.Copy,
     viewModel: WellnessPromptViewModel,
-    onFinished: () -> Unit
+    onFinished: () -> Unit,
+    onBack: () -> Unit
 ) {
     var text by remember { mutableStateOf("") }
-    Text(
-        text = copy.detailPrompt,
-        color = SeniorColors.TextPrimary,
-        fontSize = 24.sp,
-        lineHeight = 30.sp,
-        fontWeight = FontWeight.Bold,
-        textAlign = TextAlign.Center
-    )
-    Spacer(Modifier.height(12.dp))
     OutlinedTextField(
         value = text,
         onValueChange = { text = it.take(OutcomeReasons.DETAIL_MAX_LENGTH) },
@@ -225,6 +218,14 @@ private fun OutcomeDetailInput(
         colors = ButtonDefaults.buttonColors(containerColor = SeniorColors.Green)
     ) {
         Text(text = copy.detailSend, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+    }
+    Spacer(Modifier.height(12.dp))
+    OutlinedButton(
+        onClick = onBack,
+        modifier = Modifier.fillMaxWidth().heightIn(min = 60.dp),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Text(text = copy.detailBack, color = SeniorColors.Green, fontSize = 20.sp, fontWeight = FontWeight.Bold)
     }
 }
 

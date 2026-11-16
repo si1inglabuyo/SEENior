@@ -18,10 +18,10 @@ object OutcomeMessages {
         val question: String,
         val options: List<Option>,
         // The follow-up shown after "Others": what to type, and the buttons.
-        val detailPrompt: String,
         val detailHint: String,
         val detailWarning: String,
-        val detailSend: String
+        val detailSend: String,
+        val detailBack: String
     )
 
     fun forAlert(language: String, triggerType: String): Copy? {
@@ -31,11 +31,11 @@ object OutcomeMessages {
         return Copy(
             question = if (filipino) "Anong nangyari?" else "What happened?",
             options = codes.map { Option(it, label(it, filipino)) },
-            detailPrompt = if (filipino) "Anong nangyari?" else "Please tell us what happened.",
-            detailHint = if (filipino) "Isulat po dito (hindi kailangan)" else "Type here (optional)",
-            detailWarning = if (filipino) "Huwag pong isama ang pangalan o numero ng telepono."
+            detailHint = if (filipino) "Isulat dito (hindi kailangan)" else "Type here (optional)",
+            detailWarning = if (filipino) "Huwag isama ang pangalan o numero ng telepono."
             else "Please do not include names or phone numbers.",
-            detailSend = if (filipino) "Ipadala po" else "Send"
+            detailSend = if (filipino) "Ipadala" else "Send",
+            detailBack = if (filipino) "Bumalik" else "Back"
         )
     }
 
