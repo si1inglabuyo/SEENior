@@ -327,7 +327,32 @@ class AlertOutcomeRecord(Base):
     time_block: Mapped[str] = mapped_column(String(16))
     triggered_at: Mapped[datetime | None] = mapped_column(nullable=True)
     outcome_reason: Mapped[str] = mapped_column(String(32))
+    # Seconds from the alert firing to the senior closing it (migration 0028). For an SOS this
+    # separates an instant slip of the finger from a deliberate change of mind.
+    cancelled_after_seconds: Mapped[int | None] = mapped_column(nullable=True)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+
+class SamplingDay(Base):
+    """How many 5-minute readings a phone collected on one day (migration 0028), so the team can
+    show the sampling cycle ran and see which phones lose hours to the operating system.
+
+    Counts only, per time block: it holds no reading and says nothing about what the senior did,
+    only whether the phone was collecting (about 288 a day when it runs all day). Last 30 days.
+    Nothing in detection or escalation reads it.
+    """
+
+    __tablename__ = "sampling_daily"
+    __table_args__ = (UniqueConstraint("senior_id", "day", name="uq_sampling_day"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    senior_id: Mapped[int] = mapped_column(ForeignKey("seniors.id"), index=True)
+    day: Mapped[date] = mapped_column()
+    morning: Mapped[int] = mapped_column()
+    afternoon: Mapped[int] = mapped_column()
+    evening: Mapped[int] = mapped_column()
+    night: Mapped[int] = mapped_column()
+    updated_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
 
 class RoutineBaselineHistory(Base):

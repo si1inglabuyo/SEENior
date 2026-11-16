@@ -28,6 +28,7 @@ from app.db.session import SessionLocal, get_db
 from app.schemas.alert import (
     ANOMALY_OUTCOMES,
     FALL_OUTCOMES,
+    SOS_OUTCOMES,
     AlertCancel,
     AlertCreate,
     AlertDispatchRequest,
@@ -539,8 +540,13 @@ async def record_alert_outcome(
     check_device_key(senior, x_device_key)
     await ratelimit.check("alert-outcome", str(payload.senior_sync_id), limit=60, window_seconds=3600)
 
-    allowed = FALL_OUTCOMES if payload.trigger_type == TriggerType.FALL_PATTERN else ANOMALY_OUTCOMES
-    if payload.trigger_type == TriggerType.SOS or payload.outcome_reason not in allowed:
+    if payload.trigger_type == TriggerType.SOS:
+        allowed = SOS_OUTCOMES  # only the phone's own note that the swipe was cancelled
+    elif payload.trigger_type == TriggerType.FALL_PATTERN:
+        allowed = FALL_OUTCOMES
+    else:
+        allowed = ANOMALY_OUTCOMES
+    if payload.outcome_reason not in allowed:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="That answer does not apply to this alert",
@@ -569,6 +575,7 @@ async def record_alert_outcome(
         time_block=payload.time_block,
         triggered_at=triggered_at,
         outcome_reason=payload.outcome_reason,
+        cancelled_after_seconds=payload.cancelled_after_seconds,
     )
     db.add(record)
     await db.commit()

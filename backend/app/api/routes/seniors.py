@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_authenticated_senior, require_role
 from app.api.routes.contacts import MAX_FAMILY_CONTACTS_PER_SENIOR, SENIOR_CONTACT_LIMIT
 from app.core import device_key, ratelimit
-from app.db.models import Alert, AlertOutcomeRecord, AlertStatus, Contact, ContactType, Pook, RoutineBaseline, RoutineBaselineHistory, RoutineTiming, Senior, SeniorStatus, UnlinkActor, User, UserRole
+from app.db.models import Alert, AlertOutcomeRecord, AlertStatus, SamplingDay, Contact, ContactType, Pook, RoutineBaseline, RoutineBaselineHistory, RoutineTiming, Senior, SeniorStatus, UnlinkActor, User, UserRole
 from app.db.session import get_db
 from app.schemas.contact import InviteCodeOut
 from app.schemas.senior import (
@@ -175,6 +175,8 @@ async def delete_senior(
     await db.execute(delete(RoutineTiming).where(RoutineTiming.senior_id == senior.id))
     # And the answers to "what happened" for alerts the senior cancelled (migration 0027).
     await db.execute(delete(AlertOutcomeRecord).where(AlertOutcomeRecord.senior_id == senior.id))
+    # And the daily count of 5-minute readings the phone collected (migration 0028).
+    await db.execute(delete(SamplingDay).where(SamplingDay.senior_id == senior.id))
     # Likewise the per-reading movement series kept with each fall alert (migration 0023). The
     # alert rows stay for audit; only the series goes.
     await db.execute(update(Alert).where(Alert.senior_id == senior.id).values(fall_trace=None))

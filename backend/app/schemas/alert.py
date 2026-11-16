@@ -70,12 +70,16 @@ class AlertCancel(BaseModel):
     reason: Literal["phone_use"] | None = None
 
 
-OutcomeReason = Literal["phone_dropped", "fell_fine", "unused_fine", "left_behind_fine", "other"]
+OutcomeReason = Literal[
+    "phone_dropped", "fell_fine", "unused_fine", "left_behind_fine", "sos_cancelled", "other"
+]
 
 # Which codes make sense for which alert. The phone only offers the right set, so this is the
 # server holding the same line against a stray or hand-made request.
 FALL_OUTCOMES = {"phone_dropped", "fell_fine", "other"}
 ANOMALY_OUTCOMES = {"unused_fine", "left_behind_fine", "other"}
+# An SOS is never asked a question; the phone records a cancelled one by itself (migration 0028).
+SOS_OUTCOMES = {"sos_cancelled"}
 
 
 class AlertOutcome(BaseModel):
@@ -103,6 +107,8 @@ class OutcomeRecordCreate(BaseModel):
     time_block: Literal["morning", "afternoon", "evening", "night"]
     triggered_at: datetime | None = None
     outcome_reason: OutcomeReason
+    # Seconds from the alert firing to the senior closing it. Optional for an older phone.
+    cancelled_after_seconds: int | None = Field(default=None, ge=0, le=86400)
 
 
 class OutcomeRecordOut(BaseModel):

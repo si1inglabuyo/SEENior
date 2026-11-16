@@ -26,11 +26,13 @@ from app.db.models import (
     RoutineBaseline,
     RoutineBaselineHistory,
     RoutineTiming as RoutineTimingRow,
+    SamplingDay,
     Senior,
     User,
     UserRole,
 )
 from app.db.session import get_db
+from app.schemas.sampling import SAMPLING_DAYS, SamplingOut, SamplingSync
 from app.schemas.routine import (
     HISTORY_DAYS,
     RoutineTiming,
@@ -272,3 +274,62 @@ async def read_routine_history(
 ) -> RoutineHistoryOut:
     """The last 30 days of a senior's fingerprint, under the same access rule as `read_routine`."""
     return await _read_routine_history(await _viewable_senior(sync_id, db, user), db)
+
+
+@router.put("/{sync_id}/sampling", response_model=SamplingOut)
+async def sync_sampling(
+    payload: SamplingSync,
+    senior: Senior = Depends(get_authenticated_senior),
+    db: AsyncSession = Depends(get_db),
+) -> SamplingOut:
+    """Stores how many 5-minute readings the phone collected per day (migration 0028).
+
+    Counts per time block, so the team can show the sampling cycle ran and see which phones lose
+    hours to the operating system. Not a reading and nothing about the senior's behaviour. Upserts
+    per day, so a re-send changes nothing, and only the last 30 days are kept. Nothing in detection
+    or escalation reads it. No JWT; the phone proves itself with its device key.
+    """
+    if senior.deleted_at is not None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Senior not found")
+
+    today = datetime.now(timezone.utc).date()
+    if any(d.day > today + timedelta(days=1) for d in payload.days):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="day is in the future"
+        )
+    cutoff = today - timedelta(days=SAMPLING_DAYS)
+
+    # A repeated day would make Postgres refuse the whole statement; the last one wins.
+    days = {d.day: d for d in payload.days if d.day >= cutoff}
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    if days:
+        stmt = pg_insert(SamplingDay).values(
+            [
+                dict(
+                    senior_id=senior.id,
+                    day=d.day,
+                    morning=d.morning,
+                    afternoon=d.afternoon,
+                    evening=d.evening,
+                    night=d.night,
+                    updated_at=now,
+                )
+                for d in days.values()
+            ]
+        )
+        stmt = stmt.on_conflict_do_update(
+            constraint="uq_sampling_day",
+            set_={
+                "morning": stmt.excluded.morning,
+                "afternoon": stmt.excluded.afternoon,
+                "evening": stmt.excluded.evening,
+                "night": stmt.excluded.night,
+                "updated_at": stmt.excluded.updated_at,
+            },
+        )
+        await db.execute(stmt)
+    await db.execute(
+        delete(SamplingDay).where(SamplingDay.senior_id == senior.id, SamplingDay.day < cutoff)
+    )
+    await db.commit()
+    return SamplingOut(stored=len(days))
