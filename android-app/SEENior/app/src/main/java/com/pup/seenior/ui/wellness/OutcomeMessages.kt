@@ -31,7 +31,7 @@ object OutcomeMessages {
         return Copy(
             question = if (filipino) "Anong nangyari?" else "What happened?",
             options = codes.map { Option(it, label(it, filipino)) },
-            detailHint = if (filipino) "Isulat dito (hindi kailangan)" else "Type here (optional)",
+            detailHint = if (filipino) "Isulat dito (optional)" else "Type here (optional)",
             detailWarning = if (filipino) "Huwag isama ang pangalan o numero ng telepono."
             else "Please do not include names or phone numbers.",
             detailSend = if (filipino) "Ipadala" else "Send",
