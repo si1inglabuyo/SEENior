@@ -27,7 +27,13 @@ export function useDispatch({ onReload, onSessionLost }) {
 
   useEffect(() => {
     api('/config/after-hours')
-      .then((config) => setHotlines(Array.isArray(config?.hotlines) ? config.hotlines : []))
+      // `outside_help` are services only this dashboard offers (never shown to seniors).
+      .then((config) =>
+        setHotlines([
+          ...(Array.isArray(config?.hotlines) ? config.hotlines : []),
+          ...(Array.isArray(config?.outside_help) ? config.outside_help : []),
+        ]),
+      )
       .catch(() => setHotlines([]))
   }, [])
 
