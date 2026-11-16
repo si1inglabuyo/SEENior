@@ -183,14 +183,14 @@ class WellnessPromptViewModel(application: Application) : AndroidViewModel(appli
     }
 
     /** One tap on the "what happened" question. Stored locally; sent to the cloud only if the alert is already there. */
-    fun answerOutcome(code: String, onFinished: () -> Unit) {
+    fun answerOutcome(code: String, onFinished: () -> Unit, typedReason: String? = null) {
         val current = alert ?: return
         if (stage != PromptStage.OUTCOME) return
         // A stray value is ignored and the question stays up.
         if (!OutcomeReasons.isValid(current.triggerType, code)) return
         stage = PromptStage.ACKNOWLEDGED // shows the thank-you tick and blocks a second tap
         viewModelScope.launch {
-            db.alertDao().updateOutcomeReason(current.alertId, code)
+            db.alertDao().updateOutcome(current.alertId, code, OutcomeReasons.cleanDetail(code, typedReason))
             AlertEscalator.syncOutcome(db, current.alertId)
             delay(OUTCOME_THANKS_MILLIS)
             onFinished()

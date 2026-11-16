@@ -61,7 +61,9 @@ data class CancelAlertRequest(
  *  from [com.pup.seenior.alerts.OutcomeReasons], never free text. */
 data class UpdateOutcomeRequest(
     val seniorSyncId: String,
-    val outcomeReason: String
+    val outcomeReason: String,
+    // What the senior typed after "Others"; null for every other answer.
+    val outcomeDetail: String? = null
 )
 
 /** Mirrors backend OutcomeRecordCreate: the answer for an alert the senior closed inside the
@@ -77,7 +79,8 @@ data class RecordOutcomeRequest(
     val outcomeReason: String,
     // Seconds from the alert firing to the senior closing it. For an SOS it tells an instant
     // slip of the finger from a deliberate change of mind.
-    val cancelledAfterSeconds: Int? = null
+    val cancelledAfterSeconds: Int? = null,
+    val outcomeDetail: String? = null
 )
 
 data class OutcomeRecordDto(

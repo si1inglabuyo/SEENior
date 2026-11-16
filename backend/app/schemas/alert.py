@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from app.db.models import AlertStatus, RiskLevel, TriggerType
 
@@ -82,6 +82,21 @@ ANOMALY_OUTCOMES = {"unused_fine", "left_behind_fine", "other"}
 SOS_OUTCOMES = {"sos_cancelled"}
 
 
+OUTCOME_DETAIL_MAX = 120
+
+
+def _clean_detail(code: str, detail: str | None) -> str | None:
+    """The typed reason belongs only to "Others"; trimmed, and blank means none."""
+    if detail is None:
+        return None
+    detail = " ".join(detail.split())
+    if not detail:
+        return None
+    if code != "other":
+        raise ValueError("A typed reason is only allowed with the 'other' answer")
+    return detail
+
+
 class AlertOutcome(BaseModel):
     """The senior's phone reporting the answer to "what happened" after they said they were safe.
 
@@ -90,6 +105,13 @@ class AlertOutcome(BaseModel):
 
     senior_sync_id: UUID
     outcome_reason: OutcomeReason
+    # What the senior typed after choosing "Others" (migration 0029). 120 characters, only with `other`.
+    outcome_detail: str | None = Field(default=None, max_length=OUTCOME_DETAIL_MAX)
+
+    @model_validator(mode="after")
+    def _detail_only_for_other(self):
+        self.outcome_detail = _clean_detail(self.outcome_reason, self.outcome_detail)
+        return self
 
 
 class OutcomeRecordCreate(BaseModel):
@@ -109,6 +131,13 @@ class OutcomeRecordCreate(BaseModel):
     outcome_reason: OutcomeReason
     # Seconds from the alert firing to the senior closing it. Optional for an older phone.
     cancelled_after_seconds: int | None = Field(default=None, ge=0, le=86400)
+    # What the senior typed after choosing "Others" (migration 0029). 120 characters, only with `other`.
+    outcome_detail: str | None = Field(default=None, max_length=OUTCOME_DETAIL_MAX)
+
+    @model_validator(mode="after")
+    def _detail_only_for_other(self):
+        self.outcome_detail = _clean_detail(self.outcome_reason, self.outcome_detail)
+        return self
 
 
 class OutcomeRecordOut(BaseModel):

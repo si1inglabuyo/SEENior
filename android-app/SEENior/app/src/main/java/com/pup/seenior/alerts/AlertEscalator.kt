@@ -327,7 +327,7 @@ object AlertEscalator {
                 // Never re-registers: a 404 here is about one alert, not a stale identity (see
                 // SeniorCloudSync). A phone with no cloud id simply retries later.
                 if (alert.isSynced) {
-                    RetrofitClient.api.updateAlertOutcome(alert.syncId, UpdateOutcomeRequest(seniorSyncId, reason))
+                    RetrofitClient.api.updateAlertOutcome(alert.syncId, UpdateOutcomeRequest(seniorSyncId, reason, alert.outcomeDetail))
                 } else {
                     RetrofitClient.api.recordAlertOutcome(
                         RecordOutcomeRequest(
@@ -340,7 +340,8 @@ object AlertEscalator {
                             outcomeReason = reason,
                             cancelledAfterSeconds = alert.resolvedAt?.let {
                                 ((it - alert.triggeredAt) / 1000L).coerceIn(0L, 86_400L).toInt()
-                            }
+                            },
+                            outcomeDetail = alert.outcomeDetail
                         )
                     )
                 }

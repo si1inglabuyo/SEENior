@@ -116,14 +116,22 @@ class OutcomeReasonsTest {
     fun `the labels are the agreed wording`() {
         val fall = OutcomeMessages.forAlert("fil", "fall_pattern")!!
         assertEquals(
-            listOf("Nalaglag po ang phone", "Nahulog po ako, ayos lang", "Iba pa"),
+            listOf("Nalaglag ang phone", "May totoong pagkahulog kanina", "Iba pa"),
             fall.options.map { it.label }
         )
         val anomaly = OutcomeMessages.forAlert("fil", "inactivity")!!
         assertEquals(
-            listOf("Matagal po di nagamit, ayos lang", "Naiwan po ang phone, ayos lang", "Iba pa"),
+            listOf("Matagal hindi nagamit ang phone", "Naiwanan ang phone", "Iba pa"),
             anomaly.options.map { it.label }
         )
         assertEquals("Others", OutcomeMessages.forAlert("en", "fall_pattern")!!.options.last().label)
+    }
+
+    @Test
+    fun `a typed reason is kept only for others, trimmed and capped`() {
+        assertEquals("nag-ayos ng kama", OutcomeReasons.cleanDetail("other", "  nag-ayos   ng kama "))
+        assertEquals(null, OutcomeReasons.cleanDetail("other", "   "))
+        assertEquals(null, OutcomeReasons.cleanDetail("phone_dropped", "anything"))
+        assertEquals(120, OutcomeReasons.cleanDetail("other", "x".repeat(300))!!.length)
     }
 }

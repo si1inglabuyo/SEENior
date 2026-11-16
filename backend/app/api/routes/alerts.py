@@ -576,6 +576,7 @@ async def record_alert_outcome(
         triggered_at=triggered_at,
         outcome_reason=payload.outcome_reason,
         cancelled_after_seconds=payload.cancelled_after_seconds,
+        outcome_detail=payload.outcome_detail,
     )
     db.add(record)
     await db.commit()
@@ -592,7 +593,7 @@ async def set_alert_outcome(
 ) -> Alert:
     """The senior says what happened after answering "I'm safe" (migration 0026).
 
-    A fixed code, never free text, and a record only: nothing in escalation or detection reads it
+    A fixed code, plus a short typed reason only when the code is `other` (migration 0029), and a record only: nothing in escalation or detection reads it
     and it does not change the alert's status. Allowed on an open or a closed alert, since the
     senior answers just after closing it. Set once and idempotent, so a phone retrying after a lost
     connection can't overwrite an answer with a different one. No JWT; needs both sync_ids and the
@@ -618,6 +619,7 @@ async def set_alert_outcome(
 
     if alert.outcome_reason is None:
         alert.outcome_reason = payload.outcome_reason
+        alert.outcome_detail = payload.outcome_detail
         append_step(alert, "outcome_reported", reason=payload.outcome_reason)
         await db.commit()
         await db.refresh(alert)

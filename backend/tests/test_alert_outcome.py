@@ -12,7 +12,7 @@ from pydantic import ValidationError
 
 from app.api.routes import alerts
 from app.db.models import AlertStatus, TriggerType
-from app.schemas.alert import ANOMALY_OUTCOMES, FALL_OUTCOMES, AlertOutcome
+from app.schemas.alert import ANOMALY_OUTCOMES, FALL_OUTCOMES, AlertOutcome, OutcomeRecordCreate
 
 
 def _alert(trigger=TriggerType.FALL_PATTERN, status=AlertStatus.RESOLVED, outcome=None):
@@ -127,6 +127,7 @@ def test_it_carries_nothing_but_the_agreed_fields():
     assert fields == {
         "senior_sync_id", "alert_sync_id", "trigger_type", "risk_level",
         "time_block", "triggered_at", "outcome_reason", "cancelled_after_seconds",
+        "outcome_detail",
     }
 
 
@@ -211,3 +212,31 @@ def test_the_patch_route_still_refuses_an_sos(monkeypatch):
     with pytest.raises(HTTPException) as e:
         _report(monkeypatch, _alert(TriggerType.SOS), "sos_cancelled")
     assert e.value.status_code == 422
+
+
+def test_a_typed_reason_is_kept_only_with_other_and_is_trimmed():
+    body = AlertOutcome(senior_sync_id=uuid4(), outcome_reason="other", outcome_detail="  Nag-ayos  ng   kama ")
+    assert body.outcome_detail == "Nag-ayos ng kama"
+    assert AlertOutcome(senior_sync_id=uuid4(), outcome_reason="other", outcome_detail="   ").outcome_detail is None
+    with pytest.raises(ValidationError):
+        AlertOutcome(senior_sync_id=uuid4(), outcome_reason="phone_dropped", outcome_detail="x")
+    with pytest.raises(ValidationError):
+        AlertOutcome(senior_sync_id=uuid4(), outcome_reason="other", outcome_detail="x" * 121)
+
+
+def test_the_typed_reason_is_stored_on_an_escalated_alert(monkeypatch):
+    alert = _alert(TriggerType.FALL_PATTERN)
+    db = AsyncMock()
+    db.execute.return_value = SimpleNamespace(scalar_one_or_none=lambda: alert)
+    monkeypatch.setattr(alerts, "check_device_key", lambda senior, key: None)
+    body = AlertOutcome(senior_sync_id=alert.senior.sync_id, outcome_reason="other", outcome_detail="Natisod")
+    out = asyncio.run(alerts.set_alert_outcome(uuid4(), body, None, db))
+    assert out.outcome_detail == "Natisod"
+
+
+def test_the_record_route_refuses_a_typed_reason_with_a_fixed_code():
+    with pytest.raises(ValidationError):
+        OutcomeRecordCreate(
+            senior_sync_id=uuid4(), alert_sync_id=uuid4(), trigger_type="fall_pattern",
+            risk_level="high", time_block="night", outcome_reason="fell_fine", outcome_detail="x",
+        )

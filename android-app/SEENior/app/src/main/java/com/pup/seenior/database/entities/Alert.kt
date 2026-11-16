@@ -100,5 +100,12 @@ data class Alert(
      * record, not a rule: detection, escalation and [com.pup.seenior.detection.FalseAlarmTolerance]
      * never read it.
      */
-    @ColumnInfo(name = "outcome_reason") val outcomeReason: String? = null
+    @ColumnInfo(name = "outcome_reason") val outcomeReason: String? = null,
+    /**
+     * What the senior typed after choosing "Others" (120 characters at most), only ever set
+     * with `outcome_reason = 'other'`. The one free-text field on an alert. Synced with the code
+     * (`alerts.outcome_detail` / `alert_outcomes.outcome_detail`, migration 0029). A record, not a
+     * rule: nothing reads it to decide anything.
+     */
+    @ColumnInfo(name = "outcome_detail") val outcomeDetail: String? = null
 )

@@ -218,6 +218,10 @@ interface AlertDao {
     @Query("UPDATE Alerts SET outcome_reason = :reason WHERE alert_id = :alertId")
     suspend fun updateOutcomeReason(alertId: Int, reason: String)
 
+    /** The same answer plus what the senior typed under "Others" (null for every other code). */
+    @Query("UPDATE Alerts SET outcome_reason = :reason, outcome_detail = :detail WHERE alert_id = :alertId")
+    suspend fun updateOutcome(alertId: Int, reason: String, detail: String?)
+
     /**
      * Self-cancelled alerts that carry an answer, escalated or not, for the retry. An alert the
      * senior closed inside the window never reached the cloud, so its answer is reported too.

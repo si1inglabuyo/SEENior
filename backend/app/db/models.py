@@ -330,6 +330,8 @@ class AlertOutcomeRecord(Base):
     # Seconds from the alert firing to the senior closing it (migration 0028). For an SOS this
     # separates an instant slip of the finger from a deliberate change of mind.
     cancelled_after_seconds: Mapped[int | None] = mapped_column(nullable=True)
+    # The senior's typed reason when the code is `other` (migration 0029).
+    outcome_detail: Mapped[str | None] = mapped_column(String(120), nullable=True)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
 
@@ -510,5 +512,8 @@ class Alert(Base):
     # free text. A record, not a rule: nothing in detection, escalation or false-alarm tolerance
     # reads it. Null when the senior skipped the question, and for older rows.
     outcome_reason: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    # The senior's typed reason when the code is `other` (migration 0029), 120 characters at most.
+    # The one free-text field on an alert; only the team reads it. A record, not a rule.
+    outcome_detail: Mapped[str | None] = mapped_column(String(120), nullable=True)
 
     senior: Mapped["Senior"] = relationship(back_populates="alerts")

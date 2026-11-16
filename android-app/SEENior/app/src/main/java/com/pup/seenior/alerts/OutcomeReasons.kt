@@ -33,6 +33,15 @@ object OutcomeReasons {
         else -> emptyList()
     }
 
+    /** The longest reason the senior can type under "Others"; the server holds the same line. */
+    const val DETAIL_MAX_LENGTH = 120
+
+    /** Trimmed, spaces collapsed, cut to [DETAIL_MAX_LENGTH]; null when blank or when [code] is not "Others". */
+    fun cleanDetail(code: String, typed: String?): String? {
+        if (code != OTHER || typed == null) return null
+        return typed.trim().replace(Regex("\\s+"), " ").take(DETAIL_MAX_LENGTH).ifEmpty { null }
+    }
+
     /** Whether the senior is asked about this trigger at all. */
     fun isAsked(triggerType: String): Boolean = codesFor(triggerType).isNotEmpty()
 

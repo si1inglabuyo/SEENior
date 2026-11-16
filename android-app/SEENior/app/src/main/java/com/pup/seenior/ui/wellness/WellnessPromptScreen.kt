@@ -27,18 +27,25 @@ import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.pup.seenior.alerts.AlertEscalator
+import com.pup.seenior.alerts.OutcomeReasons
 import com.pup.seenior.database.entities.Alert
 import com.pup.seenior.database.entities.Contact
 import com.pup.seenior.ui.theme.SeniorColors
@@ -111,6 +118,7 @@ private fun OutcomeBody(
     viewModel: WellnessPromptViewModel,
     onFinished: () -> Unit
 ) {
+    var typing by remember { mutableStateOf(false) }
     Surface(modifier = Modifier.fillMaxSize(), color = Color.White) {
         Column(
             modifier = Modifier
@@ -145,9 +153,17 @@ private fun OutcomeBody(
                 textAlign = TextAlign.Center
             )
             Spacer(Modifier.height(20.dp))
+            if (typing) {
+                OutcomeDetailInput(copy, viewModel, onFinished)
+                return@Column
+            }
             copy.options.forEach { option ->
                 Button(
-                    onClick = { viewModel.answerOutcome(option.code, onFinished) },
+                    onClick = {
+                        // "Others" opens a box to type the reason; every other answer is one tap.
+                        if (option.code == OutcomeReasons.OTHER) typing = true
+                        else viewModel.answerOutcome(option.code, onFinished)
+                    },
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(min = 66.dp),
@@ -165,6 +181,50 @@ private fun OutcomeBody(
                 Spacer(Modifier.height(12.dp))
             }
         }
+    }
+}
+
+/** After "Others": a short box for the senior's own words. Sending it blank is allowed; it is a record only. */
+@Composable
+private fun OutcomeDetailInput(
+    copy: OutcomeMessages.Copy,
+    viewModel: WellnessPromptViewModel,
+    onFinished: () -> Unit
+) {
+    var text by remember { mutableStateOf("") }
+    Text(
+        text = copy.detailPrompt,
+        color = SeniorColors.TextPrimary,
+        fontSize = 24.sp,
+        lineHeight = 30.sp,
+        fontWeight = FontWeight.Bold,
+        textAlign = TextAlign.Center
+    )
+    Spacer(Modifier.height(12.dp))
+    OutlinedTextField(
+        value = text,
+        onValueChange = { text = it.take(OutcomeReasons.DETAIL_MAX_LENGTH) },
+        placeholder = { Text(copy.detailHint, fontSize = 18.sp) },
+        textStyle = TextStyle(fontSize = 20.sp),
+        minLines = 2,
+        maxLines = 4,
+        modifier = Modifier.fillMaxWidth()
+    )
+    Spacer(Modifier.height(6.dp))
+    Text(
+        text = copy.detailWarning,
+        color = SeniorColors.TextPrimary.copy(alpha = 0.75f),
+        fontSize = 14.sp,
+        textAlign = TextAlign.Center
+    )
+    Spacer(Modifier.height(16.dp))
+    Button(
+        onClick = { viewModel.answerOutcome(OutcomeReasons.OTHER, onFinished, text) },
+        modifier = Modifier.fillMaxWidth().heightIn(min = 66.dp),
+        shape = RoundedCornerShape(16.dp),
+        colors = ButtonDefaults.buttonColors(containerColor = SeniorColors.Green)
+    ) {
+        Text(text = copy.detailSend, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
     }
 }
 
