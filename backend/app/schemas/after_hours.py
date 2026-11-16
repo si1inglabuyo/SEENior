@@ -23,6 +23,8 @@ class AfterHoursOut(BaseModel):
     version: int
     hall: HallHoursOut
     hotlines: list[HotlineOut]
+    # Extra services only the barangay dashboard offers. The phones do not read this.
+    outside_help: list[HotlineOut] = []
     # Extra weekdays the hall is shut, 'YYYY-MM-DD' in Manila, today onward.
     closed_days: list[str] = []
 

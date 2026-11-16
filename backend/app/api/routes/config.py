@@ -66,6 +66,13 @@ async def get_after_hours(
             )
             for h in after_hours.HOTLINES
         ],
+        outside_help=[
+            HotlineOut(
+                name=h.name,
+                numbers=[NumberOut(display=n.display, dial=n.dial) for n in h.numbers],
+            )
+            for h in after_hours.OUTSIDE_HELP
+        ],
         closed_days=await _safe_closed_days(db, barangay),
     )
 

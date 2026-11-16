@@ -47,6 +47,16 @@ HOTLINES: tuple[Hotline, ...] = (
     ),
 )
 
+# Outside help the barangay dashboard offers a responder to call when the hall's own teams are
+# out (Ginintuang Samahan and BUPSCA are on the pook roster but are not pooks). Served as
+# `outside_help`, separate from `hotlines`, because the phones show `hotlines` to a senior after
+# hours with a tap-to-call button, and a placeholder number must never be offered to a senior.
+# PLACEHOLDER numbers (0900000nnnn, not real subscriber numbers) until the hall supplies them.
+OUTSIDE_HELP: tuple[Hotline, ...] = (
+    Hotline("Ginintuang Samahan", (Number("0900-000-0101", "09000000101"),)),
+    Hotline("BUPSCA", (Number("0900-000-0102", "09000000102"),)),
+)
+
 # Hall duty hours, Manila time. Weekdays are Python's (Monday = 0 ... Sunday = 6). The dashboard
 # shows the same hours (barangay-dashboard/src/dispatch.js); keep the two in step.
 TIMEZONE = "Asia/Manila"
