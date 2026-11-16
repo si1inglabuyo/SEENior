@@ -19,7 +19,6 @@ object OutcomeMessages {
         val options: List<Option>,
         // The follow-up shown after "Others": what to type, and the buttons.
         val detailHint: String,
-        val detailWarning: String,
         val detailSend: String,
         val detailBack: String
     )
@@ -32,8 +31,6 @@ object OutcomeMessages {
             question = if (filipino) "Anong nangyari?" else "What happened?",
             options = codes.map { Option(it, label(it, filipino)) },
             detailHint = if (filipino) "Isulat dito (optional)" else "Type here (optional)",
-            detailWarning = if (filipino) "Huwag isama ang pangalan o numero ng telepono."
-            else "Please do not include names or phone numbers.",
             detailSend = if (filipino) "Ipadala" else "Send",
             detailBack = if (filipino) "Bumalik" else "Back"
         )

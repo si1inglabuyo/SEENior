@@ -203,13 +203,6 @@ private fun OutcomeDetailInput(
         maxLines = 4,
         modifier = Modifier.fillMaxWidth()
     )
-    Spacer(Modifier.height(6.dp))
-    Text(
-        text = copy.detailWarning,
-        color = SeniorColors.TextPrimary.copy(alpha = 0.75f),
-        fontSize = 14.sp,
-        textAlign = TextAlign.Center
-    )
     Spacer(Modifier.height(16.dp))
     Button(
         onClick = { viewModel.answerOutcome(OutcomeReasons.OTHER, onFinished, text) },
