@@ -10,7 +10,7 @@ from datetime import date, datetime, time, timedelta
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import func, or_, select, true
+from sqlalchemy import and_, func, or_, select, true
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -69,11 +69,19 @@ def _assigned_barangay(responder: User) -> str:
 def _barangay_filter(barangay: str):
     """SQL condition for "this senior is in the responder's barangay". Matches every senior
     while BARANGAY_SHOW_ALL_SENIORS is on (demo only; see app/core/config.py)."""
-    return true() if settings.barangay_show_all_seniors else Senior.barangay == barangay
+    scope = true() if settings.barangay_show_all_seniors else Senior.barangay == barangay
+    if settings.hidden_senior_tag:
+        # HIDDEN_SENIOR_TAG: demo seniors stay off the dashboard (see app/core/config.py).
+        scope = and_(scope, ~Senior.first_name.startswith(settings.hidden_senior_tag, autoescape=True))
+    return scope
 
 
-def _in_barangay(senior_barangay: str | None, barangay: str) -> bool:
-    """The same check for a senior already loaded into Python."""
+def _in_barangay(senior_barangay: str | None, barangay: str, first_name: str | None = None) -> bool:
+    """The same check for a senior already loaded into Python. Pass `first_name` so a senior
+    hidden by HIDDEN_SENIOR_TAG is refused here too."""
+    tag = settings.hidden_senior_tag
+    if tag and first_name is not None and first_name.startswith(tag):
+        return False
     return settings.barangay_show_all_seniors or senior_barangay == barangay
 
 
@@ -220,7 +228,7 @@ async def _responder_alert(sync_id: UUID, db: AsyncSession, responder: User) -> 
     if (
         alert is None
         or alert.senior is None
-        or not _in_barangay(alert.senior.barangay, barangay)
+        or not _in_barangay(alert.senior.barangay, barangay, alert.senior.first_name)
         or alert.senior.deleted_at is not None  # deleted their own account (spec §11a)
     ):
         # Same 404 for "no such alert" and "not your barangay", so existence isn't revealed.
@@ -520,7 +528,11 @@ async def barangay_senior_detail(
         )
     )
     senior = result.scalar_one_or_none()
-    if senior is None or not _in_barangay(senior.barangay, barangay) or senior.deleted_at is not None:
+    if (
+        senior is None
+        or not _in_barangay(senior.barangay, barangay, senior.first_name)
+        or senior.deleted_at is not None
+    ):
         # Same 404 for "no such senior" and "not your barangay".
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Senior not found")
 

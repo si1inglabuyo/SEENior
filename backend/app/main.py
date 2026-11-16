@@ -16,7 +16,15 @@ logging.basicConfig(level=logging.INFO)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Starts the escalation clock with the API and stops it cleanly on shutdown."""
+    """Starts the escalation clock with the API and stops it cleanly on shutdown.
+
+    A second, read-only copy of the API on the same database (the demo dashboard) runs with
+    ESCALATION_SWEEP_ENABLED=0 so only one process ever escalates, texts or nudges.
+    """
+    if not settings.escalation_sweep_enabled:
+        logging.getLogger(__name__).warning("Escalation sweep is OFF in this process (read-only copy)")
+        yield
+        return
     task = asyncio.create_task(escalation_sweep_loop())
     yield
     task.cancel()

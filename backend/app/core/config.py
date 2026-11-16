@@ -49,6 +49,12 @@ class Settings:
     family_response_seconds: int = int(os.environ.get("FAMILY_RESPONSE_SECONDS", "600"))
     escalation_sweep_seconds: int = int(os.environ.get("ESCALATION_SWEEP_SECONDS", "20"))
 
+    # Whether this process runs the escalation clock. On by default, and it must stay on for the
+    # one server that phones talk to. Turn it off (ESCALATION_SWEEP_ENABLED=0) only for a second,
+    # read-only copy of the API pointed at the same database, such as a laptop serving the demo
+    # dashboard: two sweepers on one database would escalate, text and nudge everything twice.
+    escalation_sweep_enabled: bool = os.environ.get("ESCALATION_SWEEP_ENABLED", "1") != "0"
+
     # How long a family phone has to confirm the push before the server texts them instead.
     # Kept inside the 30-second alert delivery target.
     family_sms_grace_seconds: int = int(os.environ.get("FAMILY_SMS_GRACE_SECONDS", "30"))
@@ -86,6 +92,14 @@ class Settings:
     # Off by default, which keeps each responder scoped to their own barangay (spec section 11).
     # Turn it off again before a real pilot.
     barangay_show_all_seniors: bool = os.environ.get("BARANGAY_SHOW_ALL_SENIORS") == "1"
+
+    # When HIDDEN_SENIOR_TAG is set (for example "[DEMO]"), the barangay dashboard hides every
+    # senior whose first name starts with it: from the roster, the alerts, the history, the
+    # reports and the detail views. Display only: the senior's phone, the escalation chain and
+    # the family app are untouched, so a hidden senior's alert still escalates and still reaches
+    # their family. For keeping demo seniors off a real responder's screen; unset it to show them.
+    # Empty by default, which hides nobody.
+    hidden_senior_tag: str = os.environ.get("HIDDEN_SENIOR_TAG", "").strip()
 
     # Browser origins allowed to call this API (the barangay dashboard).
     cors_origins: list[str] = [
