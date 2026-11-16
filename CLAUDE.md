@@ -358,6 +358,8 @@ own scope.
 **Migrations belong to `main`, always.** Two Alembic revisions written against one
 `alembic_version` row have to be untangled by hand against a live database.
 
+**Two Android builds (2026-11-16, v1.74).** `SHOW_DEMO_TOOLS` is now a build setting (`BuildConfig.SHOW_DEMO_TOOLS`, default `true`). A build for a real senior's phone is made with `./gradlew :app:assembleDebug -PdemoTools=false`, which removes the Demo page in Profile and the Sensor readings button on Home; the default build keeps them for the panel. Never hand the default build to a real senior: its buttons raise real alerts. The barangay password is changed with `python -m app.scripts.hash_password` (it prints an UPDATE with a bcrypt hash only; the password never leaves the laptop).
+
 **One crossing of that line, 2026-11-16:** `barangay.py` gained a switch from `main`, `HIDDEN_SENIOR_TAG` (Render env var, empty by default). Any senior whose first name starts with it (the demo seniors are tagged `[DEMO]`) is left out of every dashboard query, through `_barangay_filter` and `_in_barangay`, so a real responder does not see them. Display only: the phone, escalation and the family app are untouched, **but a hidden senior's alert no longer reaches the barangay tier**, so tag demo seniors only. Unset it to show them again (the panel on 2026-11-19). The dashboard lane should keep both helpers as the only path to seniors.
 
 The dashboard defaults to the **production** API (`barangay-dashboard/src/api.js`), so Acknowledge

@@ -20,12 +20,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.pup.seenior.BuildConfig
 import com.pup.seenior.ui.theme.SeniorColors
 
 /**
- * Set to false before a build goes onto a real senior's phone: the buttons raise real alerts.
+ * Whether this build carries the demo tools: the Demo page in Profile and the Sensor readings
+ * button on Home. The buttons raise real alerts, so a build for a real senior's phone is made
+ * with `-PdemoTools=false` (see app/build.gradle.kts). On by default, which is the panel build.
  */
-const val SHOW_DEMO_TOOLS = true
+val SHOW_DEMO_TOOLS: Boolean = BuildConfig.SHOW_DEMO_TOOLS
 
 /**
  * Demo-only page opened from the Demo card under Account in the Profile tab, not a feature of the product (CLAUDE.md §10
