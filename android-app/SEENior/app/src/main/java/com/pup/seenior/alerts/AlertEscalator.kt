@@ -318,6 +318,9 @@ object AlertEscalator {
         if (hasStep(alert, STEP_OUTCOME_SYNCED)) return true
         // A stray value is never sent; the server would refuse it anyway.
         if (!OutcomeReasons.isValid(alert.triggerType, reason)) return true
+        // An SOS that reached the cloud is already there as an alert, and the alert route refuses
+        // an SOS answer. Only a cancelled SOS, which never got there, is reported.
+        if (alert.isSynced && alert.triggerType == "sos") return true
 
         return try {
             SeniorCloudSync(db).withCachedSyncId { seniorSyncId ->
@@ -334,7 +337,10 @@ object AlertEscalator {
                             riskLevel = alert.riskLevel,
                             timeBlock = alert.timeBlock,
                             triggeredAt = Instant.ofEpochMilli(alert.triggeredAt).toString(),
-                            outcomeReason = reason
+                            outcomeReason = reason,
+                            cancelledAfterSeconds = alert.resolvedAt?.let {
+                                ((it - alert.triggeredAt) / 1000L).coerceIn(0L, 86_400L).toInt()
+                            }
                         )
                     )
                 }

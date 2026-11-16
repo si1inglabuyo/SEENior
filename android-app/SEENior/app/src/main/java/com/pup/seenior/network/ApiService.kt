@@ -27,6 +27,8 @@ import com.pup.seenior.network.dto.RoutineDto
 import com.pup.seenior.network.dto.RoutineHistoryDto
 import com.pup.seenior.network.dto.RoutineHistorySyncRequest
 import com.pup.seenior.network.dto.RoutineSyncRequest
+import com.pup.seenior.network.dto.SamplingOutDto
+import com.pup.seenior.network.dto.SamplingSyncRequest
 import com.pup.seenior.network.dto.RoutineTimingDto
 import com.pup.seenior.network.dto.SeniorDto
 import com.pup.seenior.network.dto.PookDto
@@ -115,6 +117,14 @@ interface ApiService {
         @Path("syncId") syncId: String,
         @Body body: UpdateLocationRequest
     ): AlertDto
+
+    // How many 5-minute readings the phone collected per day (counts only), so the team can
+    // show the sampling cycle ran. Upserts per day on the server.
+    @PUT("seniors/{syncId}/sampling")
+    suspend fun syncSampling(
+        @Path("syncId") syncId: String,
+        @Body body: SamplingSyncRequest
+    ): SamplingOutDto
 
     @POST("seniors/{syncId}/heartbeat")
     suspend fun sendHeartbeat(

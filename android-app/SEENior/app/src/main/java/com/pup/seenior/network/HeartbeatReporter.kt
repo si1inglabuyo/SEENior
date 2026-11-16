@@ -53,6 +53,8 @@ object HeartbeatReporter {
         // Rides the heartbeat: only attempted once the server was just reachable, and a no-op
         // unless the fingerprint changed since the last upload.
         RoutineSyncer.syncIfChanged(app, db)
+        // Counts of 5-minute readings per day, for the sampling evidence. Same rule.
+        SamplingSyncer.syncIfChanged(app, db)
     }
 
     /**

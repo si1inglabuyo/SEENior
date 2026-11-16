@@ -34,6 +34,15 @@ class OutcomeReasonsTest {
     }
 
     @Test
+    fun `a cancelled SOS is the only answer an SOS takes, and it is never offered`() {
+        assertTrue(OutcomeReasons.isValid("sos", OutcomeReasons.SOS_CANCELLED))
+        assertFalse(OutcomeReasons.isValid("sos", "other"))
+        assertFalse(OutcomeReasons.isValid("fall_pattern", OutcomeReasons.SOS_CANCELLED))
+        assertFalse(OutcomeReasons.isValid("inactivity", OutcomeReasons.SOS_CANCELLED))
+        assertFalse(OutcomeReasons.isAsked("sos"))
+    }
+
+    @Test
     fun `a fall refuses an anomaly answer and the reverse`() {
         assertFalse(OutcomeReasons.isValid("fall_pattern", "unused_fine"))
         assertFalse(OutcomeReasons.isValid("inactivity", "phone_dropped"))

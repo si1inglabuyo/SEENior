@@ -18,6 +18,9 @@ object OutcomeReasons {
     const val LEFT_BEHIND_FINE = "left_behind_fine"
     const val OTHER = "other"
 
+    /** Written by the phone itself when an SOS swipe is cancelled inside its window. Never offered as a choice. */
+    const val SOS_CANCELLED = "sos_cancelled"
+
     private val FALL_CODES = listOf(PHONE_DROPPED, FELL_FINE, OTHER)
     private val ANOMALY_CODES = listOf(UNUSED_FINE, LEFT_BEHIND_FINE, OTHER)
 
@@ -34,5 +37,6 @@ object OutcomeReasons {
     fun isAsked(triggerType: String): Boolean = codesFor(triggerType).isNotEmpty()
 
     /** Whether [code] is one this trigger offers; a stray value is never stored or sent. */
-    fun isValid(triggerType: String, code: String): Boolean = code in codesFor(triggerType)
+    fun isValid(triggerType: String, code: String): Boolean =
+        if (triggerType == "sos") code == SOS_CANCELLED else code in codesFor(triggerType)
 }

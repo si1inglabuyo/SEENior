@@ -130,6 +130,13 @@ class WellnessPromptViewModel(application: Application) : AndroidViewModel(appli
             // failure and the watchdog retries; the acknowledgement isn't held up by the network.
             AlertEscalator.cancelInCloud(db, current.alertId)
 
+            // A swiped-then-cancelled SOS is recorded without asking anything, so the team can
+            // count accidental swipes. How fast it was cancelled goes with it.
+            if (current.triggerType == "sos") {
+                db.alertDao().updateOutcomeReason(current.alertId, OutcomeReasons.SOS_CANCELLED)
+                AlertEscalator.syncOutcome(db, current.alertId)
+            }
+
             delay(ACKNOWLEDGED_DISPLAY_MILLIS)
             askOutcomeOrFinish(current, onFinished)
         }

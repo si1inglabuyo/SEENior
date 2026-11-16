@@ -74,7 +74,10 @@ data class RecordOutcomeRequest(
     val riskLevel: String,
     val timeBlock: String,
     val triggeredAt: String?,
-    val outcomeReason: String
+    val outcomeReason: String,
+    // Seconds from the alert firing to the senior closing it. For an SOS it tells an instant
+    // slip of the finger from a deliberate change of mind.
+    val cancelledAfterSeconds: Int? = null
 )
 
 data class OutcomeRecordDto(
@@ -107,3 +110,17 @@ data class ClosedAlertDto(
     val syncId: String,
     val status: String
 )
+
+/** Mirrors backend SamplingDayIn: how many 5-minute readings the phone collected on one day, per
+ *  time block. Counts only: no reading and nothing about what the senior did. */
+data class SamplingDayDto(
+    val day: String,
+    val morning: Int,
+    val afternoon: Int,
+    val evening: Int,
+    val night: Int
+)
+
+data class SamplingSyncRequest(val days: List<SamplingDayDto>)
+
+data class SamplingOutDto(val stored: Int)
