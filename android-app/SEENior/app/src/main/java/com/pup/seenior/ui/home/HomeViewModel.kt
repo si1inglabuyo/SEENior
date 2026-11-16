@@ -149,6 +149,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             launch {
                 while (true) {
                     syncClosedAlerts()
+                    // Re-read the contacts too, so a family member who pairs after the app
+                    // opened is on the SOS screen's list without a restart.
+                    loadWillAlertContacts()
                     delay(CLOSED_ALERTS_POLL_MS)
                 }
             }
@@ -165,6 +168,14 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             db.alertDao().getUnacknowledgedAlerts(loaded.seniorId).collectLatest { alerts ->
                 openAlerts = alerts
                 if (handling == null) handling = nextUnanswered()
+                // An alert has just opened: refresh the list now rather than waiting for the
+                // next poll. Own coroutine, so a slow network never delays the prompt.
+                if (alerts.isNotEmpty()) {
+                    viewModelScope.launch {
+                        loadWillAlertContacts()
+                        restoreFamilyTabsIfPaired()
+                    }
+                }
             }
         }
     }
@@ -224,7 +235,10 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             willAlertContacts = db.contactDao().getFamilyContactsOnce(seniorId)
             willAlertContactsKnown = true
         } catch (e: Exception) {
-            // The cache above, or the empty list, both already stand. Nothing to undo.
+            // The cache above stands. But an empty list that could not be re-checked is an
+            // absence, not an answer: saying "no family linked" from a stale read can be false
+            // (a contact paired since), so the screen stays silent rather than claim it.
+            if (willAlertContacts.isEmpty()) willAlertContactsKnown = false
         }
     }
 
