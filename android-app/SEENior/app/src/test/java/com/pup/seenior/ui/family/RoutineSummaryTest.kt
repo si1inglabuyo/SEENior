@@ -34,6 +34,29 @@ class RoutineSummaryTest {
     private val typical = fingerprint(movement = listOf(0.04, 0.10, 0.06, 0.01))
 
     @Test
+    fun normalLinesUseTheOptionBWording() {
+        val blocks = RoutineSummary.summarize(typical).blocks.associateBy { it.block }
+        val afternoon = blocks.getValue("afternoon")
+        assertEquals("Usually active movement (~800 steps)", RoutineSummary.normalMovement(afternoon, false))
+        assertEquals("Karaniwang aktibo ang galaw (~800 hakbang)", RoutineSummary.normalMovement(afternoon, true))
+        assertEquals("Checked phone around 9 times", RoutineSummary.normalPhone(9.0, false))
+        assertEquals("Mga 9 beses nag-check ng phone", RoutineSummary.normalPhone(9.0, true))
+        assertEquals("Phone rarely checked", RoutineSummary.normalPhone(0.0, false))
+        assertEquals("Usually inactive for up to 1 hr 40 min", RoutineSummary.normalStill(6000.0, false))
+        assertEquals("Karaniwang walang galaw nang hanggang 1 oras 40 min", RoutineSummary.normalStill(6000.0, true))
+        assertEquals("Usually low movement (~10 steps)", RoutineSummary.normalMovement(blocks.getValue("night"), false))
+    }
+
+    @Test
+    fun aBlockStillOnTheSetupGuessIsNotCalledLearned() {
+        val learning = RoutineSummary.summarize(fingerprint(listOf(0.04, 0.1, 0.06, 0.01), days = 5, seed = true))
+        assertTrue(learning.blocks.none { it.learned })
+        val nearlyDone = RoutineSummary.summarize(fingerprint(listOf(0.04, 0.1, 0.06, 0.01), days = 9, seed = true))
+        assertTrue(nearlyDone.blocks.all { it.learned })
+        assertTrue(RoutineSummary.summarize(typical).blocks.all { it.learned })
+    }
+
+    @Test
     fun theBusiestPartOfTheDayIsRankedAgainstTheSameSeniorsOthers() {
         val s = RoutineSummary.summarize(typical)
         assertEquals("afternoon", s.busiest)

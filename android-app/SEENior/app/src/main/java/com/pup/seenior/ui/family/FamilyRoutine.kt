@@ -241,8 +241,17 @@ private fun RoutineBody(
                     .background(FamilyColors.Blue, RoundedCornerShape(4.dp))
             )
         }
-        b.stillSeconds?.let {
-            Text(RoutineSummary.stillLabel(it, fil), color = FamilyColors.TextSecondary, fontSize = 13.sp)
+        // What is normal for this senior in this block; hidden while it is still mostly the setup guess.
+        if (b.learned) {
+            Text(RoutineSummary.normalMovement(b, fil), color = FamilyColors.TextSecondary, fontSize = 13.sp)
+            b.unlocks?.let {
+                Text(RoutineSummary.normalPhone(it, fil), color = FamilyColors.TextSecondary, fontSize = 13.sp)
+            }
+            b.stillSeconds?.let {
+                Text(RoutineSummary.normalStill(it, fil), color = FamilyColors.TextSecondary, fontSize = 13.sp)
+            }
+        } else {
+            Text(RoutineSummary.stillLearning(fil), color = FamilyColors.TextSecondary, fontSize = 13.sp)
         }
         // What the phone actually saw: when they are usually first active (morning) or last active (evening).
         timing?.let { RoutineTimingWording.usuallyActive(b.block, it, fil) }?.let {
@@ -257,9 +266,10 @@ private fun RoutineBody(
             TrendLine(trend.points)
             Text(RoutineHistorySummary.startedAt(trend, fil), color = FamilyColors.TextSecondary, fontSize = 13.sp)
         }
-        b.phone?.let {
-            Text(RoutineSummary.phoneLabel(it, fil), color = FamilyColors.TextSecondary, fontSize = 13.sp)
-        }
+    }
+
+    if (summary.blocks.any { it.learned }) {
+        Text(RoutineSummary.normalFootnote(fil), color = FamilyColors.TextSecondary, fontSize = 12.sp)
     }
 
     if (timing != null && summary.blocks.any { RoutineTimingWording.usuallyActive(it.block, timing, fil) != null }) {

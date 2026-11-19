@@ -118,18 +118,18 @@ object WellnessMessages {
     private fun englishReason(triggerType: String, timeBlock: String): String {
         val block = englishBlock(timeBlock)
         return when (triggerType) {
-            "inactivity" ->
-                "We noticed you have not moved for a while, during a time you are usually active in the $block."
-            "movement" ->
-                "Your movement this $block looks different from your usual routine."
+            // Gentle routine-aware wording (Option A). No "{X} minutes": the alert stores no
+            // duration, and the same sentence is re-read later in the Alerts history.
+            "inactivity", "movement" ->
+                "You're usually up and moving around this time, but your phone hasn't sensed movement for a while."
             "screen_idle" ->
-                "You have not used your phone for much longer than you usually do in the $block."
+                "You usually check your phone around now, and it hasn't been used for a while."
             "charging" ->
                 "Your phone has been off its charger longer than usual this $block."
             "fall_pattern" ->
                 "Your phone detected a sudden movement that looked like a fall."
             "ml_flag" ->
-                "Your overall routine looked different from your usual pattern."
+                "Your routine today looks a little different from your usual days."
             "sos" ->
                 "You sent an emergency alert."
             else ->
@@ -201,18 +201,16 @@ object WellnessMessages {
     private fun filipinoReason(triggerType: String, timeBlock: String): String {
         val block = filipinoBlock(timeBlock)
         return when (triggerType) {
-            "inactivity" ->
-                "Napansin po naming matagal kayong hindi gumagalaw, sa oras na karaniwan kayong aktibo tuwing $block."
-            "movement" ->
-                "Ang inyong paggalaw ngayong $block ay iba sa inyong karaniwang rutina."
+            "inactivity", "movement" ->
+                "Karaniwan kayong kumikilos sa oras na ito, pero matagal nang walang galaw sa phone."
             "screen_idle" ->
-                "Matagal po ninyong hindi nagagamit ang inyong mobile device kumpara sa karaniwan tuwing $block."
+                "Karaniwan ninyong tinitingnan ang phone sa oras na ito. Matagal na itong hindi nagagamit."
             "charging" ->
                 "Matagal na pong hindi naka-charge ang inyong mobile device ngayong $block."
             "fall_pattern" ->
                 "May natukoy pong biglaang paggalaw na parang pagkahulog."
             "ml_flag" ->
-                "Ang inyong pangkalahatang rutina ay iba sa inyong karaniwang pattern."
+                "Medyo iba ang takbo ng araw ninyo ngayon kumpara sa karaniwan."
             "sos" ->
                 "Nagpadala po kayo ng emergency alert."
             else ->
