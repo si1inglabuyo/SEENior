@@ -113,7 +113,9 @@ class AfterHoursConfigTest {
             "backend/app/core/after_hours.py"
         ).map { File(it) }.firstOrNull { it.exists() }
         assumeTrue("backend source not reachable from here", source != null)
-        val serverDials = Regex("""Number\("[^"]*",\s*"(\d+)"\)""").findAll(source!!.readText()).map { it.groupValues[1] }.toList()
+        // OUTSIDE_HELP (dashboard-only, placeholder numbers) is deliberately not on the phones.
+        val hotlineSource = source!!.readText().substringBefore("OUTSIDE_HELP")
+        val serverDials = Regex("""Number\("[^"]*",\s*"(\d+)"\)""").findAll(hotlineSource).map { it.groupValues[1] }.toList()
         val phoneDials = config.hotlines.flatMap { h -> h.numbers.map { it.dial } }
         assertEquals(serverDials, phoneDials)
     }

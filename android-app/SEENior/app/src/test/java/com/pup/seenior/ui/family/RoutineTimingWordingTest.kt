@@ -32,10 +32,10 @@ class RoutineTimingWordingTest {
 
     @Test
     fun `usually active is said only for morning and evening and only with a time`() {
-        assertEquals("Usually first active about 8:10 AM (based on 4 days)", RoutineTimingWording.usuallyActive("morning", t, false))
-        assertEquals("Usually last active about 6:40 PM (based on 4 days)", RoutineTimingWording.usuallyActive("evening", t, false))
+        assertEquals("Usually first active about 8:10 AM", RoutineTimingWording.usuallyActive("morning", t, false))
+        assertEquals("Usually last active about 6:40 PM", RoutineTimingWording.usuallyActive("evening", t, false))
         assertEquals(
-            "Karaniwang unang gumagalaw bandang 8:10 AM (batay sa 4 araw)",
+            "Karaniwang unang gumagalaw bandang 8:10 AM",
             RoutineTimingWording.usuallyActive("morning", t, true)
         )
         assertNull(RoutineTimingWording.usuallyActive("afternoon", t, false))

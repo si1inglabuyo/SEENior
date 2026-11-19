@@ -54,19 +54,19 @@ object RoutineTimingWording {
      * with fewer than 3 days behind it.
      */
     fun usuallyActive(block: String, t: RoutineTimingDto, fil: Boolean): String? {
-        val (minute, days, first) = when (block) {
-            "morning" -> Triple(t.wakeMinute, t.wakeDays, true)
-            "evening" -> Triple(t.eveningLastMinute, t.eveningLastDays, false)
+        val (minute, first) = when (block) {
+            "morning" -> Pair(t.wakeMinute, true)
+            "evening" -> Pair(t.eveningLastMinute, false)
             else -> return null
         }
         if (minute == null) return null
         val at = clock(minute)
         return if (fil) {
             val what = if (first) "Karaniwang unang gumagalaw" else "Karaniwang huling gumagalaw"
-            "$what bandang $at (batay sa $days araw)"
+            "$what bandang $at"
         } else {
             val what = if (first) "Usually first active about" else "Usually last active about"
-            "$what $at (based on $days days)"
+            "$what $at"
         }
     }
 

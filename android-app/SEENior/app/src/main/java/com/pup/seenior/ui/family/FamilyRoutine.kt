@@ -37,8 +37,6 @@ import com.pup.seenior.session.SessionState
 import kotlinx.coroutines.launch
 import retrofit2.HttpException
 import java.io.IOException
-import java.time.LocalDate
-import java.time.ZoneId
 
 /**
  * Loads one paired senior's Routine Fingerprint from the cloud. Read-only: the phone is the
@@ -198,7 +196,6 @@ private fun RoutineBody(
     timing: RoutineTimingDto?,
     fil: Boolean
 ) {
-    val today = remember { LocalDate.now(ZoneId.of("Asia/Manila")) }
     if (rows.isEmpty()) {
         Text(
             if (fil) "Wala pang naibabahagi. Lalabas ito kapag nakakonekta na ang telepono ng senior."
@@ -257,33 +254,14 @@ private fun RoutineBody(
         timing?.let { RoutineTimingWording.usuallyActive(b.block, it, fil) }?.let {
             Text(it, color = FamilyColors.TextSecondary, fontSize = 13.sp)
         }
-        // The same figure as the app held it the day before: its idea of normal, not what the senior did.
-        RoutineHistorySummary.previousDay(historyRows, b.block, today)?.let {
-            Text(RoutineHistorySummary.previousDayLabel(it, today, fil), color = FamilyColors.TextSecondary, fontSize = 13.sp)
-        }
-        // How that figure was learned, only once real days have moved it off the setup answer.
-        history?.forBlock(b.block)?.let { trend ->
-            TrendLine(trend.points)
-            Text(RoutineHistorySummary.startedAt(trend, fil), color = FamilyColors.TextSecondary, fontSize = 13.sp)
-        }
-    }
-
-    if (summary.blocks.any { it.learned }) {
-        Text(RoutineSummary.normalFootnote(fil), color = FamilyColors.TextSecondary, fontSize = 12.sp)
     }
 
     if (timing != null && summary.blocks.any { RoutineTimingWording.usuallyActive(it.block, timing, fil) != null }) {
         Text(RoutineTimingWording.note(fil), color = FamilyColors.TextSecondary, fontSize = 12.sp)
     }
 
-    // One plain-words explanation of the lines above, only when some line was drawn.
-    if (history != null && history.anyLearned) {
-        if (history.hasEstimate) {
-            Text(RoutineHistorySummary.estimateNote(fil), color = FamilyColors.TextSecondary, fontSize = 12.sp)
-        }
-        history.firstSavedDate?.let {
-            Text(RoutineHistorySummary.savedNote(it, fil), color = FamilyColors.TextSecondary, fontSize = 12.sp)
-        }
+    if (summary.blocks.any { it.learned }) {
+        Text(RoutineSummary.normalFootnote(fil), color = FamilyColors.TextSecondary, fontSize = 12.sp)
     }
 
     HorizontalDivider(color = FamilyColors.FieldBorder)
