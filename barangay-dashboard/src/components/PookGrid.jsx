@@ -71,8 +71,8 @@ export default function PookGrid({ pooks, alerts, selected, onSelect }) {
         </div>
       )}
       <ul className="pook-legend">
-        <li className="pook-legend-red">Needs a team</li>
-        <li className="pook-legend-amber">Call first</li>
+        <li className="pook-legend-red">Needs a Team</li>
+        <li className="pook-legend-amber">Call First</li>
         <li className="pook-legend-green">Covered</li>
       </ul>
     </SectionCard>

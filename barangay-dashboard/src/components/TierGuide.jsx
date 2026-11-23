@@ -3,8 +3,8 @@ import { IconChart } from '../icons'
 import SectionCard from './SectionCard'
 
 const GROUPS = [
-  { title: 'Send a team', tiers: TIERS.filter((t) => !t.callFirst) },
-  { title: 'Call first', tiers: TIERS.filter((t) => t.callFirst) },
+  { title: 'Send a Team', tiers: TIERS.filter((t) => !t.callFirst) },
+  { title: 'Call First', tiers: TIERS.filter((t) => t.callFirst) },
 ]
 
 // Same colours as the pook grid: red needs a team, amber needs a call, green is covered.
@@ -17,8 +17,8 @@ function toneOf(states) {
 
 function statusText(states) {
   const waiting = states.filter((s) => s.tone !== 'green').length
-  if (states.length === 0) return 'None open'
-  return waiting ? `${waiting} waiting` : 'All covered'
+  if (states.length === 0) return 'None Open'
+  return waiting ? `${waiting} Waiting` : 'All Covered'
 }
 
 function TierTile({ tier, label, action, states, selected, onSelect }) {

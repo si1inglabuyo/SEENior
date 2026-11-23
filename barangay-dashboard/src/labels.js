@@ -2,24 +2,24 @@
 import { dispatchStepLabel } from './dispatch.js'
 
 export const TRIGGER_LABEL = {
-  inactivity: 'No movement for an unusual stretch',
-  movement: 'Movement unlike their usual pattern',
-  screen_idle: 'Phone untouched far longer than usual',
-  charging: 'Charging pattern unlike their usual',
-  sos: 'SOS pressed by the senior',
-  ml_flag: "Whole day's pattern unusual for them",
-  fall_pattern: 'Possible fall detected',
+  inactivity: 'No Movement for an Unusual Stretch',
+  movement: 'Movement Unlike Their Usual Pattern',
+  screen_idle: 'Phone Untouched Far Longer Than Usual',
+  charging: 'Charging Pattern Unlike Their Usual',
+  sos: 'SOS Pressed by the Senior',
+  ml_flag: "Whole Day's Pattern Unusual for Them",
+  fall_pattern: 'Possible Fall Detected',
 }
 
 // Short forms of the trigger codes for tight spaces (chart labels). Unknown codes fall back to themselves.
 export const TRIGGER_SHORT = {
-  inactivity: 'No movement',
-  movement: 'Unusual movement',
-  screen_idle: 'Phone idle',
-  charging: 'Charging pattern',
+  inactivity: 'No Movement',
+  movement: 'Unusual Movement',
+  screen_idle: 'Phone Idle',
+  charging: 'Charging Pattern',
   sos: 'SOS',
-  ml_flag: 'Daily pattern',
-  fall_pattern: 'Possible fall',
+  ml_flag: 'Daily Pattern',
+  fall_pattern: 'Possible Fall',
 }
 
 // A pook is the area of the barangay a senior lives in. The sector (north / south of the
@@ -31,10 +31,10 @@ export function pookTitle(sector) {
 }
 
 export const STATUS_LABEL = {
-  pending: 'Waiting for an answer',
-  acknowledged: 'Family is handling it',
-  escalated: 'Needs a welfare check',
-  attending: 'A responder is attending',
+  pending: 'Waiting for an Answer',
+  acknowledged: 'Family Is Handling It',
+  escalated: 'Needs a Welfare Check',
+  attending: 'A Responder Is Attending',
   resolved: 'Closed',
   false_positive: 'False Alert',
 }
@@ -42,21 +42,21 @@ export const STATUS_LABEL = {
 // Every step name written by any tier (phone, family app, server clock). Unknown codes fall
 // back to themselves so the timeline never drops entries.
 export const STEP_LABEL = {
-  escalated_family: 'Phone notified the family contact',
-  escalated_family_server: 'No answer — server notified the family contact',
-  delivered_family: 'Alert reached the cloud',
-  push_received_family: 'Family contact received the alert by push notification',
-  sms_sent_family: 'Family contact received the alert by SMS',
-  acknowledged_family: 'Family acknowledged',
-  escalated_barangay: 'Family requested a barangay welfare check',
-  self_cancelled: 'Senior answered: safe',
-  self_cancelled_senior: 'Senior answered: safe',
-  auto_cleared_phone_use: 'Closed: senior used their phone',
-  cancel_synced: "Senior's all-clear reached the cloud",
-  resolved_family: 'Closed by family',
-  acknowledged_barangay: 'Responder is attending',
-  resolved_barangay: 'Closed by responder',
-  false_positive_barangay: 'Marked a false alert by responder',
+  escalated_family: 'Phone Notified the Family Contact',
+  escalated_family_server: 'No Answer — Server Notified the Family Contact',
+  delivered_family: 'Alert Reached the Cloud',
+  push_received_family: 'Family Contact Received the Alert by Push Notification',
+  sms_sent_family: 'Family Contact Received the Alert by SMS',
+  acknowledged_family: 'Family Acknowledged',
+  escalated_barangay: 'Family Requested a Barangay Welfare Check',
+  self_cancelled: 'Senior Answered: Safe',
+  self_cancelled_senior: 'Senior Answered: Safe',
+  auto_cleared_phone_use: 'Closed: Senior Used Their Phone',
+  cancel_synced: "Senior's All-Clear Reached the Cloud",
+  resolved_family: 'Closed by Family',
+  acknowledged_barangay: 'Responder Is Attending',
+  resolved_barangay: 'Closed by Responder',
+  false_positive_barangay: 'Marked a False Alert by Responder',
 }
 
 // `escalated_barangay_auto` is one step code covering three different reasons the server's
@@ -68,7 +68,7 @@ export const STEP_LABEL = {
 // asked, so nobody failed to answer, and nothing was escalated *past* a tier. The alert
 // went to the barangay first because it is the only tier this senior has. The same goes
 // for `no_family_contact`, which on its own says nothing about what actually happened --
-// so it carries the alert's trigger ("Possible fall detected", "No movement ...") as well.
+// so it carries the alert's trigger ("Possible Fall Detected", "No Movement ...") as well.
 
 const FAMILY_NOTIFIED = ['escalated_family', 'escalated_family_server']
 
@@ -92,27 +92,27 @@ function escalatedBarangayAutoLabel(entry, alert) {
   const reason = entry && entry.reason
   const sos = (reason && reason.includes('SOS pressed')) || (alert && alert.trigger_type === 'sos')
   const alone = wentWithoutFamily(entry, alert)
-  if (sos && alone) return 'SOS pressed — sent straight to barangay (no family contact linked)'
+  if (sos && alone) return 'SOS Pressed — Sent Straight to Barangay (No Family Contact Linked)'
   if (sos) {
     // Name the channel the family actually got, read off the timeline; say nothing about it until known.
     const push = hasStep(alert, 'push_received_family')
     const text = hasStep(alert, 'sms_sent_family')
     const via = push && text ? ' (push and SMS)' : push ? ' (push)' : text ? ' (SMS)' : ''
-    return `SOS pressed — family${via} and barangay notified at the same time`
+    return `SOS Pressed — Family${via} and Barangay Notified at the Same Time`
   }
   if (alone) {
     // When the `no_family_contact` step is on the timeline it has already said what the
     // alert was; repeating it on the very next line is noise.
-    if (hasStep(alert, 'no_family_contact')) return 'Sent straight to barangay — no family contact to notify'
+    if (hasStep(alert, 'no_family_contact')) return 'Sent Straight to Barangay — No Family Contact to Notify'
     const what = alert ? triggerLabel(alert.trigger_type) : 'Alert'
-    return `${what} — sent straight to barangay (no family contact linked)`
+    return `${what} — Sent Straight to Barangay (No Family Contact Linked)`
   }
-  return 'No answer from family — escalated to barangay'
+  return 'No Answer from Family — Escalated to Barangay'
 }
 
 function noFamilyContactLabel(alert) {
   const what = alert ? triggerLabel(alert.trigger_type) : 'Alert raised'
-  return `${what} — senior lives alone, no family contact to notify`
+  return `${what} — Senior Lives Alone, No Family Contact to Notify`
 }
 
 // Takes a full escalation_steps entry (not just the step code), plus the alert it belongs

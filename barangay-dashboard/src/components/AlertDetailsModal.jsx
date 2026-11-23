@@ -132,7 +132,7 @@ function EscalationTimeline({ alert }) {
   if (entries.length === 0) return null
   return (
     <>
-      <h3 className="details-location-title">Escalation timeline</h3>
+      <h3 className="details-location-title">Escalation Timeline</h3>
       <ol className="timeline">
         {entries.map((entry, i) => (
           <li key={i} className="timeline-item">
@@ -162,7 +162,7 @@ function FallContext({ alert }) {
   if (!ctx) return null
   return (
     <>
-      <h3 className="details-location-title">Just before the fall</h3>
+      <h3 className="details-location-title">Just Before the Fall</h3>
       <ul className="fall-context">
         {ctx.lines.map((line) => (
           <li key={line}>{line}</li>
@@ -204,7 +204,7 @@ function ContactNumbers({ alert }) {
   const { contacts, failed } = useFamilyContacts(alert.senior_sync_id)
   return (
     <div className="contact-numbers">
-      <h3 className="details-location-title">Contact numbers</h3>
+      <h3 className="details-location-title">Contact Numbers</h3>
       <ul className="contact-numbers-list">
         <li>
           <span className="contact-numbers-who">
@@ -384,14 +384,28 @@ export default function AlertDetailsModal({ alert, onClose, onAct, actionBusy, d
       </div>
 
       <div className="details-body">
+        {/* Last Known Location is an operational aid for a responder who still has to reach
+            the senior -- it only makes sense while the incident is open. Once it's resolved
+            or marked a false alert (all of Alert History, and the closed rows on the
+            Alerts tab) there is nobody to dispatch, so the panel is hidden. */}
         {isActiveAlert(alert) && (
-          <DetailsSection n={step()} title="Reach the senior">
+          <DetailsSection n={step()} title="Locate the Senior">
+            <h3 className="details-location-title">Last Known Location</h3>
+            <LocationPreview
+              address={alert.senior_address}
+              clusterId={alert.location_cluster_id}
+            />
+          </DetailsSection>
+        )}
+
+        {isActiveAlert(alert) && (
+          <DetailsSection n={step()} title="Reach the Senior">
             <ContactNumbers alert={alert} />
           </DetailsSection>
         )}
 
         {dispatch?.pooks && isActiveAlert(alert) && (
-          <DetailsSection n={step()} title="Send help">
+          <DetailsSection n={step()} title="Send Help">
             <DispatchPanel
               alert={alert}
               activeAlerts={activeAlerts}
@@ -402,32 +416,17 @@ export default function AlertDetailsModal({ alert, onClose, onAct, actionBusy, d
               busy={dispatch.busy}
               error={dispatch.error}
               onSend={dispatch.send}
-              onResolve={onAct ? (a, note) => onAct(a, 'resolve', note) : undefined}
             />
           </DetailsSection>
         )}
 
-        {/* Last Known Location is an operational aid for a responder who still has to reach
-            the senior -- it only makes sense while the incident is open. Once it's resolved
-            or marked a false alert (all of Alert History, and the closed rows on the
-            Alerts tab) there is nobody to dispatch, so the panel is hidden. */}
-        {isActiveAlert(alert) && (
-          <DetailsSection n={step()} title="Locate the senior">
-            <h3 className="details-location-title">Last Known Location</h3>
-            <LocationPreview
-              address={alert.senior_address}
-              clusterId={alert.location_cluster_id}
-            />
-          </DetailsSection>
-        )}
-
-        <DetailsSection n={step()} title="What happened">
+        <DetailsSection n={step()} title="What Happened">
           <FallContext alert={alert} />
           <EscalationTimeline alert={alert} />
         </DetailsSection>
 
         {onAct && (
-          <DetailsSection n={step()} title="Close the alert">
+          <DetailsSection n={step()} title="Close the Alert">
             <IncidentActions alert={alert} onAct={onAct} busy={actionBusy} />
           </DetailsSection>
         )}

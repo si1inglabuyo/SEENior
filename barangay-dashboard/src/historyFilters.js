@@ -67,7 +67,9 @@ export function withinRange(date, range) {
 // the row cap. Returns null for "no date filter".
 export function rangeBounds(range) {
   if (!range) return null
-  const iso = (d) => d.toISOString().slice(0, 10)
+  // Local calendar date: toISOString() would shift to UTC and send "yesterday" for Manila's today.
+  const pad = (n) => String(n).padStart(2, '0')
+  const iso = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
   const now = new Date()
   const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate())
   const DAY = 86400000

@@ -378,8 +378,9 @@ async def dispatch_incident(
     name = _responder_name(responder)
     append_step(alert, step, by=name, **extra)
     # Acting on an alert is claiming it, so the first thing an operator does marks it attended
-    # and the Acknowledge click is not needed. Cancelling a request is only an undo, not a claim.
-    if step != "help_cancelled" and not _is_attending(alert.status, alert.escalation_steps):
+    # and the Acknowledge click is not needed. Cancelling a request is only an undo, not a claim,
+    # and neither is logging a call that went unanswered: nobody is on the way yet.
+    if step not in ("help_cancelled", "call_result") and not _is_attending(alert.status, alert.escalation_steps):
         append_step(alert, "acknowledged_barangay", by=name)
     await db.commit()
     # No db.refresh() here: it would expire the loaded `senior` and make _alert_out lazy-load,

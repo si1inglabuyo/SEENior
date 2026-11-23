@@ -1,50 +1,20 @@
 import { useState } from 'react'
 import { TIERS, dispatchOf, freeTeams, resourcesOut } from '../dispatch'
-import { isAttending } from '../labels'
 
-const CALL_BUTTONS = [
-  { result: 'cleared', label: 'Senior is fine' },
-  { result: 'needs_team', label: 'Needs a team' },
-  { result: 'no_answer', label: 'No answer' },
-]
-
-// Shown in full and tappable: during an open alert the responder needs it at once
-// (RA 10173 section 12(c), vital interests).
-function SeniorPhone({ alert }) {
-  if (!alert.senior_mobile) return <span className="muted">No number on file</span>
-  return <a href={`tel:${alert.senior_mobile.replace(/\s/g, '')}`}>{alert.senior_mobile}</a>
-}
-
-function CallFirst({ alert, call, busy, onSend, onResolve }) {
-  // "Senior is fine" is the end of the case: log the call, then go straight to closing it as
-  // Resolved with the remark filled in. The confirm dialog still has the last word.
-  async function pick(result) {
-    await onSend(alert, { action: 'call_result', result })
-    if (result === 'cleared' && onResolve) onResolve(alert, 'Called, senior fine')
-  }
+// Shown for every alert type. The only thing to record is a call that went unanswered; if the senior is safe, the alert is closed once, in
+// "Close the alert" below.
+function UnreachableButton({ alert, call, busy, onSend }) {
+  const unanswered = call === 'no_answer'
   return (
-    <div className="dispatch-action">
-      <p className="dispatch-action-title">Call the senior first</p>
-      <p className="dispatch-hint">
-        Mobile: <SeniorPhone alert={alert} />
-      </p>
-      <div className="dispatch-btns">
-        {CALL_BUTTONS.map(({ result, label }) => (
-          <button
-            key={result}
-            type="button"
-            className={call === result ? 'btn-outline is-on' : 'btn-outline'}
-            aria-pressed={call === result}
-            disabled={busy}
-            onClick={() => pick(result)}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-      {call === 'cleared' && (
-        <p className="dispatch-hint muted">Close it as Resolved or False Alert below.</p>      )}
-    </div>
+    <button
+      type="button"
+      className={unanswered ? 'btn-outline is-on' : 'btn-outline'}
+      aria-pressed={unanswered}
+      disabled={busy || unanswered}
+      onClick={() => onSend(alert, { action: 'call_result', result: 'no_answer' })}
+    >
+      Did Not Answer / Unreachable
+    </button>
   )
 }
 
@@ -85,7 +55,7 @@ function PookResponderCard({ alert, pook, reached, outElsewhere, unavailable, bu
               disabled={busy}
               onClick={() => onSend(alert, { action: 'send_team', team: name })}
             >
-              Reached, on the way
+              Reached, on the Way
             </button>
             <button
               type="button"
@@ -94,7 +64,7 @@ function PookResponderCard({ alert, pook, reached, outElsewhere, unavailable, bu
               disabled={busy || unavailable}
               onClick={() => onSend(alert, { action: 'responder_unavailable', team: name })}
             >
-              Not available
+              Not Available
             </button>
           </div>
         )}
@@ -107,7 +77,7 @@ function PookResponderCard({ alert, pook, reached, outElsewhere, unavailable, bu
 function HallTeams({ alert, free, teamList, busy, onSend }) {
   return (
     <div className="dispatch-action">
-      <p className="dispatch-action-title">Send a hall team</p>
+      <p className="dispatch-action-title">Send a Hall Team</p>
       {free.length > 0 ? (
         <div className="dispatch-btns">
           {free.map((team) => (
@@ -139,7 +109,7 @@ function OutsideHelp({ alert, services, mine, out, hotlines, busy, onSend }) {
     hotlines.find((h) => h.name.toLowerCase() === service.toLowerCase())?.numbers ?? []
   return (
     <div className="dispatch-action">
-      <p className="dispatch-action-title">Outside help</p>
+      <p className="dispatch-action-title">Outside Help</p>
       <ul className="outside-help">
         {services.map((service) => {
           const isMine = mine.includes(service)
@@ -163,7 +133,7 @@ function OutsideHelp({ alert, services, mine, out, hotlines, busy, onSend }) {
                   onSend(alert, { action: isMine ? 'cancel_help' : 'request_help', service })
                 }
               >
-                {isMine ? 'On the way · cancel' : elsewhere ? `Out · ${out[service]}` : 'Called, on the way'}
+                {isMine ? 'On the Way · Cancel' : elsewhere ? `Out · ${out[service]}` : 'Called, on the Way'}
               </button>
             </li>
           )
@@ -185,12 +155,13 @@ export default function DispatchPanel({
   busy,
   error,
   onSend,
-  onResolve,
 }) {
   const [showHelp, setShowHelp] = useState(false)
   const dispatch = dispatchOf(alert)
   const { teams, services, call, tier, text, tone, unavailable } = dispatch
-  const { callFirst } = TIERS[tier - 1]
+  // An unanswered call keeps the amber "Call first" badge and adds the red one beside it.
+  const noAnswer = call === 'no_answer' && teams.length === 0 && services.length === 0
+  const keepCallFirst = noAnswer && TIERS[tier - 1].callFirst
   const out = resourcesOut(activeAlerts)
 
   const pook = (pooks ?? []).find((p) => p.name === alert.senior_pook)
@@ -208,15 +179,19 @@ export default function DispatchPanel({
   return (
     <div className="dispatch-panel">
       {/* The tier badge itself sits in the details header, next to the status pill. */}
-      <p className={`dispatch-state tone-${tone}`}>{text}</p>
-      {!isAttending(alert) && (
-        <p className="dispatch-hint muted">Any step below marks you as attending.</p>
-      )}
-
-      {callFirst && teams.length === 0 && (
-        <CallFirst alert={alert} call={call} busy={busy} onSend={onSend} onResolve={onResolve} />
-      )}
-
+      <div className="dispatch-state-row">
+        {keepCallFirst ? (
+          <>
+            <p className="dispatch-state tone-amber">Call First</p>
+            <p className="dispatch-state tone-red">{text}</p>
+          </>
+        ) : (
+          <p className={`dispatch-state tone-${tone}`}>{text}</p>
+        )}
+        {teams.length === 0 && call !== 'no_answer' && (
+          <UnreachableButton alert={alert} call={call} busy={busy} onSend={onSend} />
+        )}
+      </div>
       {hasResponder ? (
         <PookResponderCard
           alert={alert}
@@ -254,6 +229,12 @@ export default function DispatchPanel({
           busy={busy}
           onSend={onSend}
         />
+      )}
+
+      {teams.length === 0 && (
+        <p className="dispatch-hint muted">
+          If the senior is safe, mark the alert as Resolved below.
+        </p>
       )}
 
       {helpOpen ? (

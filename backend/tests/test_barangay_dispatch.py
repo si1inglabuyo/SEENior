@@ -119,7 +119,6 @@ def _dispatch(monkeypatch, payload, steps=None):
 @pytest.mark.parametrize(
     "fields",
     [
-        {"action": "call_result", "result": "no_answer"},
         {"action": "send_team", "team": "Ana Reyes"},
         {"action": "responder_unavailable", "team": "Ana Reyes"},
         {"action": "request_help", "service": "Ambulance"},
@@ -128,6 +127,11 @@ def _dispatch(monkeypatch, payload, steps=None):
 def test_the_first_action_marks_the_alert_attended(monkeypatch, fields):
     steps = _dispatch(monkeypatch, _action(**fields))
     assert steps[-1] == "acknowledged_barangay" and len(steps) == 2
+
+
+def test_an_unanswered_call_is_logged_without_marking_the_alert_attended(monkeypatch):
+    steps = _dispatch(monkeypatch, _action(action="call_result", result="no_answer"))
+    assert steps == ["call_result"]
 
 
 def test_a_second_action_does_not_acknowledge_again(monkeypatch):

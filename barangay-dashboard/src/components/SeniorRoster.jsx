@@ -93,8 +93,12 @@ export default function SeniorRoster({ onSessionLost }) {
         <div className="pill-group">
           <button
             type="button"
-            className={statusFilter === 'all' ? 'active' : ''}
-            onClick={() => setStatusFilter('all')}
+            className={statusFilter === 'all' && pookFilter === 'all' && !search ? 'active' : ''}
+            onClick={() => {
+              setStatusFilter('all')
+              setPookFilter('all')
+              setSearch('')
+            }}
           >
             All
           </button>
