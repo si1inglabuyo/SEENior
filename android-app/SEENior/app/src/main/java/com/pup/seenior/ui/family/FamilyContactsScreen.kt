@@ -1,6 +1,7 @@
 package com.pup.seenior.ui.family
 
 import androidx.compose.foundation.layout.heightIn
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -54,6 +55,9 @@ import com.pup.seenior.network.dto.ContactDto
 fun FamilyContactsScreen(viewModel: FamilySeniorsViewModel, onLinkSenior: () -> Unit) {
     var selected by remember { mutableStateOf<ContactDto?>(null) }
     val current = selected
+
+    // The phone's back closes an open senior's detail, as its arrow does.
+    BackHandler(enabled = current != null) { selected = null }
 
     if (current != null) {
         ContactDetailScreen(

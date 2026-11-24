@@ -349,6 +349,10 @@ fun SeniorDashboard(onAccountDeleted: () -> Unit) {
     // written back, to avoid recomposition loops. Home is always present.
     val activeTab = if (tab in tabs) tab else SeniorTab.HOME
 
+    // The phone's back from any other tab goes to Home first; a second back leaves the app as
+    // before. A screen inside a tab (Profile pages, alert details) takes the press before this.
+    BackHandler(enabled = activeTab != SeniorTab.HOME) { tab = SeniorTab.HOME }
+
     CompositionLocalProvider(
         LocalProfileCopy provides profileCopy,
         LocalOnboardingCopy provides formCopy,

@@ -5,6 +5,7 @@ import com.pup.seenior.ui.FitText
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -115,6 +116,11 @@ fun FamilyDashboard(onLoggedOut: () -> Unit) {
     }
 
     val context = LocalContext.current
+
+    // The phone's back from any other tab goes to Home first; a second back leaves the app as
+    // before. A screen inside a tab (Profile pages, alert sub-screens, a senior's detail) takes
+    // the press before this does.
+    BackHandler(enabled = tab != FamilyTab.HOME) { tab = FamilyTab.HOME }
 
     // Android 13+ drops notifications until this is granted, and the only existing request is
     // in the senior onboarding flow. Asked here as the first screen that shows alerts. Guarded

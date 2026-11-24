@@ -1,6 +1,7 @@
 package com.pup.seenior.ui.family
 
 import androidx.compose.foundation.layout.heightIn
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -69,6 +70,17 @@ fun FamilyProfileScreen(viewModel: FamilyProfileViewModel = viewModel(), onLogge
     LaunchedEffect(Unit) { viewModel.refresh() }
     var page by remember { mutableStateOf(FamilyProfilePage.HOME) }
     val goHome = { page = FamilyProfilePage.HOME }
+
+    // The phone's own back does what each screen's arrow does and returns to Profile, instead of
+    // closing the app. Ignored while saving or deleting, as the screens' own controls are. From
+    // the Profile page itself the dashboard takes over and returns to the Home tab.
+    BackHandler(enabled = page != FamilyProfilePage.HOME) {
+        when (page) {
+            FamilyProfilePage.EDIT -> if (!viewModel.isSaving) goHome()
+            FamilyProfilePage.DELETE_ACCOUNT -> if (!viewModel.isDeleting) goHome()
+            else -> goHome()
+        }
+    }
 
     when (page) {
         FamilyProfilePage.EDIT -> FamilyEditProfileScreen(viewModel = viewModel, onBack = goHome)

@@ -2,6 +2,7 @@ package com.pup.seenior.ui.family
 
 import android.content.Intent
 import android.net.Uri
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -78,6 +79,15 @@ private val DISPATCH_REASON_CODES = listOf(
  * All Clear <-> Active Alert -> Acknowledged -> (Call Senior | Alert Location | Dispatch
  * Barangay, each with its own back) -> Resolved -> All Clear.
  */
+/** Where the phone's back goes from each Alerts sub-screen. Mirrors the arrows on those screens. */
+private val ALERT_BACK_TARGETS = mapOf(
+    AlertScreen.CALL_SENIOR to AlertScreen.ACKNOWLEDGED,
+    AlertScreen.LOCATION to AlertScreen.ACKNOWLEDGED,
+    AlertScreen.DISPATCH to AlertScreen.ACKNOWLEDGED,
+    AlertScreen.HISTORY to AlertScreen.ALL_CLEAR,
+    AlertScreen.HISTORY_DETAIL to AlertScreen.HISTORY
+)
+
 @Composable
 fun FamilyAlertsScreen(
     viewModel: FamilyAlertsViewModel,
@@ -91,6 +101,12 @@ fun FamilyAlertsScreen(
     LifecycleResumeEffect(contacts) {
         viewModel.startPolling(contacts)
         onPauseOrDispose { viewModel.stopPolling() }
+    }
+
+    // The phone's back follows each sub-screen's own arrow. The main flow (alert detail,
+    // acknowledged, resolved) has no arrow and no entry here, so back leaves for the Home tab.
+    BackHandler(enabled = viewModel.screen in ALERT_BACK_TARGETS) {
+        ALERT_BACK_TARGETS[viewModel.screen]?.let { viewModel.goTo(it) }
     }
 
     val fallbackSenior = contacts.firstOrNull()?.senior
