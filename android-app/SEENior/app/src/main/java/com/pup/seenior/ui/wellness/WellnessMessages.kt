@@ -104,6 +104,10 @@ object WellnessMessages {
             "Your request for help reached them. Help is on the way."
     )
 
+    /** The alert type in plain words, for lists that name what kind of alert it was. */
+    fun triggerTitle(triggerType: String, language: String): String =
+        if (language == FILIPINO) filipinoTrigger(triggerType) else englishTrigger(triggerType)
+
     private fun englishTrigger(triggerType: String) = when (triggerType) {
         "inactivity" -> "Prolonged Inactivity Detected"
         "movement" -> "Unusual Movement Detected"

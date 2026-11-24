@@ -251,7 +251,7 @@ private fun HistoryRow(alert: Alert, language: String, copy: SeniorStrings.Copy,
         Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                "${SeniorRoutineText.blockName(alert.timeBlock, fil)}: ${statusLabel(alert.status, copy)}",
+                "${SeniorRoutineText.blockName(alert.timeBlock, fil)}: ${WellnessMessages.triggerTitle(alert.triggerType, language)}",
                 color = SeniorColors.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold
             )
             Text(formatTimestamp(alert.triggeredAt), color = SeniorColors.TextSecondary, fontSize = 12.sp)
