@@ -221,6 +221,31 @@ class SeniorRoutineModelTest {
         assertNull(c.extraMinutes)
     }
 
+    @Test fun `the care card keeps the working behind its minutes`() {
+        val alerts = listOf(
+            alert("inactivity", "afternoon", 2.6, "self_cancelled", "2026-11-19"),
+            alert("inactivity", "afternoon", 2.7, "self_cancelled", "2026-11-21")
+        )
+        val base = listOf(baseline("afternoon", SeniorRoutineModel.STILL, 1800.0, mad = 1200.0))
+        val c = SeniorRoutineModel.care(alerts, base, now, utc).single()
+        assertEquals(listOf(2.6, 2.7), c.scores)
+        assertEquals(1200.0, c.spreadSeconds!!, 0.0001)
+        val b = c.breakdown!!
+        assertEquals(2.65, b.medianZ!!, 0.0001)
+        assertEquals(2.90, b.gateBeforeRealAlerts, 0.0001)
+        assertEquals(0, b.realAlertCount)
+        // The working must land on the same minutes the card shows.
+        assertEquals(c.extraMinutes, Math.round(b.extraMinutes(c.spreadSeconds!!)).toInt())
+    }
+
+    @Test fun `a part of the day is quieter busier or different`() {
+        fun ch(feature: String, from: Double, to: Double) = SeniorRoutineModel.Change("morning", feature, from, to)
+        assertEquals(SeniorRoutineModel.Mood.QUIETER, SeniorRoutineModel.mood(listOf(ch(SeniorRoutineModel.STEPS, 3100.0, 2400.0))))
+        assertEquals(SeniorRoutineModel.Mood.BUSIER, SeniorRoutineModel.mood(listOf(ch(SeniorRoutineModel.STEPS, 2400.0, 3100.0))))
+        assertEquals(SeniorRoutineModel.Mood.QUIETER, SeniorRoutineModel.mood(listOf(ch(SeniorRoutineModel.STILL, 3600.0, 4800.0))))
+        assertEquals(SeniorRoutineModel.Mood.BUSIER, SeniorRoutineModel.mood(listOf(ch(SeniorRoutineModel.UNLOCKS, 10.0, 20.0))))
+    }
+
     // ------------------------------------------------------------------ the line on the care card
 
     private fun care(vararg dates: String) = SeniorRoutineModel.Care(

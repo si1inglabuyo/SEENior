@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -34,6 +35,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.pup.seenior.detection.FalseAlarmTolerance
 import com.pup.seenior.ui.profile.GreenBackHeader
 import com.pup.seenior.ui.routine.SeniorRoutineModel.DayState
 import com.pup.seenior.ui.routine.SeniorRoutineModel.Figures
@@ -390,56 +392,64 @@ private fun TodayTabContent(state: SeniorRoutineState) {
 @Composable
 private fun ChangesTabContent(state: SeniorRoutineState) {
     val fil = state.fil
-    Text(
-        SeniorRoutineText.changesSummary(state.changes.items.map { it.block }.distinct().size, state.care.size, fil),
-        color = Color(0xFF4D4D4D), fontSize = 13.sp
-    )
 
-    // 1. What the phone learned: the routine itself moving because the days did.
-    CardBox {
-        Text(SeniorRoutineText.learnedHeading(fil), color = Color(0xFF4D4D4D), fontSize = 12.sp, fontWeight = FontWeight.Bold)
-        if (state.changes.items.isEmpty()) {
-            Text(SeniorRoutineText.noRoutineChange(fil), color = SeniorColors.TextPrimary, fontSize = 14.sp, modifier = Modifier.padding(top = 4.dp))
-        } else {
-            val byBlock = state.changes.items.groupBy { it.block }
-            SeniorRoutineModel.BLOCKS.filter { it in byBlock }.forEach { block ->
-                val items = byBlock.getValue(block)
-                Text(
-                    SeniorRoutineText.blockName(block, fil),
-                    color = SeniorColors.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(top = 8.dp)
-                )
+    // 1. Did my usual change? The routine itself moving because the days did.
+    SectionHead(SeniorRoutineText.usualChangedHeading(fil), SeniorRoutineText.usualChangedSub(fil))
+    if (state.changes.items.isEmpty()) {
+        CardBox {
+            Text(SeniorRoutineText.noRoutineChange(fil), color = SeniorColors.TextPrimary, fontSize = 14.sp, lineHeight = 19.sp)
+        }
+    } else {
+        val byBlock = state.changes.items.groupBy { it.block }
+        SeniorRoutineModel.BLOCKS.filter { it in byBlock }.forEach { block ->
+            val items = byBlock.getValue(block)
+            val mood = SeniorRoutineModel.mood(items)
+            CardBox {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        SeniorRoutineText.blockName(block, fil),
+                        color = SeniorColors.TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Tag(SeniorRoutineText.mood(mood, fil), TagKind.SOFT)
+                }
                 LineList(items.map { c ->
                     Line(
                         SeniorRoutineText.feature(c.feature, fil),
                         "${SeniorRoutineText.value(c.feature, c.from, fil)} → ${SeniorRoutineText.value(c.feature, c.to, fil)}"
                     )
                 })
+                Text(
+                    SeniorRoutineText.whyBlock(mood, block, fil),
+                    color = Color(0xFF4D4D4D), fontSize = 13.sp, lineHeight = 18.sp,
+                    modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
+                )
             }
-            val steps = state.changes.items.filter { it.feature == SeniorRoutineModel.STEPS }
-            val why = when {
-                steps.isNotEmpty() && steps.sumOf { it.to - it.from } < 0 -> SeniorRoutineText.learnedWhyQuieter(fil)
-                steps.isNotEmpty() -> SeniorRoutineText.learnedWhyBusier(fil)
-                else -> SeniorRoutineText.learnedWhyOther(fil)
-            }
-            Text(why, color = Color(0xFF4D4D4D), fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp))
         }
     }
 
-    // 2. How careful alerts are: false alarms loosening the trigger. Not a change to the routine.
-    CardBox(bg = AmberBg, border = AmberBorder) {
-        Text(SeniorRoutineText.careHeading(fil), color = Color(0xFF4D4D4D), fontSize = 12.sp, fontWeight = FontWeight.Bold)
-        if (state.care.isEmpty()) {
-            Text(SeniorRoutineText.noCare(fil), color = SeniorColors.TextPrimary, fontSize = 14.sp, modifier = Modifier.padding(top = 4.dp))
-        } else {
-            Text(SeniorRoutineText.careIntro(fil), color = Color(0xFF3F3F3F), fontSize = 14.sp, lineHeight = 19.sp, modifier = Modifier.padding(top = 4.dp))
-            val today = state.todayDate
-            state.care.forEach { c -> if (today != null) CareBlock(c, today, fil) }
-            Text(SeniorRoutineText.careNote(fil), color = SeniorColors.TextSecondary, fontSize = 12.sp, lineHeight = 17.sp, modifier = Modifier.padding(top = 10.dp))
+    // 2. Does my phone wait longer before it asks? False alarms loosening the trigger. Not a change to the routine.
+    SectionHead(SeniorRoutineText.waitsHeading(fil), SeniorRoutineText.waitsSub(fil))
+    if (state.care.isEmpty()) {
+        CardBox(bg = AmberBg, border = AmberBorder) {
+            Text(SeniorRoutineText.noCare(fil), color = SeniorColors.TextPrimary, fontSize = 14.sp, lineHeight = 19.sp)
         }
+    } else {
+        val today = state.todayDate
+        state.care.forEach { c -> if (today != null) CareBlock(c, today, fil) }
     }
+    Text(SeniorRoutineText.careNote(fil), color = SeniorColors.TextSecondary, fontSize = 12.sp, lineHeight = 17.sp)
 
     if (state.changes.includesEstimates) Note(SeniorRoutineText.estimateNote(fil))
+}
+
+/** A plain question as a heading, with one line under it saying what the cards below are. */
+@Composable
+private fun SectionHead(title: String, sub: String) {
+    Column(modifier = Modifier.padding(top = 4.dp)) {
+        Text(title, color = SeniorColors.TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+        Text(sub, color = SeniorColors.TextSecondary, fontSize = 13.sp, lineHeight = 18.sp, modifier = Modifier.padding(top = 2.dp))
+    }
 }
 
 // ------------------------------------------------------------------ care card
@@ -450,40 +460,144 @@ private val CareTick = Color(0xFFE3D8BB)
 private val CareToday = Color(0xFF4D4D4D)
 
 /**
- * One part of the day where false alarms have loosened the trigger: its name, the minutes added
- * (for the stillness signals), and a line from the first answer to the day it goes back to normal.
+ * One signal in one part of the day where false alarms have loosened the trigger: the minutes
+ * added as a big number, one sentence about the answers, the last 14 days as a line, and a
+ * "View details" that opens the working behind the number.
  */
 @Composable
 private fun CareBlock(c: SeniorRoutineModel.Care, today: java.time.LocalDate, fil: Boolean) {
     val strip = remember(c, today) { SeniorRoutineModel.strip(c, today) }
-    Column(
-        modifier = Modifier
-            .padding(top = 10.dp)
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(Color.White)
-            .border(1.dp, AmberBorder, RoundedCornerShape(14.dp))
-            .padding(horizontal = 14.dp, vertical = 11.dp)
-    ) {
+    var open by rememberSaveable(c.block, c.trigger) { mutableStateOf(false) }
+    CardBox(bg = AmberBg, border = AmberBorder) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 SeniorRoutineText.blockName(c.block, fil),
-                color = SeniorColors.TextPrimary, fontSize = 17.sp, fontWeight = FontWeight.Bold,
+                color = SeniorColors.TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold,
                 modifier = Modifier.weight(1f)
             )
-            Tag(SeniorRoutineText.careChip(c.extraMinutes, fil), TagKind.SOFT)
+            Text(SeniorRoutineText.signalName(c.trigger, fil), color = SeniorColors.TextSecondary, fontSize = 12.sp)
         }
+        Row(verticalAlignment = Alignment.Bottom, modifier = Modifier.padding(top = 2.dp)) {
+            if (c.extraMinutes != null && c.extraMinutes >= 1) {
+                Text(SeniorRoutineText.bigMinutes(c.extraMinutes), color = CareAmber, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold)
+                Spacer(Modifier.width(8.dp))
+            }
+            Text(
+                SeniorRoutineText.bigLabel(c.extraMinutes, fil),
+                color = SeniorColors.TextSecondary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(bottom = 4.dp)
+            )
+        }
+        Text(
+            SeniorRoutineText.careSentence(c.answeredOn.size, c.block, fil),
+            color = SeniorColors.TextPrimary, fontSize = 14.sp, lineHeight = 19.sp,
+            modifier = Modifier.padding(top = 4.dp)
+        )
         CareLine(strip)
         // Under the line: the first day it covers, and today on the right.
         Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(SeniorRoutineText.shortDate(today.minusDays(SeniorRoutineModel.STRIP_CELLS - 1L), fil), fontSize = 11.sp, color = SeniorColors.TextSecondary)
             Text(SeniorRoutineText.careToday(fil), fontSize = 11.sp, color = SeniorColors.TextSecondary)
         }
-        Row(modifier = Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(modifier = Modifier.padding(top = 6.dp)) {
             LegendDot(CareAmber, ring = false, text = SeniorRoutineText.careFine(fil))
-            LegendDot(CareToday, ring = true, text = SeniorRoutineText.careToday(fil))
+        }
+        if (c.breakdown != null) {
+            HorizontalDivider(color = AmberBorder, modifier = Modifier.padding(top = 10.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth().clickable { open = !open }.padding(vertical = 10.dp),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    if (open) SeniorRoutineText.hideDetails(fil) else SeniorRoutineText.viewDetails(fil),
+                    color = Color(0xFF2F5FA8), fontSize = 14.sp, fontWeight = FontWeight.Bold
+                )
+                Text(if (open) "⌃" else "›", color = Color(0xFF2F5FA8), fontSize = 14.sp)
+            }
+            if (open) CareWorking(c, fil)
         }
     }
+}
+
+/** The working behind the number, in the order the detector did it. */
+@Composable
+private fun CareWorking(c: SeniorRoutineModel.Care, fil: Boolean) {
+    val b = c.breakdown ?: return
+    val median = b.medianZ ?: return
+    fun f(v: Double) = String.format(Locale.US, "%.2f", v)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color.White)
+            .border(1.dp, AmberBorder, RoundedCornerShape(12.dp))
+            .padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        WorkingStep(
+            1, SeniorRoutineText.step1Title(fil), SeniorRoutineText.step1Body(fil),
+            c.answeredOn.zip(c.scores).joinToString("\n") { (d, z) -> "${SeniorRoutineText.shortDate(d, fil)}: ${f(z)}" }
+        )
+        WorkingStep(
+            2, SeniorRoutineText.step2Title(fil), SeniorRoutineText.step2Body(f(median), fil),
+            "${f(median)} + ${FalseAlarmTolerance.MARGIN} = ${f(b.gateBeforeRealAlerts)}"
+        )
+        val keptPercent = Math.round(b.keptShare * 100).toInt()
+        WorkingStep(
+            3, SeniorRoutineText.step3Title(fil), SeniorRoutineText.step3Body(b.realAlertCount, keptPercent, c.block, fil),
+            if (b.realAlertCount > 0) "${f(b.gateBeforeRealAlerts)} → ${f(b.gate)}" else null
+        )
+        val spread = c.spreadSeconds
+        if (spread != null && c.extraMinutes != null) {
+            val spreadMin = Math.round(spread / 60.0).toInt().coerceAtLeast(1)
+            WorkingStep(
+                4, SeniorRoutineText.step4Title(fil),
+                SeniorRoutineText.step4Body("${f(b.gate)} − ${FalseAlarmTolerance.BASE_THRESHOLD} = ${f(b.raise)}", spreadMin, c.block, fil),
+                "${f(b.raise)} × ${spreadMin} min ÷ ${com.pup.seenior.detection.MedianMad.MODIFIED_Z_SCALE} = ${c.extraMinutes} min"
+            )
+        }
+        Text(
+            if (c.extraMinutes != null) SeniorRoutineText.resultMinutes(c.extraMinutes, c.block, fil)
+            else SeniorRoutineText.resultNoMinutes(c.block, fil),
+            color = SeniorColors.TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(10.dp))
+                .background(AmberBg)
+                .border(1.dp, AmberBorder, RoundedCornerShape(10.dp))
+                .padding(horizontal = 11.dp, vertical = 9.dp)
+        )
+    }
+}
+
+@Composable
+private fun WorkingStep(number: Int, title: String, body: String, sum: String?) {
+    Row {
+        Box(
+            modifier = Modifier.size(22.dp).clip(androidx.compose.foundation.shape.CircleShape).background(CareAmber),
+            contentAlignment = Alignment.Center
+        ) { Text("$number", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold) }
+        Column(modifier = Modifier.padding(start = 10.dp)) {
+            Text(title, color = SeniorColors.TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+            Text(body, color = SeniorColors.TextSecondary, fontSize = 13.sp, lineHeight = 18.sp, modifier = Modifier.padding(top = 2.dp))
+            if (sum != null) ComputationLineLocal(sum)
+        }
+    }
+}
+
+@Composable
+private fun ComputationLineLocal(text: String) {
+    Text(
+        text,
+        color = Color(0xFF555555), fontSize = 12.sp, lineHeight = 17.sp,
+        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+        modifier = Modifier
+            .padding(top = 5.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(Color(0xFFFAFAFA))
+            .border(1.dp, SeniorColors.FieldBorder, RoundedCornerShape(8.dp))
+            .padding(horizontal = 9.dp, vertical = 6.dp)
+    )
 }
 
 @Composable

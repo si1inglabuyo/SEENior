@@ -238,8 +238,33 @@ object SeniorRoutineModel {
         val trigger: String,
         val answeredOn: List<LocalDate>,
         val extraMinutes: Int?,
-        val backToNormal: LocalDate
+        val backToNormal: LocalDate,
+        /** The scores of the counted false alarms, oldest first, one per date in [answeredOn]. */
+        val scores: List<Double> = emptyList(),
+        /** The detector's own working for this signal and block, so the details can show it. */
+        val breakdown: FalseAlarmTolerance.Breakdown? = null,
+        /** The effective MAD (seconds) the raise was turned into minutes with; null for movement. */
+        val spreadSeconds: Double? = null
     )
+
+    /** How a part of the day moved: quieter, busier or just different. */
+    enum class Mood { QUIETER, BUSIER, DIFFERENT }
+
+    /**
+     * Steps decide when there are some; otherwise the other signals vote in the quieter direction
+     * (fewer unlocks, a longer still or phone-untouched spell). Display only.
+     */
+    fun mood(items: List<Change>): Mood {
+        val steps = items.filter { it.feature == STEPS }
+        if (steps.isNotEmpty()) return if (steps.sumOf { it.to - it.from } < 0) Mood.QUIETER else Mood.BUSIER
+        val unlocks = items.filter { it.feature == UNLOCKS }.sumOf { it.to - it.from }
+        val longer = items.filter { it.feature == STILL || it.feature == IDLE }.sumOf { it.to - it.from }
+        return when {
+            unlocks < 0 || longer > 0 -> Mood.QUIETER
+            unlocks > 0 || longer < 0 -> Mood.BUSIER
+            else -> Mood.DIFFERENT
+        }
+    }
 
     /**
      * Where things sit on the care card's line, as fractions from 0 to 1. The line is the last
@@ -293,13 +318,13 @@ object SeniorRoutineModel {
                     "screen_idle" -> IDLE
                     else -> null
                 }
-                val extra = feature?.let { f ->
+                val spread = feature?.let { f ->
                     baseline.firstOrNull { it.timeBlock == block && it.featureName == f }?.let { row ->
-                        val floor = SeedBaselineGenerator.MIN_MAD_FLOOR[f] ?: 1.0
-                        breakdown.extraMinutes(maxOf(row.madValue, floor)).roundToInt()
+                        maxOf(row.madValue, SeedBaselineGenerator.MIN_MAD_FLOOR[f] ?: 1.0)
                     }
                 }
-                out += Care(block, trigger, dates, extra, lapses)
+                val extra = spread?.let { breakdown.extraMinutes(it).roundToInt() }
+                out += Care(block, trigger, dates, extra, lapses, counted.map { it.deviationScore!! }, breakdown, spread)
             }
         }
         return out
