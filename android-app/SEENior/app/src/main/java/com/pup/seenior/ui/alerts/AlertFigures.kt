@@ -1,6 +1,10 @@
 package com.pup.seenior.ui.alerts
 
 import com.pup.seenior.database.entities.Alert
+import com.pup.seenior.detection.FallContext
+import com.pup.seenior.detection.FallDetector
+import com.pup.seenior.detection.FallEvidence
+import com.pup.seenior.detection.FallTolerance
 import com.pup.seenior.detection.IsolationForestDetector
 import com.pup.seenior.detection.MedianMad
 import com.pup.seenior.ui.routine.SeniorRoutineModel
@@ -163,6 +167,99 @@ internal object AlertFigures {
         val threshold = fmt(IsolationForestDetector.THRESHOLD)
         return if (fil) "iskor ng araw = ${fmt(score)}\nnagfa-flag mula sa $threshold"
         else "daily pattern score = ${fmt(score)}\nflags from $threshold"
+    }
+
+    // ---------------------------------------------------------------- a fall
+
+    /** One of the four checks a fall has to pass, with what the phone measured and what was needed. */
+    data class FallRow(val name: String, val line: String)
+
+    /**
+     * What the "What happened" card says about a fall. A fall has no usual to compare with: it is
+     * judged by the detector's own four checks, so the card lists those with the figure and the
+     * limit each had to clear. [adjusted] explains raised limits, [context] is the record of what
+     * the phone was doing just before the drop. Display only; the detector never reads either.
+     */
+    data class FallView(val sentence: String, val rows: List<FallRow>, val adjusted: String?, val context: String?)
+
+    private fun secs(ms: Long): String = String.format(Locale.US, "%.1f", ms / 1000.0).removeSuffix(".0")
+    private fun one(v: Float): String = String.format(Locale.US, "%.1f", v)
+
+    /** Null for any other trigger and for falls stored before the evidence was recorded. */
+    fun fall(alert: Alert, fil: Boolean): FallView? {
+        if (alert.triggerType != "fall_pattern") return null
+        val evidence = FallEvidence.decode(alert.fallEvidence) ?: return null
+        val note = FallTolerance.decodeNote(alert.fallTolerance)
+        val config = note?.config ?: FallDetector.Config()
+        val turned = evidence.rotationPeak != null
+
+        val rows = buildList {
+            add(FallRow(
+                if (fil) "Malayang pagbagsak" else "Free fall",
+                if (fil) "${secs(evidence.freeFallMs)} s na bumagsak, kailangan ${secs(config.freeFallMinMs)} hanggang ${secs(config.freeFallMaxMs)} s"
+                else "${secs(evidence.freeFallMs)} s in free fall, needed ${secs(config.freeFallMinMs)} to ${secs(config.freeFallMaxMs)} s"
+            ))
+            add(FallRow(
+                if (fil) "Tama sa lupa" else "Impact",
+                if (fil) "${one(evidence.impactPeak)} na lakas, kailangan ${one(config.impactMin)} pataas"
+                else "${one(evidence.impactPeak)} strength, needed ${one(config.impactMin)} or more"
+            ))
+            if (turned) add(FallRow(
+                if (fil) "Pag-ikot ng katawan" else "Rotation",
+                if (fil) "${one(evidence.rotationPeak!!)} na bilis ng pag-ikot, kailangan ${one(config.rotationMin)} pataas"
+                else "${one(evidence.rotationPeak!!)} turning speed, needed ${one(config.rotationMin)} or more"
+            ))
+            add(FallRow(
+                if (fil) "Hindi paggalaw" else "Stillness",
+                if (fil) "${secs(evidence.stillnessMs)} s na hindi gumalaw, kailangan ${secs(config.stillnessMs)} s pataas"
+                else "${secs(evidence.stillnessMs)} s without moving, needed ${secs(config.stillnessMs)} s or more"
+            ))
+        }
+
+        val still = secs(evidence.stillnessMs)
+        val sentence = if (fil) {
+            val felt = if (turned) "ang biglang pagbagsak, malakas na tama at mabilis na pag-ikot" else "ang biglang pagbagsak at malakas na tama"
+            "Naramdaman ng telepono $felt, tapos $still segundong hindi gumalaw. " + if (turned)
+                "Natugunan ang apat na pagsusuri, kaya nagtanong ito kung ligtas kayo."
+            else
+                "Walang sensor ng pag-ikot ang telepono ninyo, kaya hindi ito sinuri. Natugunan ang tatlo pa, kaya nagtanong ito kung ligtas kayo."
+        } else {
+            val felt = if (turned) "a sudden drop, a hard hit and a quick turn" else "a sudden drop and a hard hit"
+            "Your phone felt $felt, and then it stayed still for $still seconds. " + if (turned)
+                "All four checks were met, so it asked if you are safe."
+            else
+                "Your phone has no turn sensor, so that check was skipped. The other three were met, so it asked if you are safe."
+        }
+
+        val adjusted = note?.takeIf { it.raised }?.let { n ->
+            val back = if (n.realAlerts > 0) (if (fil) " Binawi ng ${n.realAlerts} totoong pagbagsak ang bahagi nito." else " ${n.realAlerts} real fall(s) took part of this back.") else ""
+            if (fil)
+                "Bakit mas mataas ang mga pagsusuri: ${n.falseAlarms} naunang pagbagsak sa nakaraang ${FallTolerance.WINDOW_DAYS} araw ang lumabas na maling alarma, kaya mas malakas na tama (${one(n.config.impactMin)} sa halip na ${one(n.baseConfig.impactMin)}) at mas matagal na pagtigil (${secs(n.config.stillnessMs)} s sa halip na ${secs(n.baseConfig.stillnessMs)} s) na ang kailangan ng telepono. May ${FallTolerance.EXTENDED_WINDOW_SECONDS} segundo rin kayong sumagot sa halip na ${FallTolerance.BASE_WINDOW_SECONDS}.$back"
+            else
+                "Why the checks were higher: ${n.falseAlarms} earlier drops in the last ${FallTolerance.WINDOW_DAYS} days turned out to be false alarms, so your phone now needs a harder hit (${one(n.config.impactMin)} instead of ${one(n.baseConfig.impactMin)}) and a longer stillness (${secs(n.config.stillnessMs)} s instead of ${secs(n.baseConfig.stillnessMs)} s). You also get ${FallTolerance.EXTENDED_WINDOW_SECONDS} seconds to answer instead of ${FallTolerance.BASE_WINDOW_SECONDS}.$back"
+        }
+
+        val context = FallContext.decode(alert.fallContext)?.preFallMotion?.let { dev ->
+            when (FallContext.levelOf(dev)) {
+                FallContext.Level.MOVING ->
+                    if (fil) "Bago ang pagbagsak, gumagalaw ang telepono (malamang kumikilos kayo)." else "Just before the drop, the phone was moving (you were likely up and about)."
+                FallContext.Level.GENTLE ->
+                    if (fil) "Bago ang pagbagsak, bahagyang gumagalaw ang telepono." else "Just before the drop, the phone was barely moving."
+                FallContext.Level.STILL ->
+                    if (fil) "Bago ang pagbagsak, hindi gumagalaw ang telepono (malamang nagpapahinga kayo)." else "Just before the drop, the phone was still (you were likely resting)."
+            }
+        }
+        return FallView(sentence, rows, adjusted, context)
+    }
+
+    /** The pop-up for a fall: the detector's own lines, plus what moved the limits when something did. */
+    fun fallWorking(alert: Alert, fil: Boolean, evidenceLines: String?): String? {
+        val note = FallTolerance.decodeNote(alert.fallTolerance)
+        val extra = note?.line(fil)
+        return when {
+            evidenceLines != null && extra != null -> evidenceLines + "\n\n" + extra
+            else -> evidenceLines
+        }
     }
 
     // ---------------------------------------------------------------- the daily pattern

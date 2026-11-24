@@ -83,6 +83,7 @@ fun AlertDetailScreen(
         ?.takeIf { c -> c.answeredOn.contains(dayOf(alert.triggeredAt)) }
     var showWork by remember { mutableStateOf(false) }
     val comparison = AlertFigures.of(alert)
+    val fallView = AlertFigures.fall(alert, fil)
     val dailyDay = viewModel.mlFlagDays[alert.alertId]
     val dailyItems = remember(dailyDay, viewModel.baseline) {
         if (alert.triggerType != "ml_flag" || dailyDay == null) emptyList()
@@ -95,6 +96,7 @@ fun AlertDetailScreen(
     val working = when {
         comparison != null -> AlertFigures.working(comparison, alert.timeBlock, alert.deviationScore, fil)
         alert.triggerType == "ml_flag" -> viewModel.mlFlagScores[alert.alertId]?.let { AlertFigures.dailyScoreWorking(it, fil) }
+        alert.triggerType == "fall_pattern" -> AlertFigures.fallWorking(alert, fil, computation)
         else -> computation
     }
 
@@ -153,6 +155,8 @@ fun AlertDetailScreen(
             CardBox {
                 if (comparison != null) {
                     ComparisonBlock(comparison, alert.timeBlock, fil)
+                } else if (fallView != null) {
+                    FallBlock(fallView)
                 } else if (alert.triggerType == "ml_flag" && dailyItems.isNotEmpty()) {
                     DailyPatternBlock(alert.timeBlock, dailyItems, fil)
                 }
@@ -229,18 +233,63 @@ private fun FigureBox(label: String, value: String, note: String, highlight: Boo
 }
 
 @Composable
-private fun ReasonBox(text: String) {
+private fun ReasonBox(text: String, top: Int = 8) {
     Text(
         text,
         color = SeniorColors.TextPrimary, fontSize = 14.sp, lineHeight = 20.sp,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 8.dp)
+            .padding(top = top.dp)
             .clip(RoundedCornerShape(10.dp))
             .background(AmberBg)
             .border(1.dp, AmberBorder, RoundedCornerShape(10.dp))
             .padding(horizontal = 12.dp, vertical = 10.dp)
     )
+}
+
+/** A fall: one sentence, the four checks with their figures, and why the limits were higher when they were. */
+@Composable
+private fun FallBlock(view: AlertFigures.FallView) {
+    ReasonBox(view.sentence, top = 0)
+    Column(modifier = Modifier.padding(top = 10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        view.rows.forEach { row ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color(0xFFFAFAFA))
+                    .border(1.dp, SeniorColors.FieldBorder, RoundedCornerShape(12.dp))
+                    .padding(horizontal = 12.dp, vertical = 9.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier.size(24.dp).clip(CircleShape).background(SeniorColors.Green),
+                    contentAlignment = Alignment.Center
+                ) { Text("✓", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold) }
+                Column(modifier = Modifier.padding(start = 10.dp)) {
+                    Text(row.name, color = SeniorColors.TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    Text(row.line, color = SeniorColors.TextSecondary, fontSize = 13.sp, lineHeight = 17.sp)
+                }
+            }
+        }
+    }
+    view.adjusted?.let {
+        Text(
+            it,
+            color = SeniorColors.TextPrimary, fontSize = 13.sp, lineHeight = 18.sp,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 10.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(SeniorColors.BlueLightBg)
+                .border(1.dp, SeniorColors.BlueBorder, RoundedCornerShape(10.dp))
+                .padding(horizontal = 12.dp, vertical = 10.dp)
+        )
+    }
+    view.context?.let {
+        Text(it, color = SeniorColors.TextSecondary, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp))
+    }
+    Spacer(Modifier.height(8.dp))
 }
 
 /** The daily-pattern alert: one sentence, then each signal that leaned the worrying way. */

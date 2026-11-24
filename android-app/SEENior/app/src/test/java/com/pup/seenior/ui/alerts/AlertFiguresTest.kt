@@ -81,4 +81,48 @@ class AlertFiguresTest {
         val busy = SeniorRoutineModel.Figures(steps = 9000, unlocks = 80, stillSeconds = 600, idleSeconds = 100)
         assertTrue(AlertFigures.dailyItems(usual, busy).isEmpty())
     }
+
+    private fun fall(evidence: String?, tolerance: String? = null, context: String? = null) = Alert(
+        seniorId = 1, syncId = "f", triggerType = "fall_pattern", riskLevel = "high", timeBlock = "morning",
+        fallEvidence = evidence, fallTolerance = tolerance, fallContext = context
+    )
+
+    @Test fun `a fall card lists the four checks with what was measured and needed`() {
+        val v = AlertFigures.fall(fall("ff=400;imp=35.0;still=10500;rot=4.5"), false)!!
+        assertEquals(listOf("Free fall", "Impact", "Rotation", "Stillness"), v.rows.map { it.name })
+        assertEquals("0.4 s in free fall, needed 0.1 to 2 s", v.rows[0].line)
+        assertEquals("35.0 strength, needed 25.0 or more", v.rows[1].line)
+        assertEquals("4.5 turning speed, needed 2.0 or more", v.rows[2].line)
+        assertEquals("10.5 s without moving, needed 8 s or more", v.rows[3].line)
+        assertTrue(v.sentence, v.sentence.contains("All four checks were met"))
+        assertNull(v.adjusted)
+    }
+
+    @Test fun `a phone with no gyroscope shows three checks and says so`() {
+        val v = AlertFigures.fall(fall("ff=300;imp=29.4;still=12000"), false)!!
+        assertEquals(listOf("Free fall", "Impact", "Stillness"), v.rows.map { it.name })
+        assertTrue(v.sentence, v.sentence.contains("no turn sensor"))
+    }
+
+    @Test fun `a fall judged with raised limits shows them and why`() {
+        val note = "impact_min=27.5;base_impact=25.0;still_ms=8800;base_still=8000;false=2;real=0"
+        val v = AlertFigures.fall(fall("ff=500;imp=31.2;still=9400;rot=3.8", note), false)!!
+        assertEquals("31.2 strength, needed 27.5 or more", v.rows[1].line)
+        assertEquals("9.4 s without moving, needed 8.8 s or more", v.rows[3].line)
+        val adj = v.adjusted!!
+        assertTrue(adj, adj.contains("2 earlier drops") && adj.contains("false alarms") &&
+            adj.contains("27.5 instead of 25.0") && adj.contains("8.8 s instead of 8 s") && adj.contains("120 seconds"))
+        assertTrue(!adj.contains("you said"))
+    }
+
+    @Test fun `a fall without stored evidence has no card and other triggers never get one`() {
+        assertNull(AlertFigures.fall(fall(null), false))
+        assertNull(AlertFigures.fall(alert("inactivity", 1.0, 1.0, 1.0), false))
+    }
+
+    @Test fun `the fall card reads in Filipino with the same figures`() {
+        val v = AlertFigures.fall(fall("ff=400;imp=35.0;still=10500;rot=4.5"), true)!!
+        assertEquals(listOf("Malayang pagbagsak", "Tama sa lupa", "Pag-ikot ng katawan", "Hindi paggalaw"), v.rows.map { it.name })
+        assertTrue(v.rows[1].line, v.rows[1].line.contains("35.0") && v.rows[1].line.contains("25.0"))
+    }
 }
