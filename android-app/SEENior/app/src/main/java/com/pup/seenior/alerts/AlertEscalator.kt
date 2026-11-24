@@ -99,6 +99,9 @@ object AlertEscalator {
      */
     private val PHONE_USE_CLEARABLE = setOf("inactivity", "movement", "screen_idle", "charging", "ml_flag", "fall_pattern")
 
+    /** Whether this alert was closed by phone use, so a prompt still showing it should go away. Null (a missing row) is not. */
+    fun closedByPhoneUse(alert: Alert?): Boolean = alert?.status == "auto_cleared"
+
     /** Whether using the phone may close an alert of this kind and state. Pure, so it can be unit tested. */
     fun clearableByPhoneUse(alert: Alert): Boolean =
         alert.status == "pending" &&
@@ -116,8 +119,17 @@ object AlertEscalator {
      * alert never left the phone. Taken under [escalateLock] so it cannot race the escalation.
      * Returns the ids it closed.
      */
-    suspend fun clearForPhoneUse(context: Context, db: SeniorAppDatabase): List<Int> =
-        clearUnsentForPhoneUse(context, db) + clearEscalatedForPhoneUse(context, db)
+    suspend fun clearForPhoneUse(context: Context, db: SeniorAppDatabase, minAgeMs: Long = 0L): List<Int> =
+        clearUnsentForPhoneUse(context, db, minAgeMs) + clearEscalatedForPhoneUse(context, db, minAgeMs)
+
+    /**
+     * Whether the alert is at least [minAgeMs] old. A phone with no lock screen sends no
+     * `ACTION_USER_PRESENT`, so there the screen coming on stands in for an unlock. The alert's
+     * own prompt lights the screen, so that event must not close the alert that caused it: only
+     * a screen-on a few seconds after the alert counts.
+     */
+    fun oldEnough(alert: Alert, minAgeMs: Long, now: Long = System.currentTimeMillis()): Boolean =
+        now - alert.triggeredAt >= minAgeMs
 
     /**
      * Whether using the phone may close an alert that has already reached the cloud, so the
@@ -138,11 +150,11 @@ object AlertEscalator {
      * is offline or the server refuses, nothing changes and the next unlock tries again.
      * The cloud call is made outside [escalateLock] so a slow network never stalls escalation.
      */
-    private suspend fun clearEscalatedForPhoneUse(context: Context, db: SeniorAppDatabase): List<Int> {
+    private suspend fun clearEscalatedForPhoneUse(context: Context, db: SeniorAppDatabase, minAgeMs: Long): List<Int> {
         val senior = db.seniorDao().getOnboardedSenior() ?: return emptyList()
         val cleared = mutableListOf<Int>()
         for (alert in db.alertDao().getOpenAlerts()) {
-            if (alert.seniorId != senior.seniorId || !escalatedClearableByPhoneUse(alert)) continue
+            if (alert.seniorId != senior.seniorId || !escalatedClearableByPhoneUse(alert) || !oldEnough(alert, minAgeMs)) continue
             if (!askCloudToClearForPhoneUse(db, alert)) continue
             escalateLock.withLock {
                 val current = db.alertDao().getById(alert.alertId) ?: return@withLock
@@ -176,13 +188,13 @@ object AlertEscalator {
         false
     }
 
-    private suspend fun clearUnsentForPhoneUse(context: Context, db: SeniorAppDatabase): List<Int> = escalateLock.withLock {
+    private suspend fun clearUnsentForPhoneUse(context: Context, db: SeniorAppDatabase, minAgeMs: Long): List<Int> = escalateLock.withLock {
         val senior = db.seniorDao().getOnboardedSenior() ?: return emptyList()
         val cleared = mutableListOf<Int>()
         for (alert in db.alertDao().getPendingAlerts()) {
             // Re-read under the lock: the state may have moved since the list was built.
             val current = db.alertDao().getById(alert.alertId) ?: continue
-            if (current.seniorId != senior.seniorId || !clearableByPhoneUse(current)) continue
+            if (current.seniorId != senior.seniorId || !clearableByPhoneUse(current) || !oldEnough(current, minAgeMs)) continue
             val now = System.currentTimeMillis()
             db.alertDao().updateEscalationSteps(
                 current.alertId,

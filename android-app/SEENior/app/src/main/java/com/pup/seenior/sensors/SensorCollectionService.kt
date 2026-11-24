@@ -27,7 +27,6 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
-import com.pup.seenior.AppForeground
 import com.pup.seenior.R
 import com.pup.seenior.alerts.AlertEscalator
 import com.pup.seenior.alerts.AlertResponder
@@ -132,7 +131,17 @@ class SensorCollectionService : Service(), SensorEventListener
                     // Only the first SCREEN_OFF starts the clock; a repeat would restart it.
                     Intent.ACTION_SCREEN_OFF ->
                         if (screenOffSince == null) screenOffSince = System.currentTimeMillis()
-                    Intent.ACTION_SCREEN_ON -> screenOffSince = null
+                    Intent.ACTION_SCREEN_ON -> {
+                        screenOffSince = null
+                        // No lock screen means no ACTION_USER_PRESENT, so the screen coming on is
+                        // the only sign the senior picked the phone up (found on the Infinix
+                        // test phone, 2026-11-23). With a lock screen the keyguard is still up
+                        // here and the real unlock follows. The alert's own prompt also lights
+                        // the screen, hence the minimum age.
+                        val keyguardUp = keyguardManager.isKeyguardLocked
+                        Log.i(TAG_SCREEN, "screen on, keyguardLocked=" + keyguardUp)
+                        if (!keyguardUp) clearAlertsOnPhoneUse(SCREEN_ON_MIN_ALERT_AGE_MS)
+                    }
                     Intent.ACTION_USER_PRESENT -> {
                         screenUnlockCount++
                         clearAlertsOnPhoneUse()
@@ -143,18 +152,28 @@ class SensorCollectionService : Service(), SensorEventListener
     }
 
     /**
-     * A real unlock (not just the screen lighting up) while a routine anomaly is waiting on the
-     * senior closes it quietly, see [AlertEscalator.clearForPhoneUse]. Skipped while the app is
-     * on screen, because then the wellness prompt is the thing being looked at and the senior
-     * should answer it; this covers the case where it was dismissed or ignored.
+     * A real unlock (not just the screen lighting up) while a routine anomaly or fall is open
+     * closes it quietly, see [AlertEscalator.clearForPhoneUse]. Changed 2026-11-23: this no longer
+     * waits for the app to be off screen. The prompt usually takes over the lock screen, so the
+     * app was always in the foreground at unlock and the alert never closed; the prompt now goes
+     * away with the alert (see HomeViewModel). SOS is never closed, and an alert someone has
+     * acknowledged stays open (the server refuses).
      */
-    private fun clearAlertsOnPhoneUse() {
-        if (AppForeground.isForeground) return
+    private fun clearAlertsOnPhoneUse(minAgeMs: Long = 0L) {
         serviceScope.launch {
             runCatching {
                 val cleared = AlertEscalator.clearForPhoneUse(
                     applicationContext,
-                    SeniorAppDatabase.getInstance(applicationContext)
+                    SeniorAppDatabase.getInstance(applicationContext),
+                    minAgeMs
+                )
+                val now = System.currentTimeMillis()
+                val open = SeniorAppDatabase.getInstance(applicationContext).alertDao().getOpenAlerts()
+                Log.i(
+                    TAG_SCREEN,
+                    "phone use check minAge=$minAgeMs open=" + open.joinToString { "#${it.alertId}:${it.triggerType}:${it.status}:" +
+                        "synced=${it.isSynced}:family=${AlertEscalator.hasEscalatedToFamily(it)}:age=${now - it.triggeredAt}ms" } +
+                        " cleared=$cleared"
                 )
                 if (cleared.isNotEmpty()) Log.i(TAG_SCREEN, "phone use cleared alerts $cleared")
             }
@@ -676,6 +695,9 @@ class SensorCollectionService : Service(), SensorEventListener
 
         /** Shortest gap between two stored samples. */
         private const val MIN_COLLECTION_INTERVAL_MS = 60 * 1000L
+        /** A screen-on this soon after an alert is the alert's own prompt waking the screen, not a pick-up. */
+        private const val SCREEN_ON_MIN_ALERT_AGE_MS = 5_000L
+
         private const val MOVEMENT_THRESHOLD = 0.05
 
         /** Trace tag for the screen-state broadcasts, whose delivery is not to be assumed. */

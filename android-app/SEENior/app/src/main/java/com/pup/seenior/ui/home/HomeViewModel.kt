@@ -167,6 +167,18 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             restoreFamilyTabsIfPaired()
             db.alertDao().getUnacknowledgedAlerts(loaded.seniorId).collectLatest { alerts ->
                 openAlerts = alerts
+                // The alert on the prompt was closed by phone use (an unlock). Without this the
+                // prompt stayed on screen showing a closed alert, because `handling` is only set
+                // when it is empty. Only that one status: a self-cancel also leaves the open list
+                // but must keep the prompt up for its "what happened" question.
+                handling?.let { shown ->
+                    if (alerts.none { it.alertId == shown.alertId } &&
+                        AlertEscalator.closedByPhoneUse(db.alertDao().getById(shown.alertId))
+                    ) {
+                        answeredThisSession = answeredThisSession + shown.alertId
+                        handling = nextUnanswered()
+                    }
+                }
                 if (handling == null) handling = nextUnanswered()
                 // An alert has just opened: refresh the list now rather than waiting for the
                 // next poll. Own coroutine, so a slow network never delays the prompt.

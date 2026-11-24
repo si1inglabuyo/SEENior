@@ -72,4 +72,22 @@ class PhoneUseClearTest {
         val feedsTolerance = setOf("self_cancelled", "false_positive")
         assertEquals(false, "auto_cleared" in feedsTolerance)
     }
+
+    @Test
+    fun aPromptIsDroppedOnlyForAnAlertClosedByPhoneUse() {
+        assertTrue(AlertEscalator.closedByPhoneUse(alert("inactivity", status = "auto_cleared")))
+        // A self-cancel must keep the prompt up for its "what happened" question.
+        assertFalse(AlertEscalator.closedByPhoneUse(alert("inactivity", status = "self_cancelled")))
+        assertFalse(AlertEscalator.closedByPhoneUse(alert("inactivity", status = "pending")))
+        assertFalse(AlertEscalator.closedByPhoneUse(null))
+    }
+
+    @Test
+    fun aScreenOnRightAfterTheAlertIsItsOwnPromptNotAPickUp() {
+        val a = alert("inactivity")
+        assertFalse(AlertEscalator.oldEnough(a, minAgeMs = 5_000L, now = a.triggeredAt + 1_000L))
+        assertTrue(AlertEscalator.oldEnough(a, minAgeMs = 5_000L, now = a.triggeredAt + 6_000L))
+        // A real unlock (ACTION_USER_PRESENT) has no minimum age.
+        assertTrue(AlertEscalator.oldEnough(a, minAgeMs = 0L, now = a.triggeredAt))
+    }
 }
