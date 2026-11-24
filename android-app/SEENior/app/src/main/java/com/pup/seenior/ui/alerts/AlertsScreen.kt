@@ -26,7 +26,12 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.activity.compose.BackHandler
+import com.pup.seenior.ui.routine.SeniorRoutineText
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -78,6 +83,15 @@ fun AlertsScreen(homeViewModel: HomeViewModel, viewModel: AlertsViewModel = view
         recent.filterNot { it.alertId == delivery?.alert?.alertId }
     }
 
+    // One alert opened full screen. Back returns to the list, never leaves the tab.
+    var selected by remember { mutableStateOf<Alert?>(null) }
+    val open = selected
+    if (open != null) {
+        BackHandler { selected = null }
+        AlertDetailScreen(open, language, copy, viewModel, onBack = { selected = null })
+        return
+    }
+
     Surface(modifier = Modifier.fillMaxSize(), color = Color.White) {
         Column(modifier = Modifier.fillMaxSize()) {
             Row(
@@ -110,7 +124,7 @@ fun AlertsScreen(homeViewModel: HomeViewModel, viewModel: AlertsViewModel = view
                             delivery = delivery,
                             language = language,
                             copy = copy,
-                            mlFlagScore = viewModel.mlFlagScores[delivery.alert.alertId],
+                            onOpen = { selected = delivery.alert },
                             onStandDown = { homeViewModel.standDown(delivery.alert) }
                         )
                         // An open alert is heading to, or is at, the barangay. If the hall is shut
@@ -137,13 +151,8 @@ fun AlertsScreen(homeViewModel: HomeViewModel, viewModel: AlertsViewModel = view
                     item { EmptyNotice(copy.alertsNoHistory) }
                 } else {
                     items(history, key = { it.alertId }) { alert ->
-                        HistoryAlertCard(
-                            alert = alert,
-                            language = language,
-                            copy = copy,
-                            mlFlagScore = viewModel.mlFlagScores[alert.alertId]
-                        )
-                        Spacer(Modifier.height(12.dp))
+                        HistoryRow(alert = alert, language = language, copy = copy, onClick = { selected = alert })
+                        HorizontalDivider(color = SeniorColors.FieldBorder.copy(alpha = 0.6f))
                     }
                 }
             }
@@ -161,7 +170,7 @@ private fun CurrentAlertCard(
     delivery: HelpDelivery,
     language: String,
     copy: SeniorStrings.Copy,
-    mlFlagScore: Double?,
+    onOpen: () -> Unit,
     onStandDown: () -> Unit
 ) {
     val alert = delivery.alert
@@ -172,7 +181,6 @@ private fun CurrentAlertCard(
 
     val wellnessCopy = WellnessMessages.forAlert(language, "", alert.triggerType, alert.timeBlock)
     val description = AlertDescriptions.describe(language, alert.triggerType, alert.timeBlock, alert.deviationScore)
-    val computation = AlertDescriptions.computationLine(language, alert.triggerType, alert.deviationScore, mlFlagScore, alert.fallEvidence, alert.fallTolerance)
 
     Column(
         modifier = Modifier
@@ -196,12 +204,14 @@ private fun CurrentAlertCard(
         }
         Spacer(Modifier.height(10.dp))
         Text(description, color = SeniorColors.TextPrimary, fontSize = 14.sp, lineHeight = 19.sp)
-        if (computation != null) {
-            Spacer(Modifier.height(8.dp))
-            ComputationLine(computation)
-        }
         Spacer(Modifier.height(10.dp))
         Text(formatTimestamp(alert.triggeredAt), color = SeniorColors.TextSecondary, fontSize = 12.sp)
+        Spacer(Modifier.height(6.dp))
+        Text(
+            if (language == WellnessMessages.FILIPINO) "Tingnan ang detalye ›" else "See details ›",
+            color = Color(0xFF2F5FA8), fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.clickable(onClick = onOpen).padding(vertical = 4.dp)
+        )
 
         // The same "I'm fine now" action Home offers, always green since it isn't a severity indicator.
         Spacer(Modifier.height(14.dp))
@@ -226,56 +236,40 @@ private fun CurrentAlertCard(
     }
 }
 
+/**
+ * One line of history: a dot for how it ended, what happened in plain words and when. The score,
+ * the risk badge and the working live on the details screen, not here.
+ */
 @Composable
-private fun HistoryAlertCard(alert: Alert, language: String, copy: SeniorStrings.Copy, mlFlagScore: Double?) {
-    val wellnessCopy = WellnessMessages.forAlert(language, "", alert.triggerType, alert.timeBlock)
-    val description = AlertDescriptions.describe(language, alert.triggerType, alert.timeBlock, alert.deviationScore)
-    val computation = AlertDescriptions.computationLine(language, alert.triggerType, alert.deviationScore, mlFlagScore, alert.fallEvidence, alert.fallTolerance)
-    val accent = riskColor(alert.riskLevel)
-
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(SeniorColors.FieldBackground)
-            .border(1.dp, SeniorColors.FieldBorder, RoundedCornerShape(14.dp))
-            .padding(horizontal = 16.dp, vertical = 14.dp)
+private fun HistoryRow(alert: Alert, language: String, copy: SeniorStrings.Copy, onClick: () -> Unit) {
+    val fil = language == WellnessMessages.FILIPINO
+    Row(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(modifier = Modifier.size(10.dp).background(accent, CircleShape))
-            Spacer(Modifier.width(8.dp))
+        Box(modifier = Modifier.size(10.dp).background(statusDot(alert.status), CircleShape))
+        Spacer(Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
             Text(
-                wellnessCopy.headerSubtitle,
-                color = SeniorColors.TextPrimary,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.weight(1f)
+                "${SeniorRoutineText.blockName(alert.timeBlock, fil)}: ${statusLabel(alert.status, copy)}",
+                color = SeniorColors.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold
             )
-            Text(formatTimestamp(alert.triggeredAt), color = SeniorColors.TextSecondary, fontSize = 11.sp)
+            Text(formatTimestamp(alert.triggeredAt), color = SeniorColors.TextSecondary, fontSize = 12.sp)
         }
-        Spacer(Modifier.height(6.dp))
-        Text(description, color = SeniorColors.TextPrimary, fontSize = 13.sp, lineHeight = 18.sp)
-        if (computation != null) {
-            Spacer(Modifier.height(6.dp))
-            ComputationLine(computation)
-        }
-        Spacer(Modifier.height(8.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            RiskBadge(alert.riskLevel, copy)
-            Spacer(Modifier.width(8.dp))
-            Text(
-                statusLabel(alert.status, copy),
-                color = SeniorColors.TextSecondary,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold
-            )
-        }
+        Text("›", color = SeniorColors.TextSecondary, fontSize = 22.sp)
     }
+}
+
+/** Green: you said you were fine. Blue: closed by phone use. Amber: it went past you. */
+private fun statusDot(status: String): Color = when (status) {
+    "self_cancelled", "false_positive" -> SeniorColors.Green
+    "auto_cleared" -> SeniorColors.BlueBorder
+    else -> AlertAmber
 }
 
 /** The "show your work" line, in monospace so it reads as a computed figure rather than prose. */
 @Composable
-private fun ComputationLine(text: String) {
+internal fun ComputationLine(text: String) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -334,7 +328,7 @@ private fun riskLabel(riskLevel: String, copy: SeniorStrings.Copy): String = whe
     else -> copy.riskLow
 }
 
-private fun statusLabel(status: String, copy: SeniorStrings.Copy): String = when (status) {
+internal fun statusLabel(status: String, copy: SeniorStrings.Copy): String = when (status) {
     "pending" -> copy.alertStatusPending
     "acknowledged_family" -> copy.alertStatusFamilyNotified
     "escalated_barangay" -> copy.alertStatusBarangayNotified
@@ -345,5 +339,5 @@ private fun statusLabel(status: String, copy: SeniorStrings.Copy): String = when
     else -> status
 }
 
-private fun formatTimestamp(millis: Long): String =
+internal fun formatTimestamp(millis: Long): String =
     SimpleDateFormat("MMM d, h:mm a", Locale.getDefault()).format(Date(millis))

@@ -30,11 +30,19 @@ class AlertsViewModel(application: Application) : AndroidViewModel(application) 
     var mlFlagScores by mutableStateOf<Map<Int, Double>>(emptyMap())
         private set
 
+    /**
+     * The Routine Fingerprint, read so the details screen can say whether an alert is one of
+     * those currently loosening the trigger (see [com.pup.seenior.ui.routine.SeniorRoutineModel.care]).
+     */
+    var baseline by mutableStateOf<List<com.pup.seenior.database.entities.Baseline>>(emptyList())
+        private set
+
     fun start() {
         viewModelScope.launch {
             val seniorId = db.seniorDao().getOnboardedSenior()?.seniorId ?: return@launch
             db.alertDao().getAllBySenior(seniorId).collectLatest { list ->
                 alerts = list
+                baseline = db.baselineDao().getAllBySeniorOnce(seniorId)
                 loadMlFlagScores(seniorId, list)
             }
         }
