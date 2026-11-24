@@ -1,6 +1,7 @@
 package com.pup.seenior.ui.profile
 
 import com.pup.seenior.ui.FitText
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -72,9 +73,12 @@ import com.pup.seenior.ui.theme.SeniorColors
 import com.pup.seenior.validation.PhilippinePhone
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Science
+import androidx.compose.material.icons.filled.Timeline
+import com.pup.seenior.ui.routine.SeniorRoutineScreen
+import com.pup.seenior.ui.routine.SeniorRoutineText
 
 private enum class ProfilePage {
-    HOME, EDIT, ADDRESS_MAP, LANGUAGE, ABOUT, HOW_TO_USE, FAQS, SUPPORT, TERMS, PRIVACY, DELETE_ACCOUNT,
+    HOME, EDIT, ADDRESS_MAP, LANGUAGE, ABOUT, HOW_TO_USE, FAQS, SUPPORT, TERMS, PRIVACY, ROUTINE, DELETE_ACCOUNT,
     /** Only reachable for a senior living alone — for everyone else these are bottom tabs. */
     FAMILY, FAMILY_INVITE,
     /** Demo-only; see SHOW_DEMO_TOOLS. */
@@ -91,6 +95,23 @@ fun SeniorProfileScreen(onAccountDeleted: () -> Unit) {
     val viewModel: SeniorProfileViewModel = viewModel()
     LaunchedEffect(Unit) { viewModel.refresh() }
     var page by remember { mutableStateOf(ProfilePage.HOME) }
+
+    // The phone's own back (gesture or button) does what each screen's on-screen back arrow does,
+    // one step up, instead of closing the app. Home is left to the dashboard, which returns to
+    // the Home tab. While an account is being deleted or a profile saved it is ignored, as the
+    // screens' own controls are.
+    BackHandler(enabled = page != ProfilePage.HOME) {
+        when (page) {
+            ProfilePage.EDIT -> if (!viewModel.isSaving) {
+                viewModel.discardEdits()
+                page = ProfilePage.HOME
+            }
+            ProfilePage.ADDRESS_MAP -> page = ProfilePage.EDIT
+            ProfilePage.FAMILY_INVITE -> page = ProfilePage.FAMILY
+            ProfilePage.DELETE_ACCOUNT -> if (!viewModel.isDeleting) page = ProfilePage.HOME
+            else -> page = ProfilePage.HOME
+        }
+    }
 
     when (page) {
         ProfilePage.HOME -> ProfileHome(viewModel) { page = it }
@@ -110,6 +131,7 @@ fun SeniorProfileScreen(onAccountDeleted: () -> Unit) {
             onConfirmed = { page = ProfilePage.EDIT },
             showStepDots = false
         )
+        ProfilePage.ROUTINE -> SeniorRoutineScreen(onBack = { page = ProfilePage.HOME })
         ProfilePage.DELETE_ACCOUNT -> SeniorDeleteAccountScreen(
             viewModel = viewModel,
             onBack = { page = ProfilePage.HOME },
@@ -252,6 +274,14 @@ private fun ProfileHome(viewModel: SeniorProfileViewModel, onNavigate: (ProfileP
 
             SectionLabel(copy.sectionAccount)
             ProfileGroup {
+                val fil = viewModel.language == com.pup.seenior.ui.wellness.WellnessMessages.FILIPINO
+                ProfileRow(
+                    icon = Icons.Filled.Timeline,
+                    title = SeniorRoutineText.title(fil),
+                    subtitle = SeniorRoutineText.profileRowSubtitle(fil),
+                    onClick = { onNavigate(ProfilePage.ROUTINE) }
+                )
+                RowDivider()
                 ProfileRow(
                     icon = Icons.Filled.DeleteForever,
                     title = copy.deleteAccountRow,
