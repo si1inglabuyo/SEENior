@@ -31,6 +31,13 @@ class AlertsViewModel(application: Application) : AndroidViewModel(application) 
         private set
 
     /**
+     * The scored block behind each `ml_flag` alert, so the details can show which signals leaned
+     * the worrying way. Kept on the phone for 14 days only, so older alerts have none.
+     */
+    var mlFlagDays by mutableStateOf<Map<Int, com.pup.seenior.database.entities.DailyAggregate>>(emptyMap())
+        private set
+
+    /**
      * The Routine Fingerprint, read so the details screen can say whether an alert is one of
      * those currently loosening the trigger (see [com.pup.seenior.ui.routine.SeniorRoutineModel.care]).
      */
@@ -52,12 +59,12 @@ class AlertsViewModel(application: Application) : AndroidViewModel(application) 
     private suspend fun loadMlFlagScores(seniorId: Int, list: List<Alert>) {
         val unfetched = list.filter { it.triggerType == "ml_flag" && it.alertId !in mlFlagScores }
         if (unfetched.isEmpty()) return
-        val found = unfetched.mapNotNull { alert ->
+        val rows = unfetched.mapNotNull { alert ->
             db.dailyAggregateDao()
                 .getMostRecentBefore(seniorId, alert.timeBlock, alert.triggeredAt)
-                ?.isolationForestScore
                 ?.let { alert.alertId to it }
         }
-        mlFlagScores = mlFlagScores + found
+        mlFlagDays = mlFlagDays + rows
+        mlFlagScores = mlFlagScores + rows.mapNotNull { (id, row) -> row.isolationForestScore?.let { id to it } }
     }
 }

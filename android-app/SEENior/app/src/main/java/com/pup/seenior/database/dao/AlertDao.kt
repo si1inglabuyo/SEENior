@@ -179,6 +179,10 @@ interface AlertDao {
     @Query("UPDATE Alerts SET risk_level = :riskLevel, deviation_score = :deviationScore WHERE alert_id = :alertId")
     suspend fun updateSeverity(alertId: Int, riskLevel: String, deviationScore: Double)
 
+    /** Keeps the figures behind the score in step with it when an open alert is upgraded. */
+    @Query("UPDATE Alerts SET reading_value = :reading, usual_value = :usual, usual_spread = :spread WHERE alert_id = :alertId")
+    suspend fun updateReading(alertId: Int, reading: Double, usual: Double, spread: Double)
+
 
     /** Returns all alerts that haven't been synced to the cloud backend yet */
     @Query("SELECT * FROM Alerts WHERE is_synced = 0 ORDER BY triggered_at ASC")

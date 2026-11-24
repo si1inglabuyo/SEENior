@@ -107,5 +107,16 @@ data class Alert(
      * (`alerts.outcome_detail` / `alert_outcomes.outcome_detail`, migration 0029). A record, not a
      * rule: nothing reads it to decide anything.
      */
-    @ColumnInfo(name = "outcome_detail") val outcomeDetail: String? = null
+    @ColumnInfo(name = "outcome_detail") val outcomeDetail: String? = null,
+    /**
+     * For Median-MAD alerts only: what the phone measured when it asked (seconds for stillness
+     * and screen idle, a 0-1 score for movement), the senior's usual for that block, and how
+     * much their ordinary days vary around it (the effective MAD). Kept so the alert details can
+     * say "usual 45 min, this time 1 h 10 min" without rebuilding it from a routine that has
+     * moved since. Local only, never synced. A record, not a rule: nothing reads it to decide
+     * anything. Null for other triggers and for alerts made before migration 13 to 14.
+     */
+    @ColumnInfo(name = "reading_value") val readingValue: Double? = null,
+    @ColumnInfo(name = "usual_value") val usualValue: Double? = null,
+    @ColumnInfo(name = "usual_spread") val usualSpread: Double? = null
 )

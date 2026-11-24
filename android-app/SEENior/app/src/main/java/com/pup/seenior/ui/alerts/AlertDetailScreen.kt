@@ -1,6 +1,16 @@
 package com.pup.seenior.ui.alerts
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -72,6 +82,31 @@ fun AlertDetailScreen(
     val changedBy = care.firstOrNull { it.block == alert.timeBlock && it.trigger == alert.triggerType }
         ?.takeIf { c -> c.answeredOn.contains(dayOf(alert.triggeredAt)) }
     var showWork by remember { mutableStateOf(false) }
+    val comparison = AlertFigures.of(alert)
+    val dailyDay = viewModel.mlFlagDays[alert.alertId]
+    val dailyItems = remember(dailyDay, viewModel.baseline) {
+        if (alert.triggerType != "ml_flag" || dailyDay == null) emptyList()
+        else AlertFigures.dailyItems(
+            SeniorRoutineModel.usual(viewModel.baseline, alert.timeBlock),
+            SeniorRoutineModel.figuresOf(dailyDay)
+        )
+    }
+    // The sum behind the alert, shown in the "?" pop-up instead of a card of its own.
+    val working = when {
+        comparison != null -> AlertFigures.working(comparison, alert.timeBlock, alert.deviationScore, fil)
+        alert.triggerType == "ml_flag" -> viewModel.mlFlagScores[alert.alertId]?.let { AlertFigures.dailyScoreWorking(it, fil) }
+        else -> computation
+    }
+
+    if (showWork && working != null) {
+        AlertDialog(
+            onDismissRequest = { showWork = false },
+            title = { Text(AlertFigures.popupTitle(fil), color = Color(0xFF2F5FA8), fontSize = 17.sp, fontWeight = FontWeight.Bold) },
+            text = { ComputationLine(working) },
+            confirmButton = { TextButton(onClick = { showWork = false }) { Text(AlertFigures.close(fil), color = SeniorColors.Green, fontWeight = FontWeight.Bold) } },
+            containerColor = Color.White
+        )
+    }
 
     Column(modifier = Modifier.fillMaxSize().background(Color.White)) {
         GreenBackHeader(title = AlertDetailText.title(fil), onBack = onBack)
@@ -83,10 +118,18 @@ fun AlertDetailScreen(
                 .padding(horizontal = 16.dp, vertical = 14.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text(
-                AlertDetailText.dateTime(alert.triggeredAt, fil),
-                color = SeniorColors.TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    AlertDetailText.dateTime(alert.triggeredAt, fil),
+                    color = SeniorColors.TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f)
+                )
+                if (working != null) HelpButton { showWork = true }
+            }
             Row { Tag(outcomeLabel(alert.status, copy), outcomeKind(alert.status)) }
 
             // Why the phone asked: the same sentence the prompt gave at the time.
@@ -108,7 +151,11 @@ fun AlertDetailScreen(
                 }
             }
             CardBox {
-                SectionTitle(AlertDetailText.happenedHeading(fil))
+                if (comparison != null) {
+                    ComparisonBlock(comparison, alert.timeBlock, fil)
+                } else if (alert.triggerType == "ml_flag" && dailyItems.isNotEmpty()) {
+                    DailyPatternBlock(alert.timeBlock, dailyItems, fil)
+                }
                 LineList(happened)
             }
 
@@ -128,25 +175,107 @@ fun AlertDetailScreen(
                 }
             }
 
-            // The working, for anyone who wants it. Collapsed so a senior is not shown scores.
-            if (computation != null) {
-                CardBox(bg = SeniorColors.BlueLightBg, border = SeniorColors.BlueBorder) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().clickable { showWork = !showWork },
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(AlertDetailText.workHeading(fil), color = Color(0xFF2F5FA8), fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                        Text(if (showWork) "⌃" else "⌄", color = Color(0xFF2F5FA8), fontSize = 14.sp)
-                    }
-                    if (showWork) {
-                        Spacer(Modifier.height(8.dp))
-                        ComputationLine(computation)
-                    }
-                }
-            }
             Spacer(Modifier.height(12.dp))
         }
     }
+}
+
+/** The round "?" next to the date. Opens the sum behind the alert. */
+@Composable
+private fun HelpButton(onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .size(32.dp)
+            .clip(CircleShape)
+            .border(1.5.dp, Color(0xFF2F5FA8), CircleShape)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Text("?", color = Color(0xFF2F5FA8), fontSize = 16.sp, fontWeight = FontWeight.Bold)
+    }
+}
+
+/** One signal against the senior's usual, then the plain-language reason. */
+@Composable
+private fun ComparisonBlock(c: AlertFigures.Comparison, block: String, fil: Boolean) {
+    Text(AlertFigures.header(c.kind, fil), color = SeniorColors.TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+    Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FigureBox(
+            AlertFigures.usualLabel(c.kind, fil), AlertFigures.usualValue(c, fil), AlertFigures.bufferLabel(c, fil),
+            highlight = false, modifier = Modifier.weight(1f)
+        )
+        FigureBox(
+            AlertFigures.thatLabel(block, fil), AlertFigures.readingValue(c, fil), AlertFigures.pastLabel(c, fil),
+            highlight = true, modifier = Modifier.weight(1f)
+        )
+    }
+    ReasonBox(AlertFigures.sentence(c, fil))
+    Spacer(Modifier.height(8.dp))
+}
+
+@Composable
+private fun FigureBox(label: String, value: String, note: String, highlight: Boolean, modifier: Modifier) {
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(10.dp))
+            .background(if (highlight) AmberBg else Color(0xFFFAFAFA))
+            .border(1.dp, if (highlight) AmberBorder else SeniorColors.FieldBorder, RoundedCornerShape(10.dp))
+            .padding(horizontal = 10.dp, vertical = 8.dp)
+    ) {
+        Text(label, color = SeniorColors.TextSecondary, fontSize = 11.sp)
+        Text(value, color = SeniorColors.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+        Text(note, color = SeniorColors.TextSecondary, fontSize = 11.sp)
+    }
+}
+
+@Composable
+private fun ReasonBox(text: String) {
+    Text(
+        text,
+        color = SeniorColors.TextPrimary, fontSize = 14.sp, lineHeight = 20.sp,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 8.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .background(AmberBg)
+            .border(1.dp, AmberBorder, RoundedCornerShape(10.dp))
+            .padding(horizontal = 12.dp, vertical = 10.dp)
+    )
+}
+
+/** The daily-pattern alert: one sentence, then each signal that leaned the worrying way. */
+@Composable
+private fun DailyPatternBlock(block: String, items: List<AlertFigures.Item>, fil: Boolean) {
+    ReasonBox(AlertFigures.dailySentence(block, fil))
+    Column(modifier = Modifier.padding(top = 10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        items.forEach { item ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color(0xFFFAFAFA))
+                    .border(1.dp, SeniorColors.FieldBorder, RoundedCornerShape(12.dp))
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(AlertFigures.itemName(item.feature, fil), color = SeniorColors.TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    Text(AlertFigures.itemLine(item, fil), color = SeniorColors.TextSecondary, fontSize = 13.sp, lineHeight = 17.sp)
+                }
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    AlertFigures.itemChip(item, fil),
+                    color = Color(0xFFB45F06), fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(50))
+                        .background(AmberBg)
+                        .border(1.dp, AmberBorder, RoundedCornerShape(50))
+                        .padding(horizontal = 9.dp, vertical = 3.dp)
+                )
+            }
+        }
+    }
+    Text(AlertFigures.dailyFooter(fil), color = SeniorColors.TextSecondary, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp, bottom = 8.dp))
 }
 
 @Composable

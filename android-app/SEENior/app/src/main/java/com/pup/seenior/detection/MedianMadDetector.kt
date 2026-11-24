@@ -66,6 +66,9 @@ object MedianMadDetector {
      * running, but the caller must push the new level to the cloud (see
      * [com.pup.seenior.alerts.AlertEscalator.syncSeverity]). Low-risk anomalies appear in neither.
      */
+    /** The reading behind a score, the usual it was compared with and the spread it was divided by. */
+    private data class Figures(val reading: Double, val usual: Double, val spread: Double)
+
     data class Findings(val created: List<Alert>, val upgraded: List<Int>)
 
     /** Runs Layer 1 and Layer 3 over one reading. See [Findings] for what the caller owes each part. */
@@ -149,6 +152,10 @@ object MedianMadDetector {
 
             val triggerType = FEATURE_TO_TRIGGER.getValue(featureName)
 
+            // What the alert details will say: the reading, the usual and how much the usual
+            // varies (the same effective MAD the score was divided by). Stored, never read back.
+            val figures = Figures(currentValue, baseline.medianValue, baseline.madValue.coerceAtLeast(madFloor))
+
             // This block may have earned slack from two or more recent false alarms (see
             // [FalseAlarmTolerance]). A reading above 2.5 but below the loosened threshold is
             // logged and nobody is asked. Asked only after the reading clears 2.5, so ordinary
@@ -159,7 +166,7 @@ object MedianMadDetector {
                 alertDao.getConfirmedAlertCount(seniorId, triggerType, sensorData.timeBlock, since)
             )
             if (zScore < threshold) {
-                recordLowRisk(seniorId, triggerType, sensorData, zScore, alertDao)
+                recordLowRisk(seniorId, triggerType, sensorData, zScore, alertDao, figures)
                 continue
             }
 
@@ -168,7 +175,7 @@ object MedianMadDetector {
             // accelerometer signals only, after the score and the tolerance gate, so the stored
             // score is the real one.
             if (ScreenEngagement.excuses(featureName, sensorData.screenIdleDuration)) {
-                recordLowRisk(seniorId, triggerType, sensorData, zScore, alertDao)
+                recordLowRisk(seniorId, triggerType, sensorData, zScore, alertDao, figures)
                 continue
             }
 
@@ -179,7 +186,7 @@ object MedianMadDetector {
             )
 
             if (risk == FuzzyRiskClassifier.Risk.LOW) {
-                recordLowRisk(seniorId, triggerType, sensorData, zScore, alertDao)
+                recordLowRisk(seniorId, triggerType, sensorData, zScore, alertDao, figures)
                 continue
             }
 
@@ -188,6 +195,7 @@ object MedianMadDetector {
                 // Upgrade only: medium can become high, but an open alert is never talked down.
                 if (RISK_ORDER.indexOf(risk.stored) > RISK_ORDER.indexOf(active.riskLevel)) {
                     alertDao.updateSeverity(active.alertId, risk.stored, zScore)
+                    alertDao.updateReading(active.alertId, figures.reading, figures.usual, figures.spread)
                     // Reported so the cloud copy can be corrected.
                     upgraded += active.alertId
                 }
@@ -200,7 +208,10 @@ object MedianMadDetector {
                 triggerType = triggerType,
                 riskLevel = risk.stored,
                 timeBlock = sensorData.timeBlock,
-                deviationScore = zScore
+                deviationScore = zScore,
+                readingValue = figures.reading,
+                usualValue = figures.usual,
+                usualSpread = figures.spread
             )
             created += alert.copy(alertId = alertDao.insert(alert).toInt())
         }
@@ -218,7 +229,8 @@ object MedianMadDetector {
         triggerType: String,
         sensorData: SensorData,
         zScore: Double,
-        alertDao: AlertDao
+        alertDao: AlertDao,
+        figures: Figures
     ) {
         val notBefore = sensorData.timestamp - LOGGED_DEDUPE_SECONDS * 1000
         val existing = alertDao.getRecentLoggedAlert(seniorId, triggerType, notBefore)
@@ -226,6 +238,7 @@ object MedianMadDetector {
             // Keep the worst reading of the hour, not the newest.
             if (zScore > (existing.deviationScore ?: 0.0)) {
                 alertDao.updateSeverity(existing.alertId, FuzzyRiskClassifier.Risk.LOW.stored, zScore)
+                alertDao.updateReading(existing.alertId, figures.reading, figures.usual, figures.spread)
             }
             return
         }
@@ -238,6 +251,9 @@ object MedianMadDetector {
                 riskLevel = FuzzyRiskClassifier.Risk.LOW.stored,
                 timeBlock = sensorData.timeBlock,
                 deviationScore = zScore,
+                readingValue = figures.reading,
+                usualValue = figures.usual,
+                usualSpread = figures.spread,
                 status = STATUS_LOGGED
             )
         )
