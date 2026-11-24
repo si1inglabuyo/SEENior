@@ -18,8 +18,8 @@ android {
         applicationId = "com.pup.seenior"
         minSdk = 26
         targetSdk = 37
-        versionCode = 81
-        versionName = "1.80"
+        versionCode = 82
+        versionName = "1.81"
         // Demo tools (the Demo page in Profile and the Sensor readings button on Home) are in the
         // build by default. A senior's build is made with -PdemoTools=false, which removes them.
         buildConfigField("boolean", "SHOW_DEMO_TOOLS", (findProperty("demoTools") ?: "true").toString())
