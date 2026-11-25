@@ -93,10 +93,6 @@ export default function RoutineCard({ syncId, onSessionLost }) {
               </section>
             ))}
           </div>
-
-          <p className="muted rt-note">
-            Learned = from this senior&apos;s own days. Setup answer = still a guess from their answers.
-          </p>
         </div>
       )}
     </SectionCard>
