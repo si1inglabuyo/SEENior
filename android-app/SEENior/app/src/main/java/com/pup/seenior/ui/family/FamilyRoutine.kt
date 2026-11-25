@@ -9,7 +9,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
@@ -242,13 +244,11 @@ private fun RoutineBody(rows: List<RoutineRowDto>, timing: RoutineTimingDto?, fi
             if (i > 0) HorizontalDivider(color = CardBorder.copy(alpha = 0.6f), modifier = Modifier.padding(vertical = 4.dp))
             Column(modifier = Modifier.padding(vertical = 6.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(p.name, color = FamilyColors.TextPrimary, fontSize = 17.sp, fontWeight = FontWeight.Bold)
                     Text(
-                        p.hours ?: "",
-                        color = FamilyColors.TextSecondary,
-                        fontSize = 12.sp,
-                        modifier = Modifier.padding(start = 8.dp).weight(1f)
+                        p.name, color = FamilyColors.TextPrimary, fontSize = 17.sp, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.weight(1f)
                     )
+                    Spacer(Modifier.width(8.dp))
                     Text(
                         FamilyRoutineParts.learnedTag(p.learned, fil),
                         color = if (p.learned) FamilyColors.BlueDark else TagSetupFg,
@@ -260,6 +260,7 @@ private fun RoutineBody(rows: List<RoutineRowDto>, timing: RoutineTimingDto?, fi
                             .padding(horizontal = 9.dp, vertical = 3.dp)
                     )
                 }
+                p.hours?.let { Text(it, color = FamilyColors.TextSecondary, fontSize = 12.sp) }
                 p.headline?.let {
                     Text(
                         it,
@@ -281,14 +282,15 @@ private fun RoutineBody(rows: List<RoutineRowDto>, timing: RoutineTimingDto?, fi
                         p.lines.forEachIndexed { j, l ->
                             if (j > 0) HorizontalDivider(color = Color(0xFFC9DAF0))
                             Row(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.Top) {
-                                Text(l.label, color = Color(0xFF4D4D4D), fontSize = 13.sp, modifier = Modifier.weight(0.6f))
+                                Text(l.label, color = Color(0xFF4D4D4D), fontSize = 13.sp, modifier = Modifier.weight(1f))
                                 Text(
                                     l.value,
                                     color = FamilyColors.TextPrimary,
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.SemiBold,
                                     textAlign = TextAlign.End,
-                                    modifier = Modifier.weight(0.4f).padding(start = 8.dp)
+                                    softWrap = false,
+                                    modifier = Modifier.padding(start = 10.dp)
                                 )
                             }
                         }

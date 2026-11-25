@@ -137,13 +137,15 @@ fun HomeScreen(viewModel: HomeViewModel = viewModel()) {
 
                 EmergencyCard(barangay = viewModel.barangay, onSosConfirmed = { viewModel.sendSos() }, copy = copy)
 
-                // Room so the Sensor readings button never covers the SOS card.
-                Spacer(Modifier.height(72.dp))
+                // Research only (absent when SHOW_DEMO_TOOLS is off). In the flow, not floating, so it
+                // can never cover the SOS card.
+                Spacer(Modifier.height(16.dp))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    SensorReadingsButton()
+                }
+                Spacer(Modifier.height(16.dp))
             }
         }
-        // Sensor readings (research only, absent when SHOW_DEMO_TOOLS is off): a small line-graph
-        // button at the bottom right, just above the tab bar.
-        SensorReadingsButton(modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp))
       }
     }
 }

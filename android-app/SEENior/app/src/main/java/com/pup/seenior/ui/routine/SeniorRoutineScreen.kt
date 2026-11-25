@@ -185,15 +185,18 @@ internal fun LineList(lines: List<Line>) {
                 modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
                 verticalAlignment = Alignment.Top
             ) {
-                // Both sides are weighted so a long value can never squeeze the label down to a
-                // sliver (it used to take whatever width it asked for and leave one letter per line).
-                Text(l.label, color = Color(0xFF4D4D4D), fontSize = 13.sp, modifier = Modifier.weight(0.6f))
-                Column(modifier = Modifier.weight(0.4f).padding(start = 8.dp), horizontalAlignment = Alignment.End) {
+                // The figure keeps its own width and never breaks in the middle ("2,528 -> / 1,832");
+                // the label takes what is left and wraps at word boundaries. Figures are short, so the
+                // label cannot be squeezed to a sliver, which is why the old 0.6 / 0.4 split is gone.
+                Text(l.label, color = Color(0xFF4D4D4D), fontSize = 13.sp, modifier = Modifier.weight(1f))
+                Column(modifier = Modifier.padding(start = 10.dp), horizontalAlignment = Alignment.End) {
                     Text(
                         l.value, color = SeniorColors.TextPrimary, fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold, textAlign = TextAlign.End
+                        fontWeight = FontWeight.SemiBold, textAlign = TextAlign.End, softWrap = false
                     )
-                    l.note?.let { Text(it, color = SeniorColors.TextSecondary, fontSize = 11.sp, textAlign = TextAlign.End) }
+                    l.note?.let {
+                        Text(it, color = SeniorColors.TextSecondary, fontSize = 11.sp, textAlign = TextAlign.End, softWrap = false)
+                    }
                 }
             }
         }
@@ -208,15 +211,22 @@ private fun Note(text: String) {
 /** Header line of a block: name, hours, then a tag on the right. */
 @Composable
 private fun BlockHeader(name: String, hours: String, extra: String? = null, tag: Pair<String, TagKind>?) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(name, color = SeniorColors.TextPrimary, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+    Column {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                name, color = SeniorColors.TextPrimary, fontSize = 17.sp, fontWeight = FontWeight.Bold,
+                modifier = Modifier.weight(1f)
+            )
+            tag?.let {
+                Spacer(Modifier.width(8.dp))
+                Tag(it.first, it.second)
+            }
+        }
         Text(
             extra?.let { "$hours  ·  $it" } ?: hours,
             color = SeniorColors.TextSecondary,
-            fontSize = 12.sp,
-            modifier = Modifier.padding(start = 8.dp).weight(1f)
+            fontSize = 12.sp
         )
-        tag?.let { Tag(it.first, it.second) }
     }
 }
 

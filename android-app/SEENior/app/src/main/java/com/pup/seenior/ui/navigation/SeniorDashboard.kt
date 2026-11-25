@@ -403,6 +403,7 @@ fun SeniorDashboard(onAccountDeleted: () -> Unit) {
                             FitText(
                                 entry.label(copy),
                                 fontWeight = FontWeight.Bold,
+                                ignoreSystemFontScale = true,
                                 fontSize = if (highlighted) 13.sp else 12.sp
                             )
                         },

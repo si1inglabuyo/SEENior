@@ -162,6 +162,7 @@ fun FamilyDashboard(onLoggedOut: () -> Unit) {
                             FitText(
                                 entry.label(copy),
                                 fontWeight = FontWeight.Bold,
+                                ignoreSystemFontScale = true,
                                 fontSize = 12.sp
                             )
                         },

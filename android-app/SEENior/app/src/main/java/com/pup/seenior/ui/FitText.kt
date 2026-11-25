@@ -16,6 +16,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.TextUnit
+import androidx.compose.ui.unit.sp
 
 /**
  * How large the system "Font size" setting is allowed to make this app's text.
@@ -68,9 +69,12 @@ fun FitText(
     modifier: Modifier = Modifier,
     color: Color = Color.Unspecified,
     fontWeight: FontWeight? = null,
-    textAlign: TextAlign? = null
+    textAlign: TextAlign? = null,
+    /** True for slots that share the screen width (the bottom bar): the system font size is not applied. */
+    ignoreSystemFontScale: Boolean = false
 ) {
     val fontScale = LocalDensity.current.fontScale
+    val baseSize = if (ignoreSystemFontScale) (fontSize.value / fontScale).sp else fontSize
     var scale by remember(text, fontSize, fontScale) { mutableFloatStateOf(1f) }
     var settled by remember(text, fontSize, fontScale) { mutableStateOf(false) }
 
@@ -78,14 +82,15 @@ fun FitText(
         text = text,
         modifier = modifier.alpha(if (settled) 1f else 0f),
         color = color,
-        fontSize = fontSize * scale,
+        fontSize = baseSize * scale,
         fontWeight = fontWeight,
         textAlign = textAlign,
         maxLines = 1,
         softWrap = false,
         overflow = TextOverflow.Ellipsis,
         onTextLayout = { layout ->
-            val next = FitScale.next(scale, layout.didOverflowWidth)
+            // An ellipsised line reports visual overflow, not always width overflow, so both count.
+            val next = FitScale.next(scale, layout.didOverflowWidth || layout.hasVisualOverflow)
             if (next != scale) scale = next else settled = true
         }
     )
