@@ -3,7 +3,6 @@ package com.pup.seenior.ui.family
 import android.app.Application
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,10 +17,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.AndroidViewModel
@@ -29,7 +32,6 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.pup.seenior.network.RetrofitClient
 import com.pup.seenior.network.dto.RoutineDto
-import com.pup.seenior.network.dto.RoutineHistoryRowDto
 import com.pup.seenior.network.dto.RoutineRowDto
 import com.pup.seenior.network.dto.RoutineTimingDto
 import com.pup.seenior.session.FamilySession
@@ -158,11 +160,8 @@ fun RoutineCard(
     )
 
     Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .border(1.dp, FamilyColors.FieldBorder, RoundedCornerShape(14.dp))
-            .padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         when (val s = viewModel.state) {
             FamilyRoutineViewModel.State.Loading ->
@@ -176,26 +175,32 @@ fun RoutineCard(
                     fontSize = 14.sp
                 )
 
-            is FamilyRoutineViewModel.State.Loaded ->
-                RoutineBody(
-                    s.routine.rows,
-                    RoutineHistorySummary.summarize(historyViewModel.rows),
-                    historyViewModel.rows,
-                    s.routine.timing,
-                    fil
-                )
+            is FamilyRoutineViewModel.State.Loaded -> RoutineBody(s.routine.rows, s.routine.timing, fil)
         }
     }
 }
 
+/** The family's blue, softened to a gradient, for the two cards below. */
+private val CardGradient = Brush.verticalGradient(listOf(Color(0xFFF6F9FE), Color(0xFFE4EDF9)))
+private val CardBorder = FamilyColors.BlueBorder
+private val TagLearnedBg = Color(0xFFDCE8F8)
+private val TagSetupBg = Color(0xFFECEBE6)
+private val TagSetupFg = Color(0xFF605F59)
+
 @Composable
-private fun RoutineBody(
-    rows: List<RoutineRowDto>,
-    history: RoutineHistorySummary.Trend?,
-    historyRows: List<RoutineHistoryRowDto>,
-    timing: RoutineTimingDto?,
-    fil: Boolean
-) {
+private fun GradientCard(content: @Composable () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(CardGradient)
+            .border(1.5.dp, CardBorder, RoundedCornerShape(16.dp))
+            .padding(horizontal = 14.dp, vertical = 10.dp)
+    ) { content() }
+}
+
+@Composable
+private fun RoutineBody(rows: List<RoutineRowDto>, timing: RoutineTimingDto?, fil: Boolean) {
     if (rows.isEmpty()) {
         Text(
             if (fil) "Wala pang naibabahagi. Lalabas ito kapag nakakonekta na ang phone ng senior."
@@ -207,111 +212,89 @@ private fun RoutineBody(
     }
 
     val summary = RoutineSummary.summarize(rows)
-    var showNumbers by remember { mutableStateOf(false) }
+    val parts = FamilyRoutineParts.parts(rows, timing, fil)
 
-    RoutineSummary.headline(summary, fil)?.let {
-        Text(it, color = FamilyColors.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-    }
-    Text(RoutineSummary.progress(summary, fil), color = FamilyColors.TextSecondary, fontSize = 13.sp)
-
-    summary.blocks.forEach { b ->
-        HorizontalDivider(color = FamilyColors.FieldBorder)
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(RoutineWording.blockLabel(b.block, fil), color = FamilyColors.Blue, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-            Text(RoutineSummary.levelLabel(b.level, fil), color = FamilyColors.TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-        }
-        // The hours this block covers, from the senior's setup answers; absent until their phone has sent them.
-        timing?.let { RoutineTimingWording.range(b.block, it) }?.let {
-            Text(it, color = FamilyColors.TextSecondary, fontSize = 13.sp)
-        }
-        // How busy this part of the day is next to the senior's busiest part.
+    GradientCard {
+        Text(
+            RoutineSummary.progress(summary, fil),
+            color = FamilyColors.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold
+        )
         Box(
             modifier = Modifier
+                .padding(vertical = 8.dp)
                 .fillMaxWidth()
                 .height(8.dp)
-                .background(FamilyColors.BlueLightBg, RoundedCornerShape(4.dp))
+                .clip(RoundedCornerShape(5.dp))
+                .background(Color(0xFFD3E1F4))
         ) {
             Box(
                 modifier = Modifier
-                    .fillMaxWidth(b.activity.toFloat().coerceIn(0.03f, 1f))
+                    .fillMaxWidth(FamilyRoutineParts.learnedFraction(summary))
                     .height(8.dp)
-                    .background(FamilyColors.Blue, RoundedCornerShape(4.dp))
+                    .background(FamilyColors.Blue)
             )
         }
-        // What is normal for this senior in this block; hidden while it is still mostly the setup guess.
-        if (b.learned) {
-            Text(RoutineSummary.normalMovement(b, fil), color = FamilyColors.TextSecondary, fontSize = 13.sp)
-            b.unlocks?.let {
-                Text(RoutineSummary.normalPhone(it, fil), color = FamilyColors.TextSecondary, fontSize = 13.sp)
+        Text(FamilyRoutineParts.learningNote(fil), color = FamilyColors.TextSecondary, fontSize = 12.sp, lineHeight = 17.sp)
+    }
+
+    GradientCard {
+        parts.forEachIndexed { i, p ->
+            if (i > 0) HorizontalDivider(color = CardBorder.copy(alpha = 0.6f), modifier = Modifier.padding(vertical = 4.dp))
+            Column(modifier = Modifier.padding(vertical = 6.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(p.name, color = FamilyColors.TextPrimary, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                    Text(
+                        p.hours ?: "",
+                        color = FamilyColors.TextSecondary,
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(start = 8.dp).weight(1f)
+                    )
+                    Text(
+                        FamilyRoutineParts.learnedTag(p.learned, fil),
+                        color = if (p.learned) FamilyColors.BlueDark else TagSetupFg,
+                        fontSize = 12.sp,
+                        maxLines = 1,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(if (p.learned) TagLearnedBg else TagSetupBg)
+                            .padding(horizontal = 9.dp, vertical = 3.dp)
+                    )
+                }
+                p.headline?.let {
+                    Text(
+                        it,
+                        color = if (p.learned || p.block == "night") FamilyColors.TextPrimary else FamilyColors.TextSecondary,
+                        fontSize = 15.sp,
+                        modifier = Modifier.padding(top = 3.dp)
+                    )
+                }
+                if (p.lines.isNotEmpty()) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 6.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(Color(0xFFFBFDFF))
+                            .border(1.dp, Color(0xFFC9DAF0), RoundedCornerShape(10.dp))
+                            .padding(horizontal = 10.dp, vertical = 2.dp)
+                    ) {
+                        p.lines.forEachIndexed { j, l ->
+                            if (j > 0) HorizontalDivider(color = Color(0xFFC9DAF0))
+                            Row(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.Top) {
+                                Text(l.label, color = Color(0xFF4D4D4D), fontSize = 13.sp, modifier = Modifier.weight(0.6f))
+                                Text(
+                                    l.value,
+                                    color = FamilyColors.TextPrimary,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    textAlign = TextAlign.End,
+                                    modifier = Modifier.weight(0.4f).padding(start = 8.dp)
+                                )
+                            }
+                        }
+                    }
+                }
             }
-            b.stillSeconds?.let {
-                Text(RoutineSummary.normalStill(it, fil), color = FamilyColors.TextSecondary, fontSize = 13.sp)
-            }
-        } else {
-            Text(RoutineSummary.stillLearning(fil), color = FamilyColors.TextSecondary, fontSize = 13.sp)
-        }
-        // What the phone actually saw: when they are usually first active (morning) or last active (evening).
-        timing?.let { RoutineTimingWording.usuallyActive(b.block, it, fil) }?.let {
-            Text(it, color = FamilyColors.TextSecondary, fontSize = 13.sp)
         }
     }
-
-    if (timing != null && summary.blocks.any { RoutineTimingWording.usuallyActive(it.block, timing, fil) != null }) {
-        Text(RoutineTimingWording.note(fil), color = FamilyColors.TextSecondary, fontSize = 12.sp)
-    }
-
-    if (summary.blocks.any { it.learned }) {
-        Text(RoutineSummary.normalFootnote(fil), color = FamilyColors.TextSecondary, fontSize = 12.sp)
-    }
-
-    HorizontalDivider(color = FamilyColors.FieldBorder)
-    Text(
-        if (showNumbers) (if (fil) "Itago ang mga numero" else "Hide numbers")
-        else (if (fil) "Ipakita ang mga numero" else "Show numbers"),
-        color = FamilyColors.Blue,
-        fontSize = 14.sp,
-        fontWeight = FontWeight.Bold,
-        modifier = Modifier.clickable { showNumbers = !showNumbers }.padding(vertical = 4.dp)
-    )
-    if (showNumbers) RoutineNumbers(rows, fil)
-}
-
-/** The exact figures behind the summary, for anyone who wants them. */
-@Composable
-private fun RoutineNumbers(rows: List<RoutineRowDto>, fil: Boolean) {
-    RoutineWording.BLOCK_ORDER.forEach { block ->
-        val inBlock = rows.filter { it.timeBlock == block && it.featureName in RoutineWording.FEATURE_ORDER }
-            .sortedBy { RoutineWording.FEATURE_ORDER.indexOf(it.featureName) }
-        if (inBlock.isEmpty()) return@forEach
-        Text(RoutineWording.blockLabel(block, fil), color = FamilyColors.Blue, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-        inBlock.forEach { row ->
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(
-                    RoutineWording.featureLabel(row.featureName, fil) + if (row.isSeed) " *" else "",
-                    color = FamilyColors.TextSecondary,
-                    fontSize = 13.sp,
-                    modifier = Modifier.weight(1f)
-                )
-                Text(
-                    "${RoutineWording.value(row, fil)}  ${RoutineWording.swing(row, fil)}",
-                    color = FamilyColors.TextPrimary,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-        }
-    }
-    // The setup guess fades out one fourteenth a day, so a figure keeps its `*` until day 14 even
-    // when it is mostly the senior's own data. Say that, and only when some figure has the `*`.
-    val seedNote = when {
-        rows.none { it.isSeed } -> ""
-        fil -> "* bahagya pang galing sa mga sagot sa setup; mawawala ito pagsapit ng araw 14. "
-        else -> "* still partly from the setup answers; that share fades out by day 14. "
-    }
-    Text(
-        seedNote + if (fil) "\"±\" ay ang karaniwang pagbabago sa isang araw."
-        else "\"±\" is how much an ordinary day normally varies.",
-        color = FamilyColors.TextSecondary,
-        fontSize = 12.sp
-    )
 }
