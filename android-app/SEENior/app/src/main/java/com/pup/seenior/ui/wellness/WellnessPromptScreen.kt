@@ -3,6 +3,7 @@ package com.pup.seenior.ui.wellness
 import androidx.compose.foundation.layout.heightIn
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -39,8 +40,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -92,7 +97,7 @@ fun WellnessPromptScreen(
                     onCancel = { viewModel.markSafe(onFinished) }
                 )
             } else {
-                PromptBody(copy, viewModel, onFinished)
+                PromptBody(copy, WellnessWhy.of(alert, language == WellnessMessages.FILIPINO), viewModel, onFinished)
             }
         PromptStage.ACKNOWLEDGED ->
             AcknowledgedBody(if (viewModel.stoodDown) copy.standDownDone else copy.acknowledged)
@@ -225,6 +230,7 @@ private fun OutcomeDetailInput(
 @Composable
 private fun PromptBody(
     copy: WellnessMessages.Copy,
+    why: WellnessWhy.Why?,
     viewModel: WellnessPromptViewModel,
     onFinished: () -> Unit
 ) {
@@ -279,6 +285,12 @@ private fun PromptBody(
                     fontWeight = FontWeight.Bold,
                     textAlign = TextAlign.Center
                 )
+                // Behind a tap, so the buttons stay where they always were. Scrolls with the
+                // question, so opening it can never push the safe button off a short screen.
+                if (why != null) {
+                    Spacer(Modifier.height(16.dp))
+                    WhyCard(why)
+                }
             }
 
             // Pinned outside the scrolling area. The reason line is here because the spec
@@ -375,6 +387,145 @@ private fun PromptBody(
                     .padding(horizontal = 28.dp, vertical = 20.dp)
             )
         }
+    }
+}
+
+private val WhyAmber = Color(0xFFFDF3E7)
+private val WhyAmberLine = Color(0xFFE9C98A)
+private val WhyAmberText = Color(0xFFB45F06)
+private val WhyUsual = Color(0xFFCFE7CF)
+private val WhyBlue = Color(0xFF2F5FA8)
+private val WhyLine = Color(0xFFE3E3E3)
+
+/**
+ * "Why are we asking?": the usual, what the phone saw, how long past it, and the buffer that
+ * sits between the usual and the point where the phone asks. Closed until tapped.
+ */
+@Composable
+private fun WhyCard(why: WellnessWhy.Why) {
+    var open by remember { mutableStateOf(false) }
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 52.dp)
+                .background(Color.White, RoundedCornerShape(14.dp))
+                .border(1.dp, WhyLine, RoundedCornerShape(14.dp))
+                .clickable { open = !open }
+                .padding(horizontal = 14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = why.rowTitle,
+                color = WhyBlue,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.weight(1f)
+            )
+            Text(text = if (open) "\u2303" else "\u203A", color = WhyBlue, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+        }
+        if (!open) return@Column
+        Spacer(Modifier.height(10.dp))
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(WhyAmber, RoundedCornerShape(14.dp))
+                .border(1.dp, WhyAmberLine, RoundedCornerShape(14.dp))
+                .padding(12.dp)
+        ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                WhyBox(why.usualLabel, why.usualValue, highlight = false, modifier = Modifier.weight(1f))
+                WhyBox(why.readingLabel, why.readingValue, highlight = true, modifier = Modifier.weight(1f))
+            }
+            Spacer(Modifier.height(10.dp))
+            Text(
+                text = buildAnnotatedString {
+                    withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = WhyAmberText)) { append(why.gapAmount) }
+                    append(" ")
+                    append(why.gapLine)
+                },
+                color = SeniorColors.TextPrimary,
+                fontSize = 15.sp,
+                lineHeight = 20.sp
+            )
+            Spacer(Modifier.height(10.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(16.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .border(1.dp, WhyLine, RoundedCornerShape(8.dp))
+            ) {
+                Box(Modifier.weight(why.usualMinutes.toFloat()).fillMaxSize().background(WhyUsual))
+                Box(Modifier.weight(why.bufferMinutes.toFloat()).fillMaxSize().background(WhyAmberLine))
+            }
+            Spacer(Modifier.height(8.dp))
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .border(1.dp, WhyLine, RoundedCornerShape(10.dp))
+                    .background(Color.White)
+            ) {
+                WhyLegendRow(WhyUsual, why.usualName, why.usualUpTo, Color.White, SeniorColors.TextPrimary)
+                WhyLegendRow(WhyAmberLine, why.bufferName, why.bufferValue, Color.White, SeniorColors.TextPrimary)
+                WhyLegendRow(null, why.askLabel, why.askValue, WhyAmber, WhyAmberText)
+            }
+            Spacer(Modifier.height(10.dp))
+            Text(
+                text = why.reasonLine,
+                color = SeniorColors.TextPrimary,
+                fontSize = 14.sp,
+                lineHeight = 19.sp
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = buildAnnotatedString {
+                    withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(why.sourceTitle) }
+                    append(" ")
+                    append(why.sourceLine)
+                },
+                color = SeniorColors.TextPrimary,
+                fontSize = 13.sp,
+                lineHeight = 18.sp
+            )
+        }
+    }
+}
+
+@Composable
+private fun WhyBox(label: String, value: String, highlight: Boolean, modifier: Modifier) {
+    Column(
+        modifier = modifier
+            .background(Color.White, RoundedCornerShape(10.dp))
+            .border(1.dp, if (highlight) WhyAmberLine else WhyLine, RoundedCornerShape(10.dp))
+            .padding(horizontal = 11.dp, vertical = 9.dp)
+    ) {
+        Text(text = label, color = Color(0xFF666666), fontSize = 12.sp)
+        Text(
+            text = value,
+            color = if (highlight) WhyAmberText else SeniorColors.TextPrimary,
+            fontSize = 19.sp,
+            fontWeight = FontWeight.Bold
+        )
+    }
+}
+
+@Composable
+private fun WhyLegendRow(swatch: Color?, name: String, value: String, background: Color, valueColor: Color) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(background)
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (swatch != null) {
+            Box(Modifier.size(12.dp).background(swatch, RoundedCornerShape(3.dp)))
+            Spacer(Modifier.size(8.dp))
+        }
+        Text(text = name, color = SeniorColors.TextPrimary, fontSize = 13.sp, modifier = Modifier.weight(1f))
+        Text(text = value, color = valueColor, fontSize = 13.sp, fontWeight = FontWeight.Bold)
     }
 }
 
