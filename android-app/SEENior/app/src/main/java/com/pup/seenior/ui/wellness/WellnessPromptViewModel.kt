@@ -14,6 +14,8 @@ import com.pup.seenior.alerts.EscalationWorker
 import com.pup.seenior.alerts.OutcomeReasons
 import com.pup.seenior.database.SeniorAppDatabase
 import com.pup.seenior.database.entities.Alert
+import com.pup.seenior.ui.alerts.AlertFigures
+import com.pup.seenior.ui.routine.SeniorRoutineModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -47,9 +49,29 @@ class WellnessPromptViewModel(application: Application) : AndroidViewModel(appli
     var deliveryWarning by mutableStateOf<String?>(null)
         private set
 
+    /**
+     * For a daily-pattern alert: the signals of the flagged day that leaned the worrying way, for the
+     * "Why are we asking?" card. Empty for every other alert, and until the lookup finishes.
+     */
+    internal var dailyItems by mutableStateOf<List<AlertFigures.Item>>(emptyList())
+        private set
+
     /** True once the senior has closed an alert that had already gone out, so the confirmation can say so. */
     var stoodDown by mutableStateOf(false)
         private set
+
+    private fun loadDailyItems(alert: Alert) {
+        dailyItems = emptyList()
+        if (alert.triggerType != "ml_flag") return
+        viewModelScope.launch {
+            val day = db.dailyAggregateDao().getMostRecentBefore(alert.seniorId, alert.timeBlock, alert.triggeredAt) ?: return@launch
+            val baseline = db.baselineDao().getAllBySeniorOnce(alert.seniorId)
+            dailyItems = AlertFigures.dailyItems(
+                SeniorRoutineModel.usual(baseline, alert.timeBlock),
+                SeniorRoutineModel.figuresOf(day)
+            )
+        }
+    }
 
     private var alert: Alert? = null
 
@@ -73,6 +95,7 @@ class WellnessPromptViewModel(application: Application) : AndroidViewModel(appli
         this.alert = alert
         stage = PromptStage.PROMPT
         deliveryWarning = null
+        loadDailyItems(alert)
 
         // They are looking at the alert now, so the notification has done its job.
         AlertNotifier.cancel(getApplication(), alert.alertId)

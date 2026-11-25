@@ -195,22 +195,22 @@ internal object AlertFigures {
 
         val rows = buildList {
             add(FallRow(
-                if (fil) "Malayang pagbagsak" else "Free fall",
+                if (fil) "Free fall" else "Free fall",
                 if (fil) "${secs(evidence.freeFallMs)} s na bumagsak, kailangan ${secs(config.freeFallMinMs)} hanggang ${secs(config.freeFallMaxMs)} s"
                 else "${secs(evidence.freeFallMs)} s in free fall, needed ${secs(config.freeFallMinMs)} to ${secs(config.freeFallMaxMs)} s"
             ))
             add(FallRow(
-                if (fil) "Tama sa lupa" else "Impact",
+                if (fil) "Impact" else "Impact",
                 if (fil) "${one(evidence.impactPeak)} na lakas, kailangan ${one(config.impactMin)} pataas"
                 else "${one(evidence.impactPeak)} strength, needed ${one(config.impactMin)} or more"
             ))
             if (turned) add(FallRow(
-                if (fil) "Pag-ikot ng katawan" else "Rotation",
+                if (fil) "Rotation" else "Rotation",
                 if (fil) "${one(evidence.rotationPeak!!)} na bilis ng pag-ikot, kailangan ${one(config.rotationMin)} pataas"
                 else "${one(evidence.rotationPeak!!)} turning speed, needed ${one(config.rotationMin)} or more"
             ))
             add(FallRow(
-                if (fil) "Hindi paggalaw" else "Stillness",
+                if (fil) "Stillness" else "Stillness",
                 if (fil) "${secs(evidence.stillnessMs)} s na hindi gumalaw, kailangan ${secs(config.stillnessMs)} s pataas"
                 else "${secs(evidence.stillnessMs)} s without moving, needed ${secs(config.stillnessMs)} s or more"
             ))
