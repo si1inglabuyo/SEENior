@@ -10,8 +10,7 @@ import java.time.ZoneId
 import kotlin.math.roundToLong
 
 /**
- * The "Why are we asking?" card on the wellness prompt. Closed until tapped; one short card per
- * kind of check-in:
+ * The reason card on the wellness prompt, always open, one short card per kind of check-in:
  *
  *  - [Kind.STILLNESS]: a routine anomaly. Three lines the senior can check against the clock: what is
  *    usual, when the phone last sensed movement (or last saw the phone used), and when it asked.
@@ -47,7 +46,6 @@ internal object WellnessWhy {
 
     data class Why(
         val kind: Kind,
-        val rowTitle: String,
         val rows: List<Row>,
         /** A closing sentence under the rows (the daily pattern's explanation), or null. */
         val footnote: String? = null
@@ -55,8 +53,6 @@ internal object WellnessWhy {
 
     /** How many minutes past the usual the base gate sits: 2.5 / 0.6745 spreads. */
     private val GATE_SPREADS = FalseAlarmTolerance.BASE_THRESHOLD / MedianMad.MODIFIED_Z_SCALE
-
-    fun rowTitle(fil: Boolean) = if (fil) "Bakit po kami nagtatanong?" else "Why are we asking?"
 
     /**
      * Null for every alert that should keep the plain sentence.
@@ -91,7 +87,6 @@ internal object WellnessWhy {
 
         return Why(
             kind = Kind.STILLNESS,
-            rowTitle = rowTitle(fil),
             rows = listOf(
                 Row(
                     label = if (fil) "Karaniwan ninyo" else "Your usual",
@@ -124,7 +119,6 @@ internal object WellnessWhy {
         val view = AlertFigures.fall(alert, fil) ?: return null
         return Why(
             kind = Kind.FALL,
-            rowTitle = rowTitle(fil),
             rows = view.rows.map { Row(label = it.name, small = it.line, value = "") }
         )
     }
@@ -135,7 +129,6 @@ internal object WellnessWhy {
         if (items.isEmpty()) return null
         return Why(
             kind = Kind.DAILY,
-            rowTitle = rowTitle(fil),
             rows = items.map {
                 Row(
                     label = AlertFigures.itemName(it.feature, fil),

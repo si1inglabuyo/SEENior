@@ -60,7 +60,6 @@ class WellnessWhyTest {
         assertEquals("Nagtanong ang phone", why.rows[2].label)
         assertEquals("hanggang 1 oras 20 min", why.rows[0].value)
         assertTrue(why.rows[2].small!!, why.rows[2].small!!.startsWith("Karaniwan na 1 oras 20 min"))
-        assertEquals("Bakit po kami nagtatanong?", why.rowTitle)
     }
 
     @Test fun `movement, old alerts and a reading inside the usual keep the single sentence`() {

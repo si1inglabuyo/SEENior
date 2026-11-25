@@ -398,55 +398,31 @@ private val WhyBlue = Color(0xFF2F5FA8)
 private val WhyLine = Color(0xFFE3E3E3)
 
 /**
- * "Why are we asking?": closed until tapped, then a short list that depends on the kind of
- * check-in (see [WellnessWhy]). It scrolls with the question, so opening it can never push the
- * safe button off a short screen.
+ * The reason card: always open, a short list that depends on the kind of check-in (see
+ * [WellnessWhy]). It scrolls with the question, so it can never push the safe button off a
+ * short screen.
  */
 @Composable
 private fun WhyCard(why: WellnessWhy.Why) {
-    var open by remember { mutableStateOf(false) }
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = 52.dp)
-                .background(Color.White, RoundedCornerShape(14.dp))
-                .border(1.dp, WhyLine, RoundedCornerShape(14.dp))
-                .clickable { open = !open }
-                .padding(horizontal = 14.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = why.rowTitle,
-                color = WhyBlue,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.weight(1f)
-            )
-            Text(text = if (open) "⌃" else "›", color = WhyBlue, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(WhyAmber, RoundedCornerShape(14.dp))
+            .border(1.dp, WhyAmberLine, RoundedCornerShape(14.dp))
+            .padding(horizontal = 12.dp, vertical = 4.dp)
+    ) {
+        why.rows.forEachIndexed { i, row ->
+            if (i > 0) HorizontalDivider(color = WhyAmberLine.copy(alpha = 0.7f))
+            if (why.kind == WellnessWhy.Kind.FALL) WhyCheckRow(row) else WhyFigureRow(row)
         }
-        if (!open) return@Column
-        Spacer(Modifier.height(10.dp))
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(WhyAmber, RoundedCornerShape(14.dp))
-                .border(1.dp, WhyAmberLine, RoundedCornerShape(14.dp))
-                .padding(horizontal = 12.dp, vertical = 4.dp)
-        ) {
-            why.rows.forEachIndexed { i, row ->
-                if (i > 0) HorizontalDivider(color = WhyAmberLine.copy(alpha = 0.7f))
-                if (why.kind == WellnessWhy.Kind.FALL) WhyCheckRow(row) else WhyFigureRow(row)
-            }
-            why.footnote?.let {
-                Text(
-                    text = it,
-                    color = Color(0xFF666666),
-                    fontSize = 12.sp,
-                    lineHeight = 17.sp,
-                    modifier = Modifier.padding(top = 6.dp, bottom = 8.dp)
-                )
-            }
+        why.footnote?.let {
+            Text(
+                text = it,
+                color = Color(0xFF666666),
+                fontSize = 12.sp,
+                lineHeight = 17.sp,
+                modifier = Modifier.padding(top = 6.dp, bottom = 8.dp)
+            )
         }
     }
 }
