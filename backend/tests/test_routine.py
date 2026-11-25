@@ -254,6 +254,22 @@ def test_three_days_are_enough_for_a_usual_time():
     assert out.wake_minute == 490 and out.evening_last_minute == 1120
 
 
+def test_afternoon_time_needs_three_days_like_the_others():
+    t = {**TIMING, "afternoon_last_minute": 930}
+    assert _put_timing({**t, "afternoon_last_days": 2}).afternoon_last_minute is None
+    assert _put_timing({**t, "afternoon_last_days": 3}).afternoon_last_minute == 930
+
+
+def test_old_phone_without_afternoon_fields_is_still_accepted():
+    out = _put_timing(TIMING)
+    assert out.afternoon_last_minute is None and out.afternoon_last_days == 0
+
+
+def test_afternoon_time_rejects_non_minutes():
+    with pytest.raises(ValidationError):
+        RoutineTiming(**{**TIMING, "afternoon_last_minute": 1440})
+
+
 def test_deleted_senior_cannot_store_timing():
     from datetime import datetime
     db = SimpleNamespace(execute=AsyncMock(), commit=AsyncMock())

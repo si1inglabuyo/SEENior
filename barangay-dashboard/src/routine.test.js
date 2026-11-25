@@ -44,7 +44,7 @@ test('progress counts days, not values', () => {
 
 import { clock, blockHours, partsOfDay } from './routine.js'
 
-const timing = { morning_start: 390, afternoon_start: 690, evening_start: 990, night_start: 1290, wake_minute: 405, evening_last_minute: 1130 }
+const timing = { morning_start: 390, afternoon_start: 690, evening_start: 990, night_start: 1290, wake_minute: 405, evening_last_minute: 1130, afternoon_last_minute: 940 }
 
 test('clock and block hours read like the senior app', () => {
   assert.equal(clock(0), '12:00 AM')
@@ -58,12 +58,17 @@ test('parts of the day say only what the cloud holds', () => {
   const parts = partsOfDay(fingerprint({ movement: [0.04, 0.1, 0.06, 0.01] }), timing)
   const by = Object.fromEntries(parts.map((p) => [p.block, p]))
   assert.equal(by.morning.headline, 'Usually up by about 6:45 AM')
-  assert.equal(by.afternoon.headline, null)
+  assert.equal(by.afternoon.headline, 'Usually active until about 3:40 PM')
   assert.equal(by.evening.headline, 'Usually last active about 6:50 PM')
   assert.equal(by.night.headline, 'Time for sleep')
   assert.ok(by.morning.learned)
   assert.equal(by.morning.lines[0].label, 'Still for up to')
   assert.equal(by.morning.lines[0].value, '10 min')
+})
+
+test('afternoon has no line until the phone sends one', () => {
+  const parts = partsOfDay(fingerprint({ movement: [0.04, 0.1, 0.06, 0.01] }), { ...timing, afternoon_last_minute: null })
+  assert.equal(parts.find((p) => p.block === 'afternoon').headline, null)
 })
 
 test('a part still on setup answers is marked and has no usual line', () => {
