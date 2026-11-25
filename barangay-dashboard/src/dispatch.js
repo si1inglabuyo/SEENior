@@ -35,10 +35,10 @@ export function responderProblem(name, taken) {
 // from the senior's risk level. `callFirst` tiers start with a phone call, because one call can
 // clear an alert without sending anyone.
 export const TIERS = [
-  { tier: 1, label: 'SOS', action: 'Send a team now', callFirst: false },
-  { tier: 2, label: 'Potential fall', action: 'Send a team now', callFirst: false },
-  { tier: 3, label: 'Family requested a welfare check', action: 'Send a team', callFirst: false },
-  { tier: 4, label: 'Anomaly', action: 'Call first, then send a team', callFirst: true },
+  { tier: 1, label: 'SOS', action: 'Send a Team Now', callFirst: false },
+  { tier: 2, label: 'Potential Fall', action: 'Send a Team Now', callFirst: false },
+  { tier: 3, label: 'Family Requested a Welfare Check', action: 'Send a Team', callFirst: false },
+  { tier: 4, label: 'Anomaly', action: 'Call First, Then Send a Team', callFirst: true },
 ]
 
 export function tierOf(alert) {
@@ -56,13 +56,13 @@ function toMs(value) {
 
 function summary({ teams, services, call, tier, unavailable }) {
   const sent = [...teams, ...services]
-  if (sent.length) return { text: `${sent.join(', ')} on the way`, tone: 'green' }
-  if (unavailable.length) return { text: `${unavailable[unavailable.length - 1]} not available · request outside help`, tone: 'red' }
-  if (call === 'cleared') return { text: 'Senior is fine · ready to close', tone: 'green' }
-  if (call === 'no_answer') return { text: 'No answer · needs a team', tone: 'red' }
-  if (call === 'needs_team') return { text: 'Needs a team', tone: 'red' }
-  if (TIERS[tier - 1].callFirst) return { text: 'Call first', tone: 'amber' }
-  return { text: 'Nobody sent yet', tone: 'red' }
+  if (sent.length) return { text: `${sent.join(', ')} on the Way`, tone: 'green' }
+  if (unavailable.length) return { text: `${unavailable[unavailable.length - 1]} Not Available · Request Outside Help`, tone: 'red' }
+  if (call === 'cleared') return { text: 'Senior Is Fine · Ready to Close', tone: 'green' }
+  if (call === 'no_answer') return { text: 'Senior Did Not Answer', tone: 'red' }
+  if (call === 'needs_team') return { text: 'Needs a Team', tone: 'red' }
+  if (TIERS[tier - 1].callFirst) return { text: 'Call First', tone: 'amber' }
+  return { text: 'Nobody Sent Yet', tone: 'red' }
 }
 
 export function dispatchOf(alert) {
@@ -181,9 +181,9 @@ export function receivedAfterHours(alert, closedDays = []) {
 }
 
 const CALL_LABEL = {
-  cleared: 'Call: the senior is fine',
-  needs_team: 'Call: a team is needed',
-  no_answer: 'Call: no answer',
+  cleared: 'Call: The Senior Is Fine',
+  needs_team: 'Call: A Team Is Needed',
+  no_answer: 'Call: No Answer',
 }
 
 // Timeline wording for the steps above; null for any other step.
@@ -192,13 +192,13 @@ export function dispatchStepLabel(entry) {
     case 'call_result':
       return CALL_LABEL[entry.result]
     case 'team_sent':
-      return `${entry.team} reached, on the way`
+      return `${entry.team} Reached, on the Way`
     case 'responder_unavailable':
-      return `${entry.team} not available`
+      return `${entry.team} Not Available`
     case 'help_requested':
-      return `${entry.service} requested`
+      return `${entry.service} Requested`
     case 'help_cancelled':
-      return `${entry.service} request cancelled`
+      return `${entry.service} Request Cancelled`
     default:
       return null
   }

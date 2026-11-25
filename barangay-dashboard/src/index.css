@@ -1016,6 +1016,7 @@ h4 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase;
 .dispatch-state { margin: 8px 0 0; font-size: 14px; font-weight: 700; }
 .dispatch-action { margin-top: 14px; display: grid; gap: 8px; justify-items: start; }
 .dispatch-action-title { margin: 0; font-size: 14px; font-weight: 700; }
+.dispatch-state-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 .dispatch-btns { display: flex; flex-wrap: wrap; gap: 8px; }
 .dispatch-btns .btn-outline.is-on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-ink); }
 .dispatch-hint { margin: 0; font-size: 12px; }
@@ -1393,3 +1394,24 @@ h4 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase;
 .history-rows .queue-row-clickable:focus-visible {
   border-radius: 10px; border-bottom-color: transparent;
 }
+
+/* --- Alert details type scale. One ladder, so each level reads as its own thing:
+   20 name / 16 numbers to dial / 14 body and sub-titles (sub-titles bold) / 12 section headings (caps) and notes /
+   11 small caps labels. Later in the file on purpose: it settles the older per-class sizes. --- */
+.details-modal .details-name { font-size: 20px; }
+.details-modal .copy-number-big { font-size: 20px; font-weight: 800; }
+.details-modal .copy-number-small,
+.details-modal .contact-numbers-phone { font-size: 16px; font-weight: 700; }
+.details-modal .contact-numbers-who,
+.details-modal .details-card p,
+.details-modal .timeline-step,
+.details-modal .dispatch-state { font-size: 14px; }
+.details-modal .dispatch-action-title,
+.details-modal .outside-help-name,
+.details-modal .details-remarks { font-size: 14px; font-weight: 700; }
+.details-modal .dispatch-hint,
+.details-modal .timeline-meta,
+.details-modal .details-attending-note,
+.details-modal .responder-note { font-size: 12px; font-weight: 400; }
+.details-modal .details-card h3,
+.details-modal .info-block h4 { font-size: 11px; }

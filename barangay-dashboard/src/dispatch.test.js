@@ -44,15 +44,15 @@ test('SOS and falls keep their tier even for a senior living alone', () => {
 
 test('a high tier with nobody sent is red, an anomaly starts amber with a call', () => {
   const sos = dispatchOf(alert([], { trigger_type: 'sos' }))
-  assert.deepEqual([sos.text, sos.tone], ['Nobody sent yet', 'red'])
+  assert.deepEqual([sos.text, sos.tone], ['Nobody Sent Yet', 'red'])
   const anomaly = dispatchOf(alert())
-  assert.deepEqual([anomaly.text, anomaly.tone], ['Call first', 'amber'])
+  assert.deepEqual([anomaly.text, anomaly.tone], ['Call First', 'amber'])
 })
 
 test('call results move an anomaly on', () => {
   assert.equal(dispatchOf(alert([call('cleared')])).tone, 'green')
   assert.equal(dispatchOf(alert([call('needs_team')])).tone, 'red')
-  assert.equal(dispatchOf(alert([call('no_answer')])).text, 'No answer · needs a team')
+  assert.equal(dispatchOf(alert([call('no_answer')])).text, 'Senior Did Not Answer')
 })
 
 test('the latest call result wins', () => {
@@ -62,7 +62,7 @@ test('the latest call result wins', () => {
 test('anyone sent covers the alert, team or service', () => {
   assert.equal(dispatchOf(alert([team()])).tone, 'green')
   const helped = dispatchOf(alert([{ step: 'help_requested', service: 'PRC volunteers' }]))
-  assert.deepEqual([helped.text, helped.tone], ['PRC volunteers on the way', 'green'])
+  assert.deepEqual([helped.text, helped.tone], ['PRC volunteers on the Way', 'green'])
 })
 
 test('a cancelled service is no longer out', () => {
@@ -157,11 +157,11 @@ test('a day marked closed counts as after hours, and only that day', () => {
 })
 
 test('timeline wording', () => {
-  assert.equal(dispatchStepLabel(call('no_answer')), 'Call: no answer')
-  assert.equal(dispatchStepLabel(team()), 'Tanod team 1 reached, on the way')
+  assert.equal(dispatchStepLabel(call('no_answer')), 'Call: No Answer')
+  assert.equal(dispatchStepLabel(team()), 'Tanod team 1 Reached, on the Way')
   assert.equal(
     dispatchStepLabel({ step: 'responder_unavailable', team: 'Ana Reyes' }),
-    'Ana Reyes not available'
+    'Ana Reyes Not Available'
   )
   assert.equal(dispatchStepLabel({ step: 'escalated_family' }), null)
 })
@@ -169,7 +169,7 @@ test('timeline wording', () => {
 test('an unavailable responder is red and asks for outside help, until someone is sent', () => {
   const none = { step: 'responder_unavailable', team: 'Ana Reyes' }
   const a = dispatchOf(alert([none]))
-  assert.deepEqual([a.text, a.tone], ['Ana Reyes not available · request outside help', 'red'])
+  assert.deepEqual([a.text, a.tone], ['Ana Reyes Not Available · Request Outside Help', 'red'])
   assert.equal(dispatchOf(alert([none, { step: 'help_requested', service: 'Ambulance' }])).tone, 'green')
 })
 

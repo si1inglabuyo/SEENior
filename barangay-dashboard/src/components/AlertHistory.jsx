@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { api, parseServerTime, POLL_MS } from '../api'
-import { CATEGORY_LABEL, alertCategory, displayStatus, triggerLabel } from '../labels'
+import { CATEGORY_LABEL, alertCategory, triggerLabel } from '../labels'
 import { initials, dateTimeLabel } from '../format'
 import { recordAccess } from '../audit'
 import {
@@ -12,12 +12,13 @@ import {
   dateRangeLabel,
   rangeBounds,
 } from '../historyFilters'
+import { dispatchOf, receivedAfterHours } from '../dispatch'
+import { useHallClosed } from '../hooks/useHallClosed'
 import { useAlertActions } from '../hooks/useAlertActions'
 import { IconHistory, IconSearch, IconChevron } from '../icons'
 import SectionCard from './SectionCard'
 import FilterMenu from './FilterMenu'
-import AlertRow from './AlertRow'
-import StatusPill from './StatusPill'
+import AlertRow, { AlertBadges } from './AlertRow'
 import AlertActionModals from './AlertActionModals'
 
 // RA 10173 section 11(e): the log opens on the last 30 days. "View full history" lifts the
@@ -86,7 +87,7 @@ const ts = (v) => {
 }
 
 // One past alert inside an expanded senior group. Opens Details like AlertRow.
-function GroupedAlertLine({ alert, onShowDetails }) {
+function GroupedAlertLine({ alert, onShowDetails, afterHours }) {
   const category = alertCategory(alert)
   return (
     <li
@@ -106,7 +107,7 @@ function GroupedAlertLine({ alert, onShowDetails }) {
         <p className="grouped-alert-title">{triggerLabel(alert.trigger_type)}</p>
         <p className="grouped-alert-meta muted">{dateTimeLabel(alert.created_at)}</p>
       </div>
-      <StatusPill status={displayStatus(alert)} />
+      <AlertBadges alert={alert} tier={dispatchOf(alert).tier} afterHours={afterHours} />
     </li>
   )
 }
@@ -175,6 +176,7 @@ export default function AlertHistory({ onSessionLost, navFilter, onClearFilter }
     return () => clearInterval(timer)
   }, [load])
 
+  const { closedDays } = useHallClosed()
   const actions = useAlertActions({ onReload: load, onSessionLost })
 
   const loading = alerts === null
@@ -362,7 +364,13 @@ export default function AlertHistory({ onSessionLost, navFilter, onClearFilter }
         ) : grouping === 'flat' ? (
           <ul className="queue-rows history-rows">
             {visibleRows.map((alert) => (
-              <AlertRow key={alert.sync_id} alert={alert} onShowDetails={actions.showDetails} />
+              <AlertRow
+                key={alert.sync_id}
+                alert={alert}
+                onShowDetails={actions.showDetails}
+                tier={dispatchOf(alert).tier}
+                afterHours={receivedAfterHours(alert, closedDays)}
+              />
             ))}
           </ul>
         ) : (
@@ -394,6 +402,7 @@ export default function AlertHistory({ onSessionLost, navFilter, onClearFilter }
                           key={alert.sync_id}
                           alert={alert}
                           onShowDetails={actions.showDetails}
+                          afterHours={receivedAfterHours(alert, closedDays)}
                         />
                       ))}
                     </ul>

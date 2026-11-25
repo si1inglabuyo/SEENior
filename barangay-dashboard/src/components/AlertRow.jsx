@@ -10,11 +10,40 @@ import StatusPill from './StatusPill'
 // type/status badges, and the whole row is a button that opens the Details modal.
 // Resolve / False Alert live inside that modal.
 
+// The badge cluster shared by the Alerts queue, Alert History rows and its grouped lines.
+export function AlertBadges({ alert, tier, afterHours = false }) {
+  const category = alertCategory(alert)
+  return (
+    <div className="queue-row-badges">
+        {tier != null && <span className={`tier-badge tier-badge-${tier}`}>Tier {tier}</span>}
+        {afterHours && <span className="badge-after-hours">Received after hours</span>}
+        {/* Not a risk level -- the design spec says this stays amber, never the
+            risk-level red, so it can't be mistaken for a fourth severity tier. Kept on
+            the row because "nobody else was notified" is context the responder needs
+            before they even open the incident. */}
+        {!alert.senior_has_family_contact && (
+          <span className="badge-alone" title="This senior has no family contact linked">
+            Lives alone
+          </span>
+        )}
+        {/* Which area of the barangay the senior lives in -- context for whoever is
+            assigned to that pook. Not a risk level, so it is neutral, never red or amber. */}
+        {alert.senior_pook && (
+          <span className="badge-pook" title={pookTitle(alert.senior_sector)}>
+            {alert.senior_pook}
+          </span>
+        )}
+        <span className={`type-badge ${CATEGORY_CLASS[category]}`.trim()}>
+          {CATEGORY_LABEL[category]}
+        </span>
+        <StatusPill status={displayStatus(alert)} />
+    </div>
+  )
+}
+
 // `dispatch` is the optional dispatchOf() result: the tier badge and how the response is going.
 // `afterHours` adds the label for an alert that arrived while the hall was closed.
-export default function AlertRow({ alert, onShowDetails, dispatch, afterHours = false }) {
-  const category = alertCategory(alert)
-
+export default function AlertRow({ alert, onShowDetails, dispatch, afterHours = false, tier }) {
   return (
     <li
       className={`queue-row queue-row-clickable${dispatch && dispatch.tier <= 2 && dispatch.tone !== 'green' ? ' queue-row-urgent' : ''}`}
@@ -61,32 +90,7 @@ export default function AlertRow({ alert, onShowDetails, dispatch, afterHours = 
       </div>
 
       <div className="queue-row-side">
-        <div className="queue-row-badges">
-          {dispatch && (
-            <span className={`tier-badge tier-badge-${dispatch.tier}`}>Tier {dispatch.tier}</span>
-          )}
-          {afterHours && <span className="badge-after-hours">Received after hours</span>}
-          {/* Not a risk level -- the design spec says this stays amber, never the
-              risk-level red, so it can't be mistaken for a fourth severity tier. Kept on
-              the row because "nobody else was notified" is context the responder needs
-              before they even open the incident. */}
-          {!alert.senior_has_family_contact && (
-            <span className="badge-alone" title="This senior has no family contact linked">
-              Lives alone
-            </span>
-          )}
-          {/* Which area of the barangay the senior lives in -- context for whoever is
-              assigned to that pook. Not a risk level, so it is neutral, never red or amber. */}
-          {alert.senior_pook && (
-            <span className="badge-pook" title={pookTitle(alert.senior_sector)}>
-              {alert.senior_pook}
-            </span>
-          )}
-          <span className={`type-badge ${CATEGORY_CLASS[category]}`.trim()}>
-            {CATEGORY_LABEL[category]}
-          </span>
-          <StatusPill status={displayStatus(alert)} />
-        </div>
+        <AlertBadges alert={alert} tier={dispatch ? dispatch.tier : tier} afterHours={afterHours} />
       </div>
     </li>
   )
