@@ -363,12 +363,12 @@ internal fun familyWasTold(alert: Alert): Boolean =
 /** The words only this screen uses, English and Filipino. */
 internal object AlertDetailText {
     fun title(fil: Boolean) = if (fil) "Detalye ng alerto" else "Alert details"
-    fun whyHeading(fil: Boolean) = if (fil) "Bakit nagtanong ang telepono" else "Why your phone asked"
+    fun whyHeading(fil: Boolean) = if (fil) "Bakit nagtanong ang phone" else "Why your phone asked"
     fun happenedHeading(fil: Boolean) = if (fil) "Ano ang nangyari" else "What happened"
     fun changedHeading(fil: Boolean) = if (fil) "Ano ang binago nito" else "What it changed"
     fun workHeading(fil: Boolean) = if (fil) "Paano ito kinuwenta" else "How this was worked out"
     fun partOfDay(fil: Boolean) = if (fil) "Bahagi ng araw" else "Part of the day"
-    fun asked(fil: Boolean) = if (fil) "Nagtanong ang telepono" else "Phone asked"
+    fun asked(fil: Boolean) = if (fil) "Nagtanong ang phone" else "Phone asked"
     fun answered(fil: Boolean) = if (fil) "Sumagot kayo" else "You answered"
     fun said(fil: Boolean) = if (fil) "Sinabi ninyo" else "You said"
     fun family(fil: Boolean) = if (fil) "Pamilya" else "Family"
@@ -381,7 +381,7 @@ internal object AlertDetailText {
 
     fun changedText(count: Int, block: String, fil: Boolean): String {
         val name = SeniorRoutineText.blockName(block, fil).lowercase()
-        return if (fil) "Isa ito sa $count sagot ninyo kamakailan sa $name, kaya medyo mas matagal nang maghihintay ang telepono doon."
+        return if (fil) "Isa ito sa $count sagot ninyo kamakailan sa $name, kaya medyo mas matagal nang maghihintay ang phone doon."
         else "This was 1 of $count recent answers for your $name, so your phone now waits a little longer there."
     }
 

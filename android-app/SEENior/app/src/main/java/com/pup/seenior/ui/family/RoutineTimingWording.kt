@@ -72,6 +72,6 @@ object RoutineTimingWording {
 
     /** Said once under the blocks, only when at least one "usually" line was shown. */
     fun note(fil: Boolean) =
-        if (fil) "Ang oras ng bawat bahagi ng araw ay batay sa sagot ng senior sa setup. Ang \"karaniwan\" ay ang aktuwal na nakita ng telepono."
+        if (fil) "Ang oras ng bawat bahagi ng araw ay batay sa sagot ng senior sa setup. Ang \"karaniwan\" ay ang aktuwal na nakita ng phone."
         else "The hours of each part of the day come from the senior's setup answers. \"Usually\" is what the phone actually saw."
 }

@@ -85,7 +85,7 @@ internal object AlertFigures {
 
     fun header(kind: Kind, fil: Boolean): String = when (kind) {
         Kind.STILL -> if (fil) "Tagal na walang galaw" else "Time without movement"
-        Kind.IDLE -> if (fil) "Tagal na hindi nagamit ang telepono" else "Time the phone was not used"
+        Kind.IDLE -> if (fil) "Tagal na hindi nagamit ang phone" else "Time the phone was not used"
         Kind.MOVEMENT -> if (fil) "Dami ng galaw" else "Movement level"
     }
 
@@ -219,10 +219,10 @@ internal object AlertFigures {
         val still = secs(evidence.stillnessMs)
         val sentence = if (fil) {
             val felt = if (turned) "ang biglang pagbagsak, malakas na tama at mabilis na pag-ikot" else "ang biglang pagbagsak at malakas na tama"
-            "Naramdaman ng telepono $felt, tapos $still segundong hindi gumalaw. " + if (turned)
+            "Naramdaman ng phone $felt, tapos $still segundong hindi gumalaw. " + if (turned)
                 "Natugunan ang apat na pagsusuri, kaya nagtanong ito kung ligtas kayo."
             else
-                "Walang sensor ng pag-ikot ang telepono ninyo, kaya hindi ito sinuri. Natugunan ang tatlo pa, kaya nagtanong ito kung ligtas kayo."
+                "Walang sensor ng pag-ikot ang phone ninyo, kaya hindi ito sinuri. Natugunan ang tatlo pa, kaya nagtanong ito kung ligtas kayo."
         } else {
             val felt = if (turned) "a sudden drop, a hard hit and a quick turn" else "a sudden drop and a hard hit"
             "Your phone felt $felt, and then it stayed still for $still seconds. " + if (turned)
@@ -234,7 +234,7 @@ internal object AlertFigures {
         val adjusted = note?.takeIf { it.raised }?.let { n ->
             val back = if (n.realAlerts > 0) (if (fil) " Binawi ng ${n.realAlerts} totoong pagbagsak ang bahagi nito." else " ${n.realAlerts} real fall(s) took part of this back.") else ""
             if (fil)
-                "Bakit mas mataas ang mga pagsusuri: ${n.falseAlarms} naunang pagbagsak sa nakaraang ${FallTolerance.WINDOW_DAYS} araw ang lumabas na maling alarma, kaya mas malakas na tama (${one(n.config.impactMin)} sa halip na ${one(n.baseConfig.impactMin)}) at mas matagal na pagtigil (${secs(n.config.stillnessMs)} s sa halip na ${secs(n.baseConfig.stillnessMs)} s) na ang kailangan ng telepono. May ${FallTolerance.EXTENDED_WINDOW_SECONDS} segundo rin kayong sumagot sa halip na ${FallTolerance.BASE_WINDOW_SECONDS}.$back"
+                "Bakit mas mataas ang mga pagsusuri: ${n.falseAlarms} naunang pagbagsak sa nakaraang ${FallTolerance.WINDOW_DAYS} araw ang lumabas na maling alarma, kaya mas malakas na tama (${one(n.config.impactMin)} sa halip na ${one(n.baseConfig.impactMin)}) at mas matagal na pagtigil (${secs(n.config.stillnessMs)} s sa halip na ${secs(n.baseConfig.stillnessMs)} s) na ang kailangan ng phone. May ${FallTolerance.EXTENDED_WINDOW_SECONDS} segundo rin kayong sumagot sa halip na ${FallTolerance.BASE_WINDOW_SECONDS}.$back"
             else
                 "Why the checks were higher: ${n.falseAlarms} earlier drops in the last ${FallTolerance.WINDOW_DAYS} days turned out to be false alarms, so your phone now needs a harder hit (${one(n.config.impactMin)} instead of ${one(n.baseConfig.impactMin)}) and a longer stillness (${secs(n.config.stillnessMs)} s instead of ${secs(n.baseConfig.stillnessMs)} s). You also get ${FallTolerance.EXTENDED_WINDOW_SECONDS} seconds to answer instead of ${FallTolerance.BASE_WINDOW_SECONDS}.$back"
         }
@@ -242,11 +242,11 @@ internal object AlertFigures {
         val context = FallContext.decode(alert.fallContext)?.preFallMotion?.let { dev ->
             when (FallContext.levelOf(dev)) {
                 FallContext.Level.MOVING ->
-                    if (fil) "Bago ang pagbagsak, gumagalaw ang telepono (malamang kumikilos kayo)." else "Just before the drop, the phone was moving (you were likely up and about)."
+                    if (fil) "Bago ang pagbagsak, gumagalaw ang phone (malamang kumikilos kayo)." else "Just before the drop, the phone was moving (you were likely up and about)."
                 FallContext.Level.GENTLE ->
-                    if (fil) "Bago ang pagbagsak, bahagyang gumagalaw ang telepono." else "Just before the drop, the phone was barely moving."
+                    if (fil) "Bago ang pagbagsak, bahagyang gumagalaw ang phone." else "Just before the drop, the phone was barely moving."
                 FallContext.Level.STILL ->
-                    if (fil) "Bago ang pagbagsak, hindi gumagalaw ang telepono (malamang nagpapahinga kayo)." else "Just before the drop, the phone was still (you were likely resting)."
+                    if (fil) "Bago ang pagbagsak, hindi gumagalaw ang phone (malamang nagpapahinga kayo)." else "Just before the drop, the phone was still (you were likely resting)."
             }
         }
         return FallView(sentence, rows, adjusted, context)

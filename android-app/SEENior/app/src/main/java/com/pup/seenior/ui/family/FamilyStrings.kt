@@ -306,10 +306,10 @@ object FamilyStrings {
             val fil = language == WellnessMessages.FILIPINO
             val motion = when (summary.motion) {
                 FallContextSummary.Motion.MOVING ->
-                    if (fil) "Dala-dala o ginagamit ang telepono bago ito bumagsak, kaya maaaring nahulog si $seniorName habang kumikilos."
+                    if (fil) "Dala-dala o ginagamit ang phone bago ito bumagsak, kaya maaaring nahulog si $seniorName habang kumikilos."
                     else "The phone was being carried or used just before the drop, so $seniorName may have fallen while moving."
                 FallContextSummary.Motion.AT_REST ->
-                    if (fil) "Hindi gumagalaw ang telepono bago ito bumagsak. Maaaring nahulog lang ito, o nahulog si $seniorName mula sa pagkakatayo."
+                    if (fil) "Hindi gumagalaw ang phone bago ito bumagsak. Maaaring nahulog lang ito, o nahulog si $seniorName mula sa pagkakatayo."
                     else "The phone was lying still just before the drop. It could simply have been dropped, or $seniorName may have fallen from standing still."
                 FallContextSummary.Motion.UNKNOWN -> null
             }

@@ -16,7 +16,7 @@ object SeniorRoutineText {
 
     fun title(fil: Boolean) = if (fil) "Aking routine" else "My routine"
     fun profileRowSubtitle(fil: Boolean) =
-        if (fil) "Tingnan ang natutunan ng telepono tungkol sa inyong araw"
+        if (fil) "Tingnan ang natutunan ng phone tungkol sa inyong araw"
         else "See what your phone has learned about your day"
 
     fun tabRoutine(fil: Boolean) = if (fil) "Routine" else "Routine"
@@ -47,8 +47,8 @@ object SeniorRoutineText {
 
     fun labelStill(fil: Boolean) = if (fil) "Hindi gumagalaw nang hanggang" else "Still for up to"
     fun labelSteps(fil: Boolean) = if (fil) "Hakbang" else "Steps"
-    fun labelUnlocks(fil: Boolean) = if (fil) "Pagbukas ng telepono" else "Phone unlocks"
-    fun labelIdle(fil: Boolean) = if (fil) "Pinakamatagal na hindi ginagalaw ang telepono" else "Longest time phone untouched"
+    fun labelUnlocks(fil: Boolean) = if (fil) "Pagbukas ng phone" else "Phone unlocks"
+    fun labelIdle(fil: Boolean) = if (fil) "Pinakamatagal na hindi ginagalaw ang phone" else "Longest time phone untouched"
 
     fun times(n: Int, fil: Boolean) = if (fil) "$n beses" else if (n == 1) "1 time" else "$n times"
     fun usualSuffix(value: String, fil: Boolean) = if (fil) "karaniwan $value" else "usual $value"
@@ -69,7 +69,7 @@ object SeniorRoutineText {
 
     /** The one line under a block's name, from what the phone saw (or the setup guess). */
     fun usualHeadline(block: String, times: SeniorRoutineModel.Times, learned: Boolean, fil: Boolean): String {
-        if (block == "night") return if (fil) "Nagpapahinga. Tahimik kami." else "Resting. We stay quiet."
+        if (block == "night") return if (fil) "Oras ng pagtulog" else "Time for sleep"
         if (!learned) return if (fil) "Natututo pa sa bahaging ito ng araw." else "Still learning this part of your day."
         val at = when (block) {
             "morning" -> times.firstMinute
@@ -113,7 +113,7 @@ object SeniorRoutineText {
         if (fil) "Ikinukumpara lang ang kahapon sa karaniwan. Hindi nito binabago ang mga alerto."
         else "Yesterday is only compared with your usual. It never changes alerts by itself."
     fun todayNote(fil: Boolean) =
-        if (fil) "Hindi pa tapos ang araw, kaya wala pang pinal na paghahambing. Mamayang gabi, idadagdag ng telepono ang araw na ito sa natutunan nito."
+        if (fil) "Hindi pa tapos ang araw, kaya wala pang pinal na paghahambing. Mamayang gabi, idadagdag ng phone ang araw na ito sa natutunan nito."
         else "Today is not finished, so nothing is final yet. Tonight your phone adds today to what it has learned."
 
     fun upAt(minute: Int, usual: Int?, fil: Boolean): String =
@@ -130,11 +130,11 @@ object SeniorRoutineText {
 
     fun usualChangedHeading(fil: Boolean) = if (fil) "Nagbago ang karaniwan ninyo" else "Your usual has changed"
     fun usualChangedSub(fil: Boolean) =
-        if (fil) "Patuloy na natututo ang telepono sa mga huling araw ninyo."
+        if (fil) "Patuloy na natututo ang phone sa mga huling araw ninyo."
         else "Your phone keeps learning from your recent days."
-    fun waitsHeading(fil: Boolean) = if (fil) "Medyo mas matagal maghihintay ang telepono" else "Your phone waits a little longer"
+    fun waitsHeading(fil: Boolean) = if (fil) "Medyo mas matagal maghihintay ang phone" else "Your phone waits a little longer"
     fun waitsSub(fil: Boolean) =
-        if (fil) "Hindi ito pagbabago sa routine ninyo. Nililipat lang nito kung kailan magtatanong ang telepono."
+        if (fil) "Hindi ito pagbabago sa routine ninyo. Nililipat lang nito kung kailan magtatanong ang phone."
         else "This is not a change to your routine. It only moves when your phone asks."
     fun mood(m: SeniorRoutineModel.Mood, fil: Boolean) = when (m) {
         SeniorRoutineModel.Mood.QUIETER -> if (fil) "Mas tahimik" else "Quieter"
@@ -145,19 +145,19 @@ object SeniorRoutineText {
         val name = blockName(block, fil).lowercase()
         return when (m) {
             SeniorRoutineModel.Mood.QUIETER ->
-                if (fil) "Mas tahimik ang mga huling $name ninyo kaysa dati, kaya in-update ng telepono ang karaniwan ninyo."
+                if (fil) "Mas tahimik ang mga huling $name ninyo kaysa dati, kaya in-update ng phone ang karaniwan ninyo."
                 else "Your recent ${name}s were quieter than before, so your phone updated what is usual for you."
             SeniorRoutineModel.Mood.BUSIER ->
-                if (fil) "Mas aktibo ang mga huling $name ninyo kaysa dati, kaya in-update ng telepono ang karaniwan ninyo."
+                if (fil) "Mas aktibo ang mga huling $name ninyo kaysa dati, kaya in-update ng phone ang karaniwan ninyo."
                 else "Your recent ${name}s were busier than before, so your phone updated what is usual for you."
             SeniorRoutineModel.Mood.DIFFERENT ->
-                if (fil) "Iba ang mga huling $name ninyo kaysa dati, kaya in-update ng telepono ang karaniwan ninyo."
+                if (fil) "Iba ang mga huling $name ninyo kaysa dati, kaya in-update ng phone ang karaniwan ninyo."
                 else "Your recent ${name}s were different from before, so your phone updated what is usual for you."
         }
     }
     fun signalName(trigger: String, fil: Boolean) = when (trigger) {
         "inactivity" -> if (fil) "Hindi paggalaw" else "Stillness"
-        "screen_idle" -> if (fil) "Hindi paggamit ng telepono" else "Phone untouched"
+        "screen_idle" -> if (fil) "Hindi paggamit ng phone" else "Phone untouched"
         else -> if (fil) "Galaw" else "Movement"
     }
     fun bigMinutes(minutes: Int) = "+$minutes min"
@@ -166,7 +166,7 @@ object SeniorRoutineText {
         else (if (fil) "mas huli magtanong" else "asks a bit later")
     fun careSentence(count: Int, block: String, fil: Boolean): String {
         val name = blockName(block, fil).lowercase()
-        return if (fil) "Sinabi ninyong ligtas kayo $count beses nang magtanong ang telepono tuwing $name, kaya medyo mas matagal na itong maghihintay doon."
+        return if (fil) "Sinabi ninyong ligtas kayo $count beses nang magtanong ang phone tuwing $name, kaya medyo mas matagal na itong maghihintay doon."
         else "You said you were fine $count times when your phone asked in the $name, so it now waits a little longer there."
     }
     fun viewDetails(fil: Boolean) = if (fil) "Tingnan ang detalye" else "View details"
@@ -174,7 +174,7 @@ object SeniorRoutineText {
 
     fun step1Title(fil: Boolean) = if (fil) "Ang mga sagot ninyong \"ligtas ako\"" else "Your \"I'm fine\" answers"
     fun step1Body(fil: Boolean) =
-        if (fil) "Bawat isa ay may iskor kung gaano kalayo sa karaniwan ninyo nang magtanong ang telepono. Karaniwang nagtatanong mula 2.5."
+        if (fil) "Bawat isa ay may iskor kung gaano kalayo sa karaniwan ninyo nang magtanong ang phone. Karaniwang nagtatanong mula 2.5."
         else "Each one scored how far past your usual it was when the phone asked. The phone normally asks from 2.5."
     fun step2Title(fil: Boolean) = if (fil) "Ang nasa gitna, dagdag ang maliit na margin" else "The middle one, plus a small margin"
     fun step2Body(median: String, fil: Boolean) =
@@ -199,15 +199,15 @@ object SeniorRoutineText {
     }
     fun resultMinutes(minutes: Int, block: String, fil: Boolean): String {
         val name = blockName(block, fil).lowercase()
-        return if (fil) "Kaya $minutes min na mas matagal maghihintay ang telepono tuwing $name."
+        return if (fil) "Kaya $minutes min na mas matagal maghihintay ang phone tuwing $name."
         else "So your phone waits $minutes min longer in the $name."
     }
     fun resultNoMinutes(block: String, fil: Boolean): String {
         val name = blockName(block, fil).lowercase()
-        return if (fil) "Kaya medyo mas huli magtanong ang telepono tuwing $name." else "So your phone asks a little later in the $name."
+        return if (fil) "Kaya medyo mas huli magtanong ang phone tuwing $name." else "So your phone asks a little later in the $name."
     }
 
-    fun learnedHeading(fil: Boolean) = if (fil) "1 · Ang natutunan ng telepono" else "1 · What your phone learned"
+    fun learnedHeading(fil: Boolean) = if (fil) "1 · Ang natutunan ng phone" else "1 · What your phone learned"
     fun careHeading(fil: Boolean) = if (fil) "2 · Gaano kaingat ang mga alerto" else "2 · How careful alerts are"
 
     fun noRoutineChange(fil: Boolean) =
@@ -240,10 +240,10 @@ object SeniorRoutineText {
     }
 
     fun noCare(fil: Boolean) =
-        if (fil) "Walang pagbabago. Kapag nagtanong ang telepono at sinabi ninyong ligtas kayo nang dalawang beses sa parehong oras, mas matagal itong maghihintay doon."
+        if (fil) "Walang pagbabago. Kapag nagtanong ang phone at sinabi ninyong ligtas kayo nang dalawang beses sa parehong oras, mas matagal itong maghihintay doon."
         else "Nothing has changed. If your phone asks twice at the same hour and you say you are fine, it will wait a little longer there."
     fun careIntro(fil: Boolean) =
-        if (fil) "Sinabi ninyong ligtas kayo nang magtanong ang telepono, kaya medyo mas matagal itong maghihintay sa mga oras na ito."
+        if (fil) "Sinabi ninyong ligtas kayo nang magtanong ang phone, kaya medyo mas matagal itong maghihintay sa mga oras na ito."
         else "You said you were fine when your phone asked, so it waits a little longer in these hours."
     /** "+12 min" for the stillness signals; a words chip when there is no time to give. */
     fun careChip(minutes: Int?, fil: Boolean): String =

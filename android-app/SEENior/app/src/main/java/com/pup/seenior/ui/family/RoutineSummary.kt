@@ -131,9 +131,9 @@ object RoutineSummary {
     }
 
     fun phoneLabel(phone: String, fil: Boolean): String = when (phone) {
-        PHONE_RARELY -> if (fil) "Telepono: bihirang gamitin" else "Phone: rarely used"
-        PHONE_SOMETIMES -> if (fil) "Telepono: paminsan-minsan" else "Phone: used sometimes"
-        else -> if (fil) "Telepono: madalas gamitin" else "Phone: used often"
+        PHONE_RARELY -> if (fil) "Phone: bihirang gamitin" else "Phone: rarely used"
+        PHONE_SOMETIMES -> if (fil) "Phone: paminsan-minsan" else "Phone: used sometimes"
+        else -> if (fil) "Phone: madalas gamitin" else "Phone: used often"
     }
 
     fun stillLabel(seconds: Double, fil: Boolean): String =
@@ -175,7 +175,7 @@ object RoutineSummary {
         if (fil) "Nag-aaral pa sa bahaging ito ng araw." else "Still learning this part of the day."
 
     fun normalFootnote(fil: Boolean) =
-        if (fil) "Ang mga hakbang at pagbukas ay binilang ng telepono sa nakaraang 14 na araw. Naglalarawan ito ng telepono, hindi diagnosis."
+        if (fil) "Ang mga hakbang at pagbukas ay binilang ng phone sa nakaraang 14 na araw. Naglalarawan ito ng phone, hindi diagnosis."
         else "Steps and phone checks are counted by the phone over the last 14 days. This describes the phone, not a diagnosis."
 
     private fun whenPhrase(block: String, fil: Boolean): String = when (block) {

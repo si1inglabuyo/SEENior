@@ -96,8 +96,8 @@ object RoutineWording {
         "inactivity_duration" -> if (fil) "Karaniwang tagal na hindi gumagalaw" else "Usually still for"
         "movement_score" -> if (fil) "Antas ng galaw" else "Movement level"
         "step_count" -> if (fil) "Mga hakbang" else "Steps"
-        "screen_unlock_count" -> if (fil) "Pagbukas ng telepono" else "Phone unlocks"
-        "screen_idle_duration" -> if (fil) "Tagal na hindi ginagalaw ang telepono" else "Phone untouched for"
+        "screen_unlock_count" -> if (fil) "Pagbukas ng phone" else "Phone unlocks"
+        "screen_idle_duration" -> if (fil) "Tagal na hindi ginagalaw ang phone" else "Phone untouched for"
         else -> feature
     }
 
@@ -198,7 +198,7 @@ private fun RoutineBody(
 ) {
     if (rows.isEmpty()) {
         Text(
-            if (fil) "Wala pang naibabahagi. Lalabas ito kapag nakakonekta na ang telepono ng senior."
+            if (fil) "Wala pang naibabahagi. Lalabas ito kapag nakakonekta na ang phone ng senior."
             else "Nothing shared yet. It appears once the senior's phone has connected.",
             color = FamilyColors.TextSecondary,
             fontSize = 14.sp
