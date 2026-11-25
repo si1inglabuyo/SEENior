@@ -46,6 +46,20 @@ class RoutineTimingBuilderTest {
     }
 
     @Test
+    fun `afternoon last active follows the same three day rule`() {
+        val rows = listOf(
+            agg("2026-11-12", "afternoon", last = 880), agg("2026-11-13", "afternoon", last = 900),
+            agg("2026-11-14", "afternoon", last = 890),
+        )
+        val t = RoutineTimingBuilder.build(onboarding(), rows, today)
+        assertEquals(890, t.afternoonLastMinute)
+        assertEquals(3, t.afternoonLastDays)
+        val two = RoutineTimingBuilder.build(onboarding(), rows.take(2), today)
+        assertNull(two.afternoonLastMinute)
+        assertEquals(2, two.afternoonLastDays)
+    }
+
+    @Test
     fun `two days are not enough to call a time usual`() {
         val rows = listOf(agg("2026-11-13", "morning", first = 500), agg("2026-11-14", "morning", first = 490))
         val t = RoutineTimingBuilder.build(onboarding(), rows, today)

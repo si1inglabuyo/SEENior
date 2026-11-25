@@ -154,8 +154,8 @@ export const stillLabel = (seconds) => `Still for up to ${duration(seconds)}`
 //
 // Mirrors android-app/.../ui/routine/SeniorRoutineText.kt (block hours, "Usually up by about"),
 // from the fingerprint plus `timing` (GET /seniors/{sync_id}/routine). Only what the cloud holds is
-// said: it carries the usual first-active time (morning) and last-active time (evening), not an
-// afternoon one, so the afternoon gets no "usually active until" line rather than an invented one.
+// said: first-active time (morning), last-active time (afternoon and evening). A part with no usual
+// time yet (a phone that has not updated, or fewer than 3 days) gets no line rather than an invented one.
 
 export function clock(minute) {
   const m = ((Math.round(minute) % 1440) + 1440) % 1440
@@ -185,6 +185,9 @@ export function usualHeadline(block, learned, timing) {
   if (block === 'night') return 'Time for sleep'
   if (!learned) return 'Still learning this part of the day.'
   if (block === 'morning' && timing?.wake_minute != null) return `Usually up by about ${clock(timing.wake_minute)}`
+  if (block === 'afternoon' && timing?.afternoon_last_minute != null) {
+    return `Usually active until about ${clock(timing.afternoon_last_minute)}`
+  }
   if (block === 'evening' && timing?.evening_last_minute != null) {
     return `Usually last active about ${clock(timing.evening_last_minute)}`
   }

@@ -129,7 +129,8 @@ object RoutineSyncer {
 
     internal fun timingSignatureOf(t: RoutineTimingDto): String =
         "${t.morningStart}:${t.afternoonStart}:${t.eveningStart}:${t.nightStart}:" +
-            "${t.wakeMinute}:${t.wakeDays}:${t.eveningLastMinute}:${t.eveningLastDays}"
+            "${t.wakeMinute}:${t.wakeDays}:${t.eveningLastMinute}:${t.eveningLastDays}:" +
+            "${t.afternoonLastMinute}:${t.afternoonLastDays}"
 
     /** Same idea as [signatureOf]: a changed day, or an estimate replaced by a saved copy, re-sends. */
     internal fun historySignatureOf(rows: List<RoutineHistoryRowDto>): String =

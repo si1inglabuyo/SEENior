@@ -122,7 +122,7 @@ class AlertFiguresTest {
 
     @Test fun `the fall card reads in Filipino with the same figures`() {
         val v = AlertFigures.fall(fall("ff=400;imp=35.0;still=10500;rot=4.5"), true)!!
-        assertEquals(listOf("Malayang pagbagsak", "Tama sa lupa", "Pag-ikot ng katawan", "Hindi paggalaw"), v.rows.map { it.name })
+        assertEquals(listOf("Free fall", "Impact", "Rotation", "Stillness"), v.rows.map { it.name })
         assertTrue(v.rows[1].line, v.rows[1].line.contains("35.0") && v.rows[1].line.contains("25.0"))
     }
 }

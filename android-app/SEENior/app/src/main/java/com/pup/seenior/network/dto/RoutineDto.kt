@@ -37,7 +37,9 @@ data class RoutineTimingDto(
     val wakeMinute: Int? = null,
     val wakeDays: Int = 0,
     val eveningLastMinute: Int? = null,
-    val eveningLastDays: Int = 0
+    val eveningLastDays: Int = 0,
+    val afternoonLastMinute: Int? = null,
+    val afternoonLastDays: Int = 0
 )
 
 /**

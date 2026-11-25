@@ -32,6 +32,7 @@ object RoutineTimingBuilder {
 
         val wake = recent.filter { it.timeBlock == "morning" }.mapNotNull { it.firstActiveMinute }
         val last = recent.filter { it.timeBlock == "evening" }.mapNotNull { it.lastActiveMinute }
+        val afternoonLast = recent.filter { it.timeBlock == "afternoon" }.mapNotNull { it.lastActiveMinute }
 
         return RoutineTimingDto(
             morningStart = start(SeedBaselineGenerator.TimeBlock.MORNING),
@@ -41,7 +42,9 @@ object RoutineTimingBuilder {
             wakeMinute = if (wake.size >= ActiveTimes.MIN_DAYS) ActiveTimes.median(wake) else null,
             wakeDays = wake.size,
             eveningLastMinute = if (last.size >= ActiveTimes.MIN_DAYS) ActiveTimes.median(last) else null,
-            eveningLastDays = last.size
+            eveningLastDays = last.size,
+            afternoonLastMinute = if (afternoonLast.size >= ActiveTimes.MIN_DAYS) ActiveTimes.median(afternoonLast) else null,
+            afternoonLastDays = afternoonLast.size
         )
     }
 }

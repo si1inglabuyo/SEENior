@@ -412,6 +412,9 @@ class RoutineTiming(Base):
     wake_days: Mapped[int] = mapped_column(default=0)
     evening_last_minute: Mapped[int | None] = mapped_column(nullable=True)
     evening_last_days: Mapped[int] = mapped_column(default=0)
+    # Migration 0031: when the phone usually saw the senior last active in the afternoon.
+    afternoon_last_minute: Mapped[int | None] = mapped_column(nullable=True)
+    afternoon_last_days: Mapped[int] = mapped_column(default=0)
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
 

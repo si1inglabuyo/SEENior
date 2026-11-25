@@ -71,6 +71,9 @@ class RoutineTiming(BaseModel):
     wake_days: int = Field(default=0, ge=0, le=30)
     evening_last_minute: int | None = Field(default=None, ge=0, le=1439)
     evening_last_days: int = Field(default=0, ge=0, le=30)
+    # Migration 0031. Defaults keep a phone that does not send it valid (it just shows no afternoon line).
+    afternoon_last_minute: int | None = Field(default=None, ge=0, le=1439)
+    afternoon_last_days: int = Field(default=0, ge=0, le=30)
 
 
 class RoutineOut(BaseModel):

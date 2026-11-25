@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.PriorityHigh
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -97,7 +98,7 @@ fun WellnessPromptScreen(
                     onCancel = { viewModel.markSafe(onFinished) }
                 )
             } else {
-                PromptBody(copy, WellnessWhy.of(alert, language == WellnessMessages.FILIPINO), viewModel, onFinished)
+                PromptBody(copy, WellnessWhy.of(alert, language == WellnessMessages.FILIPINO, viewModel.dailyItems), viewModel, onFinished)
             }
         PromptStage.ACKNOWLEDGED ->
             AcknowledgedBody(if (viewModel.stoodDown) copy.standDownDone else copy.acknowledged)
@@ -393,139 +394,76 @@ private fun PromptBody(
 private val WhyAmber = Color(0xFFFDF3E7)
 private val WhyAmberLine = Color(0xFFE9C98A)
 private val WhyAmberText = Color(0xFFB45F06)
-private val WhyUsual = Color(0xFFCFE7CF)
 private val WhyBlue = Color(0xFF2F5FA8)
 private val WhyLine = Color(0xFFE3E3E3)
 
 /**
- * "Why are we asking?": the usual, what the phone saw, how long past it, and the buffer that
- * sits between the usual and the point where the phone asks. Closed until tapped.
+ * The reason card: always open, a short list that depends on the kind of check-in (see
+ * [WellnessWhy]). It scrolls with the question, so it can never push the safe button off a
+ * short screen.
  */
 @Composable
 private fun WhyCard(why: WellnessWhy.Why) {
-    var open by remember { mutableStateOf(false) }
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = 52.dp)
-                .background(Color.White, RoundedCornerShape(14.dp))
-                .border(1.dp, WhyLine, RoundedCornerShape(14.dp))
-                .clickable { open = !open }
-                .padding(horizontal = 14.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = why.rowTitle,
-                color = WhyBlue,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.weight(1f)
-            )
-            Text(text = if (open) "\u2303" else "\u203A", color = WhyBlue, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(WhyAmber, RoundedCornerShape(14.dp))
+            .border(1.dp, WhyAmberLine, RoundedCornerShape(14.dp))
+            .padding(horizontal = 12.dp, vertical = 4.dp)
+    ) {
+        why.rows.forEachIndexed { i, row ->
+            if (i > 0) HorizontalDivider(color = WhyAmberLine.copy(alpha = 0.7f))
+            if (why.kind == WellnessWhy.Kind.FALL) WhyCheckRow(row) else WhyFigureRow(row)
         }
-        if (!open) return@Column
-        Spacer(Modifier.height(10.dp))
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(WhyAmber, RoundedCornerShape(14.dp))
-                .border(1.dp, WhyAmberLine, RoundedCornerShape(14.dp))
-                .padding(12.dp)
-        ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                WhyBox(why.usualLabel, why.usualValue, highlight = false, modifier = Modifier.weight(1f))
-                WhyBox(why.readingLabel, why.readingValue, highlight = true, modifier = Modifier.weight(1f))
-            }
-            Spacer(Modifier.height(10.dp))
+        why.footnote?.let {
             Text(
-                text = buildAnnotatedString {
-                    withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = WhyAmberText)) { append(why.gapAmount) }
-                    append(" ")
-                    append(why.gapLine)
-                },
-                color = SeniorColors.TextPrimary,
-                fontSize = 15.sp,
-                lineHeight = 20.sp
-            )
-            Spacer(Modifier.height(10.dp))
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(16.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .border(1.dp, WhyLine, RoundedCornerShape(8.dp))
-            ) {
-                Box(Modifier.weight(why.usualMinutes.toFloat()).fillMaxSize().background(WhyUsual))
-                Box(Modifier.weight(why.bufferMinutes.toFloat()).fillMaxSize().background(WhyAmberLine))
-            }
-            Spacer(Modifier.height(8.dp))
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(10.dp))
-                    .border(1.dp, WhyLine, RoundedCornerShape(10.dp))
-                    .background(Color.White)
-            ) {
-                WhyLegendRow(WhyUsual, why.usualName, why.usualUpTo, Color.White, SeniorColors.TextPrimary)
-                WhyLegendRow(WhyAmberLine, why.bufferName, why.bufferValue, Color.White, SeniorColors.TextPrimary)
-                WhyLegendRow(null, why.askLabel, why.askValue, WhyAmber, WhyAmberText)
-            }
-            Spacer(Modifier.height(10.dp))
-            Text(
-                text = why.reasonLine,
-                color = SeniorColors.TextPrimary,
-                fontSize = 14.sp,
-                lineHeight = 19.sp
-            )
-            Spacer(Modifier.height(8.dp))
-            Text(
-                text = buildAnnotatedString {
-                    withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(why.sourceTitle) }
-                    append(" ")
-                    append(why.sourceLine)
-                },
-                color = SeniorColors.TextPrimary,
-                fontSize = 13.sp,
-                lineHeight = 18.sp
+                text = it,
+                color = Color(0xFF666666),
+                fontSize = 12.sp,
+                lineHeight = 17.sp,
+                modifier = Modifier.padding(top = 6.dp, bottom = 8.dp)
             )
         }
     }
 }
 
+/** Label and a grey line on the left, the figure on the right. */
 @Composable
-private fun WhyBox(label: String, value: String, highlight: Boolean, modifier: Modifier) {
-    Column(
-        modifier = modifier
-            .background(Color.White, RoundedCornerShape(10.dp))
-            .border(1.dp, if (highlight) WhyAmberLine else WhyLine, RoundedCornerShape(10.dp))
-            .padding(horizontal = 11.dp, vertical = 9.dp)
+private fun WhyFigureRow(row: WellnessWhy.Row) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 9.dp),
+        verticalAlignment = Alignment.Top
     ) {
-        Text(text = label, color = Color(0xFF666666), fontSize = 12.sp)
+        Column(modifier = Modifier.weight(1f)) {
+            Text(text = row.label, color = SeniorColors.TextPrimary, fontSize = 15.sp)
+            row.small?.let { Text(text = it, color = Color(0xFF666666), fontSize = 12.sp, lineHeight = 16.sp) }
+        }
         Text(
-            text = value,
-            color = if (highlight) WhyAmberText else SeniorColors.TextPrimary,
-            fontSize = 19.sp,
-            fontWeight = FontWeight.Bold
+            text = row.value,
+            color = if (row.highlight) WhyAmberText else SeniorColors.TextPrimary,
+            fontSize = 17.sp,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.End,
+            modifier = Modifier.padding(start = 10.dp)
         )
     }
 }
 
+/** A fall check: a green tick, its name, and the figure against what was needed. */
 @Composable
-private fun WhyLegendRow(swatch: Color?, name: String, value: String, background: Color, valueColor: Color) {
+private fun WhyCheckRow(row: WellnessWhy.Row) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(background)
-            .padding(horizontal = 10.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
+        modifier = Modifier.fillMaxWidth().padding(vertical = 9.dp),
+        verticalAlignment = Alignment.Top
     ) {
-        if (swatch != null) {
-            Box(Modifier.size(12.dp).background(swatch, RoundedCornerShape(3.dp)))
-            Spacer(Modifier.size(8.dp))
+        Box(
+            modifier = Modifier.size(22.dp).background(SeniorColors.Green, CircleShape),
+            contentAlignment = Alignment.Center
+        ) { Text("✓", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold) }
+        Column(modifier = Modifier.padding(start = 10.dp).weight(1f)) {
+            Text(text = row.label, color = SeniorColors.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+            row.small?.let { Text(text = it, color = Color(0xFF666666), fontSize = 12.sp, lineHeight = 16.sp) }
         }
-        Text(text = name, color = SeniorColors.TextPrimary, fontSize = 13.sp, modifier = Modifier.weight(1f))
-        Text(text = value, color = valueColor, fontSize = 13.sp, fontWeight = FontWeight.Bold)
     }
 }
 

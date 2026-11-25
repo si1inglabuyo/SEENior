@@ -136,6 +136,8 @@ async def sync_routine_timing(
         values["wake_minute"] = None
     if values["evening_last_days"] < MIN_OBSERVED_DAYS:
         values["evening_last_minute"] = None
+    if values["afternoon_last_days"] < MIN_OBSERVED_DAYS:
+        values["afternoon_last_minute"] = None
     now = datetime.now(timezone.utc).replace(tzinfo=None)
 
     stmt = pg_insert(RoutineTimingRow).values(senior_id=senior.id, updated_at=now, **values)
