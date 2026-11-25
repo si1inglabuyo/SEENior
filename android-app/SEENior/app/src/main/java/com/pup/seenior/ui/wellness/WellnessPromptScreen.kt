@@ -42,6 +42,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
@@ -391,9 +392,10 @@ private fun PromptBody(
     }
 }
 
-private val WhyAmber = Color(0xFFFDF3E7)
-private val WhyAmberLine = Color(0xFFE9C98A)
-private val WhyAmberText = Color(0xFFB45F06)
+// The senior app's green, as a soft gradient, so the reason card looks like the rest of the app.
+private val WhyBg = Brush.verticalGradient(listOf(Color(0xFFF8FDF7), Color(0xFFE6F4E4)))
+private val WhyLineGreen = SeniorColors.GreenBorder
+private val WhyValueGreen = SeniorColors.GreenDark
 private val WhyBlue = Color(0xFF2F5FA8)
 private val WhyLine = Color(0xFFE3E3E3)
 
@@ -407,12 +409,12 @@ private fun WhyCard(why: WellnessWhy.Why) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(WhyAmber, RoundedCornerShape(14.dp))
-            .border(1.dp, WhyAmberLine, RoundedCornerShape(14.dp))
+            .background(WhyBg, RoundedCornerShape(14.dp))
+            .border(1.dp, WhyLineGreen, RoundedCornerShape(14.dp))
             .padding(horizontal = 12.dp, vertical = 4.dp)
     ) {
         why.rows.forEachIndexed { i, row ->
-            if (i > 0) HorizontalDivider(color = WhyAmberLine.copy(alpha = 0.7f))
+            if (i > 0) HorizontalDivider(color = WhyLineGreen.copy(alpha = 0.7f))
             if (why.kind == WellnessWhy.Kind.FALL) WhyCheckRow(row) else WhyFigureRow(row)
         }
         why.footnote?.let {
@@ -440,7 +442,7 @@ private fun WhyFigureRow(row: WellnessWhy.Row) {
         }
         Text(
             text = row.value,
-            color = if (row.highlight) WhyAmberText else SeniorColors.TextPrimary,
+            color = if (row.highlight) WhyValueGreen else SeniorColors.TextPrimary,
             fontSize = 17.sp,
             fontWeight = FontWeight.Bold,
             textAlign = TextAlign.End,
