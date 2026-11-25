@@ -41,3 +41,34 @@ test('progress counts days, not values', () => {
   assert.equal(progress(summarize(fingerprint({ movement: [0.04, 0.1, 0.06, 0.01], days: 0, seed: true }))), 'Just started: based on the setup answers for now.')
   assert.equal(progress(summarize(typical)), 'Learned from the last 14 days.')
 })
+
+import { clock, blockHours, partsOfDay } from './routine.js'
+
+const timing = { morning_start: 390, afternoon_start: 690, evening_start: 990, night_start: 1290, wake_minute: 405, evening_last_minute: 1130 }
+
+test('clock and block hours read like the senior app', () => {
+  assert.equal(clock(0), '12:00 AM')
+  assert.equal(clock(405), '6:45 AM')
+  assert.equal(blockHours(timing, 'morning'), '6:30 AM - 11:30 AM')
+  assert.equal(blockHours(timing, 'night'), '9:30 PM - 6:30 AM')
+  assert.equal(blockHours(null, 'morning'), null)
+})
+
+test('parts of the day say only what the cloud holds', () => {
+  const parts = partsOfDay(fingerprint({ movement: [0.04, 0.1, 0.06, 0.01] }), timing)
+  const by = Object.fromEntries(parts.map((p) => [p.block, p]))
+  assert.equal(by.morning.headline, 'Usually up by about 6:45 AM')
+  assert.equal(by.afternoon.headline, null)
+  assert.equal(by.evening.headline, 'Usually last active about 6:50 PM')
+  assert.equal(by.night.headline, 'Time for sleep')
+  assert.ok(by.morning.learned)
+  assert.equal(by.morning.lines[0].label, 'Still for up to')
+  assert.equal(by.morning.lines[0].value, '10 min')
+})
+
+test('a part still on setup answers is marked and has no usual line', () => {
+  const rows = fingerprint({ movement: [0.04, 0.1, 0.06, 0.01], days: 3, seed: true })
+  const morning = partsOfDay(rows, timing).find((p) => p.block === 'morning')
+  assert.equal(morning.learned, false)
+  assert.equal(morning.headline, 'Still learning this part of the day.')
+})

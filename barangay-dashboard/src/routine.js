@@ -149,3 +149,71 @@ export function progress(s) {
 }
 
 export const stillLabel = (seconds) => `Still for up to ${duration(seconds)}`
+
+// ---- "Daily routine" card: the same reading the senior's own My routine screen gives ----
+//
+// Mirrors android-app/.../ui/routine/SeniorRoutineText.kt (block hours, "Usually up by about"),
+// from the fingerprint plus `timing` (GET /seniors/{sync_id}/routine). Only what the cloud holds is
+// said: it carries the usual first-active time (morning) and last-active time (evening), not an
+// afternoon one, so the afternoon gets no "usually active until" line rather than an invented one.
+
+export function clock(minute) {
+  const m = ((Math.round(minute) % 1440) + 1440) % 1440
+  const h24 = Math.floor(m / 60)
+  const h12 = h24 % 12 === 0 ? 12 : h24 % 12
+  return `${h12}:${String(m % 60).padStart(2, '0')} ${h24 < 12 ? 'AM' : 'PM'}`
+}
+
+const START_KEY = {
+  morning: 'morning_start',
+  afternoon: 'afternoon_start',
+  evening: 'evening_start',
+  night: 'night_start',
+}
+
+// "6:30 AM - 11:30 AM", or null when the phone has not sent block times.
+export function blockHours(timing, block) {
+  if (!timing) return null
+  const i = BLOCKS.indexOf(block)
+  const start = timing[START_KEY[block]]
+  const end = timing[START_KEY[BLOCKS[(i + 1) % BLOCKS.length]]]
+  if (start == null || end == null) return null
+  return `${clock(start)} - ${clock(end)}`
+}
+
+export function usualHeadline(block, learned, timing) {
+  if (block === 'night') return 'Time for sleep'
+  if (!learned) return 'Still learning this part of the day.'
+  if (block === 'morning' && timing?.wake_minute != null) return `Usually up by about ${clock(timing.wake_minute)}`
+  if (block === 'evening' && timing?.evening_last_minute != null) {
+    return `Usually last active about ${clock(timing.evening_last_minute)}`
+  }
+  return null
+}
+
+const times = (n) => (n === 1 ? '1 time' : `${n} times`)
+
+// One entry per part of the day, in order, for the card.
+export function partsOfDay(rows, timing) {
+  return BLOCKS.filter((b) => rows.some((r) => r.time_block === b)).map((block) => {
+    const inBlock = rows.filter((r) => r.time_block === block)
+    const learned = inBlock.length > 0 && inBlock.every((r) => !r.is_seed)
+    const value = (key) => inBlock.find((r) => r.feature_name === key)?.median_value ?? null
+    const still = value('inactivity_duration')
+    const steps = value('step_count')
+    const unlocks = value('screen_unlock_count')
+    const idle = value('screen_idle_duration')
+    const lines = []
+    if (still !== null) lines.push({ label: 'Still for up to', value: duration(still) })
+    if (steps !== null) lines.push({ label: 'Steps', value: Math.round(steps).toLocaleString('en-US') })
+    if (unlocks !== null) lines.push({ label: 'Phone unlocks', value: times(Math.round(unlocks)) })
+    if (idle !== null) lines.push({ label: 'Longest time phone untouched', value: duration(idle) })
+    return {
+      block,
+      hours: blockHours(timing, block),
+      learned,
+      headline: usualHeadline(block, learned, timing),
+      lines,
+    }
+  })
+}
